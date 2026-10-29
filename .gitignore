@@ -1,0 +1,26 @@
+# Future repository hygiene; no repository is initialized.
+.env
+.env.*
+!.env.example
+!.env.*.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+dist/
+build/
+coverage/
+.playwright/
+test-results/
+playwright-report/
+*.log
+*.pem
+*.key
+local-data/
+backups/
+/output/
+/tmp/

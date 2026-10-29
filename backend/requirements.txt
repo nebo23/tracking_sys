@@ -1,0 +1,4 @@
+# Python dependency manifest.
+# Planning placeholder: no runtime dependencies or versions have been approved.
+# Add approved, compatible versions during specification 001.
+# Install project dependencies only in a project virtual environment or container.
