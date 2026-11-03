@@ -15,6 +15,7 @@
 - D-018/D-019 authorize the remaining specification 002 implementation in specs/002-tenancy-access/auth-design.md, including its schema and authentication dependencies. Use local development mail capture; do not send external messages. Google/Facebook sign-in is deferred. Existing review-before-upload and native-data preservation requirements remain in force.
 - The owner supplied https://github.com/nebo23/tracking_sys; the local workspace is already connected to origin on main (D-012). Preserve the existing repository and remote.
 - Complete one approved specification, run relevant checks, and present the result for owner review before uploading. Push or open/update a PR only after the owner approves the completed work for upload. Merge remains an owner decision. The repository link alone does not approve implementation, upload, or deployment.
+- D-020 designates claude/development as the working branch; do not commit to main. Commit each completed specification or slice locally on that branch, present it for joint owner review, and push only after the owner approves that upload. Merge into main remains an owner decision.
 - Product, scope, spending, hosting, major dependency and schema decisions need an explicit recorded owner decision. Present concrete recommendations with evidence; do not silently invent requirements.
 - Routine reversible research, document organization and verification are authorized.
 - Preserve owner edits. Keep proposals, source requirements and approved decisions distinct.

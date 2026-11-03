@@ -63,3 +63,13 @@ Google/Facebook login is deferred; social analytics scope is unchanged. Local ca
 No React screens, finance data endpoints, actual jobs/caches/exports, RLS, deployment, security certification, load/SLO guarantee, or real customer data handling is claimed. Future consumers must adopt/test the shared scope contract in their own specs. Retention/cleanup remains in specification 003 and production gates. Local mailbox files contain sensitive test links and remain ignored.
 
 No commit, push, PR, external email, or provider-account change was performed. Owner review precedes upload or progression.
+
+## Pre-upload re-verification (2026-11-03)
+Under D-020 the owner approved upload of the completed 001/002 work to the claude/development branch. Before the commit, the documented disposable procedure was rerun against a fresh tracking-system-foundation-test database on 127.0.0.1:55433, which was removed afterward.
+
+- Ruff check and format check passed for all 38 Python files; 17 unit/contract cases passed without a database.
+- **115 passed in 50.88 seconds** with no failures or skips.
+- One UnsupportedFieldAttributeWarning was emitted during test_concurrent_invitation_acceptance_creates_one_membership. FastAPI 0.162.0 suppresses this Pydantic 2.14 warning with warnings.catch_warnings(), which is process-global and not thread-safe; the concurrent test can therefore surface it. The application declares no Field alias outside model fields, and the test assertions passed. This is recorded as a framework test-output artifact, not a product defect.
+- A scan of the 163 commit candidates found no local configuration secret values, private keys, or credential URLs.
+
+No native tracking_sys data, migration, or configuration was changed by this re-verification.

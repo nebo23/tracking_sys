@@ -1,5 +1,5 @@
 # Tasks: 002-tenancy-access
-Status: approved local implementation verified; owner acceptance and upload approval pending.
+Status: approved implementation verified and uploaded to the claude/development branch under D-020; formal acceptance and merge pending.
 
 ## 002-A: tenancy foundation
 - [x] Record D-017 approval of schema, role matrix, and boundaries.
@@ -21,8 +21,10 @@ Status: approved local implementation verified; owner acceptance and upload appr
 - [x] Apply additive 0003_auth to tracking_sys; verify 16 empty tables, metadata, privileges, health.
 - [x] Verify non-root Docker API, real HTTP/local-mail smoke flow, and scoped disposable cleanup.
 - [x] Update setup, walkthrough, decisions, boundaries, and [current evidence](auth-evidence.md).
-- [ ] Obtain owner review and acceptance of the completed local scope.
-- [ ] Obtain upload approval before push/PR; preserve owner merge authority.
+- [x] Re-verify 115 cases and Ruff on 2026-11-03 before upload; record the result in [current evidence](auth-evidence.md).
+- [x] Obtain upload approval (D-020); commit and push to the claude/development working branch.
+- [ ] Resolve any owner review findings and record formal acceptance.
+- [ ] Owner merge decision for main; preserve owner merge authority.
 
 ## Explicit later obligations
 - Google/Facebook login after provider configuration and reviewed implementation.

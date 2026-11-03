@@ -1,5 +1,5 @@
 # Tasks: 001-foundation
-Status: Implementation and verification complete locally; owner review pending.
+Status: Implementation verified and uploaded to the claude/development branch under D-020; formal acceptance and merge pending.
 
 - [x] Record authorization to begin backend/database foundation work (D-013).
 - [x] Record approved PostgreSQL, SQLAlchemy, Alembic, and Psycopg choices (D-014).
@@ -13,6 +13,6 @@ Status: Implementation and verification complete locally; owner review pending.
 - [x] Verify actual database outage and recovery behavior.
 - [x] Verify non-root execution, credential separation, and image exclusions.
 - [x] Document setup, recovery, known limitations, and verification evidence.
-- [ ] Obtain owner review and resolve any findings.
-- [ ] Obtain explicit upload approval, then prepare the branch/commit, push, and PR.
-- [ ] Record owner acceptance before starting specification 002.
+- [x] Obtain explicit upload approval (D-020); commit and push to the claude/development working branch.
+- [ ] Resolve any owner review findings.
+- [ ] Record formal owner acceptance and the merge decision. Progression to specification 002 was authorized separately by D-016.

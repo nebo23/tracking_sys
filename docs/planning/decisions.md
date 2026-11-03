@@ -1,5 +1,5 @@
 # Decision register
-Updated: 2026-10-29. An unanswered question or proposal is not approval.
+Updated: 2026-11-03. An unanswered question or proposal is not approval.
 
 ## Confirmed decisions
 | ID | Decision | Evidence |
@@ -22,8 +22,8 @@ Updated: 2026-10-29. An unanswered question or proposal is not approval.
 | D-016 | Continue backend work through specification 002 using independently reviewable slices. This is progression authorization, not upload approval or formal acceptance of every foundation review item. | Owner instruction on 2026-10-29 to start backend work and inspect the specification after native database verification. |
 | D-017 | Approve and implement [002-A](../../specs/002-tenancy-access/design.md): six entity tables, Owner/Admin/Analyst/ClientViewer policy, explicit client/financial grants, migration, transactional audit, and isolation tests. No business HTTP routes before authentication in 002-B. | Explicit owner answer on 2026-10-29: approve the design and begin implementation. |
 | D-018 | Continue specification 002 including authentication. Defer Google/Facebook login until the owner supplies provider configuration. Prepare and resolve the remaining material authentication/schema/dependency choices before their implementation. | Explicit owner instruction on 2026-10-29 to continue spec 002 and auth, leaving Google/Facebook login for later. |
-
 | D-019 | Approve and implement [002-B/C/D](../../specs/002-tenancy-access/auth-design.md): auth schema, self-service registration, email verification, opaque sessions, invitations, service credentials, pwdlib/Argon2, email-validator, and cryptography. Use local development email capture; external delivery remains a production prerequisite. Google/Facebook sign-in stays deferred; upload approval is unchanged. | Explicit owner approval and local mailbox selection on 2026-10-30. |
+| D-020 | Work on the dedicated branch claude/development rather than main. Upload the completed local work of specifications 001 and 002 to that branch. Continue the remaining specifications in sequence; after each specification or independently reviewable slice is complete and checked, present it for joint owner review before any upload. Merge into main, formal acceptance, and the product, schema, dependency, and hosting decisions within later specifications still require their own recorded owner decisions. | Explicit owner instruction on 2026-11-03. |
 
 ## Open decisions
 | ID | Decision required | Proposal for discussion | Affected work |
