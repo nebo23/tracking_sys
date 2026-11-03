@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-001, Q-002, Q-003 and record the owner decision.
 - [ ] Verify dependencies: 004-event-collection.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: A test link reaches its destination and preserves content/campaign provenance without exposing personal information in the URL.
 - [ ] Verify: Disallowed destinations, unsafe protocols, and redirect loops are rejected; link management requires client permission.
@@ -13,5 +13,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Custom domains require ownership verification; implementation verifies TLS and slug conflicts.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

@@ -1,0 +1,89 @@
+name: tracking-system-local
+
+x-database-settings: &database-settings
+  TRACKING_DATABASE_HOST: database
+  TRACKING_DATABASE_PORT: "5432"
+  TRACKING_DATABASE_NAME: ${TRACKING_DATABASE_NAME:-tracking_local}
+
+x-auth-settings: &auth-settings
+  TRACKING_AUTH_SECRET: ${TRACKING_AUTH_SECRET:?Set TRACKING_AUTH_SECRET in .env.docker}
+  TRACKING_MAIL_ENCRYPTION_KEY: ${TRACKING_MAIL_ENCRYPTION_KEY:?Set TRACKING_MAIL_ENCRYPTION_KEY in .env.docker}
+  TRACKING_COOKIE_SECURE: ${TRACKING_COOKIE_SECURE:-false}
+  TRACKING_MAIL_DIRECTORY: /app/local-data/mail
+
+services:
+  database:
+    image: postgres:18.6-bookworm@sha256:5c4783a8cc3f0074912164f94dfa1be4e043438f0f707cf968d7af9a0d31a2c8
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: ${TRACKING_DATABASE_NAME:-tracking_local}
+      POSTGRES_PASSWORD: ${TRACKING_POSTGRES_PASSWORD:?Set TRACKING_POSTGRES_PASSWORD in .env.docker}
+      TRACKING_DATABASE_PASSWORD: ${TRACKING_DATABASE_PASSWORD:?Set TRACKING_DATABASE_PASSWORD in .env.docker}
+      TRACKING_MIGRATION_PASSWORD: ${TRACKING_MIGRATION_PASSWORD:?Set TRACKING_MIGRATION_PASSWORD in .env.docker}
+    ports:
+      - "127.0.0.1:${TRACKING_DATABASE_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      <<: *database-settings
+      TRACKING_MIGRATION_USER: tracking_migrator
+      TRACKING_MIGRATION_PASSWORD: ${TRACKING_MIGRATION_PASSWORD:?Set TRACKING_MIGRATION_PASSWORD in .env.docker}
+    command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      <<: [*database-settings, *auth-settings]
+      TRACKING_DATABASE_USER: tracking_app
+      TRACKING_DATABASE_PASSWORD: ${TRACKING_DATABASE_PASSWORD:?Set TRACKING_DATABASE_PASSWORD in .env.docker}
+    ports:
+      - "127.0.0.1:${TRACKING_API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=7)"]
+      interval: 10s
+      timeout: 8s
+      retries: 3
+      start_period: 10s
+    init: true
+
+  mail-worker:
+    profiles: [mail]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      <<: [*database-settings, *auth-settings]
+      TRACKING_DATABASE_USER: tracking_app
+      TRACKING_DATABASE_PASSWORD: ${TRACKING_DATABASE_PASSWORD:?Set TRACKING_DATABASE_PASSWORD in .env.docker}
+    command: ["python", "-m", "app.mail_worker"]
+    volumes:
+      - mail-data:/app/local-data/mail
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  postgres-data:
+  mail-data:

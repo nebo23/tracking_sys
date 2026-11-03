@@ -1,4 +1,4 @@
-# Future repository hygiene; no repository is initialized.
+# Repository hygiene: exclude local environments, secrets, and generated artifacts.
 .env
 .env.*
 !.env.example

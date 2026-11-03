@@ -8,7 +8,8 @@ Updated: 2026-10-29. Product direction is confirmed; implementation details rema
 - Support a broad customer market. No industry, country, CRM, or payment provider has been selected.
 - Implement the backend first using FastAPI and PostgreSQL, followed by React, with Docker.
 - Work through specifications, review gates, and later PRs in a repository created by the owner.
-- Current work is limited to planning files and folders, followed by spec 000 review. Do not create or run an application scaffold (D-008).
+- D-013 authorizes starting the backend/database foundation through specification 001, superseding D-008's planning-only restriction for this work. D-014 approves its database tools; later business scope remains subject to review.
+- D-016/D-017 authorize the six-table agency/client access model and role matrix in 002-A. Authentication, invitations, and service credentials remain subsequent slices; the commercial launch scope is unchanged.
 - Maintain formal English in all project files and filenames. This does not decide the languages of the product interface (D-009).
 
 ## Proposed value journey
@@ -18,7 +19,7 @@ Synthetic acceptance example: content link A, visit B, a form submission, a sale
 
 ## Definitions and boundaries
 - **Client:** the business served by an agency. **Lead/customer:** a visitor or buyer of that business.
-- **Agency tenant:** the proposed primary isolation boundary. Client workspaces have additional access boundaries.
+- **Agency tenant:** the approved primary isolation boundary in 002-A. Client workspaces have additional access boundaries.
 - **Social analytics:** aggregate measures exposed by an authorized platform account.
 - **Attribution:** allocation of credit across observable events under a declared model, not causal proof.
 - Missing, stale, and unsupported data must remain distinguishable from zero.

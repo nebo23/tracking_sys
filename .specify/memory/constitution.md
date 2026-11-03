@@ -10,7 +10,7 @@ Version: 0.1 draft. Updated: 2026-10-29. Proposed engineering principles remain 
 7. Include consent, retention, deletion, token protection, and data minimization in each relevant specification.
 8. Build and validate the backend before React. The first commercial release must include both approved product capabilities.
 9. Prefer the smallest independently reviewable PR, supported by relevant validation and recovery instructions.
-10. Do not initialize a repository or push changes until the owner authorizes that stage.
+10. Preserve the owner-provided repository. Complete the approved specification and relevant checks, then obtain owner review and upload approval before push or PR creation/update. Merge remains an owner decision (D-012).
 11. Do not introduce unapproved major dependencies, paid services, microservices, or infrastructure.
 12. Report measured coverage, failure modes, and limitations instead of claiming 100% readiness.
 13. Maintain formal English throughout project documentation, filenames, code comments, and future repository contributions.

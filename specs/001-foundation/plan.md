@@ -1,32 +1,29 @@
 # Plan: 001-foundation
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Implemented locally; awaiting owner review. Updated: 2026-10-29.
 
-## Expected outcome
-Prepare a future FastAPI/PostgreSQL/Docker scaffold, configuration and dependency management, a migration baseline, health/readiness endpoints, logging, and a CI plan.
+## Approved foundation
+D-013 authorizes backend/database foundation work. D-014 selects PostgreSQL 18, SQLAlchemy 2.x, Alembic, and Psycopg 3. Remaining product, hosting, authentication, queue, and frontend decisions stay open.
 
-## Design before implementation
-- Configuration schema, health/readiness contracts, schema version, and tool ADRs; pin versions after compatibility review.
-- Map agency/client authorization across every relevant resource, job, cache, and export.
-- Identify data classes, consent, retention, and field provenance before migrations.
-- Define success, error, retry, limits, backfill, and disconnection behavior where applicable.
-- Distinguish confirmed decisions from proposals and resolve: Q-004, Q-009, Q-013.
-- Apply D-011: create an isolated Python virtual environment, maintain approved versions in backend/requirements.txt, keep frontend packages local, and install container dependencies from manifests.
+## Implementation
+1. Isolate dependencies in root .venv; maintain direct .in files and generated .txt files with fixed versions and hashes.
+2. Build app/config.py, database.py, logging_config.py, and main.py. Use a factory and lifespan cleanup; do not connect or migrate at import time.
+3. Keep /health/live independent of the database. Require database access and the exact Alembic head for /health/ready.
+4. Provision runtime and migration roles separately. Grant runtime SELECT on alembic_version only; add no business tables.
+5. Use a PostgreSQL service, one-shot migration service, and non-root API service in Compose. Keep services local and images pinned by digest.
+6. Verify unit behavior, actual PostgreSQL migrations/permissions, and a live container database-outage/recovery exercise.
+7. Document setup and evidence, then obtain owner review before upload.
 
-## Proposed review slices
-1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
-2. Implement the smallest approved end-to-end slice with appropriate observability.
-3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
+## Validation completed
+- Ten tests passed, including the PostgreSQL integration case.
+- Ruff lint and format checks passed.
+- Windows environment and Linux image dependency checks passed.
+- Fresh database initialization, migration job completion, and API/database health were verified.
+- Database outage produced live=200 and ready=503; recovery restored ready=200 without restarting the API.
+- Runtime container UID, credential separation, and build-context exclusions were checked.
 
-After repository authorization, combine slices for small changes or separate providers into individual PRs. Every PR must contain a reviewable change; no push is authorized now.
+Exact evidence and remaining limits are recorded in [evidence.md](evidence.md).
 
-## Validation
-- [ ] After tool approval, a single setup guide starts the project on a clean machine with a disposable database.
-- [ ] A forward migration and documented rollback or recovery procedure work on synthetic data.
-- [ ] Health responses expose no secrets; readiness fails when a required dependency is unavailable.
-- [ ] Local Python project dependencies install only inside a project virtual environment; backend/requirements.txt declares approved versions. React dependencies remain local to the frontend project. Container builds install from dependency manifests without copying the host virtual environment (D-011).
+## Recovery and review
+The disposable test database was removed after verification. D-015 subsequently selected the owner's native tracking_sys database. The original Docker stack is stopped with its volume and credentials preserved. Native role provisioning, authenticated connections, and baseline migration are complete; in-process application health checks passed against the real database. Start Uvicorn from .venv when an HTTP listener is needed. Normal Compose shutdown preserves the development volume.
 
-## Rollout and recovery
-Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.
-
-## Progression gate
-The specification is approved, dependencies are ready, required decisions are resolved, and evidence is attached. Estimate delivery only after sizing the work and confirming access.
+The baseline downgrade is only a migration-framework exercise. Future migrations require their own data-preservation review. No Git commit, push, PR, cloud deployment, or business schema is part of this delivery.

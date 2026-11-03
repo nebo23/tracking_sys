@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-001, Q-004, Q-009, Q-010 and record the owner decision.
 - [ ] Verify dependencies: 003-privacy-data-policy, 004-event-collection.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: OAuth callbacks validate state and reject replay; tokens appear in neither the browser nor logs, and PKCE applies where required by the flow.
 - [ ] Verify: Expired or revoked tokens produce an explicit disconnected state and stop affected ingestion without disrupting other clients.
@@ -13,5 +13,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Every connection exposes explicit metric availability, last synchronization, historical coverage, and cost states.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

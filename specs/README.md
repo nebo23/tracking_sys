@@ -1,5 +1,5 @@
 # Specification index
-Each specification contains `spec.md`, `plan.md`, and `tasks.md`. All 22 specifications remain drafts even where the overall product direction is confirmed.
+Each specification contains spec.md, plan.md, and tasks.md. The foundation and approved local specification 002 are implemented and verified; owner acceptance and upload approval remain pending. See [current 002 evidence](002-tenancy-access/auth-evidence.md) for 115 checks and explicit later obligations: social sign-in, external email, and actual job/export/cache consumers.
 
 | Specification | Level | Purpose |
 |---|---|---|

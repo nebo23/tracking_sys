@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-002, Q-008, Q-012 and record the owner decision.
 - [ ] Verify dependencies: 005-links-tracker.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Anonymous visits link to a verified identity only within the same client and under applicable consent.
 - [ ] Verify: Shared or conflicting email addresses and phone numbers do not automatically merge people without an established policy.
@@ -13,5 +13,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Merge/unmerge preserves provenance and recalculates attribution without losing the original evidence.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

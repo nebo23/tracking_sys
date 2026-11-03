@@ -1,0 +1,13 @@
+**
+!backend/
+!backend/app/
+!backend/app/**/*.py
+!backend/migrations/
+!backend/migrations/**/*.py
+!backend/migrations/script.py.mako
+!backend/alembic.ini
+!backend/requirements.txt
+!infra/
+!infra/docker/
+!infra/docker/Dockerfile
+**/__pycache__/

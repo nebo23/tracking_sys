@@ -18,7 +18,7 @@ Purchasing or deploying services now, or automatically selecting Kubernetes or m
 5. Launch requires provider approvals, budget, privacy decisions, and explicit owner sign-off.
 
 ## Required design contracts
-Runbooks, release manifest, rollback plan, and operational ownership; configure CI/CD only after repository creation.
+Runbooks, release manifest, rollback plan, and operational ownership; configure CI/CD only as part of approved implementation work.
 
 ## Dependencies and open decisions
 Dependencies: [019-quality-security](../019-quality-security/spec.md)

@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-002, Q-006, Q-007 and record the owner decision.
 - [ ] Verify dependencies: 006-identity-journey.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Duplicate payment/refund webhooks do not multiply amounts, regardless of delivery order.
 - [ ] Verify: A sale of 1,000 followed by a partial refund of 200 produces net revenue of 800 in the same currency; a full refund produces zero.
@@ -14,5 +14,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Client revenue remains separate from agency subscription billing for the SaaS product.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

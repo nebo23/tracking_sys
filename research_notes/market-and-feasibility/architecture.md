@@ -16,7 +16,7 @@ The current .specify directory contains manually authored project principles and
 
 Use a specification for value and observable behavior, clarification decisions, a design plan, contracts/data models when needed, tasks, and verification evidence. Additional files should exist only when useful. Record question, alternatives, recommendation, evidence, impact, status, and owner approval in the decision register.
 
-Once the owner creates and authorizes the repository, use small reviewable changes linked to approved specifications. A draft PR requires a published branch and an actual diff; it can start with an appropriate documentation change. Repository operations are currently prohibited by the working agreement. Do not run initialization over existing work without reviewing its effect.
+Use small reviewable changes linked to approved specifications. After this research, the owner supplied the repository and confirmed the review-before-upload workflow (D-012): complete the approved specification and relevant checks, obtain owner review and upload approval, then push and create or update its PR. This replaces the earlier proposal to open a draft PR before implementation. Preserve the existing repository and remote.
 
 Completion requires acceptance evidence, authorization/data review, applicable migration/recovery documentation, and owner acceptance. An external API-access blocker is not completion.
 

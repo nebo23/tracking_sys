@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-006, Q-009; approve user flows and design before implementation and record the owner decision.
 - [ ] Verify dependencies: 016-analytics-reporting, 017-saas-lifecycle.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows.
 - [ ] Verify: Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization.
@@ -14,5 +14,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.
