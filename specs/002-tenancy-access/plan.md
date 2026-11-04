@@ -1,31 +1,22 @@
 # Plan: 002-tenancy-access
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: approved local scope implemented and verified under D-017/D-019; owner acceptance pending. Updated: 2026-10-30.
 
-## Expected outcome
-Define agency tenants, client workspaces, membership, sign-in, invitations, roles, service/API credentials, and auditing of sensitive changes.
+## Delivered sequence
+1. 002-A: six-table tenancy model, role matrix, scoped services, atomic audit, and last-Owner protection. Historical [evidence](evidence.md).
+2. 002-B: email/password identity, verification/recovery, opaque sessions, CSRF/Origin controls, throttling, and authenticated tenant HTTP operations.
+3. 002-C: encrypted local email outbox, invitations, recipient matching, expiry/replay/revocation, and atomic membership/grant creation.
+4. 002-D: scoped service credentials, live scope resolver, and cache partition contract for later consumers.
+5. Verify the 115-case suite, reviewed migrations, native empty-schema upgrade, contracts, and container execution. Current [evidence](auth-evidence.md).
 
-## Design before implementation
-- Agency, ClientWorkspace, User, Membership, RolePolicy, and AuditEvent; define an authorization matrix before routes.
-- Map agency/client authorization across every relevant resource, job, cache, and export.
-- Identify data classes, consent, retention, and field provenance before migrations.
-- Define success, error, retry, limits, backfill, and disconnection behavior where applicable.
-- Distinguish confirmed decisions from proposals and resolve: Q-008.
+## Authority and acceptance mapping
+The [002-A design](design.md) and [auth design](auth-design.md) are approved. D-019 resolves registration/session/schema/dependency/local mail choices. Google/Facebook login remains deferred under D-018. External email delivery is a production prerequisite; no vendor or paid service is selected.
 
-## Proposed review slices
-1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
-2. Implement the smallest approved end-to-end slice with appropriate observability.
-3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
+HTTP and internal services enforce agency/client boundaries using authenticated identity. ClientViewer/Analyst require explicit client grants; financial access has its own grant. Invitations verify expiry/reuse, roles, recipient matching, and live revocation.
 
-After repository authorization, combine slices for small changes or separate providers into individual PRs. Every PR must contain a reviewable change; no push is authorized now.
-
-## Validation
-- [ ] With two agencies and two clients per agency, every read, mutation, export, and job enforces the relevant access boundary.
-- [ ] A client viewer cannot access another client in the same agency or financial fields excluded by their permissions.
-- [ ] Expired or reused invitations grant no new access; disabling a member revokes access.
-- [ ] Background jobs and cache keys carry tenant/client scope; a user-supplied tenant_id is insufficient authorization.
+Trusted consumer scope and cache partition contracts are implemented/tested. Actual jobs, caches, reports, and exports remain in their own specifications and need their own end-to-end enforcement checks.
 
 ## Rollout and recovery
-Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.
+Revisions 0002_tenancy and 0003_auth are additive. Downgrades take exclusive locks and refuse populated state. Use reviewed forward fixes once data exists. The native database receives upgrades only; recovery exercises use guarded disposable PostgreSQL.
 
-## Progression gate
-The specification is approved, dependencies are ready, required decisions are resolved, and evidence is attached. Estimate delivery only after sizing the work and confirming access.
+## Review and progression
+Review implementation, [OpenAPI](../../contracts/openapi.json), [local walkthrough](../../docs/engineering/authentication.md), and evidence with the owner. Record acceptance and separate upload approval before push/PR. Do not begin specification 003 or production work without its review and required decisions.

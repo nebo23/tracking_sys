@@ -3,6 +3,8 @@ Updated: 2026-10-29. Proposed sequence; no delivery dates or cost estimates have
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 
+Current progress: foundation and approved local specification 002, including the D-022 numeric verification, Google sign-in, and Gmail sender additions, are implemented and verified with 180 passing checks. Native tracking_sys is at 0004_identity with 19 tables. The base 002 work was uploaded to the claude/development branch under D-020; the D-022 additions await upload approval, and formal acceptance and merge remain pending. Review [current evidence](../../specs/002-tenancy-access/auth-evidence.md), then plan specification 003; social sign-in and production mail remain explicit later obligations.
+
 | Level | Specifications | Reviewable outcome | Exit gate |
 |---|---|---|---|
 | L0: Discovery | 000 | Scope, 109-feature and 16-idea register, research, decisions. | Approved launch capability matrix and boundaries. |
@@ -19,7 +21,7 @@ The first commercial release must combine social analytics, attribution, and mul
 ## External dependencies
 Platform review, business verification, access tiers, developer accounts, payment/CRM/scheduler selection, permitted test data, jurisdiction and retention, expected load, and budget may constrain delivery. Access investigations may begin early once authorized; writing a connector does not guarantee provider approval.
 
-Authentication, ORM, queue, and React tooling remain decisions for spec 001. No Kubernetes, warehouse, or hosting vendor is selected implicitly.
+SQLAlchemy, Psycopg, and Alembic are approved and implemented. Local authentication tooling is approved by D-019 and implemented; queue and React tooling belong to their later specifications. No Kubernetes, warehouse, or hosting vendor is selected implicitly.
 
 ## Review process
 Present the problem, scope, alternatives, costs, acceptance examples, and unresolved questions for one specification at a time. After approval and repository authorization, divide implementation into small PRs.

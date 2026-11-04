@@ -16,7 +16,7 @@ Support organization or member analytics according to verified program access, w
 2. Implement the smallest approved end-to-end slice with appropriate observability.
 3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
 
-After repository authorization, combine slices for small changes or separate providers into individual PRs. Every PR must contain a reviewable change; no push is authorized now.
+Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
 - [ ] Record the organization/member scope decision and verify Community Management access before launch.

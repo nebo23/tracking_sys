@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-003, Q-012 and record the owner decision.
 - [ ] Verify dependencies: 002-tenancy-access.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Events that violate the approved consent policy enter neither prohibited storage nor an outbound delivery queue.
 - [ ] Verify: Password and sensitive payment fields are excluded from form telemetry and logs.
@@ -13,5 +13,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Backup restoration reapplies deletion tombstones before making the service available.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

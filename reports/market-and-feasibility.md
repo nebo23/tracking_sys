@@ -84,7 +84,7 @@ Agency/client/site boundaries must apply to APIs, jobs, caches, and exports. Pos
 
 The small backend journey is a development milestone; the commercial release still includes both capabilities and multiple agencies. Verify developer-account access early when authorized. No delivery estimate, budget, or numeric service target has been invented.
 
-Spec Kit offers a documented specification/review workflow, but current local files are manual drafts and do not establish CLI installation. Recheck and pin a release before adoption. The owner will create the repository; no git init, push, PR, or service deployment is authorized now. [Quickstart](https://github.github.com/spec-kit/quickstart.html), [core reference](https://github.github.com/spec-kit/reference/core.html)
+Spec Kit offers a documented specification/review workflow, but current local files are manual drafts and do not establish CLI installation. Recheck and pin a release before adoption. Since this research, the owner has supplied the repository (D-012). Complete each approved specification and obtain owner review and upload approval before push or PR creation; deployment remains separately authorized. [Quickstart](https://github.github.com/spec-kit/quickstart.html), [core reference](https://github.github.com/spec-kit/reference/core.html)
 
 ## Decisions needed next
 Review specification 000 to agree on mandatory accounts/metrics, lead entry and sale evidence, currencies, interface languages, markets, workload, budget, retention, and attribution rules. Then compare authentication, ORM, jobs, hosting, and pricing against actual requirements. React tooling remains separate from approval of React itself. [React guidance](https://react.dev/learn/creating-a-react-app)

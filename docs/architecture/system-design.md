@@ -1,6 +1,8 @@
 # Proposed system architecture
 Status: Draft. FastAPI, PostgreSQL, React, Docker, and the commercial product scope are confirmed. Other architecture choices remain proposals for review.
 
+Implementation update: D-014 approves SQLAlchemy/Psycopg/Alembic, and D-017 approves the implemented [002-A schema and service access model](../../specs/002-tenancy-access/design.md). D-019 also approves the implemented [auth/access design](../../specs/002-tenancy-access/auth-design.md). The remaining system-wide design below is proposed; queues, connectors, production delivery, and RLS are not implied to be implemented.
+
 ## Components and trust boundaries
 ```mermaid
 flowchart TD

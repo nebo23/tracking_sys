@@ -5,7 +5,7 @@ Status: Draft. This plan does not authorize implementation or dependency selecti
 Prepare staging and then production after hosting approval, including secrets, TLS/DNS, migrations, backup/restore, monitoring, alerts, runbooks, rollback, and phased rollout.
 
 ## Design before implementation
-- Runbooks, release manifest, rollback plan, and operational ownership; configure CI/CD only after repository creation.
+- Runbooks, release manifest, rollback plan, and operational ownership; configure CI/CD only as part of approved implementation work.
 - Map agency/client authorization across every relevant resource, job, cache, and export.
 - Identify data classes, consent, retention, and field provenance before migrations.
 - Define success, error, retry, limits, backfill, and disconnection behavior where applicable.
@@ -16,7 +16,7 @@ Prepare staging and then production after hosting approval, including secrets, T
 2. Implement the smallest approved end-to-end slice with appropriate observability.
 3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
 
-After repository authorization, combine slices for small changes or separate providers into individual PRs. Every PR must contain a reviewable change; no push is authorized now.
+Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
 - [ ] An actual restore in an isolated environment meets approved RPO/RTO targets and reapplies deletion controls.

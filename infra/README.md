@@ -1,7 +1,4 @@
 # Infrastructure
-Reserved for reproducible runtime configuration and service operations.
+Native PostgreSQL role provisioning is in postgres/local-roles.sql. The optional self-contained Docker foundation is in docker/. See [setup](../docs/engineering/local-environment.md) for the selected tracking_sys connection and separate Docker configuration.
 
-- `docker/`: container build and service configuration.
-- `operations/`: deployment, monitoring, recovery, and incident procedures.
-
-Infrastructure is broader than Docker. Hosting, secrets management, backups, network configuration, and deployment tooling require explicit decisions. No cloud resources or containers have been created.
+Production hosting, deployment, monitoring, backup, restoration, and incident response remain subject to specification 020. Local Compose does not establish production readiness.

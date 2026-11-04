@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-001, Q-004; X budget and entitlement and record the owner decision.
 - [ ] Verify dependencies: 009-connector-runtime.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Credit and usage budgets cap collection and explain any stop to the user, preventing uncontrolled spending.
 - [ ] Verify: Private-metric permissions and history are verified on an authorized account; data outside the permitted window is unavailable.
@@ -13,5 +13,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Recheck pricing definitions and access entitlements before release.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

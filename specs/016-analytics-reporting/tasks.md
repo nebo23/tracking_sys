@@ -5,7 +5,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Resolve Q-001, Q-006, Q-007, Q-011 and record the owner decision.
 - [ ] Verify dependencies: 008-attribution-engine, 010-instagram, 011-youtube, 012-linkedin, 013-x, 014-ad-spend-capi, 015-business-integrations.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable PR slices once the repository is available.
+- [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Every report enforces tenant, client, and field permissions, including exports and background generation.
 - [ ] Verify: Social metrics show platform definitions, ranges, and freshness; revenue shows currency, model, attribution window, and evidence.
@@ -14,5 +14,5 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Export URLs are short-lived and authorized; client deletion invalidates accessible reports according to policy.
 - [ ] Update documentation, limitations, and untested assumptions.
 - [ ] Present a reviewable result to the owner.
-- [ ] Create or update a PR and push only after repository authorization.
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
 - [ ] Record owner acceptance before progressing to dependent work.

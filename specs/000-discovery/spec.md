@@ -26,4 +26,4 @@ Open decisions: Q-001 through Q-014. See the [decision register](../../docs/plan
 ## Owner approval
 The owner approved planning files and directories followed by review of this specification (D-008). That decision does not approve the detailed launch scope or an executable scaffold.
 
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-013 subsequently authorizes proceeding with the independent backend/database foundation in specification 001 using the existing sequence. This does not resolve or approve the remaining launch-feature, provider, budget, or business-policy decisions; record them before their dependent specifications. Discovery is not marked complete by this limited foundation authorization.
