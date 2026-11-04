@@ -176,8 +176,9 @@ class VerificationChallenge(Base):
 
 
 # Single-use Google authorization transaction (D-022). It stores digests of the state and of
-# the browser-binding cookie; the PKCE verifier and nonce are derived from the raw state with
-# the application HMAC key, so neither is stored. Link transactions name the requesting user.
+# the browser-binding cookie; link bindings also incorporate the initiating session digest.
+# The PKCE verifier and nonce are derived from the raw state with the application HMAC key,
+# so neither is stored. Link transactions name the requesting user.
 # SELECT id, purpose, user_id, created_at, expires_at, consumed_at
 # FROM public.oauth_transactions
 # WHERE created_at >= now() - interval '1 day'

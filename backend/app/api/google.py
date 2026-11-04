@@ -101,7 +101,7 @@ def link(
 ) -> AuthorizationURL:
     settings = request.app.state.settings
     url, binding = begin_authorization(
-        session, settings, request.app.state.google, "link", browser.user.id
+        session, settings, request.app.state.google, "link", browser.user.id, browser.token
     )
     set_binding_cookie(response, settings, binding)
     return AuthorizationURL(authorization_url=url)
@@ -141,6 +141,7 @@ def callback(
                 state,
                 request.cookies.get(settings.oauth_cookie_name),
                 code,
+                request.cookies.get(settings.cookie_name),
             )
         except AuthError as failure:
             code_name = failure.code if failure.code in CALLBACK_ERRORS else None

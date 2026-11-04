@@ -126,14 +126,21 @@ def begin_authorization(
     provider: GoogleOIDC,
     purpose: Purpose,
     user_id: UUID | None = None,
+    session_token: str | None = None,
 ) -> tuple[str, str]:
     raw_state, binding = new_token(), new_token()
+    if purpose == "link" and not session_token:
+        raise AuthError("authentication_required")
     session.add(
         OAuthTransaction(
             purpose=purpose,
             user_id=user_id,
             state_digest=digest(raw_state),
-            binding_digest=digest(binding),
+            binding_digest=(
+                link_binding_digest(settings, binding, session_token)
+                if purpose == "link"
+                else digest(binding)
+            ),
             expires_at=now_utc() + timedelta(seconds=TRANSACTION_SECONDS),
         )
     )
@@ -158,6 +165,14 @@ def begin_authorization(
         }
     )
     return f"{provider.configuration()['authorization_endpoint']}?{query}", binding
+
+
+# Bind a link to both its browser cookie and exact initiating session without storing either
+# secret or adding schema. Old link transactions fail closed; login bindings are unchanged.
+def link_binding_digest(settings: Settings, binding: str, session_token: str | None) -> str:
+    if not session_token:
+        raise AuthError("google_sign_in_failed", 400)
+    return keyed_digest(settings, "oauth-link-binding", binding + "\0" + digest(session_token))
 
 
 # Validate the ID token from a token response: Google signature, RS256 only, allowed issuer,
@@ -302,6 +317,7 @@ def complete_authorization(
     raw_state: str,
     binding: str | None,
     code: str,
+    session_token: str | None = None,
 ) -> tuple[User, Purpose, str | None]:
     transaction = session.scalar(
         select(OAuthTransaction)
@@ -314,7 +330,12 @@ def complete_authorization(
         or transaction.consumed_at is not None
         or transaction.expires_at <= now_utc()
         or not binding
-        or not hmac.compare_digest(transaction.binding_digest, digest(binding))
+        or not hmac.compare_digest(
+            transaction.binding_digest,
+            link_binding_digest(settings, binding, session_token)
+            if transaction.purpose == "link"
+            else digest(binding),
+        )
     ):
         raise AuthError("google_sign_in_failed", 400)
     transaction.consumed_at = now_utc()
@@ -324,6 +345,12 @@ def complete_authorization(
     with session.begin_nested():
         tokens = provider.exchange(code, pkce_verifier(settings, raw_state))
         claims = validated_claims(settings, provider, tokens, raw_state)
+        if purpose == "link":
+            # Authenticate after provider work so expiry is current. Authentication holds the
+            # user/session locks through attachment and commit, serializing revocation/reset.
+            linked_user, _ = AuthService(session, settings).authenticate(session_token or "")
+            if linked_user.id != link_user_id:
+                raise AuthError("google_sign_in_failed", 400)
         user = apply_account_policy(session, settings, claims, purpose, link_user_id)
         raw = AuthService(session, settings).issue_session(user) if purpose == "login" else None
     return user, purpose, raw

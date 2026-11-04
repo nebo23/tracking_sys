@@ -278,13 +278,15 @@ class AuthService:
             return
         self._issue_verification(user)
 
-    # Check a numeric code for an email (D-022). The per-email 24-hour failure cap is checked
-    # first. The newest open challenge is read without a lock and its keyed verifier compared in
-    # constant time; any failure is recorded through `failure_engine` and reported with one
-    # generic error, whether or not the account exists. On a match, the user and then the
-    # challenge are locked, rechecked, consumed, and the email marked verified atomically.
+    # Serialize checks by normalized email, including absent accounts, then lock the active
+    # user before checking budgets or comparing a code. Resends share the user lock. Failed
+    # checks commit separately without a request-held challenge lock; the user's NO KEY UPDATE
+    # lock permits the failure event's foreign-key KEY SHARE lock. Success remains atomic in
+    # the caller's transaction and checks expiry again after acquiring the challenge lock.
     def verify_email_code(self, email: str, code: str, failure_engine: Engine) -> None:
         email = normalize_email(email)
+        self._serialize_email(email)
+        user = self._user_by_email(email)
         check_rate_limit(
             failure_engine,
             self.settings,
@@ -293,13 +295,7 @@ class AuthService:
             limit=self.settings.verification_daily_failures,
         )
         limit = self.settings.verification_code_attempts
-        user_id = self.session.scalar(
-            select(User.id).where(
-                User.email_normalized == email,
-                User.status == "active",
-                User.email_verified_at.is_(None),
-            )
-        )
+        user_id = user.id if user is not None and user.email_verified_at is None else None
         open_challenge = (
             VerificationChallenge.user_id == user_id,
             VerificationChallenge.purpose == VERIFICATION,
@@ -329,19 +325,20 @@ class AuthService:
                 user_id,
             )
             raise AuthError("invalid_or_expired_code", 400)
-        try:
-            user = self._lock_user(user_id)
-        except AuthError as error:
-            raise AuthError("invalid_or_expired_code", 400) from error
         locked = self.session.scalar(
             select(VerificationChallenge)
             .where(VerificationChallenge.id == challenge.id, *open_challenge)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
-        if locked is None or user.email_verified_at is not None:
-            raise AuthError("invalid_or_expired_code", 400)
         now = now_utc()
+        if (
+            locked is None
+            or locked.expires_at <= now
+            or user is None
+            or user.email_verified_at is not None
+        ):
+            raise AuthError("invalid_or_expired_code", 400)
         locked.consumed_at, user.email_verified_at = now, now
         self.event("email_verified", user.id)
 
