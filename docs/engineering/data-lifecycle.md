@@ -1,5 +1,5 @@
 # Data lifecycle runner
-Specification 003-A3/003-A4 under D-024. Status: implemented and tested on the disposable database; native tracking_sys rollout has not been performed and needs its own owner approval.
+Specification 003-A3/003-A4/003-A5 under D-024. Status: implemented and tested on the disposable database; native tracking_sys rollout has not been performed and needs its own owner approval.
 
 ## What is deleted, and when
 `python -m app.lifecycle` runs one bounded pass and prints counts only. Each period counts from the row's end, never from creation alone, and is compared strictly with one cutoff sampled from the database clock.
@@ -12,12 +12,13 @@ Specification 003-A3/003-A4 under D-024. Status: implemented and tested on the d
 | Google OAuth transactions | 1 day after consumption or expiry |
 | Rate-limit buckets | At window expiry (an expired bucket restarts anyway) |
 | Outbox rows | 30 days after delivery or expiry |
+| Password credential, Google identity, sessions, tokens, challenges, and OAuth transactions of a closed account | On the next run after closure, without a period |
 | Development `.eml` and `.pending` files in the mail directory | 7 days after they were written; only in development local mode, non-recursive, never symbolic links |
 
-Security events, audit events, invitations, service credentials, users, and unverified registrations are not deleted; their rules remain pending (Q-012) or belong to account closure (003-A5). The approved periods are also the settings' upper bounds: `TRACKING_SESSION_RETENTION_DAYS` and similar variables may shorten a period but cannot extend it. Every new verification, reset, and invitation message carries the expiry of its code or link, and the mail worker clears an undelivered message at that time instead of retrying it. Messages queued without an expiry before D-024 keep the earlier behavior until delivered.
+Security events, audit events, invitations, service credentials, and unverified registrations are not deleted; their rules remain pending (Q-012). A closed user's row stays pseudonymized for audit references ([account closure](authentication.md#account-closure)). The approved periods are also the settings' upper bounds: `TRACKING_SESSION_RETENTION_DAYS` and similar variables may shorten a period but cannot extend it. Every new verification, reset, and invitation message carries the expiry of its code or link, and the mail worker clears an undelivered message at that time instead of retrying it. Messages queued without an expiry before D-024 keep the earlier behavior until delivered.
 
 ## Safety properties
-- A dedicated `tracking_lifecycle` role can only select and delete rows in the six governed tables. It cannot update or insert anything, cannot touch users, tenancy, audit, or security rows, and has no schema privileges.
+- A dedicated `tracking_lifecycle` role can select and delete rows only in the six credential-state tables, plus password credentials and external identities. The grants cannot restrict rows; the runner's predicates delete those two only for closed accounts, which it finds by reading users. It cannot update or insert anything, cannot change users, tenancy, audit, or security rows, and has no schema privileges.
 - One run at a time: a second runner finds the advisory lock held and exits with `skipped_concurrent_run`.
 - Batches commit separately. A batch waits at most 100 ms for a row lock held by an API request, then rolls back only its own batch; that table is reported as incomplete and finished by the next run. Because every run re-evaluates the predicates, an interrupted or bounded run never skips an eligible row permanently.
 

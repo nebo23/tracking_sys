@@ -20,7 +20,7 @@ Prepare small, reviewable local changes. Complete the approved specification and
 
 Current slice plan (D-023, 2026-11-04), detailed in [design section 16](design.md#16-implementation-slices-and-status):
 - 003-A1 data-class registry and 003-A2 log allowlist: implemented locally; see [evidence](evidence.md).
-- 003-A3 credential-state lifecycle runner, 003-A4 mail expiry, and 003-A5 account closure and erasure: await the [decision packet](decision-packet-003a.md).
+- 003-A3 credential-state lifecycle runner, 003-A4 mail expiry, and 003-A5 account closure and erasure: implemented locally under D-024 ([decision packet](decision-packet-003a.md)).
 - 003-B consent and deletion contracts (with 004, 005, 014), 003-C provider rows and secrets (with 009-016), and 003-D restore verification (with 019, 020): proposed and dependent on later specifications.
 
 ## Validation

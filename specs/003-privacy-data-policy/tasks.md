@@ -12,7 +12,8 @@ Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-priva
 - [x] Record the owner's decisions on packet items 1-5 (D-024, 2026-11-04: every recommended option).
 - [ ] Owner review of 003-A1/003-A2.
 - [x] Implement 003-A3 (lifecycle runner, migration 0005, tracking_lifecycle role) and 003-A4 (reset and invitation mail expiry) under D-024 with disposable-database tests (L3, L4, L7).
-- [ ] Implement 003-A5, account closure and erasure, under D-024 (L6, L7, L8).
+- [x] Implement 003-A5, account closure and erasure, under D-024 (migration 0006, `POST /auth/close-account`, closed-account deletion; L6, L7, L8).
+- [ ] Owner review of 003-A3 to 003-A5, then a separately approved native rollout (lifecycle role, migrations 0005/0006).
 
 - [ ] Approve the scope and sources for consent, data protection, and lifecycle.
 - [x] Review the owner-requested [Google/Gmail continuation amendments](review-amendments.md) under D-021. Their schema, dependency, identity, and provider choices were resolved by D-022 and merged in PR 1; the file is kept as a historical record. This did not approve the proposed privacy and retention rules.

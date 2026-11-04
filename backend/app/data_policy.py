@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "003-A3"
+POLICY_VERSION = "003-A5"
 
 
 class Sensitivity(StrEnum):
@@ -212,9 +212,7 @@ CLASSES: dict[str, DataClass] = {
 
 PENDING = RuleStatus.PENDING_DECISION
 RETENTION = "Q-012; 003-A decision 2"
-ERASURE = "003-A decision 3"
 APPROVED = RuleStatus.APPROVED
-CLOSURE = "D-024; 003-A5"
 
 
 def _row(status: RuleStatus, reference: str, description: str) -> EndOfLifeRule:
@@ -230,15 +228,22 @@ TABLES: dict[str, TablePolicy] = {
         {
             **_same("account.identity", "email_normalized", "display_name"),
             **_same(
-                "account.reference", "id", "status", "email_verified_at", "created_at", "updated_at"
+                "account.reference",
+                "id",
+                "status",
+                "email_verified_at",
+                "closed_at",
+                "created_at",
+                "updated_at",
             ),
         },
         (
             _row(
-                RuleStatus.DEFERRED,
-                f"{CLOSURE}; {RETENTION}",
-                "Never deleted or erased yet. Closure by pseudonymization is decided (D-024) "
-                "for slice 003-A5; unverified registrations remain pending (Q-012).",
+                APPROVED,
+                "D-024",
+                "Self-service closure replaces the email and name with pseudonyms, disables the "
+                "account, and keeps the row for audit references. Unverified registrations "
+                "remain pending (Q-012).",
             ),
         ),
     ),
@@ -250,10 +255,10 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                RuleStatus.DEFERRED,
-                CLOSURE,
-                "Hash replaced on change or reset; deletion after account closure is decided "
-                "(D-024) for slice 003-A5.",
+                APPROVED,
+                "D-024",
+                "Hash replaced on change or reset; deleted by the lifecycle runner after "
+                "account closure.",
             ),
         ),
     ),
@@ -324,10 +329,10 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                RuleStatus.DEFERRED,
-                CLOSURE,
-                "Kept while linked; deletion after account closure is decided (D-024) for slice "
-                "003-A5. Unlinking without closure is not offered.",
+                APPROVED,
+                "D-024",
+                "Kept while linked; deleted by the lifecycle runner after account closure, which "
+                "frees the Google subject. Unlinking without closure is not offered.",
             ),
         ),
     ),
@@ -461,8 +466,9 @@ TABLES: dict[str, TablePolicy] = {
         (
             _row(
                 RuleStatus.DEFERRED,
-                f"017; {ERASURE}",
-                "Memberships are disabled, never deleted; account closure awaits decision 3.",
+                "017; D-024",
+                "Disabled, never deleted, including on account closure (D-024); agency "
+                "offboarding belongs to 017.",
             ),
         ),
     ),
@@ -493,8 +499,9 @@ TABLES: dict[str, TablePolicy] = {
         (
             _row(
                 PENDING,
-                f"{RETENTION}; {ERASURE}",
-                "Append-only for the runtime; kept indefinitely. Actor follows decision 3.",
+                f"{RETENTION}; D-024",
+                "Append-only; kept indefinitely (retention pending). After closure the actor ID "
+                "points to the pseudonymized user (D-024).",
             ),
         ),
     ),

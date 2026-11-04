@@ -1,7 +1,10 @@
-"""Bounded retention runs for ended credential state (specification 003-A3, D-024).
+"""Bounded retention runs for ended credential state (specification 003-A3/003-A5, D-024).
 
 Each target deletes rows whose end (revocation, expiry, consumption, invalidation, or delivery)
-plus the approved period lies strictly before one cutoff sampled from the database clock.
+plus the approved period lies strictly before one cutoff sampled from the database clock. Rows
+belonging to a closed account (users.closed_at set) are deleted on the next run without a
+period: its password credential, external identity, sessions, tokens, challenges, and OAuth
+transactions.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -19,8 +22,11 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    ExternalIdentity,
     MailOutbox,
     OAuthTransaction,
+    PasswordCredential,
+    User,
     VerificationChallenge,
 )
 
@@ -48,6 +54,9 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     def before(days: int, cutoff: datetime) -> datetime:
         return cutoff - timedelta(days=days)
 
+    # Accounts closed under D-024 decision 3; their credential state needs no waiting period.
+    closed = select(User.id).where(User.closed_at.is_not(None))
+
     def sessions(cutoff: datetime) -> ColumnElement[bool]:
         limit = before(settings.session_retention_days, cutoff)
         idle = timedelta(seconds=settings.session_idle_seconds)
@@ -55,11 +64,16 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             AuthSession.revoked_at < limit,
             AuthSession.expires_at < limit,
             AuthSession.last_seen_at < limit - idle,
+            AuthSession.user_id.in_(closed),
         )
 
     def tokens(cutoff: datetime) -> ColumnElement[bool]:
         limit = before(settings.token_retention_days, cutoff)
-        return or_(AuthToken.consumed_at < limit, AuthToken.expires_at < limit)
+        return or_(
+            AuthToken.consumed_at < limit,
+            AuthToken.expires_at < limit,
+            AuthToken.user_id.in_(closed),
+        )
 
     def challenges(cutoff: datetime) -> ColumnElement[bool]:
         limit = before(settings.challenge_retention_days, cutoff)
@@ -67,11 +81,16 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             VerificationChallenge.consumed_at < limit,
             VerificationChallenge.invalidated_at < limit,
             VerificationChallenge.expires_at < limit,
+            VerificationChallenge.user_id.in_(closed),
         )
 
     def transactions(cutoff: datetime) -> ColumnElement[bool]:
         limit = before(settings.oauth_transaction_retention_days, cutoff)
-        return or_(OAuthTransaction.consumed_at < limit, OAuthTransaction.expires_at < limit)
+        return or_(
+            OAuthTransaction.consumed_at < limit,
+            OAuthTransaction.expires_at < limit,
+            OAuthTransaction.user_id.in_(closed),
+        )
 
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
@@ -82,7 +101,21 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         limit = before(settings.outbox_retention_days, cutoff)
         return or_(MailOutbox.delivered_at < limit, MailOutbox.expires_at < limit)
 
+    def closed_credentials(cutoff: datetime) -> ColumnElement[bool]:
+        return PasswordCredential.user_id.in_(closed)
+
+    def closed_identities(cutoff: datetime) -> ColumnElement[bool]:
+        # Deleting the identity frees the Google subject for a new sign-up (D-024).
+        return ExternalIdentity.user_id.in_(closed)
+
     return (
+        Target(
+            "password_credentials",
+            PasswordCredential,
+            PasswordCredential.user_id,
+            closed_credentials,
+        ),
+        Target("external_identities", ExternalIdentity, ExternalIdentity.id, closed_identities),
         Target("auth_sessions", AuthSession, AuthSession.id, sessions),
         Target("auth_tokens", AuthToken, AuthToken.id, tokens),
         Target(

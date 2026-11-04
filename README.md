@@ -1,5 +1,5 @@
 # Tracking System
-Status: foundation, specification 002, D-022 additions, and the R-01 to R-03 corrections are merged into main (PR 1, `98747a2`). Specification 003 continues on codex/spec-003-privacy-data-policy under D-023: slices 003-A1/003-A2 are implemented locally for review, and the next slices await owner decisions. Updated: 2026-11-04.
+Status: foundation, specification 002, D-022 additions, and the R-01 to R-03 corrections are merged into main (PR 1, `98747a2`). Specification 003 continues on codex/spec-003-privacy-data-policy under D-023/D-024: slice 003-A (data classes, log allowlist, lifecycle runner, mail expiry, account closure) is implemented locally for review; 003-B to 003-D depend on later specifications. Updated: 2026-11-04.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 

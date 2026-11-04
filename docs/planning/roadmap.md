@@ -3,7 +3,7 @@ Updated: 2026-10-29. Proposed sequence; no delivery dates or cost estimates have
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 
-Current progress: foundation and specification 002, including the D-022 numeric verification, Google sign-in, and Gmail sender additions and the R-01 to R-03 corrections, are merged into main (PR 1, `98747a2`). Native tracking_sys is at 0004_identity with 19 tables. Specification 003 continues on codex/spec-003-privacy-data-policy under D-023: the data-class registry and log allowlist (003-A1/003-A2) pass 215 checks locally and await review, and the lifecycle, mail-expiry, and account-closure slices await the [decision packet](../../specs/003-privacy-data-policy/decision-packet-003a.md). Facebook sign-in and production mail remain explicit later obligations.
+Current progress: foundation and specification 002, including the D-022 numeric verification, Google sign-in, and Gmail sender additions and the R-01 to R-03 corrections, are merged into main (PR 1, `98747a2`). Native tracking_sys is at 0004_identity with 19 tables. Specification 003 continues on codex/spec-003-privacy-data-policy under D-023/D-024. Slice 003-A (data-class registry, log allowlist, lifecycle runner, mail expiry, and account closure) passes 254 checks locally and awaits review; native rollout of migrations 0005/0006 and the lifecycle role needs separate approval. 003-B to 003-D remain tied to specifications 004-020. Facebook sign-in and production mail remain explicit later obligations.
 
 | Level | Specifications | Reviewable outcome | Exit gate |
 |---|---|---|---|

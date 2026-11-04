@@ -21,7 +21,7 @@ from app.models import (
     VerificationChallenge,
 )
 from app.security import now_utc
-from app.services.lifecycle import CREDENTIAL_STATE_JOB, LOCK_NAMESPACE, run_lifecycle
+from app.services.lifecycle import CREDENTIAL_STATE_JOB, LOCK_NAMESPACE, run_lifecycle, targets
 from app.services.mail import process_mail
 
 pytestmark = pytest.mark.integration
@@ -119,15 +119,12 @@ def test_runner_deletes_only_rows_strictly_past_each_approved_boundary(
             expected[name] += 1
     kept = {name: remaining(db, name) - expected[name] for name in MODELS}
 
+    nothing = {**{t.name: 0 for t in targets(lifecycle_settings)}, "local_mail_files": 0}
     result = run_lifecycle(lifecycle_engine, lifecycle_settings, cutoff=cutoff)
-    assert result == {
-        "status": "completed",
-        "deleted": {**expected, "local_mail_files": 0},
-        "incomplete": [],
-    }
+    assert result == {"status": "completed", "deleted": {**nothing, **expected}, "incomplete": []}
     assert {name: remaining(db, name) for name in MODELS} == kept
     again = run_lifecycle(lifecycle_engine, lifecycle_settings, cutoff=cutoff)
-    assert again["deleted"] == {**dict.fromkeys(MODELS, 0), "local_mail_files": 0}
+    assert again["deleted"] == nothing
 
 
 def test_bounded_runs_resume_without_skipping_eligible_rows(
@@ -281,13 +278,13 @@ def test_reset_and_invitation_mail_expire_with_their_links(api, authenticated_wo
     "statement",
     [
         "DELETE FROM users",
-        "DELETE FROM password_credentials",
-        "DELETE FROM external_identities",
+        "UPDATE users SET display_name = 'x'",
+        "UPDATE password_credentials SET password_hash = 'x'",
+        "UPDATE external_identities SET subject = 'x'",
         "DELETE FROM security_events",
         "DELETE FROM audit_events",
         "DELETE FROM agency_memberships",
         "DELETE FROM agency_invitations",
-        "SELECT count(*) FROM users",
         "UPDATE auth_sessions SET revoked_at = now()",
         "UPDATE mail_outbox SET encrypted_payload = NULL",
         "INSERT INTO auth_rate_limits (bucket_key, attempts, expires_at) VALUES ('x', 1, now())",

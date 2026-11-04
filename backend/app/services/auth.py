@@ -10,9 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import (
+    Agency,
+    AgencyMembership,
+    AuditEvent,
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    OAuthTransaction,
     PasswordCredential,
     SecurityEvent,
     User,
@@ -32,6 +36,7 @@ from app.security import (
     verify_password,
 )
 from app.services.mail import queue_mail
+from app.services.tenancy import MembershipConflict, Role
 
 VERIFICATION = "email_verification"
 
@@ -510,3 +515,108 @@ class AuthService:
             raise AuthError()
         self._set_password(user, password_hash.hash(replacement))
         self.event("password_changed", user.id)
+
+    # Self-service account closure (D-024, P1) for the authenticated user whose row and session
+    # authenticate() already locked. Reauthentication: an account with a password credential
+    # must re-enter it; an account without one must use a session created within the
+    # reauthentication window (a fresh Google sign-in). Then every agency of the user's active
+    # memberships is locked FOR UPDATE in ID order (the lock all tenancy mutations take), and the
+    # closure is refused with MembershipConflict if any of those agencies would be left without
+    # another active Owner whose account is active. Otherwise, in this transaction: the email
+    # and name become pseudonyms (the .invalid domain is rejected by registration, so the
+    # pseudonym never collides and the original email is free at once), the account is disabled
+    # with closed_at, sessions are revoked, open tokens, challenges, and OAuth transactions are
+    # ended, memberships are disabled with audit rows, and account_closed is recorded. The
+    # lifecycle runner later deletes the credential, external identity, and ended state.
+    def close_account(self, user: User, auth_session: AuthSession, password: str | None) -> None:
+        now = now_utc()
+        credential = self.session.get(PasswordCredential, user.id)
+        if credential is not None:
+            if not verify_password(password or "", credential.password_hash):
+                raise AuthError()
+        elif auth_session.created_at <= now - timedelta(
+            seconds=self.settings.closure_reauthentication_seconds
+        ):
+            raise AuthError("reauthentication_required", 403)
+        agency_ids = list(
+            self.session.scalars(
+                select(AgencyMembership.agency_id)
+                .where(AgencyMembership.user_id == user.id, AgencyMembership.status == "active")
+                .order_by(AgencyMembership.agency_id)
+            )
+        )
+        if agency_ids:
+            self.session.execute(
+                select(Agency.id)
+                .where(Agency.id.in_(agency_ids))
+                .order_by(Agency.id)
+                .with_for_update()
+            )
+        # Re-read under the agency locks. A membership added concurrently in another agency is
+        # left active; it is inert because the user is disabled, and its adder remains an
+        # active Owner there, so no agency loses its last Owner.
+        memberships = list(
+            self.session.scalars(
+                select(AgencyMembership)
+                .where(
+                    AgencyMembership.user_id == user.id,
+                    AgencyMembership.status == "active",
+                    AgencyMembership.agency_id.in_(agency_ids),
+                )
+                .order_by(AgencyMembership.agency_id)
+                .execution_options(populate_existing=True)
+            )
+        )
+        for membership in memberships:
+            if membership.role != Role.OWNER:
+                continue
+            others = self.session.scalar(
+                select(func.count())
+                .select_from(AgencyMembership)
+                .join(User, User.id == AgencyMembership.user_id)
+                .where(
+                    AgencyMembership.agency_id == membership.agency_id,
+                    AgencyMembership.role == Role.OWNER,
+                    AgencyMembership.status == "active",
+                    AgencyMembership.user_id != user.id,
+                    User.status == "active",
+                )
+            )
+            if not others:
+                raise MembershipConflict("An agency must retain an active Owner.")
+        user.email_normalized = f"closed-{user.id}@tracking.invalid"
+        user.display_name = "Closed account"
+        user.status, user.closed_at, user.updated_at = "disabled", now, now
+        self.revoke_sessions(user.id)
+        self.session.execute(
+            update(AuthToken)
+            .where(AuthToken.user_id == user.id, AuthToken.consumed_at.is_(None))
+            .values(consumed_at=now)
+        )
+        self.session.execute(
+            update(VerificationChallenge)
+            .where(
+                VerificationChallenge.user_id == user.id,
+                VerificationChallenge.consumed_at.is_(None),
+                VerificationChallenge.invalidated_at.is_(None),
+            )
+            .values(invalidated_at=now)
+        )
+        self.session.execute(
+            update(OAuthTransaction)
+            .where(OAuthTransaction.user_id == user.id, OAuthTransaction.consumed_at.is_(None))
+            .values(consumed_at=now)
+        )
+        for membership in memberships:
+            membership.status = "disabled"
+            self.session.add(
+                AuditEvent(
+                    agency_id=membership.agency_id,
+                    actor_user_id=user.id,
+                    action="membership.updated",
+                    resource_type="membership",
+                    resource_id=membership.id,
+                )
+            )
+        self.event("account_closed", user.id)
+        self.session.flush()

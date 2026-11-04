@@ -99,8 +99,9 @@ def test_only_recorded_decisions_are_presented_as_approved():
         for rule in policy.rules
         if rule.status is RuleStatus.APPROVED
     }
-    # D-017/D-019/D-022 behavior from specification 002 and the D-024 retention periods for
-    # ended credential state; security, audit, invitation, and account rules stay unapproved.
+    # D-017/D-019/D-022 behavior from specification 002, the D-024 retention periods for ended
+    # credential state, and D-024 account closure; security, audit, and invitation rules stay
+    # unapproved.
     assert approved == {
         ("client_grants", "row", "D-017"),
         ("mail_outbox", "encrypted_payload", "D-019; D-022; D-024"),
@@ -110,10 +111,13 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("verification_challenges", "row", "D-024"),
         ("oauth_transactions", "row", "D-024"),
         ("auth_rate_limits", "row", "D-024"),
+        ("users", "row", "D-024"),
+        ("password_credentials", "row", "D-024"),
+        ("external_identities", "row", "D-024"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED
-        for name in ("users", "security_events", "audit_events", "agency_invitations")
+        for name in ("security_events", "audit_events", "agency_invitations")
         for rule in TABLES[name].rules
     )
 

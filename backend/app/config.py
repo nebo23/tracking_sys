@@ -99,6 +99,9 @@ class Settings(DatabaseSettings):
     # Per-user invitation acceptance attempts per minute (review amendment T-02). The default
     # mirrors the login subject limit and is recorded as a proposed value in the auth design.
     invitation_attempts_per_minute: int = Field(default=5, ge=1, le=100)
+    # Account closure (D-024): an account without a password must present a session created
+    # within this window, which means a fresh Google sign-in. Ten minutes is the approved maximum.
+    closure_reauthentication_seconds: int = Field(default=600, ge=60, le=600)
     # Google sign-in (D-022) is off unless explicitly enabled with a Web client. The completion
     # URL receives the browser after the callback; it defaults to the frontend completion page.
     google_sign_in_enabled: bool = False

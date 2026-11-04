@@ -109,7 +109,7 @@ class SecurityEvent(Base):
             "action IN ('registered', 'email_verified', 'login_succeeded', 'login_failed', "
             "'logout', 'logout_all', 'password_changed', 'reset_requested', 'reset_completed', "
             "'google_login_succeeded', 'google_registered', 'google_identity_linked', "
-            "'verification_code_failed')",
+            "'verification_code_failed', 'account_closed')",
             name="valid_action",
         ),
     )

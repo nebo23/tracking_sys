@@ -412,7 +412,9 @@ def test_mail_failure_retries_idempotently_and_clears_payload(api, db):
         "UPDATE security_events SET action='logout'",
         "DELETE FROM security_events",
         "TRUNCATE security_events",
-        "UPDATE users SET status='disabled'",
+        "UPDATE users SET created_at = now()",
+        "UPDATE users SET id = gen_random_uuid()",
+        "DELETE FROM users",
         "DELETE FROM auth_sessions",
     ],
 )

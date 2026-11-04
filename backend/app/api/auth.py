@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.dependencies import BrowserDep, SessionDep, require_origin
 from app.api.schemas import (
+    AccountClosure,
     Acknowledgement,
     EmailInput,
     Login,
@@ -190,6 +191,24 @@ def reset_password(data: PasswordReset, request: Request, session: SessionDep) -
     throttle(request, "reset-token")
     AuthService(session, request.app.state.settings).reset_password(
         data.token.get_secret_value(), data.password.get_secret_value()
+    )
+    return clear_cookie(request)
+
+
+# Close the current user's account (D-024). Requires Origin and CSRF (BrowserDep), throttles
+# per peer and per user, and reauthenticates with the current password or, for an account
+# without one, a session created within ten minutes. 409 state_conflict when an agency would
+# lose its last active Owner. On success the account is pseudonymized and disabled, every
+# session is revoked, and this browser's cookie is cleared.
+@router.post("/close-account", status_code=204)
+def close_account(
+    data: AccountClosure, request: Request, session: SessionDep, browser: BrowserDep
+) -> Response:
+    throttle(request, "close-account", str(browser.user.id))
+    AuthService(session, request.app.state.settings).close_account(
+        browser.user,
+        browser.session,
+        data.password.get_secret_value() if data.password is not None else None,
     )
     return clear_cookie(request)
 

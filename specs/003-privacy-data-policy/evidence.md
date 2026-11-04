@@ -1,5 +1,5 @@
-# Specification 003 evidence: slices 003-A1 to 003-A4
-Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
+# Specification 003 evidence: slice 003-A (003-A1 to 003-A5)
+Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work for 003-A1/003-A2) and D-024 (003-A3 to 003-A5). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
 
 ## Scope
 - **003-A1, data-class registry:** [backend/app/data_policy.py](../../backend/app/data_policy.py) maps every stored column to a data class. Each table has end-of-life rules with a decision status and reference. A check compares the registry with the SQLAlchemy metadata and the migrated database.
@@ -77,12 +77,41 @@ Not validated for A3/A4:
 - Rate-limit races are covered by the outer predicate re-check, but only by analysis; no deterministic concurrent-restart test.
 - Outbox rows queued without `expires_at` before D-024 stay until delivered.
 
+## 003-A5 under D-024
+Changes:
+- **Migration 0006_account_closure.** It adds `users.closed_at` with the check `closed_at IS NULL OR status = 'disabled'` and the `account_closed` security action. It grants `tracking_app` `UPDATE` on only `email_normalized`, `display_name`, `status`, and `closed_at`, and grants `tracking_lifecycle` `SELECT` on users and `SELECT`/`DELETE` on password credentials and external identities. Its guarded downgrade refuses populated closure state. The `tenancy.py` model change was staged on top of HEAD, so the owner's uncommitted formatting edit in that file stays out of the commit.
+- **Closure endpoint.** `POST /auth/close-account` checks Origin and CSRF and is throttled per peer and per user. Reauthentication is the password, or, for an account without one, a session at most 10 minutes old (a setting with that approved maximum). The endpoint locks the user row, then every agency of the user's active memberships in ID order, and refuses with 409 if an agency would lose its last active Owner. Otherwise it pseudonymizes the email and name, disables the account with `closed_at`, revokes sessions, ends open tokens, challenges, and OAuth transactions, disables memberships with audit rows, and records `account_closed`.
+- **Runner.** It deletes a closed account's credential, external identity, sessions, tokens, challenges, and OAuth transactions without a period. The registry marks users, credentials, and external identities as approved under D-024. OpenAPI regenerated: 30 paths, 37 operations.
+- **Intentional change to 002 privilege expectations.** Two parametrized checks expected the runtime to be unable to run `UPDATE users SET status='disabled'`. D-024 grants exactly that column-limited update for closure, so the checks now assert that other user columns (`created_at`, `id`) and `DELETE FROM users` stay refused.
+
+Results:
+
+| Check | Result |
+|---|---|
+| Full suite on the disposable database | **254 passed** in each of four runs (67-71 s): 69 unit/contract and 185 PostgreSQL. No failures or skips. One run reported one warning whose summary was not captured, and it did not recur; the intermittent Pydantic warning seen at baseline is the likely source (unverified). |
+| Closure tests (`tests/integration/test_account_closure.py`) | 12 passed in each of five consecutive runs. The two thread-based concurrency tests also passed in ten further consecutive runs. |
+| Password account | 204, cookie cleared, another session of the same user gets 401, and login with the old email fails. The row holds `closed-<id>@tracking.invalid`, `Closed account`, `disabled`, and `closed_at`. `account_closed` is recorded and no session stays open. The same email registers again as a new user ID. |
+| Wrong or missing password; missing CSRF | 401 `invalid_credentials` or 403, and nothing changes. |
+| Google-only account | A session older than 10 minutes gets 403 `reauthentication_required`; a fresh session closes the account. Google sign-in for that subject is refused until the runner deletes the identity (1 identity, 1 session); afterward the same subject and email sign up as a new user. |
+| Credential deletion | The runner deletes the closed account's password credential; the pseudonymized row remains. |
+| Last Owner and memberships | A sole Owner gets 409, and the account stays active. With a second Owner, closure succeeds and one active Owner remains. An analyst in agency A who is also an admin in agency B closes; all three memberships are disabled, with `membership.updated` audit rows attributed to the closing users. |
+| Concurrency and lock order | Two co-owners closing at once: exactly one 204 and one 409, one Owner left. Closure racing a self-demotion: one succeeds, one gets 409, one Owner left. Deterministic test: while a tenancy transaction holds the agency lock, the closure is observed waiting in `pg_stat_activity`; the holder demotes the other Owner and commits, and the closure then re-checks and returns 409. Reverse order: after a co-owner closes, demoting the remaining Owner returns 409. |
+| Migration | The full suite's base-to-head cycle includes 0005 and 0006; the 0006 downgrade with a closed account is refused and the revision stays at `0006_account_closure`. |
+| Container | `docker compose --profile lifecycle run --rm lifecycle` built the image, ran the migrate step, connected as `tracking_lifecycle` to the disposable database, and printed a completed run. |
+| Ruff and `pip check` | Pass, including the staged `tenancy.py`; no dependency was added. |
+
+Not validated for A5:
+- No native rollout.
+- No browser test with a real Google sign-in followed by closure; the Google path used the account-policy function with synthetic claims.
+- A membership added concurrently in an agency that was not locked stays active for the disabled user. This is inert, and its adder remains an active Owner there.
+- Closure cannot be undone.
+
 ## Acceptance criteria of specification 003
 | Criterion | Evidence now | Outstanding dependency |
 |---|---|---|
 | 1. Consent-violating events kept out of storage and outbound queues | None | 003-B with 004, 005, 014 |
 | 2. Password and payment fields excluded from form telemetry and logs | Logs: M1-M3, M6 pass on the real server path | Form telemetry M4/M5 with 005 and 004 |
-| 3. Deletion covers raw, derived, cache, export, and blocks replay | Ended credential state is deleted on the approved schedule (A3); the registry identifies every column that references a user (10) as a closure target | 003-A5; 003-B, 003-C, 016 |
+| 3. Deletion covers raw, derived, cache, export, and blocks replay | Platform-user scope: account closure pseudonymizes identity and the runner deletes credentials, external identities, and ended credential state (A3, A5) | Subject, connector, cache, export, and replay blocking: 003-B, 003-C, 016 |
 | 4. Restore reapplies tombstones before service | None | 003-D with 019, 020 |
 
 The specification is not complete. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.
