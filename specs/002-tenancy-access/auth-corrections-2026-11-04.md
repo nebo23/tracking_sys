@@ -1,6 +1,6 @@
 # Authentication review corrections: R-01, R-02, and R-03
 
-Date: 2026-11-04. Status: implemented and verified locally; owner review and upload pending.
+Date: 2026-11-04. Status: implemented, verified, and owner-approved for upload as Specification 002; merge pending.
 
 ## Authority and scope
 
@@ -57,6 +57,8 @@ Execution used the existing project `.venv` and the dedicated Compose project `t
 
 ## Review and rollout notes
 
-Review the local correction diff and this evidence before approving upload. Restarting the development API loads the corrected code; no database migration or new configuration is needed. A Google-link flow already pending across that restart must be started again. Existing completed links are unaffected.
+After reviewing the correction summary and evidence, the owner explicitly authorized uploading these changes on 2026-11-04 and naming the update for the completed specification. This authorizes publication of the reviewed correction slice on claude/development and updating PR 1 as Specification 002. It does not authorize merge, deployment, or publication of unrelated working-tree changes.
 
-Live Google and Gmail owner-operated checks and production readiness remain separate from these automated results. No external email, live provider authorization, push, PR update, or merge was performed as part of this correction slice.
+Restarting the development API loads the corrected code; no database migration or new configuration is needed. A Google-link flow already pending across that restart must be started again. Existing completed links are unaffected.
+
+Live Google and Gmail owner-operated checks and production readiness remain separate from these automated results. No external email, live provider authorization, upload, or merge was performed during implementation and verification; publication was authorized separately afterward as recorded above.
