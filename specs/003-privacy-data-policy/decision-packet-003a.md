@@ -1,5 +1,5 @@
 # Specification 003-A decision packet
-Status: prepared for owner decision on 2026-11-04 under D-023. Nothing below is approved until the owner records a decision. Recommendations are marked; alternatives are listed with their effects.
+Status: prepared on 2026-11-04 under D-023. **Decided on 2026-11-04 as D-024:** the owner selected the recommended option for decisions 1 to 5. Alternatives remain listed for traceability. Implementation numbering: because 003-A3 is delivered first, its grants use migration 0005, and the account-closure schema of 003-A5 uses migration 0006 rather than "0005" below.
 
 Basis: merged main `98747a2` (PR 1) at revision `0004_identity`, the [reconciled design](design.md), [evidence](evidence.md), and [sources](../../research_notes/privacy-data-policy/sources.md). Q-003 (markets) is not needed for any decision here: the records concerned belong to the platform's own users and security state, not to client end customers.
 

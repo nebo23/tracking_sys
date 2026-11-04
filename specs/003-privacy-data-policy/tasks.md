@@ -9,7 +9,8 @@ Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-priva
 - [x] Re-verify the primary sources behind the decision packet ([sources](../../research_notes/privacy-data-policy/sources.md), 2026-11-04).
 - [x] Implement 003-A1, the data-class registry, as independent work under D-023 (no schema, dependency, retention, deletion, or privilege change).
 - [x] Implement 003-A2, the log allowlist and library logger routing, as independent work under D-023 (M1-M3, M6).
-- [ ] Owner review of 003-A1/003-A2 and record the owner's decisions on packet items 1-5.
+- [x] Record the owner's decisions on packet items 1-5 (D-024, 2026-11-04: every recommended option).
+- [ ] Owner review of 003-A1/003-A2.
 - [ ] Implement the approved 003-A3/003-A4 and 003-A5 slices with disposable-database tests (L3-L8).
 
 - [ ] Approve the scope and sources for consent, data protection, and lifecycle.
