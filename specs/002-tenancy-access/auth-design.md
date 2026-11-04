@@ -95,7 +95,7 @@ Provide one resolver for a trusted user or authenticated service credential plus
 The owner approved these project-specific choices under D-019; they are not requirements imposed by the references.
 
 ## Proposed continuation under D-021: Google sign-in, numeric verification, and Gmail delivery
-Status: concrete proposal for owner review, prepared 2026-11-04 from G-01 to G-07 in the [privacy amendments](../003-privacy-data-policy/review-amendments.md). Nothing in this section is implemented or approved. The schema, dependency, identity-policy, and OTP decisions listed at the end must be recorded before dependent code changes. Facebook remains deferred; React screens remain in specification 018.
+Status: prepared 2026-11-04 from G-01 to G-07 in the [privacy amendments](../003-privacy-data-policy/review-amendments.md); all six decisions were approved as proposed under D-022 on 2026-11-04 and implemented locally (see [evidence](auth-evidence.md)). The native tracking_sys rollout of 0004, live Google/Gmail checks, and production delivery remain separate steps. Facebook remains deferred; React screens remain in specification 018.
 
 ### Dependencies
 | Need | Proposal | Alternative |

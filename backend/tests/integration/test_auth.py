@@ -9,7 +9,15 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.models import AuthRateLimit, AuthSession, AuthToken, MailOutbox, PasswordCredential, User
+from app.models import (
+    AuthRateLimit,
+    AuthSession,
+    AuthToken,
+    MailOutbox,
+    PasswordCredential,
+    User,
+    VerificationChallenge,
+)
 from app.security import RateLimited, digest, now_utc, verify_password
 from app.services.auth import enforce_rate_limit
 from app.services.mail import deliver_local, process_mail
@@ -29,11 +37,15 @@ def register(api, client=None, email=EMAIL, password=None):
     )
 
 
+def verify_code(client, code, email=EMAIL):
+    return client.post("/auth/verify-email-code", json={"email": email, "code": code})
+
+
 def verified(api):
     assert register(api).status_code == 202
-    token = api.mail_tokens()[-1][2]
-    assert api.client.post("/auth/verify-email", json={"token": token}).status_code == 204
-    return token
+    code = api.mail_tokens()[-1][2]
+    assert verify_code(api.client, code).status_code == 204
+    return code
 
 
 def test_registration_verification_and_authenticated_agency_flow(api, db):
@@ -55,11 +67,12 @@ def test_registration_verification_and_authenticated_agency_flow(api, db):
         assert verify_password(api.password, stored)
         encrypted = session.scalar(select(MailOutbox.encrypted_payload))
         assert EMAIL not in encrypted and "#token" not in encrypted
-    token = api.mail_tokens()[-1][2]
+    code = api.mail_tokens()[-1][2]
     with Session(db.migration) as session:
-        assert session.scalar(select(AuthToken.token_digest)) == digest(token)
+        verifier = session.scalar(select(VerificationChallenge.verifier))
+        assert len(verifier) == 64 and code not in verifier and verifier != digest(code)
         assert session.scalar(select(MailOutbox.encrypted_payload)) is None
-    assert api.client.post("/auth/verify-email", json={"token": token}).status_code == 204
+    assert verify_code(api.client, code).status_code == 204
     login = api.login(api.client, EMAIL)
     cookie = login.headers["set-cookie"]
     assert "HttpOnly" in cookie and "SameSite=lax" in cookie and "Domain=" not in cookie
@@ -106,40 +119,46 @@ def test_concurrent_registration_creates_one_identity(api, db):
         assert list(executor.map(submit, clients)) == [202, 202]
     with Session(db.migration) as session:
         assert session.scalar(select(func.count()).select_from(User)) == 1
-        assert session.scalar(select(func.count()).select_from(AuthToken)) == 1
+        assert session.scalar(select(func.count()).select_from(VerificationChallenge)) == 1
 
 
-@pytest.mark.parametrize("action", ["reuse", "expiry", "resend", "wrong_purpose"])
-def test_verification_rejects_invalid_tokens(api, db, action):
+@pytest.mark.parametrize("action", ["reuse", "expiry", "resend", "wrong_email"])
+def test_verification_rejects_invalid_codes(api, db, action):
     assert register(api).status_code == 202
-    token = api.mail_tokens()[-1][2]
+    code = api.mail_tokens()[-1][2]
+    email = EMAIL
     if action == "reuse":
-        assert api.client.post("/auth/verify-email", json={"token": token}).status_code == 204
+        assert verify_code(api.client, code).status_code == 204
     elif action == "expiry":
         with Session(db.migration) as session, session.begin():
-            session.execute(update(AuthToken).values(expires_at=now_utc() - timedelta(seconds=1)))
+            session.execute(
+                update(VerificationChallenge).values(expires_at=now_utc() - timedelta(seconds=1))
+            )
     elif action == "resend":
+        with Session(db.migration) as session, session.begin():
+            session.execute(
+                update(VerificationChallenge).values(created_at=now_utc() - timedelta(minutes=2))
+            )
         assert (
             api.client.post("/auth/resend-verification", json={"email": EMAIL}).status_code == 202
         )
+        assert api.mail_tokens()[-1][2] is not None
     else:
-        result = api.client.post(
-            "/auth/reset-password", json={"token": token, "password": api.password}
-        )
-        assert result.status_code == 400
-        return
-    assert api.client.post("/auth/verify-email", json={"token": token}).status_code == 400
+        email = "other.person@example.test"
+    response = verify_code(api.client, code, email)
+    assert response.status_code == 400
+    assert response.json() == {"error": "invalid_or_expired_code"}
 
 
-def test_concurrent_token_consumption_has_one_winner(api):
+def test_concurrent_code_consumption_has_one_winner(api):
     register(api)
-    token = api.mail_tokens()[-1][2]
+    code = api.mail_tokens()[-1][2]
     clients = [api.new_client(), api.new_client()]
     barrier = Barrier(2)
 
     def consume(client):
         barrier.wait(timeout=10)
-        return client.post("/auth/verify-email", json={"token": token}).status_code
+        return verify_code(client, code).status_code
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         assert sorted(executor.map(consume, clients)) == [204, 400]
@@ -367,7 +386,7 @@ def test_mail_failure_retries_idempotently_and_clears_payload(api, db):
     register(api)
     directory = api.config.mail_directory
     directory.write_text("A file deliberately obstructs the mail directory.")
-    assert process_mail(db.runtime, api.config) == {"delivered": 0, "failed": 1}
+    assert process_mail(db.runtime, api.config) == {"delivered": 0, "failed": 1, "expired": 0}
     with Session(db.migration) as session, session.begin():
         message = session.scalar(select(MailOutbox))
         assert message.failure_code == "local_delivery_failed" and message.encrypted_payload
@@ -379,9 +398,9 @@ def test_mail_failure_retries_idempotently_and_clears_payload(api, db):
         message = session.scalar(select(MailOutbox))
         deliver_local(message, api.config)
     first = next(directory.glob("*.eml")).read_bytes()
-    assert process_mail(db.runtime, api.config) == {"delivered": 1, "failed": 0}
+    assert process_mail(db.runtime, api.config) == {"delivered": 1, "failed": 0, "expired": 0}
     assert next(directory.glob("*.eml")).read_bytes() == first
-    assert process_mail(db.runtime, api.config) == {"delivered": 0, "failed": 0}
+    assert process_mail(db.runtime, api.config) == {"delivered": 0, "failed": 0, "expired": 0}
     with Session(db.migration) as session:
         message = session.scalar(select(MailOutbox))
         assert message.encrypted_payload is None and message.delivered_at is not None

@@ -1,4 +1,4 @@
-"""Local email/password routes; Google and Facebook login are explicitly deferred."""
+"""Local email/password and numeric verification routes; Google sign-in is in app.api.google."""
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -13,7 +13,9 @@ from app.api.schemas import (
     SessionResponse,
     TokenInput,
     UserResponse,
+    VerificationCode,
 )
+from app.config import Settings
 from app.security import AuthError, csrf_token
 from app.services.auth import AuthService, enforce_rate_limit
 
@@ -59,8 +61,9 @@ def register(data: Registration, request: Request, session: SessionDep) -> Ackno
     return Acknowledgement()
 
 
-# Queue a fresh verification link for an active unverified account; the generic 202 response
-# does not reveal whether an eligible account exists.
+# Queue a fresh numeric verification code for an active unverified account once the resend
+# cooldown has passed; the previous code stops working. The generic 202 response does not
+# reveal whether an eligible account exists or whether a code was queued.
 @router.post(
     "/resend-verification",
     status_code=202,
@@ -73,13 +76,41 @@ def resend_verification(data: EmailInput, request: Request, session: SessionDep)
     return Acknowledgement()
 
 
-# Consume a single-use verification token from the request body and mark the email verified;
-# 204 on success, a generic invalid-token error otherwise. Throttled per peer.
+# Verify an email with the six-digit code from the latest verification message (D-022). 204
+# on success; every wrong, expired, superseded, or exhausted code and every unknown email gets
+# the same 400 invalid_or_expired_code. Failures are counted independently of the rolled-back
+# request; the per-email 24-hour failure cap returns 429 with Retry-After. Throttled per peer.
+@router.post("/verify-email-code", status_code=204, dependencies=[Depends(require_origin)])
+def verify_email_code(data: VerificationCode, request: Request, session: SessionDep) -> Response:
+    throttle(request, "verify-code")
+    AuthService(session, request.app.state.settings).verify_email_code(
+        data.email, data.code, request.app.state.security_engine
+    )
+    return Response(status_code=204)
+
+
+# Legacy transition (D-022): consume a verification link token issued before numeric codes,
+# while it is unexpired; no new links are issued. 204 on success, a generic invalid-token
+# error otherwise. Throttled per peer.
 @router.post("/verify-email", status_code=204, dependencies=[Depends(require_origin)])
 def verify_email(data: TokenInput, request: Request, session: SessionDep) -> Response:
     throttle(request, "verify-token")
     AuthService(session, request.app.state.settings).verify_email(data.token.get_secret_value())
     return Response(status_code=204)
+
+
+# Set the opaque session cookie: HttpOnly, SameSite=Lax, path=/, Secure when configured, and
+# the __Host- prefix in secure deployments. Shared by password login and Google sign-in.
+def set_session_cookie(response: Response, settings: Settings, raw: str) -> None:
+    response.set_cookie(
+        settings.cookie_name,
+        raw,
+        max_age=settings.session_lifetime_seconds,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path="/",
+    )
 
 
 # Password login for a verified active account. On success, set the HttpOnly session cookie
@@ -101,15 +132,7 @@ def login(
         with Session(request.app.state.security_engine) as audit, audit.begin():
             AuthService(audit, settings).event("login_failed")
         raise
-    response.set_cookie(
-        settings.cookie_name,
-        raw,
-        max_age=settings.session_lifetime_seconds,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path="/",
-    )
+    set_session_cookie(response, settings, raw)
     return SessionResponse(
         user=UserResponse.model_validate(user), csrf_token=csrf_token(settings, raw)
     )

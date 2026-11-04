@@ -8,7 +8,7 @@ The owner created [nebo23/tracking_sys](https://github.com/nebo23/tracking_sys);
 
 Start with [local setup](docs/engineering/local-environment.md), the [auth walkthrough](docs/engineering/authentication.md), and [current evidence](specs/002-tenancy-access/auth-evidence.md). Native tracking_sys on 127.0.0.1:5432 is at 0003_auth with 16 empty application tables; metadata, runtime privileges, and health were verified. Optional Docker configuration remains separate in .env.docker. Start Uvicorn to view the 32-operation API at http://127.0.0.1:8000/docs. Production startup remains blocked until an approved external email adapter exists.
 
-Complete an approved specification, run relevant checks, and present the result for owner review. Push and PR creation follow the owner's approval of the completed work for upload (D-012); merge and deployment require their respective owner decisions. Ongoing work uses the claude/development branch rather than main (D-020).
+Complete an approved specification, run relevant checks, and present the result for owner review. Push and PR creation follow the owner's approval of the completed work for upload (D-012); merge and deployment require their respective owner decisions. Ongoing work uses the claude/development branch rather than main (D-020). D-022 adds numeric email verification, optional Google sign-in, and an opt-in Gmail sender, verified locally; live provider checks and the native 0004 rollout remain owner steps.
 
 All maintained project content and filenames must use formal English. Product localization is a separate, unresolved decision. Discussions with the owner may remain in Arabic.
 

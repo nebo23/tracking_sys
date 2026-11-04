@@ -33,6 +33,7 @@ argon2-cffi==25.1.0 \
     --hash=sha256:694ae5cc8a42f4c4e2bf2ca0e64e51e23a040c6a517a85074683d3959e1346c1 \
     --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   pwdlib
 argon2-cffi-bindings==26.1.0 \
@@ -78,6 +79,7 @@ argon2-cffi-bindings==26.1.0 \
     --hash=sha256:f9c4420a7a864fe1b86ce35befc95b8e39fb852493b81cf798671ddc265de638 \
     --hash=sha256:ffff613aaa9ce6236766e2fc6dc560bb5abde7a2e2416e3db1f9ae395a2b4dd4
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   argon2-cffi
 cffi==2.1.1 \
@@ -182,6 +184,7 @@ cffi==2.1.1 \
     --hash=sha256:fb92203a88b3d3053034db775110081c49d28be6551923805e039924093761e4 \
     --hash=sha256:fcd22650c908d7b7da162bbfaab594a1227a15d1643a98c68b122ac642fa2264
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   argon2-cffi-bindings
     #   cryptography
@@ -259,18 +262,22 @@ cryptography==50.0.2 \
     --hash=sha256:fa8f5efb344d6908a1ce62f4a24e2e5780f825d6f53f5f50ec5ffacac72936cb \
     --hash=sha256:fdd28f912fccfec1846a94e2e1e8f9b0012f557f0c46fe4f3eb0d7a87afcf90b
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   -r backend/requirements.in
+    #   pyjwt
 dnspython==2.9.1 \
     --hash=sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f \
     --hash=sha256:9a6d30e55f8dc63e6052597666112bff0586b95a2474a9deda03afbbf820d37a
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   email-validator
 email-validator==2.3.0 \
     --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4 \
     --hash=sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   -r backend/requirements.in
 fastapi==0.162.0 \
@@ -585,12 +592,14 @@ pwdlib==0.3.1 \
     --hash=sha256:2ffd1955c92190d5bfbdc5071bf7d422568b83f943453ebd3d43d031ccba37b1 \
     --hash=sha256:944fa439198bed8ac3ea63dac76ea4ae43e2a35f4f21e9e725e82d3c2b97d6a5
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   -r backend/requirements.in
 pycparser==3.12 ; implementation_name != 'PyPy' \
     --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e \
     --hash=sha256:f03387877eab82ce01bbdfd0ba7252ee55a90b1c708d5129e2ce915475cf1db6
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   cffi
 pydantic==2.14.2 \
@@ -760,6 +769,12 @@ pygments==2.21.0 \
     # via
     #   -c backend/requirements-dev.txt
     #   pytest
+pyjwt==2.15.1 \
+    --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
+    --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
+    # via
+    #   -c backend/requirements.txt
+    #   -r backend/requirements.in
 pytest==9.2.0 \
     --hash=sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588 \
     --hash=sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b

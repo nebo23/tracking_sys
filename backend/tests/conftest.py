@@ -15,6 +15,7 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
     import base64
 
     monkeypatch.setenv("TRACKING_AUTH_SECRET", "ab" * 32)
+    monkeypatch.setenv("TRACKING_OTP_SECRET", "cd" * 32)
     monkeypatch.setenv("TRACKING_MAIL_ENCRYPTION_KEY", base64.urlsafe_b64encode(b"t" * 32).decode())
     return Settings(
         _env_file=None,

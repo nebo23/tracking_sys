@@ -3,7 +3,17 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -97,7 +107,9 @@ class SecurityEvent(Base):
     __table_args__ = (
         CheckConstraint(
             "action IN ('registered', 'email_verified', 'login_succeeded', 'login_failed', "
-            "'logout', 'logout_all', 'password_changed', 'reset_requested', 'reset_completed')",
+            "'logout', 'logout_all', 'password_changed', 'reset_requested', 'reset_completed', "
+            "'google_login_succeeded', 'google_registered', 'google_identity_linked', "
+            "'verification_code_failed')",
             name="valid_action",
         ),
     )
@@ -110,8 +122,9 @@ class SecurityEvent(Base):
 
 
 # Durable transactional mail queue. The payload is Fernet-encrypted with a key outside
-# PostgreSQL and cleared after delivery; a row is not proof that a mailbox received mail.
-# SELECT id, purpose, attempts, next_attempt_at, failure_code, created_at
+# PostgreSQL and cleared after delivery or expiry; a row is not proof that a mailbox received
+# mail. expires_at, when set, stops delivery of a verification code that is no longer valid.
+# SELECT id, purpose, attempts, next_attempt_at, expires_at, failure_code, created_at
 # FROM public.mail_outbox
 # WHERE delivered_at IS NULL
 # ORDER BY next_attempt_at, id LIMIT 100;
@@ -134,3 +147,79 @@ class MailOutbox(Base):
     )
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_code: Mapped[str | None] = mapped_column(String(32))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# Numeric email-verification challenge (D-022). Only a keyed HMAC verifier bound to the
+# challenge, user, and purpose is stored, never the code. Failed checks are counted in an
+# independent transaction; a reissue invalidates the previous open challenge.
+# SELECT id, user_id, purpose, failed_attempts, created_at, expires_at, consumed_at,
+#        invalidated_at
+# FROM public.verification_challenges
+# WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid
+# ORDER BY created_at DESC, id LIMIT 100;
+class VerificationChallenge(Base):
+    __tablename__ = "verification_challenges"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('email_verification')", name="valid_purpose"),
+        CheckConstraint("failed_attempts >= 0", name="nonnegative_attempts"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(32))
+    verifier: Mapped[str] = mapped_column(String(64))
+    failed_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# Single-use Google authorization transaction (D-022). It stores digests of the state and of
+# the browser-binding cookie; the PKCE verifier and nonce are derived from the raw state with
+# the application HMAC key, so neither is stored. Link transactions name the requesting user.
+# SELECT id, purpose, user_id, created_at, expires_at, consumed_at
+# FROM public.oauth_transactions
+# WHERE created_at >= now() - interval '1 day'
+# ORDER BY created_at DESC, id LIMIT 100;
+class OAuthTransaction(Base):
+    __tablename__ = "oauth_transactions"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('login', 'link')", name="valid_purpose"),
+        CheckConstraint(
+            "(purpose = 'login' AND user_id IS NULL) OR (purpose = 'link' AND user_id IS NOT NULL)",
+            name="link_has_user",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    purpose: Mapped[str] = mapped_column(String(8))
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    state_digest: Mapped[str] = mapped_column(String(64), unique=True)
+    binding_digest: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# External sign-in identity linked to one local user (D-022). Identified by the validated
+# issuer/subject pair, never by email; one Google identity per user. No tokens or profile copy.
+# SELECT id, user_id, provider, issuer, subject, created_at, last_login_at
+# FROM public.external_identities
+# WHERE user_id = '00000000-0000-0000-0000-000000000001'::uuid;
+# SELECT id, user_id, created_at, last_login_at
+# FROM public.external_identities
+# WHERE provider = 'google' AND subject = 'synthetic-google-subject-000000000001';
+class ExternalIdentity(Base):
+    __tablename__ = "external_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "subject", name="uq_external_identities_provider_subject"),
+        UniqueConstraint("user_id", "provider", name="uq_external_identities_user_provider"),
+        CheckConstraint("provider IN ('google')", name="valid_provider"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
+    provider: Mapped[str] = mapped_column(String(16))
+    issuer: Mapped[str] = mapped_column(String(255))
+    subject: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

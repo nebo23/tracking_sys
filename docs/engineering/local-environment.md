@@ -1,7 +1,7 @@
 # Local backend and database setup
 Updated: 2026-10-30. Scope: foundation and approved specification 002, authorized by D-013 through D-019.
 
-Current target schema: revision 0003_auth, with six tenancy tables and ten auth/access tables. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
+Current target schema: revision 0004_identity, with six tenancy tables, ten auth/access tables, and three D-022 identity/verification tables. Native tracking_sys remains at 0003_auth until the owner approves the reviewed additive 0004 rollout. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
 
 ## Requirements
 Use Python 3.12 and the owner's existing PostgreSQL 18 installation. The selected development database is tracking_sys on 127.0.0.1:5432. pgAdmin manages this PostgreSQL server; the application connects directly to PostgreSQL. Docker Desktop and Compose are required only for the optional container stack.
@@ -55,7 +55,7 @@ if ($LASTEXITCODE -ne 0) { throw "Database migration failed; do not start the AP
 .\.venv\Scripts\python.exe -m uvicorn app.main:create_app --factory --app-dir backend --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-The baseline creates Alembic's version table and grants runtime read access. Revision 0002_tenancy adds the six approved access-model tables; 0003_auth adds the approved authentication tables and nullable email verification timestamp. Existing identities are not automatically verified. Models derive from app.database.Base and are registered through app.models in migration metadata. Further model/table changes go through reviewed Alembic migrations in their approved specifications; the API does not create tables automatically.
+The baseline creates Alembic's version table and grants runtime read access. Revision 0002_tenancy adds the six approved access-model tables; 0003_auth adds the approved authentication tables and nullable email verification timestamp; 0004_identity adds Google identities, OAuth transactions, verification challenges, and mail_outbox.expires_at (D-022). Existing identities are not automatically verified. Models derive from app.database.Base and are registered through app.models in migration metadata. Further model/table changes go through reviewed Alembic migrations in their approved specifications; the API does not create tables automatically.
 
 Settings locate the root .env independently of the working directory. SQLAlchemy builds the connection URL from separate fields, so password punctuation does not require manual URL encoding.
 
@@ -89,6 +89,7 @@ for name in (
     content = content.replace(name + "=\n", name + "=" + secrets.token_hex(24) + "\n")
 content = content.replace("TRACKING_AUTH_SECRET=\n", "TRACKING_AUTH_SECRET=" + secrets.token_hex(32) + "\n")
 content = content.replace("TRACKING_MAIL_ENCRYPTION_KEY=\n", "TRACKING_MAIL_ENCRYPTION_KEY=" + Fernet.generate_key().decode() + "\n")
+content = content.replace("TRACKING_OTP_SECRET=\n", "TRACKING_OTP_SECRET=" + secrets.token_hex(32) + "\n")
 path.write_text(content, encoding="utf-8")
 '@ | .\.venv\Scripts\python.exe -
 ```

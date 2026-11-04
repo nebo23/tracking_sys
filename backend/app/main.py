@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.auth import router as auth_router
+from app.api.google import router as google_router
 from app.api.middleware import RequestBoundary
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
@@ -19,6 +20,7 @@ from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
+from app.services.google import GoogleOIDC
 from app.services.tenancy import AccessDenied, MembershipConflict
 
 
@@ -59,10 +61,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(
         title="Tracking System API",
-        version="0.2.0",
+        version="0.3.0",
         description=(
             "Agency/client access, email/password authentication, invitations, "
-            "and scoped service credentials. Google/Facebook sign-in is deferred. "
+            "scoped service credentials, numeric email verification, and optional Google sign-in. "
+            "Facebook sign-in is deferred. "
             "Cookie mutations require an allowed Origin and X-CSRF-Token "
             "from login or /auth/me."
         ),
@@ -72,6 +75,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         },
     )
     application.state.settings = configuration
+    # Google endpoint client (network access, cached discovery and keys); tests substitute it.
+    application.state.google = GoogleOIDC(configuration)
     application.add_middleware(RequestBoundary)
     application.add_middleware(
         CORSMiddleware,
@@ -127,6 +132,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"error": "temporarily_unavailable"}, status_code=503)
 
     application.include_router(auth_router)
+    application.include_router(google_router)
     application.include_router(tenancy_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.

@@ -1,9 +1,10 @@
 """Email/password identity, server-side sessions, and single-use recovery tokens."""
 
-from datetime import timedelta
-from uuid import UUID
+import hmac
+from datetime import datetime, timedelta
+from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, case, select, text, update
+from sqlalchemy import Connection, Engine, case, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.models import (
     PasswordCredential,
     SecurityEvent,
     User,
+    VerificationChallenge,
 )
 from app.security import (
     AuthError,
@@ -22,12 +24,40 @@ from app.security import (
     digest,
     keyed_digest,
     new_token,
+    new_verification_code,
     normalize_email,
     now_utc,
     password_hash,
+    verification_verifier,
     verify_password,
 )
 from app.services.mail import queue_mail
+
+VERIFICATION = "email_verification"
+
+
+# Atomically increment (or restart) one fixed-window bucket on an open connection and return
+# the attempt count and window deadline. The bucket key is an HMAC of scope and subject.
+def _count_attempt(
+    connection: Connection, settings: Settings, scope: str, subject: str, period: int
+) -> tuple[int, datetime]:
+    now = now_utc()
+    expires = now + timedelta(seconds=period)
+    stmt = insert(AuthRateLimit).values(
+        bucket_key=keyed_digest(settings, "rate:" + scope, subject),
+        attempts=1,
+        expires_at=expires,
+    )
+    expired = AuthRateLimit.expires_at <= now
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[AuthRateLimit.bucket_key],
+        set_={
+            "attempts": case((expired, 1), else_=AuthRateLimit.attempts + 1),
+            "expires_at": case((expired, expires), else_=AuthRateLimit.expires_at),
+        },
+    ).returning(AuthRateLimit.attempts, AuthRateLimit.expires_at)
+    attempts, deadline = connection.execute(stmt).one()
+    return attempts, deadline
 
 
 # Persistent fixed-window throttle shared by all API processes. The bucket key is an HMAC of
@@ -44,25 +74,57 @@ def enforce_rate_limit(
     period: int,
 ) -> None:
     """Commit attempt counters independently, including attempts that fail authentication."""
-    now = now_utc()
-    expires = now + timedelta(seconds=period)
-    stmt = insert(AuthRateLimit).values(
-        bucket_key=keyed_digest(settings, "rate:" + scope, subject),
-        attempts=1,
-        expires_at=expires,
-    )
-    expired = AuthRateLimit.expires_at <= now
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[AuthRateLimit.bucket_key],
-        set_={
-            "attempts": case((expired, 1), else_=AuthRateLimit.attempts + 1),
-            "expires_at": case((expired, expires), else_=AuthRateLimit.expires_at),
-        },
-    ).returning(AuthRateLimit.attempts, AuthRateLimit.expires_at)
     with engine.begin() as connection:
-        attempts, deadline = connection.execute(stmt).one()
+        attempts, deadline = _count_attempt(connection, settings, scope, subject, period)
     if attempts > limit:
-        raise RateLimited(max(1, int((deadline - now).total_seconds()) + 1))
+        raise RateLimited(max(1, int((deadline - now_utc()).total_seconds()) + 1))
+
+
+# Read-only check of a bucket that is incremented elsewhere (for example only on failures).
+# Raises RateLimited when the current window already holds `limit` attempts.
+def check_rate_limit(
+    engine: Engine, settings: Settings, scope: str, subject: str, *, limit: int
+) -> None:
+    now = now_utc()
+    with engine.connect() as connection:
+        row = connection.execute(
+            select(AuthRateLimit.attempts, AuthRateLimit.expires_at).where(
+                AuthRateLimit.bucket_key == keyed_digest(settings, "rate:" + scope, subject),
+                AuthRateLimit.expires_at > now,
+            )
+        ).first()
+    if row is not None and row.attempts >= limit:
+        raise RateLimited(max(1, int((row.expires_at - now).total_seconds()) + 1))
+
+
+# Record one failed verification-code check in an independent transaction on the security
+# engine, so it survives the request rollback: the per-email 24-hour failure bucket, the
+# challenge's failed_attempts (when one was found), and a security event (when the account
+# exists). The request transaction holds no lock on the challenge at this point.
+def record_verification_failure(
+    engine: Engine,
+    settings: Settings,
+    email: str,
+    challenge_id: UUID | None,
+    user_id: UUID | None,
+) -> None:
+    with engine.begin() as connection:
+        _count_attempt(connection, settings, "verify-code-failures", email, 86400)
+        if challenge_id is not None:
+            connection.execute(
+                update(VerificationChallenge)
+                .where(
+                    VerificationChallenge.id == challenge_id,
+                    VerificationChallenge.consumed_at.is_(None),
+                )
+                .values(failed_attempts=VerificationChallenge.failed_attempts + 1)
+            )
+        if user_id is not None:
+            connection.execute(
+                insert(SecurityEvent).values(
+                    id=uuid4(), action="verification_code_failed", user_id=user_id
+                )
+            )
 
 
 # Authentication operations within a caller-owned transaction. The service adds, locks, and
@@ -105,11 +167,13 @@ class AuthService:
             .execution_options(populate_existing=True)
         )
 
-    # Issue a single-use token for "verify" or "reset" and return None. Prior unconsumed tokens
-    # are consumed only for the same user and purpose; the SHA-256 digest is persisted, and an
-    # encrypted outbox message containing a link with the raw token is queued. It neither
-    # commits nor sends mail; a worker delivers queued messages after the caller commits.
+    # Issue a single-use password-reset token and return None. Prior unconsumed reset tokens of
+    # the user are consumed; the SHA-256 digest is persisted, and an encrypted outbox message
+    # containing a link with the raw token is queued. It neither commits nor sends mail; a
+    # worker delivers queued messages after the caller commits. Verification links are no longer
+    # issued (D-022); verification uses _issue_verification.
     def _issue_token(self, user: User, purpose: str) -> None:
+        lifetimes = {"reset": self.settings.reset_lifetime_seconds}
         now = now_utc()
         self.session.execute(
             update(AuthToken)
@@ -121,31 +185,71 @@ class AuthService:
             .values(consumed_at=now)
         )
         raw = new_token()
-        lifetime = (
-            self.settings.verification_lifetime_seconds
-            if purpose == "verify"
-            else self.settings.reset_lifetime_seconds
-        )
         self.session.add(
             AuthToken(
                 user_id=user.id,
                 token_digest=digest(raw),
                 purpose=purpose,
-                expires_at=now + timedelta(seconds=lifetime),
+                expires_at=now + timedelta(seconds=lifetimes[purpose]),
             )
         )
         queue_mail(self.session, self.settings, user.email_normalized, purpose, raw)
 
-    # Create an unverified active account with its password credential, a verification token,
-    # an encrypted outbox entry, and a security event in the caller's transaction. A
-    # transaction-scoped advisory lock per email serializes duplicate registrations; an
-    # existing email returns silently without changing that account or its password.
+    # Issue a numeric verification challenge (D-022) for a locked or newly created user.
+    # Previous open challenges are invalidated and outstanding legacy verification links are
+    # consumed, so only the newest code works. Only the keyed verifier is stored; the code is
+    # queued in the encrypted outbox with the same expiry. It neither commits nor sends mail.
+    def _issue_verification(self, user: User) -> None:
+        now = now_utc()
+        self.session.execute(
+            update(VerificationChallenge)
+            .where(
+                VerificationChallenge.user_id == user.id,
+                VerificationChallenge.purpose == VERIFICATION,
+                VerificationChallenge.consumed_at.is_(None),
+                VerificationChallenge.invalidated_at.is_(None),
+            )
+            .values(invalidated_at=now)
+        )
+        self.session.execute(
+            update(AuthToken)
+            .where(
+                AuthToken.user_id == user.id,
+                AuthToken.purpose == "verify",
+                AuthToken.consumed_at.is_(None),
+            )
+            .values(consumed_at=now)
+        )
+        challenge_id, code = uuid4(), new_verification_code()
+        expires = now + timedelta(seconds=self.settings.verification_code_lifetime_seconds)
+        self.session.add(
+            VerificationChallenge(
+                id=challenge_id,
+                user_id=user.id,
+                purpose=VERIFICATION,
+                verifier=verification_verifier(self.settings, challenge_id, user.id, code),
+                created_at=now,
+                expires_at=expires,
+            )
+        )
+        queue_mail(
+            self.session, self.settings, user.email_normalized, "verify", code, expires_at=expires
+        )
+
+    # Serialize account creation for one normalized email with a transaction-scoped advisory
+    # lock, without leaking uniqueness violations to callers. Used by registration and by
+    # first-time Google sign-in.
+    def _serialize_email(self, email: str) -> None:
+        lock_key = int.from_bytes(bytes.fromhex(digest(email))[:8], signed=True)
+        self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+
+    # Create an unverified active account with its password credential, a verification code
+    # challenge, an encrypted outbox entry, and a security event in the caller's transaction.
+    # An existing email returns silently without changing that account or its password.
     def register(self, email: str, display_name: str, password: str) -> None:
         email = normalize_email(email)
         hashed = password_hash.hash(password)
-        # Serialize duplicate registration without leaking uniqueness violations to callers.
-        lock_key = int.from_bytes(bytes.fromhex(digest(email))[:8], signed=True)
-        self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        self._serialize_email(email)
         existing = self.session.scalar(select(User.id).where(User.email_normalized == email))
         if existing is not None:
             return
@@ -153,15 +257,93 @@ class AuthService:
         self.session.add(user)
         self.session.flush()
         self.session.add(PasswordCredential(user_id=user.id, password_hash=hashed))
-        self._issue_token(user, "verify")
+        self._issue_verification(user)
         self.event("registered", user.id)
 
-    # Reissue a verification token only for an active, still unverified account; otherwise do
-    # nothing so the route's generic acknowledgement reveals nothing.
+    # Reissue a verification code only for an active, still unverified account and only after
+    # the resend cooldown since its latest challenge; otherwise do nothing, so the route's
+    # generic acknowledgement reveals nothing and the latest emailed code stays valid.
     def request_verification(self, email: str) -> None:
         user = self._user_by_email(email)
-        if user is not None and user.email_verified_at is None:
-            self._issue_token(user, "verify")
+        if user is None or user.email_verified_at is not None:
+            return
+        latest = self.session.scalar(
+            select(func.max(VerificationChallenge.created_at)).where(
+                VerificationChallenge.user_id == user.id,
+                VerificationChallenge.purpose == VERIFICATION,
+            )
+        )
+        cooldown = timedelta(seconds=self.settings.verification_resend_cooldown_seconds)
+        if latest is not None and latest > now_utc() - cooldown:
+            return
+        self._issue_verification(user)
+
+    # Check a numeric code for an email (D-022). The per-email 24-hour failure cap is checked
+    # first. The newest open challenge is read without a lock and its keyed verifier compared in
+    # constant time; any failure is recorded through `failure_engine` and reported with one
+    # generic error, whether or not the account exists. On a match, the user and then the
+    # challenge are locked, rechecked, consumed, and the email marked verified atomically.
+    def verify_email_code(self, email: str, code: str, failure_engine: Engine) -> None:
+        email = normalize_email(email)
+        check_rate_limit(
+            failure_engine,
+            self.settings,
+            "verify-code-failures",
+            email,
+            limit=self.settings.verification_daily_failures,
+        )
+        limit = self.settings.verification_code_attempts
+        user_id = self.session.scalar(
+            select(User.id).where(
+                User.email_normalized == email,
+                User.status == "active",
+                User.email_verified_at.is_(None),
+            )
+        )
+        open_challenge = (
+            VerificationChallenge.user_id == user_id,
+            VerificationChallenge.purpose == VERIFICATION,
+            VerificationChallenge.consumed_at.is_(None),
+            VerificationChallenge.invalidated_at.is_(None),
+            VerificationChallenge.expires_at > now_utc(),
+            VerificationChallenge.failed_attempts < limit,
+        )
+        challenge = (
+            self.session.scalar(
+                select(VerificationChallenge)
+                .where(*open_challenge)
+                .order_by(VerificationChallenge.created_at.desc(), VerificationChallenge.id)
+                .limit(1)
+            )
+            if user_id is not None
+            else None
+        )
+        if challenge is None or not hmac.compare_digest(
+            challenge.verifier, verification_verifier(self.settings, challenge.id, user_id, code)
+        ):
+            record_verification_failure(
+                failure_engine,
+                self.settings,
+                email,
+                challenge.id if challenge is not None else None,
+                user_id,
+            )
+            raise AuthError("invalid_or_expired_code", 400)
+        try:
+            user = self._lock_user(user_id)
+        except AuthError as error:
+            raise AuthError("invalid_or_expired_code", 400) from error
+        locked = self.session.scalar(
+            select(VerificationChallenge)
+            .where(VerificationChallenge.id == challenge.id, *open_challenge)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked is None or user.email_verified_at is not None:
+            raise AuthError("invalid_or_expired_code", 400)
+        now = now_utc()
+        locked.consumed_at, user.email_verified_at = now, now
+        self.event("email_verified", user.id)
 
     # Atomically consume a token of the given purpose: find its owner by digest, lock the user
     # first and then the token row (the shared user-before-token order), and reject unknown,
@@ -189,7 +371,8 @@ class AuthService:
         token.consumed_at = now_utc()
         return user, token
 
-    # Consume a verification token and record verified mailbox ownership. This is separate from
+    # Legacy transition (D-022): consume an already issued, unexpired verification link token and
+    # record verified mailbox ownership. No new links are issued. Verification is separate from
     # User.status, which only records whether the account is administratively enabled.
     def verify_email(self, raw: str) -> None:
         user, _ = self._consume_token(raw, "verify")
@@ -208,6 +391,14 @@ class AuthService:
         assert user is not None
         if user.email_verified_at is None:
             raise AuthError("email_verification_required", 403)
+        raw = self.issue_session(user)
+        self.event("login_succeeded", user.id)
+        return user, raw
+
+    # Create a server-side session row for an authenticated, verified user and return the raw
+    # token for the HttpOnly cookie; only its digest is stored. Shared by password and Google
+    # sign-in so both receive identical session expiry, idle, and revocation behavior.
+    def issue_session(self, user: User) -> str:
         raw = new_token()
         now = now_utc()
         self.session.add(
@@ -219,8 +410,7 @@ class AuthService:
                 expires_at=now + timedelta(seconds=self.settings.session_lifetime_seconds),
             )
         )
-        self.event("login_succeeded", user.id)
-        return user, raw
+        return raw
 
     # Resolve a raw session cookie on every authenticated browser request: look up its digest,
     # lock the user and then the session row, and reject revoked, absolutely expired, idle, or
@@ -281,13 +471,16 @@ class AuthService:
             self._issue_token(user, "reset")
             self.event("reset_requested", user.id)
 
-    # Replace the stored hash of an existing credential, revoke all sessions, and consume any
-    # other outstanding reset tokens. The caller already holds the user lock.
+    # Replace the stored hash, revoke all sessions, and consume any other outstanding reset
+    # tokens. A Google-only account without a credential receives its first password here; that
+    # path is reachable only through a reset link, which proves current mailbox control (D-022).
+    # The caller already holds the user lock.
     def _set_password(self, user: User, hashed: str) -> None:
         credential = self.session.get(PasswordCredential, user.id)
         if credential is None:
-            raise AuthError("invalid_or_expired_token", 400)
-        credential.password_hash, credential.changed_at = hashed, now_utc()
+            self.session.add(PasswordCredential(user_id=user.id, password_hash=hashed))
+        else:
+            credential.password_hash, credential.changed_at = hashed, now_utc()
         self.revoke_sessions(user.id)
         self.session.execute(
             update(AuthToken)

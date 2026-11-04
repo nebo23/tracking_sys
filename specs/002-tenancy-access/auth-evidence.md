@@ -94,3 +94,25 @@ T-02 invitation throttling:
 - The OpenAPI snapshot is unchanged (the contract test passed without regeneration).
 
 Full verification after the slice: Ruff check/format pass except the pre-existing owner edit at backend/app/models/tenancy.py line 27 (E501 and formatter rewrap), which was left unchanged and uncommitted. **122 passed in 36.73 seconds** (18 unit/contract and 104 PostgreSQL cases), with no failures, skips, or warnings. F-01 evidence is recorded in the [foundation evidence](../001-foundation/evidence.md).
+
+## D-022 implementation: numeric verification, Google sign-in, and Gmail delivery (2026-11-04)
+Authority: D-022 (owner approval of the six decisions in the [auth design](auth-design.md)). Local automated verification only; no live Google or Gmail call was made, and native tracking_sys was not migrated or written.
+
+Delivered:
+- Dependency: PyJWT[crypto] 2.15.1 (released 2026-09-28) added with hashes; the lock diff adds only pyjwt, and `pip check` passes. Code exchange, Gmail send, and the sender helper use the standard library.
+- Migration 0004_identity: external_identities, oauth_transactions, verification_challenges, mail_outbox.expires_at, and the extended security_events action constraint. Least-privilege column grants; guarded downgrade refuses populated identity state.
+- Numeric verification: six-digit codes kept as strings, ten-minute lifetime, keyed HMAC verifier under the independent TRACKING_OTP_SECRET, five failed checks per challenge, 60-second resend cooldown, ten failed checks per email per 24 hours, failure counting in independent transactions, and atomic consumption under user-then-challenge locks. Legacy links remain accepted until expiry and are consumed by a resend.
+- Google sign-in: GET /auth/google/start, POST /auth/google/link, GET /auth/google/callback behind TRACKING_GOOGLE_SIGN_IN_ENABLED; state/nonce/S256 PKCE, browser-binding cookie, single-use transactions, PyJWT validation of signature, RS256, issuer, audience, expiry, and nonce; the approved account policy; existing opaque sessions.
+- Gmail: TRACKING_MAIL_MODE=gmail transport with token refresh, send-only scope check, bounded timeouts, sanitized failure codes, and expiry-aware delivery; `python -m app.gmail_authorize` loopback helper that refuses the sign-in client and stores the refresh token without printing it.
+- Compose forwards the verification key and the optional provider settings; OpenAPI regenerated (29 paths, 36 operations).
+
+Automated verification on the guarded disposable database (tracking_foundation_test, 127.0.0.1:55433):
+- **180 passed in 70.51 seconds** (45 unit/contract and 135 PostgreSQL cases), no failures, skips, or warnings in the final run. An earlier run of the same suite surfaced the known FastAPI warning-filter artifact once.
+- New coverage includes leading zeroes and format bounds, per-challenge exhaustion with persisted counts, the per-email daily cap with identical behavior for unknown emails, resend cooldown and invalidation, concurrent consumption, legacy-link transition, expired outbox messages, Gmail-mode delivery through a controlled sender, a Google-only first password through reset, 0004 downgrade refusal when populated, runtime privilege denials on the new tables, and model/migration agreement.
+- Google tests use a controlled provider substitute with a locally generated RSA key and PKCE checking: sign-up, repeat sign-in, session parity (Origin/CSRF, logout), wrong audience/issuer/expiry/nonce/signature, missing subject, unverified or non-authoritative email, hosted-domain sign-up, state replay, missing browser binding, cancellation, explicit linking, identity already linked elsewhere, and disabled users.
+- Gmail unit tests use a substitute opener: MIME and Message-ID, token caching, sanitized refresh and send failures, scope enforcement, and helper state/scope/storage checks.
+- Ruff check and format pass except the pre-existing, uncommitted owner edit at backend/app/models/tenancy.py line 27.
+
+Container smoke test (disposable project tracking-system-otp-test, API port 18003, removed with its volumes and images afterward): /auth/register 202; login before verification 403; /auth/google/start 404 while disabled; one bounded worker batch delivered one message containing a code and no link token; /auth/verify-email-code 204 (the code was read inside the container and never printed); login 200; runtime UID 10001.
+
+Not yet verified (owner-operated): a live Google sign-in in a browser, sender authorization with a separate Desktop client, Gmail acceptance, and receipt at a designated owner test address. The current .env reuses the sign-in client for TRACKING_GMAIL_CLIENT_ID/SECRET, which Gmail mode and the helper refuse by design; TRACKING_GMAIL_REFRESH_TOKEN and TRACKING_GMAIL_SENDER are blank. tracking_sys remains at 0003_auth until the reviewed 0004 rollout is approved.

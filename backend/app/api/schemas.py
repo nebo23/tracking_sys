@@ -64,6 +64,17 @@ class Login(EmailInput):
     password: SecretStr = Field(min_length=1, max_length=128)
 
 
+# Numeric verification request (D-022): the normalized email plus a six-digit code kept as a
+# string so leading zeroes survive.
+class VerificationCode(EmailInput):
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+# Authorization URL returned to an authenticated browser that starts Google account linking.
+class AuthorizationURL(Output):
+    authorization_url: str
+
+
 # Body for consuming one-time verification, reset, or invitation tokens; tokens are never
 # accepted in backend URL query parameters.
 class TokenInput(Input):

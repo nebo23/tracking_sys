@@ -9,6 +9,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
+from email_validator import EmailNotValidError, validate_email
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
@@ -79,11 +80,18 @@ class Settings(DatabaseSettings):
         "http://localhost:5173",
     ]
     frontend_origin: str = "http://127.0.0.1:5173"
-    mail_mode: Literal["local"] = "local"
+    # Mail transport selection: local .eml capture (default) or the D-022 Gmail adapter.
+    mail_mode: Literal["local", "gmail"] = "local"
     mail_directory: Path = PROJECT_ROOT / "local-data" / "mail"
     session_lifetime_seconds: int = Field(default=43200, ge=60, le=86400)
     session_idle_seconds: int = Field(default=1800, ge=60, le=43200)
-    verification_lifetime_seconds: int = Field(default=86400, ge=60, le=172800)
+    # Approved numeric verification policy (D-022): ten-minute codes, five failed checks per
+    # challenge, a 60-second resend cooldown, and ten failed checks per email per 24 hours.
+    otp_secret: SecretStr
+    verification_code_lifetime_seconds: int = Field(default=600, ge=60, le=3600)
+    verification_code_attempts: int = Field(default=5, ge=1, le=10)
+    verification_resend_cooldown_seconds: int = Field(default=60, ge=1, le=3600)
+    verification_daily_failures: int = Field(default=10, ge=1, le=100)
     reset_lifetime_seconds: int = Field(default=1800, ge=60, le=3600)
     invitation_lifetime_seconds: int = Field(default=604800, ge=60, le=604800)
     login_attempts_per_minute: int = Field(default=5, ge=1, le=100)
@@ -91,10 +99,24 @@ class Settings(DatabaseSettings):
     # Per-user invitation acceptance attempts per minute (review amendment T-02). The default
     # mirrors the login subject limit and is recorded as a proposed value in the auth design.
     invitation_attempts_per_minute: int = Field(default=5, ge=1, le=100)
+    # Google sign-in (D-022) is off unless explicitly enabled with a Web client. The completion
+    # URL receives the browser after the callback; it defaults to the frontend completion page.
+    google_sign_in_enabled: bool = False
+    google_client_id: str = ""
+    google_client_secret: SecretStr = SecretStr("")
+    google_redirect_uri: str = "http://127.0.0.1:8000/auth/google/callback"
+    google_complete_url: str = ""
+    # Gmail sender (D-022): a separate Desktop OAuth client authorized by the owner for the
+    # send-only scope. Used only when mail_mode is "gmail".
+    gmail_client_id: str = ""
+    gmail_client_secret: SecretStr = SecretStr("")
+    gmail_refresh_token: SecretStr = SecretStr("")
+    gmail_sender: str = ""
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
-    @field_validator("auth_secret")
+    # The same rule applies to the independent numeric-verification verifier key.
+    @field_validator("auth_secret", "otp_secret")
     @classmethod
     def validate_auth_secret(cls, value: SecretStr) -> SecretStr:
         try:
@@ -102,9 +124,7 @@ class Settings(DatabaseSettings):
         except ValueError:
             valid = False
         if not valid:
-            raise ValueError(
-                "The authentication secret must contain at least 32 hexadecimal bytes."
-            )
+            raise ValueError("Application secrets must contain at least 32 hexadecimal bytes.")
         return value
 
     # Registered field validator: constructing Fernet proves the key has the expected format.
@@ -120,8 +140,9 @@ class Settings(DatabaseSettings):
 
     # After-model validator: checks relationships across already parsed fields. Origins must be
     # exact HTTP(S) origins without credentials, paths, or wildcards; insecure cookies are
-    # allowed only for loopback origins; production stays blocked until a reviewed external
-    # mail adapter and production rule set exist.
+    # allowed only for loopback origins; the verification key must differ from the auth secret;
+    # enabled Google sign-in and Gmail mode must be fully configured; production stays blocked
+    # until a reviewed production rule set exists.
     @model_validator(mode="after")
     def validate_development_boundary(self) -> "Settings":
         for origin in [*self.allowed_origins, self.frontend_origin]:
@@ -144,15 +165,75 @@ class Settings(DatabaseSettings):
                 "::1",
             }:
                 raise ValueError("Insecure development cookies require loopback origins.")
+        if self.otp_secret.get_secret_value() == self.auth_secret.get_secret_value():
+            raise ValueError("The verification key must be independent of the auth secret.")
+        if self.google_sign_in_enabled:
+            self._validate_google()
+        if self.mail_mode == "gmail":
+            self._validate_gmail()
         if self.environment == "production":
             raise ValueError("Production requires an approved external mail delivery adapter.")
         return self
+
+    # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
+    # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.
+    def _validate_google(self) -> None:
+        if not self.google_client_id or not self.google_client_secret.get_secret_value():
+            raise ValueError("Google sign-in requires its client ID and secret.")
+        callback = urlsplit(self.google_redirect_uri)
+        loopback = callback.hostname in {"127.0.0.1", "localhost", "::1"}
+        if (
+            callback.scheme not in {"http", "https"}
+            or (callback.scheme == "http" and not loopback)
+            or callback.path != "/auth/google/callback"
+            or callback.query
+            or callback.fragment
+            or callback.username
+            or callback.password
+        ):
+            raise ValueError("The Google redirect URI must be this API's exact callback route.")
+        target = urlsplit(self.google_completion_url)
+        if (
+            f"{target.scheme}://{target.netloc}" not in self.allowed_origins
+            or target.fragment
+            or target.username
+            or target.password
+        ):
+            raise ValueError("The Google completion URL must use an allowed origin.")
+
+    # Gmail mode needs the separate sender client, its refresh token, and a valid sender. The
+    # sender client must not be the sign-in client (D-022 decision 6).
+    def _validate_gmail(self) -> None:
+        if not (
+            self.gmail_client_id
+            and self.gmail_client_secret.get_secret_value()
+            and self.gmail_refresh_token.get_secret_value()
+            and self.gmail_sender
+        ):
+            raise ValueError("Gmail delivery requires sender client, refresh token, and sender.")
+        if self.gmail_client_id == self.google_client_id:
+            raise ValueError("Gmail delivery requires a client separate from Google sign-in.")
+        try:
+            validate_email(self.gmail_sender, check_deliverability=False, test_environment=True)
+        except EmailNotValidError as error:
+            raise ValueError("The Gmail sender must be a valid email address.") from error
 
     # Computed when read: secure deployments use the __Host- prefix, which browsers accept only
     # for Secure, host-only, path=/ cookies. Reading it does not issue a session cookie.
     @property
     def cookie_name(self) -> str:
         return "__Host-tracking_session" if self.cookie_secure else "tracking_session"
+
+    # Short-lived cookie that binds a Google authorization transaction to the browser that
+    # started it. The __Secure- prefix permits the narrower /auth/google path.
+    @property
+    def oauth_cookie_name(self) -> str:
+        return "__Secure-tracking_oauth" if self.cookie_secure else "tracking_oauth"
+
+    # Where the browser goes after the Google callback; at most a fixed error code is appended.
+    @property
+    def google_completion_url(self) -> str:
+        return self.google_complete_url or f"{self.frontend_origin}/auth/google/complete"
 
 
 # Separate migrator credentials through explicit TRACKING_MIGRATION_* aliases, with a longer

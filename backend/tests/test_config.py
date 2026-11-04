@@ -76,3 +76,46 @@ def test_alternate_origins_resolve_from_forwarded_environment(settings, monkeypa
     monkeypatch.setenv("TRACKING_ALLOWED_ORIGINS", '["http://127.0.0.1:18002","*"]')
     with pytest.raises(ValidationError):
         Settings(_env_file=None, database_password="synthetic", cookie_secure=False)
+
+
+GOOGLE = {
+    "google_sign_in_enabled": True,
+    "google_client_id": "synthetic-sign-in.apps.googleusercontent.com",
+    "google_client_secret": "synthetic-secret",
+}
+GMAIL = {
+    "mail_mode": "gmail",
+    "gmail_client_id": "synthetic-sender.apps.googleusercontent.com",
+    "gmail_client_secret": "synthetic-sender-secret",
+    "gmail_refresh_token": "synthetic-refresh-token",
+    "gmail_sender": "sender@example.test",
+}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"otp_secret": "ab" * 32},
+        {"otp_secret": "short"},
+        {"google_sign_in_enabled": True},
+        GOOGLE | {"google_redirect_uri": "http://example.test/auth/google/callback"},
+        GOOGLE | {"google_redirect_uri": "http://127.0.0.1:8000/other"},
+        GOOGLE | {"google_complete_url": "https://foreign.example.test/done"},
+        {"mail_mode": "gmail"},
+        GMAIL | {"gmail_sender": "not-an-email"},
+        GMAIL | GOOGLE | {"gmail_client_id": GOOGLE["google_client_id"]},
+        GMAIL | {"environment": "production"},
+    ],
+)
+def test_identity_and_mail_configuration_fails_closed(settings: Settings, changes: dict) -> None:
+    base = settings.model_dump() | {"cookie_secure": False}
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **(base | changes))
+
+
+def test_complete_google_and_gmail_configuration_is_accepted(settings: Settings) -> None:
+    base = settings.model_dump() | {"cookie_secure": False}
+    configured = Settings(_env_file=None, **(base | GOOGLE | GMAIL))
+    assert configured.google_completion_url == "http://127.0.0.1:5173/auth/google/complete"
+    assert configured.oauth_cookie_name == "tracking_oauth"
+    assert configured.mail_mode == "gmail"

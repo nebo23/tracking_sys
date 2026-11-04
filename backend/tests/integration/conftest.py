@@ -27,6 +27,9 @@ from app.services.tenancy import Role, tenancy_transaction
 TABLES = (
     "audit_events",
     "security_events",
+    "external_identities",
+    "oauth_transactions",
+    "verification_challenges",
     "service_client_grants",
     "invitation_client_grants",
     "service_credentials",
@@ -79,9 +82,11 @@ def api(db, database_settings, tmp_path: Path):
                 config.mail_directory.glob("*.eml"), key=lambda p: p.stat().st_mtime_ns
             ):
                 message = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
-                token = re.search(r"#token=([A-Za-z0-9_-]+)", message.get_body().get_content())
+                body = message.get_body().get_content()
+                token = re.search(r"#token=([A-Za-z0-9_-]+)|verification code: ([0-9]{6})", body)
                 assert token is not None
-                tokens.append((str(message["To"]), str(message["Subject"]), token.group(1)))
+                value = token.group(1) or token.group(2)
+                tokens.append((str(message["To"]), str(message["Subject"]), value))
             return tokens
 
         def login(client, email, password=TEST_PASSWORD):

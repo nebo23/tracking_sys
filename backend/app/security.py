@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import UTC, datetime
+from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from pwdlib import PasswordHash
@@ -68,6 +69,23 @@ def keyed_digest(settings: Settings, purpose: str, value: str) -> str:
     return hmac.new(
         bytes.fromhex(settings.auth_secret.get_secret_value()),
         (purpose + "\0" + value).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+# Six-digit numeric verification code from the operating system CSPRNG. It is returned as a
+# string so leading zeroes survive (D-022).
+def new_verification_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+# Keyed verifier for a numeric code: HMAC-SHA256 under the independent OTP key, bound to the
+# purpose, challenge, and user. A plain hash of a six-digit code could be enumerated offline,
+# so only this keyed value is stored, and checks compare it in constant time.
+def verification_verifier(settings: Settings, challenge_id: UUID, user_id: UUID, code: str) -> str:
+    return hmac.new(
+        bytes.fromhex(settings.otp_secret.get_secret_value()),
+        f"email_verification\0{challenge_id}\0{user_id}\0{code}".encode(),
         hashlib.sha256,
     ).hexdigest()
 
