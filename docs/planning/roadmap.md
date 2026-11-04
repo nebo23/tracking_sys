@@ -3,7 +3,7 @@ Updated: 2026-10-29. Proposed sequence; no delivery dates or cost estimates have
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 
-Current progress: foundation and approved local specification 002 are implemented and verified with 115 passing checks. Native tracking_sys is at 0003_auth with 16 empty tables. This work was uploaded to the claude/development branch under D-020; formal acceptance and merge remain pending. Review [current evidence](../../specs/002-tenancy-access/auth-evidence.md), then plan specification 003; social sign-in and production mail remain explicit later obligations.
+Current progress: foundation and approved local specification 002, including the D-022 numeric verification, Google sign-in, and Gmail sender additions, are implemented and verified with 180 passing checks. Native tracking_sys is at 0004_identity with 19 tables. The base 002 work was uploaded to the claude/development branch under D-020; the D-022 additions await upload approval, and formal acceptance and merge remain pending. Review [current evidence](../../specs/002-tenancy-access/auth-evidence.md), then plan specification 003; social sign-in and production mail remain explicit later obligations.
 
 | Level | Specifications | Reviewable outcome | Exit gate |
 |---|---|---|---|

@@ -25,4 +25,6 @@ The 0002 downgrade takes exclusive table locks and refuses populated tables. Use
 
 Revision 0003_auth implements D-019: ten authentication/access tables, nullable users.email_verified_at, expanded audit checks, and restricted grants. Runtime may insert identities and update their verification/timestamp columns, but cannot change user status. Security events remain append-only. Tokens and keys are stored as digests; queued mail payloads are encrypted.
 
-The 0003 downgrade refuses non-empty auth tables, verified identities, or auth audit records under exclusive locks. Native tracking_sys is at 0003_auth with 16 empty application tables after the verified additive upgrade. See [current evidence](../../specs/002-tenancy-access/auth-evidence.md).
+The 0003 downgrade refuses non-empty auth tables, verified identities, or auth audit records under exclusive locks.
+
+Revision 0004_identity implements D-022: external_identities, oauth_transactions, verification_challenges, nullable mail_outbox.expires_at, and the extended security_events action check. Runtime may insert into the new tables and update only their consumption, attempt, invalidation, and last-login columns; it cannot delete from them. The 0004 downgrade refuses populated identity state. Native tracking_sys received the additive 0004 upgrade on 2026-11-04 with owner approval and now has 19 application tables. See [current evidence](../../specs/002-tenancy-access/auth-evidence.md).

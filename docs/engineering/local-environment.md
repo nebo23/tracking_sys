@@ -1,7 +1,7 @@
 # Local backend and database setup
 Updated: 2026-10-30. Scope: foundation and approved specification 002, authorized by D-013 through D-019.
 
-Current target schema: revision 0004_identity, with six tenancy tables, ten auth/access tables, and three D-022 identity/verification tables. Native tracking_sys remains at 0003_auth until the owner approves the reviewed additive 0004 rollout. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
+Current target schema: revision 0004_identity, with six tenancy tables, ten auth/access tables, and three D-022 identity/verification tables. Native tracking_sys received the owner-approved additive 0004 rollout on 2026-11-04. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
 
 ## Requirements
 Use Python 3.12 and the owner's existing PostgreSQL 18 installation. The selected development database is tracking_sys on 127.0.0.1:5432. pgAdmin manages this PostgreSQL server; the application connects directly to PostgreSQL. Docker Desktop and Compose are required only for the optional container stack.
