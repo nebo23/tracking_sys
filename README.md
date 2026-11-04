@@ -1,5 +1,5 @@
 # Tracking System
-Status: foundation, specification 002, and D-022 additions are on claude/development in PR 1. The R-01 to R-03 authentication corrections are verified and owner-approved for upload under specification 002. Formal acceptance and merge pending. Updated: 2026-11-04.
+Status: foundation, specification 002, D-022 additions, and the R-01 to R-03 corrections are merged into main (PR 1, `98747a2`). Specification 003 continues on codex/spec-003-privacy-data-policy under D-023: slices 003-A1/003-A2 are implemented locally for review, and the next slices await owner decisions. Updated: 2026-11-04.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 
@@ -8,7 +8,7 @@ The owner created [nebo23/tracking_sys](https://github.com/nebo23/tracking_sys);
 
 Start with [local setup](docs/engineering/local-environment.md), the [auth walkthrough](docs/engineering/authentication.md), and [current evidence](specs/002-tenancy-access/auth-evidence.md). Native tracking_sys on 127.0.0.1:5432 received the owner-approved additive 0004_identity upgrade on 2026-11-04 and has 19 application tables; existing rows, runtime privileges, and readiness were verified. Optional Docker configuration remains separate in .env.docker. Start Uvicorn to view the 36-operation API at http://127.0.0.1:8000/docs. Production startup remains blocked until a reviewed production rule set and approved delivery are recorded.
 
-Complete an approved specification, run relevant checks, and present the result for owner review. Push and PR creation follow the owner's approval of the completed work for upload (D-012); merge and deployment require their respective owner decisions. Ongoing work uses the claude/development branch rather than main (D-020). D-022 adds numeric email verification, optional Google sign-in, and an opt-in Gmail sender, verified locally; the native 0004 rollout is applied, and live provider checks remain owner steps.
+Complete an approved specification, run relevant checks, and present the result for owner review. Push and PR creation follow the owner's approval of the completed work for upload (D-012); merge and deployment require their respective owner decisions. Each specification uses a fresh branch from merged main, by default codex/spec-NNN-short-name (D-023, superseding D-020's shared branch). D-022 adds numeric email verification, optional Google sign-in, and an opt-in Gmail sender, verified locally; the native 0004 rollout is applied, and live provider checks remain owner steps.
 
 All maintained project content and filenames must use formal English. Product localization is a separate, unresolved decision. Discussions with the owner may remain in Arabic.
 
@@ -44,4 +44,4 @@ Python dependencies are isolated in .venv and pinned with hashes in [backend/req
 One-time PDF repair tools, temporary files, and document exports have been removed from the project. The original reference PDF and final corrected reading copy are preserved outside the workspace. [Source provenance](docs/source/README.md) remains available to the team.
 
 ## Working method
-Follow the specification sequence. D-017/D-019 authorized the completed local 002 scope. Review the implementation, explicit deferrals, and evidence before progression. Specification 003 is the next planned review. Completed 001/002 work was uploaded to claude/development under D-020; each later specification is reviewed with the owner before its upload.
+Follow the specification sequence. D-017/D-019 authorized the completed local 002 scope. Review the implementation, explicit deferrals, and evidence before progression. Specification 003 is in progress: see its [reconciled design](specs/003-privacy-data-policy/design.md), [decision packet](specs/003-privacy-data-policy/decision-packet-003a.md), and [evidence](specs/003-privacy-data-policy/evidence.md). Completed 001/002 work was merged through PR 1; each later specification is reviewed with the owner before its upload.

@@ -1,5 +1,5 @@
 # 003-privacy-data-policy — Consent, data protection, and lifecycle
-Status: Draft; implementation is not approved. Level: L1. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; detailed approval is pending. Level: L1. Prepared: 2026-10-28. English revision: 2026-10-29. Continuation authorized under D-023 on 2026-11-04: the [design](design.md) is reconciled with merged specification 002. Slices 003-A1 (data-class registry) and 003-A2 (log allowlist) are implemented locally for review, and the [003-A decision packet](decision-packet-003a.md) awaits owner decisions. No acceptance criterion below is complete.
 
 ## Sources
 PDF-104,105,106,107,108. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
