@@ -39,6 +39,7 @@ services:
       POSTGRES_PASSWORD: ${TRACKING_POSTGRES_PASSWORD:?Set TRACKING_POSTGRES_PASSWORD in .env.docker}
       TRACKING_DATABASE_PASSWORD: ${TRACKING_DATABASE_PASSWORD:?Set TRACKING_DATABASE_PASSWORD in .env.docker}
       TRACKING_MIGRATION_PASSWORD: ${TRACKING_MIGRATION_PASSWORD:?Set TRACKING_MIGRATION_PASSWORD in .env.docker}
+      TRACKING_LIFECYCLE_PASSWORD: ${TRACKING_LIFECYCLE_PASSWORD:?Set TRACKING_LIFECYCLE_PASSWORD in .env.docker}
     ports:
       - "127.0.0.1:${TRACKING_DATABASE_PORT:-55432}:5432"
     volumes:
@@ -96,6 +97,26 @@ services:
       TRACKING_DATABASE_USER: tracking_app
       TRACKING_DATABASE_PASSWORD: ${TRACKING_DATABASE_PASSWORD:?Set TRACKING_DATABASE_PASSWORD in .env.docker}
     command: ["python", "-m", "app.mail_worker"]
+    volumes:
+      - mail-data:/app/local-data/mail
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Lifecycle runner (D-024): one bounded retention pass as the tracking_lifecycle role, which
+  # can delete only ended credential state. It receives no auth, mail, or provider secret.
+  lifecycle:
+    profiles: [lifecycle]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    environment:
+      <<: *database-settings
+      TRACKING_LIFECYCLE_USER: tracking_lifecycle
+      TRACKING_LIFECYCLE_PASSWORD: ${TRACKING_LIFECYCLE_PASSWORD:?Set TRACKING_LIFECYCLE_PASSWORD in .env.docker}
+      TRACKING_MAIL_DIRECTORY: /app/local-data/mail
+    command: ["python", "-m", "app.lifecycle"]
     volumes:
       - mail-data:/app/local-data/mail
     depends_on:

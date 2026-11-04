@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session
 
-from app.config import BACKEND_ROOT, MigrationSettings, Settings
+from app.config import BACKEND_ROOT, LifecycleSettings, MigrationSettings, Settings
 from app.database import create_database_engine
 from app.main import create_app
 from app.models import AgencyMembership, PasswordCredential, User
@@ -157,6 +157,30 @@ def migration_engine(database_settings: Settings) -> Iterator[Engine]:
                 assert not connection.execute(
                     text(f"SELECT EXISTS (SELECT 1 FROM {table})")
                 ).scalar_one(), "Refuse a prepopulated database; use fresh disposable storage."
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def lifecycle_settings(database_settings: Settings, tmp_path_factory) -> LifecycleSettings:
+    config = LifecycleSettings()
+    assert (config.database_host, config.database_port, config.database_name) == (
+        database_settings.database_host,
+        database_settings.database_port,
+        database_settings.database_name,
+    )
+    assert config.database_user == "tracking_lifecycle"
+    # Never point mail cleanup at the workspace's own local-data/mail captures.
+    return config.model_copy(update={"mail_directory": tmp_path_factory.mktemp("lifecycle-mail")})
+
+
+@pytest.fixture(scope="session")
+def lifecycle_engine(
+    lifecycle_settings: LifecycleSettings, migration_engine: Engine
+) -> Iterator[Engine]:
+    engine = create_database_engine(lifecycle_settings, pool_size=2)
+    try:
         yield engine
     finally:
         engine.dispose()

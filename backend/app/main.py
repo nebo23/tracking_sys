@@ -43,9 +43,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Application lifetime: create the request engine and a small separate security engine at
     # startup, read the expected migration head, and dispose of both pools at shutdown. The
-    # lifespan does not run migrations or block startup on database availability.
+    # lifespan does not run migrations or block startup on database availability. Logging is
+    # configured again here because a server may apply its own logging configuration after the
+    # application object was built; the allowlist must cover the server's loggers as well.
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        configure_logging()
         application.state.engine = create_database_engine(configuration)
         # Counters/failure events commit independently while a request may hold a user lock.
         # A separate bounded pool prevents concurrent requests starving their own commits.

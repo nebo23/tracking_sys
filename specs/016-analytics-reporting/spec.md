@@ -23,6 +23,8 @@ Read models, aggregation provenance, and report snapshot schemas; identify non-a
 ## Dependencies and open decisions
 Dependencies: [008-attribution-engine](../008-attribution-engine/spec.md), [010-instagram](../010-instagram/spec.md), [011-youtube](../011-youtube/spec.md), [012-linkedin](../012-linkedin/spec.md), [013-x](../013-x/spec.md), [014-ad-spend-capi](../014-ad-spend-capi/spec.md), [015-business-integrations](../015-business-integrations/spec.md)
 
+Specification 003 obligations (D-025): invalidate caches and revoke exports covered by deletion requests, and verify the cache and export part of 003 acceptance criterion 3.
+
 Open decisions: Q-001, Q-006, Q-007, Q-011. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

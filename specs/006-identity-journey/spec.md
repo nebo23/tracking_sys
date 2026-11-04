@@ -22,6 +22,8 @@ IdentityKey, Subject, IdentityLink, and Touchpoint; define normalization, versio
 ## Dependencies and open decisions
 Dependencies: [005-links-tracker](../005-links-tracker/spec.md)
 
+Specification 003 obligations (D-025): build subject keys from `app.privacy.deletion` (canonical identifiers, per-client keys), require the identity_link purpose (E3), and verify that deletion and unmerge remove identity links; review the candidate phone trunk-zero rule.
+
 Open decisions: Q-002, Q-008, Q-012. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

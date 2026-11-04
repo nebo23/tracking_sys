@@ -92,6 +92,12 @@ class PasswordChange(Input):
     new_password: Password
 
 
+# Account closure (D-024). An account with a password must re-enter it; an account without one
+# omits it and must use a session created within the reauthentication window.
+class AccountClosure(Input):
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=128)
+
+
 # Public identity projection. Only verified users can hold sessions, so the timestamp is set.
 class UserResponse(Output):
     id: UUID

@@ -23,6 +23,8 @@ Provider-specific subcontracts; each provider becomes an independently reviewabl
 ## Dependencies and open decisions
 Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md), [006-identity-journey](../006-identity-journey/spec.md), [007-revenue-ledger](../007-revenue-ledger/spec.md)
 
+Specification 003 obligations (D-025): apply consent, collection minimization, and tombstone admission to imported subjects (E6), and keep payment data within the payment-processor row.
+
 Open decisions: Q-002, Q-003, Q-010; select providers before implementation. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

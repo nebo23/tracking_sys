@@ -16,9 +16,11 @@ $$;
 
 CREATE ROLE tracking_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE tracking_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-GRANT CONNECT ON DATABASE tracking_sys TO tracking_migrator, tracking_app;
+-- Lifecycle runner role (D-024). Existing installations use lifecycle-role.sql instead.
+CREATE ROLE tracking_lifecycle LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
+GRANT CONNECT ON DATABASE tracking_sys TO tracking_migrator, tracking_app, tracking_lifecycle;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO tracking_migrator;
-GRANT USAGE ON SCHEMA public TO tracking_app;
+GRANT USAGE ON SCHEMA public TO tracking_app, tracking_lifecycle;
 
 COMMIT;

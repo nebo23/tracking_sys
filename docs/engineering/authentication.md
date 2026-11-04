@@ -113,6 +113,14 @@ try { ..\.venv\Scripts\python.exe -m app.gmail_authorize --client-json ..\local-
 
 Failures are stored as fixed codes (for example gmail_authorization_revoked, gmail_rate_limited, gmail_temporary_failure) and retried with the existing backoff. A timeout after Google accepted a message can cause a duplicate on retry; exactly-once delivery is not claimed. External apps in the consent screen's Testing state receive Gmail refresh tokens that Google documents as expiring after seven days; rerun the helper when gmail_authorization_revoked appears.
 
+## Account closure
+Specification 003-A5 under D-024. `POST /auth/close-account` closes the signed-in account. It requires the allowed Origin and the session's X-CSRF-Token and is throttled per peer and per user.
+- **Reauthentication:** an account with a password sends `{"password": "..."}`. An account without a password, created through Google, sends `{}` from a session created within the last 10 minutes, which means a fresh Google sign-in; otherwise it receives 403 `reauthentication_required`.
+- **Last Owner:** the request returns 409 `state_conflict` when any agency would lose its last active Owner; transfer ownership first.
+- **Effects:** the email and display name are replaced by `closed-<user id>@tracking.invalid` and `Closed account`, the account is disabled with `closed_at`, every session is revoked, open codes, links, and Google transactions end, memberships are disabled with audit rows, and the original email can register again at once.
+- **Deletion:** the [lifecycle runner](data-lifecycle.md) then deletes the password credential, Google identity, and remaining credential state. After that, the same Google account may sign up again as a new user.
+- **Kept:** audit and security events keep the pseudonymized user ID. Closure cannot be undone.
+
 ## HTTP behavior
 
 - JSON inputs reject unknown fields. Validation errors do not echo passwords, tokens, or codes. Request bodies are limited to 16 KiB.

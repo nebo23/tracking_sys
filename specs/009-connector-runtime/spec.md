@@ -22,6 +22,8 @@ Connection, SyncRun, Checkpoint, Capability, ProviderError, and UsageRecord; kee
 ## Dependencies and open decisions
 Dependencies: [003-privacy-data-policy](../003-privacy-data-policy/spec.md), [004-event-collection](../004-event-collection/spec.md)
 
+Specification 003 obligations (D-025): store connector tokens through `app.privacy.token_secrets` with a TokenSecretReference table and the local keyring until 020, keep provider rows in `app.privacy.providers` blocking until re-verified, and verify 003 case D3 (disconnect revokes at the provider, destroys ciphertext, and purges provider data).
+
 Open decisions: Q-001, Q-004, Q-009, Q-010. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

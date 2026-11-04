@@ -1,7 +1,7 @@
 # Interface contracts
 Technical contracts define the data exchanged between components; they are not legal contracts.
 
-[openapi.json](openapi.json) describes 29 paths and 36 operations: health, email/password identity, numeric email verification, optional Google sign-in and linking, sessions/recovery, agencies/clients/members/grants/audit, invitations, and scoped service credentials. An automated test compares the snapshot with the actual FastAPI routes.
+[openapi.json](openapi.json) describes 30 paths and 37 operations: health, email/password identity, numeric email verification, optional Google sign-in and linking, sessions/recovery, self-service account closure, agencies/clients/members/grants/audit, invitations, and scoped service credentials. An automated test compares the snapshot with the actual FastAPI routes.
 
 The existing health contract remains public:
 - GET /health/live: 200 with status ok; independent of database readiness.
