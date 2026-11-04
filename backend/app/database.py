@@ -8,6 +8,9 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import BACKEND_ROOT, DatabaseSettings
 
 
+# Shared declarative base: every model registers its table in this one metadata, which Alembic
+# compares with migrations. The naming convention gives indexes and constraints stable names;
+# it does not create any index or constraint by itself.
 class Base(DeclarativeBase):
     metadata = MetaData(
         naming_convention={
@@ -20,6 +23,10 @@ class Base(DeclarativeBase):
     )
 
 
+# Construct an Engine with a bounded pool, no overflow, short pool waits, and per-connection
+# connect, statement, and lock timeouts in UTC. Connections open lazily when first needed; the
+# pool size does not eagerly open that many. pool_pre_ping checks liveness before reuse, and
+# hide_parameters keeps bound values out of SQLAlchemy error text.
 def create_database_engine(settings: DatabaseSettings, *, pool_size: int = 5) -> Engine:
     return create_engine(
         settings.database_url,
@@ -38,6 +45,8 @@ def create_database_engine(settings: DatabaseSettings, *, pool_size: int = 5) ->
     )
 
 
+# Read the expected Alembic head from the project's migration files at startup. It neither
+# reads the revision recorded in the database nor applies migrations.
 def expected_revision() -> str:
     revision = ScriptDirectory(str(BACKEND_ROOT / "migrations")).get_current_head()
     if revision is None:
@@ -45,6 +54,9 @@ def expected_revision() -> str:
     return revision
 
 
+# Readiness probe helper: confirm connectivity and that the database records exactly the
+# expected revision. Returns a sanitized failure code or None. It does not verify every
+# column, upgrade the schema, stop the process, or guarantee all application behavior.
 def readiness_failure(engine: Engine, revision: str) -> str | None:
     database_reached = False
     try:

@@ -16,6 +16,10 @@ from app.models import MailOutbox
 from app.security import now_utc
 
 
+# Add an encrypted outbox row in the caller's transaction for a verification, reset, or
+# invitation message. The link carries the raw token in its fragment so it is not sent to the
+# frontend server in a request. The payload is Fernet-encrypted with the separate mail key; this
+# function neither commits nor delivers. The worker delivers after the caller commits.
 def queue_mail(session: Session, settings: Settings, email: str, purpose: str, token: str) -> None:
     identifier = uuid4()
     paths = {"verify": "verify-email", "reset": "reset-password", "invitation": "accept-invitation"}
@@ -38,6 +42,9 @@ def queue_mail(session: Session, settings: Settings, email: str, purpose: str, t
     session.add(MailOutbox(id=identifier, purpose=purpose, encrypted_payload=encrypted))
 
 
+# Development transport: decrypt one claimed message and publish it as an .eml file named by
+# the outbox ID. Any other environment or mail mode raises, so no external mail is sent. An
+# identical existing file makes a retry idempotent; a differing file is refused.
 def deliver_local(message: MailOutbox, settings: Settings) -> None:
     if settings.environment != "development" or settings.mail_mode != "local":
         raise RuntimeError("External email delivery is not configured.")
@@ -69,6 +76,10 @@ def deliver_local(message: MailOutbox, settings: Settings) -> None:
     temporary.replace(target)
 
 
+# Deliver up to `limit` due messages, each in its own short transaction. SKIP LOCKED lets
+# concurrent workers claim different rows. Success sets delivered_at and clears the encrypted
+# payload; a failure records a sanitized code and exponential backoff capped at one hour. A file
+# published before a failed commit is detected as identical on retry. Returns counts only.
 def process_mail(engine: Engine, settings: Settings, *, limit: int = 50) -> dict[str, int]:
     if not 1 <= limit <= 100:
         raise ValueError("Mail batch size must be between 1 and 100.")

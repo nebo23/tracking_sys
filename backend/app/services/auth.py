@@ -30,6 +30,10 @@ from app.security import (
 from app.services.mail import queue_mail
 
 
+# Persistent fixed-window throttle shared by all API processes. The bucket key is an HMAC of
+# scope and subject, so raw emails/IPs are not stored. One atomic upsert increments or restarts
+# the window and commits in its own short transaction on the given (security) engine, so the
+# count survives a later rollback of the request transaction. Raises RateLimited over the limit.
 def enforce_rate_limit(
     engine: Engine,
     settings: Settings,
@@ -61,13 +65,21 @@ def enforce_rate_limit(
         raise RateLimited(max(1, int((deadline - now).total_seconds()) + 1))
 
 
+# Authentication operations within a caller-owned transaction. The service adds, locks, and
+# flushes rows but never commits; the route's SessionDep (or a test's explicit transaction)
+# commits or rolls back everything together, including security events and queued mail.
 class AuthService:
+    # Bind the caller's database Session and the validated application settings.
     def __init__(self, session: Session, settings: Settings) -> None:
         self.session, self.settings = session, settings
 
+    # Append a security event in the current transaction; it commits only if the caller commits.
     def event(self, action: str, user_id: UUID | None = None) -> None:
         self.session.add(SecurityEvent(action=action, user_id=user_id))
 
+    # Lock the active user row (SELECT ... FOR UPDATE) to serialize credential, verification,
+    # and session changes for that user; populate_existing refreshes stale identity-map state.
+    # A missing or disabled user raises the generic AuthError.
     def _lock_user(self, user_id: UUID) -> User:
         user = self.session.scalar(
             select(User)
@@ -79,6 +91,8 @@ class AuthService:
             raise AuthError()
         return user
 
+    # Find and lock (FOR UPDATE) an active user by normalized email; returns None when absent
+    # so callers can keep generic responses.
     def _user_by_email(self, email: str) -> User | None:
         return self.session.scalar(
             select(User)
@@ -87,6 +101,10 @@ class AuthService:
             .execution_options(populate_existing=True)
         )
 
+    # Issue a single-use token for "verify" or "reset" and return None. Prior unconsumed tokens
+    # are consumed only for the same user and purpose; the SHA-256 digest is persisted, and an
+    # encrypted outbox message containing a link with the raw token is queued. It neither
+    # commits nor sends mail; a worker delivers queued messages after the caller commits.
     def _issue_token(self, user: User, purpose: str) -> None:
         now = now_utc()
         self.session.execute(
@@ -114,6 +132,10 @@ class AuthService:
         )
         queue_mail(self.session, self.settings, user.email_normalized, purpose, raw)
 
+    # Create an unverified active account with its password credential, a verification token,
+    # an encrypted outbox entry, and a security event in the caller's transaction. A
+    # transaction-scoped advisory lock per email serializes duplicate registrations; an
+    # existing email returns silently without changing that account or its password.
     def register(self, email: str, display_name: str, password: str) -> None:
         email = normalize_email(email)
         hashed = password_hash.hash(password)
@@ -130,11 +152,16 @@ class AuthService:
         self._issue_token(user, "verify")
         self.event("registered", user.id)
 
+    # Reissue a verification token only for an active, still unverified account; otherwise do
+    # nothing so the route's generic acknowledgement reveals nothing.
     def request_verification(self, email: str) -> None:
         user = self._user_by_email(email)
         if user is not None and user.email_verified_at is None:
             self._issue_token(user, "verify")
 
+    # Atomically consume a token of the given purpose: find its owner by digest, lock the user
+    # first and then the token row (the shared user-before-token order), and reject unknown,
+    # disabled, consumed, or expired tokens with one generic error. Replays therefore fail.
     def _consume_token(self, raw: str, purpose: str) -> tuple[User, AuthToken]:
         user_id = self.session.scalar(
             select(AuthToken.user_id).where(
@@ -158,11 +185,17 @@ class AuthService:
         token.consumed_at = now_utc()
         return user, token
 
+    # Consume a verification token and record verified mailbox ownership. This is separate from
+    # User.status, which only records whether the account is administratively enabled.
     def verify_email(self, raw: str) -> None:
         user, _ = self._consume_token(raw, "verify")
         user.email_verified_at = now_utc()
         self.event("email_verified", user.id)
 
+    # Verify the password against the locked active user (with dummy-hash work for unknown
+    # emails), require a verified email, then create a server-side session row storing only the
+    # token digest. Returns the user and the raw token for the cookie. The route records failed
+    # attempts separately because this transaction rolls back on failure.
     def login(self, email: str, password: str) -> tuple[User, str]:
         user = self._user_by_email(email)
         credential = self.session.get(PasswordCredential, user.id) if user else None
@@ -185,6 +218,9 @@ class AuthService:
         self.event("login_succeeded", user.id)
         return user, raw
 
+    # Resolve a raw session cookie on every authenticated browser request: look up its digest,
+    # lock the user and then the session row, and reject revoked, absolutely expired, idle, or
+    # unverified sessions. Disabled users fail in _lock_user. Refreshes last_seen_at.
     def authenticate(self, raw: str) -> tuple[User, AuthSession]:
         if not 32 <= len(raw) <= 128:
             raise AuthError("authentication_required")
@@ -214,10 +250,13 @@ class AuthService:
         item.last_seen_at = now
         return user, item
 
+    # Revoke the current session row (already locked by authenticate) and record the event.
     def logout(self, user: User, item: AuthSession) -> None:
         item.revoked_at = now_utc()
         self.event("logout", user.id)
 
+    # Mark every unrevoked session of the user revoked in one statement. Used by logout-all and
+    # by password changes/resets; rows are kept for later retention review, not deleted.
     def revoke_sessions(self, user_id: UUID) -> None:
         self.session.execute(
             update(AuthSession)
@@ -225,16 +264,21 @@ class AuthService:
             .values(revoked_at=now_utc())
         )
 
+    # Revoke all sessions of the authenticated user and record logout_all.
     def logout_all(self, user: User) -> None:
         self.revoke_sessions(user.id)
         self.event("logout_all", user.id)
 
+    # Issue a reset token only for an active verified account; otherwise do nothing so the
+    # route's generic acknowledgement does not reveal account state.
     def request_reset(self, email: str) -> None:
         user = self._user_by_email(email)
         if user is not None and user.email_verified_at is not None:
             self._issue_token(user, "reset")
             self.event("reset_requested", user.id)
 
+    # Replace the stored hash of an existing credential, revoke all sessions, and consume any
+    # other outstanding reset tokens. The caller already holds the user lock.
     def _set_password(self, user: User, hashed: str) -> None:
         credential = self.session.get(PasswordCredential, user.id)
         if credential is None:
@@ -251,12 +295,16 @@ class AuthService:
             .values(consumed_at=now_utc())
         )
 
+    # Complete recovery: hash first (outside the locks), consume the reset token, then set the
+    # password and revoke every session.
     def reset_password(self, raw: str, password: str) -> None:
         hashed = password_hash.hash(password)
         user, _ = self._consume_token(raw, "reset")
         self._set_password(user, hashed)
         self.event("reset_completed", user.id)
 
+    # Authenticated change: lock the user, re-verify the current password, then set the new
+    # hash and revoke all sessions.
     def change_password(self, user_id: UUID, current: str, replacement: str) -> None:
         user = self._lock_user(user_id)
         credential = self.session.get(PasswordCredential, user.id)

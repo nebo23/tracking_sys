@@ -7,11 +7,14 @@ from app.config import MigrationSettings
 from app.database import Base, create_database_engine
 from app.logging_config import configure_logging
 
+# Alembic imports this module for every command. Settings use the dedicated migrator role, and
+# the shared metadata lets autogenerate/comparison see every registered model.
 configure_logging()
 settings = MigrationSettings()
 target_metadata = Base.metadata
 
 
+# Offline mode renders SQL with literal binds instead of connecting; used to review scripts.
 def run_migrations_offline() -> None:
     context.configure(
         url=settings.database_url,
@@ -24,6 +27,8 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+# Online mode connects with the bounded migrator engine, runs pending revisions in one
+# transaction per Alembic invocation, and always disposes of the engine afterward.
 def run_migrations_online() -> None:
     engine = create_database_engine(settings)
     try:

@@ -21,6 +21,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
+# Reference queries below are manual read-only diagnostics for an authorized database operator
+# (for example in pgAdmin). Replace the clearly synthetic literals before use. They do not
+# implement application authorization; never paste real account values into shared logs.
+#
+# Reusable column mixin with no table of its own (there is no entities table): it adds a UUID
+# primary key and server-side created/updated timestamps to the mapped classes that inherit it.
 class Entity:
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -29,6 +35,16 @@ class Entity:
     )
 
 
+# Platform identity; one user may belong to several agencies. status = 'active' means
+# administratively enabled, while email_verified_at separately records verified mailbox
+# ownership. An active but unverified user is still denied password login.
+# SELECT id, email_normalized, display_name, status, email_verified_at, created_at
+# FROM public.users
+# WHERE id = '00000000-0000-0000-0000-000000000001'::uuid;
+# SELECT id, email_normalized, display_name, status, email_verified_at, created_at
+# FROM public.users
+# WHERE email_normalized = 'synthetic.user@example.test'
+# ORDER BY created_at, id LIMIT 1;
 class User(Entity, Base):
     __tablename__ = "users"
     __table_args__ = (
@@ -47,6 +63,14 @@ class User(Entity, Base):
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+# Tenant boundary: an agency is active or suspended and owns its client workspaces.
+# SELECT id, name, status, created_at, updated_at
+# FROM public.agencies
+# WHERE id = '00000000-0000-0000-0000-000000000002'::uuid;
+# SELECT id, name, status, created_at
+# FROM public.agencies
+# WHERE status = 'active'
+# ORDER BY created_at, id LIMIT 100;
 class Agency(Entity, Base):
     __tablename__ = "agencies"
     __table_args__ = (
@@ -58,6 +82,16 @@ class Agency(Entity, Base):
     status: Mapped[str] = mapped_column(String(16), server_default="active")
 
 
+# A user's role and status within one agency; disabling it affects no other agency.
+# SELECT id, agency_id, user_id, role, status, created_at, updated_at
+# FROM public.agency_memberships
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND user_id = '00000000-0000-0000-0000-000000000001'::uuid;
+# SELECT id, user_id, role, status, created_at
+# FROM public.agency_memberships
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND role IN ('owner', 'admin') AND status = 'active'
+# ORDER BY created_at, id LIMIT 100;
 class AgencyMembership(Entity, Base):
     __tablename__ = "agency_memberships"
     __table_args__ = (
@@ -76,6 +110,15 @@ class AgencyMembership(Entity, Base):
     status: Mapped[str] = mapped_column(String(16), server_default="active")
 
 
+# Client workspace that belongs to exactly one agency; active or archived.
+# SELECT id, agency_id, name, status, created_at, updated_at
+# FROM public.client_workspaces
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND id = '00000000-0000-0000-0000-000000000003'::uuid;
+# SELECT id, name, status, created_at
+# FROM public.client_workspaces
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+# ORDER BY created_at, id LIMIT 100;
 class ClientWorkspace(Entity, Base):
     __tablename__ = "client_workspaces"
     __table_args__ = (
@@ -89,6 +132,18 @@ class ClientWorkspace(Entity, Base):
     status: Mapped[str] = mapped_column(String(16), server_default="active")
 
 
+# Explicit client access for a restricted membership. Composite foreign keys keep the client
+# and membership in the same agency; financial visibility defaults to false.
+# SELECT agency_id, client_id, membership_id, can_view_financials
+# FROM public.client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND client_id = '00000000-0000-0000-0000-000000000003'::uuid
+#   AND membership_id = '00000000-0000-0000-0000-000000000004'::uuid;
+# SELECT client_id, membership_id, can_view_financials
+# FROM public.client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND membership_id = '00000000-0000-0000-0000-000000000004'::uuid
+# ORDER BY client_id LIMIT 100;
 class ClientGrant(Base):
     __tablename__ = "client_grants"
     __table_args__ = (
@@ -108,6 +163,19 @@ class ClientGrant(Base):
     can_view_financials: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
+# Append-only record of successful sensitive tenant mutations: identifiers and action codes
+# only, with no passwords, tokens, emails, or customer payloads. The runtime may only insert.
+# SELECT id, agency_id, client_id, actor_user_id, action, resource_type, resource_id,
+#        occurred_at
+# FROM public.audit_events
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+# ORDER BY occurred_at DESC, id DESC LIMIT 100;
+# SELECT id, client_id, action, resource_type, resource_id, occurred_at
+# FROM public.audit_events
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND actor_user_id = '00000000-0000-0000-0000-000000000001'::uuid
+#   AND occurred_at >= now() - interval '7 days'
+# ORDER BY occurred_at DESC, id DESC LIMIT 100;
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (

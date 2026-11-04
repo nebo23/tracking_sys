@@ -33,11 +33,15 @@ from app.services.access import (
 )
 from app.services.tenancy import AccessDenied, TenancyService
 
+# Tenant administration router. Every route authenticates through BrowserDep or ReaderDep and
+# delegates authorization to the tenancy/access services; mutations commit with their audit
+# events in the request's SessionDep transaction. Limit/Offset bound list pagination.
 router = APIRouter(tags=["Agency access"])
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0, le=100000)]
 
 
+# Create an agency; the authenticated verified user becomes its Owner. Audited.
 @router.post("/agencies", status_code=201, response_model=AgencyResponse)
 def create_agency(data: AgencyInput, session: SessionDep, browser: BrowserDep) -> AgencyResponse:
     return AgencyResponse.model_validate(
@@ -45,6 +49,7 @@ def create_agency(data: AgencyInput, session: SessionDep, browser: BrowserDep) -
     )
 
 
+# List the caller's active memberships in active agencies (agency ID and role only).
 @router.get("/agencies", response_model=list[AgencyAccess])
 def list_agencies(
     session: SessionDep, browser: BrowserDep, limit: Limit = 100, offset: Offset = 0
@@ -65,6 +70,7 @@ def list_agencies(
     return [AgencyAccess.model_validate(member) for member in memberships]
 
 
+# Read an agency profile; denied to ClientViewer members and non-members.
 @router.get("/agencies/{agency_id}", response_model=AgencyResponse)
 def get_agency(agency_id: UUID, session: SessionDep, browser: BrowserDep) -> AgencyResponse:
     return AgencyResponse.model_validate(
@@ -72,6 +78,7 @@ def get_agency(agency_id: UUID, session: SessionDep, browser: BrowserDep) -> Age
     )
 
 
+# Rename an agency (Owner/Admin) under the agency write lock; audited.
 @router.patch("/agencies/{agency_id}", response_model=AgencyResponse)
 def update_agency(
     agency_id: UUID, data: AgencyInput, session: SessionDep, browser: BrowserDep
@@ -81,6 +88,7 @@ def update_agency(
     )
 
 
+# Create a client workspace in the agency (Owner/Admin); audited.
 @router.post("/agencies/{agency_id}/clients", status_code=201, response_model=ClientResponse)
 def create_client(
     agency_id: UUID, data: AgencyInput, session: SessionDep, browser: BrowserDep
@@ -90,6 +98,8 @@ def create_client(
     )
 
 
+# List active clients readable by the principal: managers see all, restricted members see
+# explicit grants, and a service key sees only its own granted clients in its own agency.
 @router.get("/agencies/{agency_id}/clients", response_model=list[ClientResponse])
 def list_clients(
     agency_id: UUID,
@@ -127,6 +137,7 @@ def list_clients(
     return [ClientResponse.model_validate(client) for client in clients]
 
 
+# Read one client after live scope resolution for a user or service principal.
 @router.get("/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse)
 def get_client(
     agency_id: UUID, client_id: UUID, session: SessionDep, principal: ReaderDep
@@ -140,6 +151,7 @@ def get_client(
     return ClientResponse.model_validate(client)
 
 
+# Rename or archive/reactivate a client (Owner/Admin); requires at least one field; audited.
 @router.patch("/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse)
 def update_client(
     agency_id: UUID, client_id: UUID, data: ClientUpdate, session: SessionDep, browser: BrowserDep
@@ -153,6 +165,7 @@ def update_client(
     )
 
 
+# List agency memberships (Owner/Admin only).
 @router.get("/agencies/{agency_id}/members", response_model=list[MembershipResponse])
 def list_members(
     agency_id: UUID,
@@ -169,6 +182,7 @@ def list_members(
     ]
 
 
+# Change a member's role or status under Owner rules and last-active-Owner protection; audited.
 @router.patch("/agencies/{agency_id}/members/{membership_id}", response_model=MembershipResponse)
 def update_member(
     agency_id: UUID,
@@ -186,6 +200,7 @@ def update_member(
     )
 
 
+# Create or update an explicit client grant, including financial visibility; audited.
 @router.put("/agencies/{agency_id}/members/{membership_id}/clients/{client_id}", status_code=204)
 def grant_client(
     agency_id: UUID,
@@ -201,6 +216,7 @@ def grant_client(
     return Response(status_code=204)
 
 
+# Remove an explicit client grant; idempotent when no grant exists; audited when removed.
 @router.delete("/agencies/{agency_id}/members/{membership_id}/clients/{client_id}", status_code=204)
 def revoke_client(
     agency_id: UUID, membership_id: UUID, client_id: UUID, session: SessionDep, browser: BrowserDep
@@ -209,6 +225,7 @@ def revoke_client(
     return Response(status_code=204)
 
 
+# Read the most recent agency audit events (Owner/Admin), newest first, at most 100.
 @router.get("/agencies/{agency_id}/audit", response_model=list[AuditResponse])
 def list_audit(
     agency_id: UUID, session: SessionDep, browser: BrowserDep, limit: Limit = 100
@@ -219,10 +236,14 @@ def list_audit(
     ]
 
 
+# Helper used by invitation and service-key routes: an AccessService for the browser user that
+# shares the request transaction and application settings.
 def access(request: Request, session: SessionDep, browser: BrowserDep) -> AccessService:
     return AccessService(session, browser.user.id, request.app.state.settings)
 
 
+# Invite a member by email with a role and explicit client grants (only an Owner may invite an
+# Owner). Stores a token digest, queues an encrypted invitation link, and audits.
 @router.post(
     "/agencies/{agency_id}/invitations",
     status_code=201,
@@ -245,6 +266,7 @@ def issue_invitation(
     return InvitationResponse.model_validate(result)
 
 
+# List agency invitations for Owner/Admin managers.
 @router.get(
     "/agencies/{agency_id}/invitations",
     response_model=list[InvitationResponse],
@@ -266,6 +288,7 @@ def list_invitations(
     ]
 
 
+# Revoke a pending invitation; Owner invitations require an Owner; audited when it changes.
 @router.delete(
     "/agencies/{agency_id}/invitations/{invitation_id}", status_code=204, tags=["Invitations"]
 )
@@ -276,6 +299,8 @@ def revoke_invitation(
     return Response(status_code=204)
 
 
+# Accept an invitation token as the logged-in verified recipient. Creates the membership and
+# grants atomically with audit events. No route-specific persistent throttle is applied here.
 @router.post("/invitations/accept", response_model=MembershipResponse, tags=["Invitations"])
 def accept_invitation(
     data: TokenInput, request: Request, session: SessionDep, browser: BrowserDep
@@ -285,6 +310,8 @@ def accept_invitation(
     )
 
 
+# Issue an expiring read-only service key with explicit client grants (Owner/Admin). The raw
+# key is returned once in this response and only its digest is stored; audited.
 @router.post(
     "/agencies/{agency_id}/service-credentials",
     status_code=201,
@@ -307,6 +334,7 @@ def issue_service_key(
     return IssuedServiceKey(credential=ServiceKeyResponse.model_validate(item), key=raw)
 
 
+# List service key metadata (Owner/Admin); key values and digests are never returned.
 @router.get(
     "/agencies/{agency_id}/service-credentials",
     response_model=list[ServiceKeyResponse],
@@ -328,6 +356,7 @@ def list_service_keys(
     ]
 
 
+# Revoke a service key (Owner/Admin); later Bearer use fails immediately; audited if active.
 @router.delete(
     "/agencies/{agency_id}/service-credentials/{credential_id}",
     status_code=204,

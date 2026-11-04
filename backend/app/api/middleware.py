@@ -4,15 +4,22 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
+# Pure ASGI middleware installed by create_app around every HTTP request. It buffers mutation
+# bodies up to max_bytes before routing and adds no-store, no-referrer, and nosniff headers to
+# every HTTP response. Non-HTTP scopes, such as lifespan, pass through unchanged.
 class RequestBoundary:
+    # Wrap the next ASGI application; 16 KiB covers the bounded JSON request contracts.
     def __init__(self, app: ASGIApp, max_bytes: int = 16384) -> None:
         self.app, self.max_bytes = app, max_bytes
 
+    # Called once per ASGI connection scope.
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        # Replace any downstream Cache-Control header and add privacy headers to the response
+        # start message before forwarding it.
         async def private_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = [
@@ -46,6 +53,8 @@ class RequestBoundary:
                     break
             sent = False
 
+            # Replay the already bounded body once to the application, then defer to the
+            # original receive channel, for example for disconnect notifications.
             async def bounded_receive() -> Message:
                 nonlocal sent
                 if not sent:

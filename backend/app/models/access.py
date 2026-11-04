@@ -20,6 +20,21 @@ from app.database import Base
 from app.models.tenancy import Entity
 
 
+# Reference queries below are manual read-only diagnostics for an authorized database operator.
+# Replace the synthetic literals before use. Token and key digests are deliberately omitted.
+# They are scoped by agency and do not implement application authorization.
+#
+# Email invitation to join one agency with a role; only the token digest is stored. Status moves
+# from pending to accepted or revoked; expiry is checked when the token is used.
+# SELECT id, agency_id, inviter_membership_id, email_normalized, role, status, expires_at,
+#        accepted_by_user_id, created_at
+# FROM public.agency_invitations
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND id = '00000000-0000-0000-0000-000000000007'::uuid;
+# SELECT id, email_normalized, role, status, expires_at, created_at
+# FROM public.agency_invitations
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid AND status = 'pending'
+# ORDER BY created_at, id LIMIT 100;
 class AgencyInvitation(Entity, Base):
     __tablename__ = "agency_invitations"
     __table_args__ = (
@@ -43,6 +58,17 @@ class AgencyInvitation(Entity, Base):
     accepted_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
+# Client grants to apply when an invitation is accepted; composite keys keep one agency.
+# SELECT agency_id, invitation_id, client_id, can_view_financials
+# FROM public.invitation_client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND invitation_id = '00000000-0000-0000-0000-000000000007'::uuid
+#   AND client_id = '00000000-0000-0000-0000-000000000003'::uuid;
+# SELECT client_id, can_view_financials
+# FROM public.invitation_client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND invitation_id = '00000000-0000-0000-0000-000000000007'::uuid
+# ORDER BY client_id LIMIT 100;
 class InvitationClientGrant(Base):
     __tablename__ = "invitation_client_grants"
     __table_args__ = (
@@ -60,6 +86,17 @@ class InvitationClientGrant(Base):
     can_view_financials: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
+# Expiring read-only service API key for one agency; only the key digest is stored. Its
+# creator membership must remain an active manager for the key to work.
+# SELECT id, agency_id, creator_membership_id, name, status, expires_at, created_at
+# FROM public.service_credentials
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND id = '00000000-0000-0000-0000-000000000008'::uuid;
+# SELECT id, name, status, expires_at, created_at
+# FROM public.service_credentials
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND status = 'active' AND expires_at > now()
+# ORDER BY created_at, id LIMIT 100;
 class ServiceCredential(Entity, Base):
     __tablename__ = "service_credentials"
     __table_args__ = (
@@ -79,6 +116,17 @@ class ServiceCredential(Entity, Base):
     status: Mapped[str] = mapped_column(String(16), server_default="active")
 
 
+# Explicit client read grant for a service credential, optionally including financial reads.
+# SELECT agency_id, credential_id, client_id, can_view_financials
+# FROM public.service_client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND credential_id = '00000000-0000-0000-0000-000000000008'::uuid
+#   AND client_id = '00000000-0000-0000-0000-000000000003'::uuid;
+# SELECT client_id, can_view_financials
+# FROM public.service_client_grants
+# WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
+#   AND credential_id = '00000000-0000-0000-0000-000000000008'::uuid
+# ORDER BY client_id LIMIT 100;
 class ServiceClientGrant(Base):
     __tablename__ = "service_client_grants"
     __table_args__ = (

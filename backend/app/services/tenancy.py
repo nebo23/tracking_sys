@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 from app.models import Agency, AgencyMembership, AuditEvent, ClientGrant, ClientWorkspace, User
 
 
+# Uniform denial for missing, foreign, inactive, or unauthorized resources. The API maps it to
+# one 403 code, so callers cannot distinguish nonexistent from forbidden objects.
 class AccessDenied(PermissionError):
+    # Use a fixed message so no identifier or policy detail leaks through the exception.
     def __init__(self) -> None:
         super().__init__("Access is not permitted.")
 
@@ -24,6 +27,7 @@ class MembershipConflict(ValueError):
     """An allowed request conflicts with membership invariants."""
 
 
+# Fixed versioned role policy stored as lowercase strings; unknown stored roles are denied.
 class Role(StrEnum):
     OWNER = "owner"
     ADMIN = "admin"
@@ -31,9 +35,11 @@ class Role(StrEnum):
     CLIENT_VIEWER = "client_viewer"
 
 
+# Roles allowed to administer agency settings, clients, members, grants, audit, and keys.
 MANAGERS = frozenset({Role.OWNER, Role.ADMIN})
 
 
+# Context manager for non-HTTP callers and tests: one Session/transaction per unit of work.
 @contextmanager
 def tenancy_transaction(engine: Engine, actor_user_id: UUID) -> Iterator["TenancyService"]:
     """Commit mutations and audit together; close/roll back the session on failure."""
@@ -41,11 +47,16 @@ def tenancy_transaction(engine: Engine, actor_user_id: UUID) -> Iterator["Tenanc
         yield TenancyService(session, actor_user_id)
 
 
+# Agency and client authorization plus audited mutations for one trusted actor. Every check
+# reads current database state; nothing is trusted from caller-supplied roles. Methods flush but
+# never commit: the caller's transaction commits mutations and audit events together.
 class TenancyService:
+    # Bind the caller's transaction and the actor ID resolved by authentication.
     def __init__(self, session: Session, actor_user_id: UUID) -> None:
         self.session = session
         self.actor_user_id = actor_user_id
 
+    # Require an administratively active user (no row lock); disabled or unknown users are denied.
     def _active_user(self, user_id: UUID) -> User:
         user = self.session.scalar(
             select(User)
@@ -56,6 +67,8 @@ class TenancyService:
             raise AccessDenied()
         return user
 
+    # Resolve the actor's active membership in an active agency. With write=True the agency row is
+    # locked FOR UPDATE first, serializing every agency mutation, including Owner changes.
     def _membership(self, agency_id: UUID, *, write: bool = False) -> AgencyMembership:
         query = select(Agency).where(Agency.id == agency_id, Agency.status == "active")
         if write:
@@ -78,12 +91,14 @@ class TenancyService:
             raise AccessDenied()
         return member
 
+    # Like _membership, but additionally require the Owner or Admin role.
     def _manager(self, agency_id: UUID, *, write: bool = False) -> AgencyMembership:
         member = self._membership(agency_id, write=write)
         if member.role not in MANAGERS:
             raise AccessDenied()
         return member
 
+    # Trim and bound agency, client, and credential names to 1-200 characters.
     @staticmethod
     def _name(value: str) -> str:
         value = value.strip()
@@ -91,6 +106,8 @@ class TenancyService:
             raise ValueError("A name must contain between 1 and 200 characters.")
         return value
 
+    # Append an audit event attributed to this service's actor in the same transaction. Flushing
+    # before and after surfaces foreign-key or constraint errors inside the mutating operation.
     def _audit(
         self,
         agency_id: UUID,
@@ -113,6 +130,7 @@ class TenancyService:
         )
         self.session.flush()
 
+    # Create an agency and an Owner membership for the actor; audited.
     def create_agency(self, name: str) -> Agency:
         self._active_user(self.actor_user_id)
         agency = Agency(name=self._name(name))
@@ -124,12 +142,14 @@ class TenancyService:
         self._audit(agency.id, "agency.created", "agency", agency.id)
         return agency
 
+    # Return the agency profile to Owner, Admin, or Analyst members; ClientViewer is denied.
     def get_agency(self, agency_id: UUID) -> Agency:
         member = self._membership(agency_id)
         if member.role == Role.CLIENT_VIEWER:
             raise AccessDenied()
         return self.session.get_one(Agency, agency_id)
 
+    # Rename the agency under the manager write lock; audited.
     def rename_agency(self, agency_id: UUID, name: str) -> Agency:
         self._manager(agency_id, write=True)
         agency = self.session.get_one(Agency, agency_id)
@@ -137,6 +157,7 @@ class TenancyService:
         self._audit(agency_id, "agency.updated", "agency", agency_id)
         return agency
 
+    # Create a client workspace under the manager write lock; audited with its client ID.
     def create_client(self, agency_id: UUID, name: str) -> ClientWorkspace:
         self._manager(agency_id, write=True)
         client = ClientWorkspace(agency_id=agency_id, name=self._name(name))
@@ -145,6 +166,8 @@ class TenancyService:
         self._audit(agency_id, "client.created", "client", client.id, client.id)
         return client
 
+    # Build the query of active clients visible to a membership: managers see every client in the
+    # agency; restricted roles see only clients with an explicit grant to that membership.
     def _client_query(self, member: AgencyMembership) -> Select[tuple[ClientWorkspace]]:
         query = select(ClientWorkspace).where(
             ClientWorkspace.agency_id == member.agency_id,
@@ -161,6 +184,7 @@ class TenancyService:
             )
         return query.execution_options(populate_existing=True)
 
+    # List visible active clients in stable ID order for any active member.
     def list_clients(
         self, agency_id: UUID, *, limit: int = 100, offset: int = 0
     ) -> list[ClientWorkspace]:
@@ -171,6 +195,7 @@ class TenancyService:
             )
         )
 
+    # List all memberships of the agency for Owner/Admin managers.
     def list_members(
         self, agency_id: UUID, *, limit: int = 100, offset: int = 0
     ) -> list[AgencyMembership]:
@@ -185,6 +210,7 @@ class TenancyService:
             )
         )
 
+    # Return one visible active client or raise AccessDenied.
     def get_client(self, agency_id: UUID, client_id: UUID) -> ClientWorkspace:
         member = self._membership(agency_id)
         client = self.session.scalar(
@@ -194,6 +220,8 @@ class TenancyService:
             raise AccessDenied()
         return client
 
+    # Authorize future financial reads: managers qualify for visible clients; restricted roles need
+    # a grant with can_view_financials set. No financial data exists in this specification.
     def require_financial_access(self, agency_id: UUID, client_id: UUID) -> None:
         member = self._membership(agency_id)
         client = self.session.scalar(
@@ -212,6 +240,8 @@ class TenancyService:
             if allowed is not True:
                 raise AccessDenied()
 
+    # Rename or change the status of a client (including archived ones) under the manager write
+    # lock; audited.
     def update_client(
         self,
         agency_id: UUID,
@@ -237,6 +267,8 @@ class TenancyService:
         self._audit(agency_id, "client.updated", "client", client.id, client.id)
         return client
 
+    # Add an active user as a member under the manager write lock. Only an Owner may add an Owner;
+    # an existing membership in the agency conflicts. Audited as the acting manager.
     def add_member(self, agency_id: UUID, user_id: UUID, role: Role) -> AgencyMembership:
         actor = self._manager(agency_id, write=True)
         role = Role(role)
@@ -256,6 +288,7 @@ class TenancyService:
         self._audit(agency_id, "membership.created", "membership", member.id)
         return member
 
+    # Load a membership only within the given agency; foreign IDs are denied.
     def _target_member(self, agency_id: UUID, membership_id: UUID) -> AgencyMembership:
         member = self.session.scalar(
             select(AgencyMembership)
@@ -266,6 +299,9 @@ class TenancyService:
             raise AccessDenied()
         return member
 
+    # Change role/status under the agency write lock. Admins cannot change or create Owners. Because
+    # the lock serializes all agency mutations, the active-Owner count cannot race: removing or
+    # demoting the last active Owner whose user is active raises MembershipConflict. Audited.
     def update_member(
         self,
         agency_id: UUID,
@@ -304,6 +340,8 @@ class TenancyService:
         self._audit(agency_id, "membership.updated", "membership", member.id)
         return member
 
+    # Create or update an explicit client grant for an active membership in the same agency, with
+    # optional financial visibility. Admins cannot grant to Owner memberships. Audited.
     def grant_client(
         self,
         agency_id: UUID,
@@ -330,6 +368,7 @@ class TenancyService:
         self._audit(agency_id, action, "membership", membership_id, client_id)
         return grant
 
+    # Delete an explicit grant if present (idempotent otherwise); audited when a row is removed.
     def revoke_client(self, agency_id: UUID, client_id: UUID, membership_id: UUID) -> None:
         actor = self._manager(agency_id, write=True)
         member = self._target_member(agency_id, membership_id)
@@ -347,6 +386,7 @@ class TenancyService:
             self.session.delete(grant)
             self._audit(agency_id, "grant.revoked", "membership", membership_id, client_id)
 
+    # Return the newest agency audit events for Owner/Admin managers, bounded to 100.
     def list_audit(self, agency_id: UUID, *, limit: int = 100) -> list[AuditEvent]:
         self._manager(agency_id)
         if not 1 <= limit <= 100:
