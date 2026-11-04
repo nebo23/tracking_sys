@@ -169,12 +169,14 @@ class AuthService:
 
     # Issue a single-use password-reset token and return None. Prior unconsumed reset tokens of
     # the user are consumed; the SHA-256 digest is persisted, and an encrypted outbox message
-    # containing a link with the raw token is queued. It neither commits nor sends mail; a
-    # worker delivers queued messages after the caller commits. Verification links are no longer
-    # issued (D-022); verification uses _issue_verification.
+    # containing a link with the raw token is queued with the token's expiry (D-024 decision 5),
+    # so an undelivered link is cleared unsent once it stops working. It neither commits nor
+    # sends mail; a worker delivers queued messages after the caller commits. Verification links
+    # are no longer issued (D-022); verification uses _issue_verification.
     def _issue_token(self, user: User, purpose: str) -> None:
         lifetimes = {"reset": self.settings.reset_lifetime_seconds}
         now = now_utc()
+        expires = now + timedelta(seconds=lifetimes[purpose])
         self.session.execute(
             update(AuthToken)
             .where(
@@ -190,10 +192,12 @@ class AuthService:
                 user_id=user.id,
                 token_digest=digest(raw),
                 purpose=purpose,
-                expires_at=now + timedelta(seconds=lifetimes[purpose]),
+                expires_at=expires,
             )
         )
-        queue_mail(self.session, self.settings, user.email_normalized, purpose, raw)
+        queue_mail(
+            self.session, self.settings, user.email_normalized, purpose, raw, expires_at=expires
+        )
 
     # Issue a numeric verification challenge (D-022) for a locked or newly created user.
     # Previous open challenges are invalidated and outstanding legacy verification links are

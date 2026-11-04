@@ -299,9 +299,9 @@ Own-purpose use of client data (cross-client benchmarks, model training, product
 |---|---|---|---|
 | 003-A1 | Data-class registry: every stored column mapped to a class, per-table end-of-life rules with decision status, checked against the metadata and the migrated database | **Implemented** (independent work under D-023) | None |
 | 003-A2 | Allowlist logging and library logger routing (section 6) | **Implemented** (independent work under D-023) | None |
-| 003-A3 | Credential-state lifecycle runner (`python -m app.lifecycle`) for sessions, tokens, challenges, OAuth transactions, rate-limit buckets, outbox rows, and development `.eml` files | **Awaiting decisions 1, 2, 4, 5** | Grants for a lifecycle role (recommended) |
-| 003-A4 | `expires_at` for reset and invitation messages | **Awaiting decisions 1, 5** | None |
-| 003-A5 | Platform-user account closure and erasure, applying data protection by design to the platform's own users [S-9] | **Awaiting decisions 1, 3, 4** | Additive migration 0005 and `POST /auth/close-account` |
+| 003-A3 | Credential-state lifecycle runner (`python -m app.lifecycle`) for sessions, tokens, challenges, OAuth transactions, rate-limit buckets, outbox rows, and development `.eml` files | **Implemented** under D-024 ([guide](../../docs/engineering/data-lifecycle.md)) | Migration 0005_lifecycle: grants to the new tracking_lifecycle role only |
+| 003-A4 | `expires_at` for reset and invitation messages | **Implemented** under D-024 | None |
+| 003-A5 | Platform-user account closure and erasure, applying data protection by design to the platform's own users [S-9] | **Decided** (D-024); separate slice | Additive migration 0006 and `POST /auth/close-account` |
 | Later 003-A | Unverified-registration purge; ended invitations and service credentials; security and audit event retention; `retention_runs` and `legal_holds` | **Proposed**; values pending Q-012 and counsel | Tables when the first held class becomes eligible |
 
 The 2026-11-03 proposal's schema list (retention_runs, legal_holds, users.erased_at, account_closed and account_erased actions, failure_code expired, and a password-only close-account endpoint) is superseded by the [decision packet](decision-packet-003a.md):
@@ -314,14 +314,14 @@ Closure concurrency analysis (decision 3). Tenancy mutations lock the agency row
 Acceptance:
 - L1: the registry passes on the current schema and fails on a synthetic unclassified column (**passes**).
 - L2: cases M1-M3 and M6 (**pass**).
-- L3: the runner deletes only rows past boundaries; reruns are idempotent; a concurrent second runner exits; an interrupted batch is retried on the next run without skipping eligible rows.
-- L4: undelivered reset and invitation mail past token expiry loses its payload and is not retried.
+- L3: the runner deletes only rows past boundaries; reruns are idempotent; a concurrent second runner exits; an interrupted batch is retried on the next run without skipping eligible rows (**passes**).
+- L4: undelivered reset and invitation mail past token expiry loses its payload and is not retried (**passes**).
 - L5: the unverified-account rule spares verified users and members.
 - L6: closure revokes sessions, removes credentials, tokens, challenges, OAuth transactions, and the external identity, frees the email and the Google subject, preserves audit rows, and refuses the last active Owner under concurrency.
 - L7: tracking_app still cannot update or delete audit or security events, and the lifecycle role cannot touch users, tenancy, audit, or security rows.
 - L8: tests run on the disposable database, and tracking_sys receives only the reviewed additive migration at its authorized rollout step.
 
-L3-L8 are blocked by decisions 1-5.
+The decisions were recorded as D-024 on 2026-11-04. L3, L4, and the lifecycle-role half of L7 pass; L5 remains pending (unverified registrations); L6, the closure half of L7, and L8 for 0006 belong to 003-A5.
 
 - **003-B: consent and deletion contracts, delivered with the first 004 ingestion slice.** Status: **proposed; later specification**. consent_notice_versions, consent_records, consent_state, deletion_requests, deletion_tombstones, the journal outbox, and an evaluation library (purpose, profile, and state to allow or deny with reason; field allowlist; tombstone check). It is tested with synthetic 005 and 014 consumers so no contract ships without a consumer, and synthetic contract tests do not claim end-to-end enforcement before those consumers exist. Acceptance: C1-C5, M4-M5, D1-D2 (section 17). Blocked by Q-003 beyond J1, Q-012 consent refresh and tombstone retention, Q-010, and decisions 6-12.
 - **003-C: provider rows and secrets, delivered with 009-016.** Status: **proposed; later specification**. TokenSecretReference, the envelope module, and the local KEK keyring with the first 009 slice; each connector specification fills, re-verifies, and tests its rows and normalizers; export artifacts with 016. Acceptance: D3-D5. Blocked by provider app access, decision 15, and 020 key custody for production.

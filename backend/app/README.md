@@ -9,5 +9,6 @@
 - models/: approved tenancy/auth/access entities.
 - services/: current membership/grant policy, audit, sessions, tokens, invitations, keys, and mail.
 - mail_worker.py: local delivery entry point; no external sending.
+- lifecycle.py: one bounded retention pass as the tracking_lifecycle role (specification 003-A3); the logic is in services/lifecycle.py.
 
 Actor identity comes from authenticated cookies or scoped service credentials. HTTP inputs never choose actor IDs. Runtime scope resolution must be repeated before later queued jobs, cache reads, or exports. Those consumers and social/revenue endpoints remain future specifications. See the [walkthrough](../../docs/engineering/authentication.md).

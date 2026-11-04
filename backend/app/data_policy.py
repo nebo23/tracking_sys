@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "003-A1"
+POLICY_VERSION = "003-A3"
 
 
 class Sensitivity(StrEnum):
@@ -39,8 +39,9 @@ class Provenance(StrEnum):
     SYSTEM = "system"
 
 
-# Decision status of an end-of-life rule. Only APPROVED rules describe behavior backed by a
-# recorded owner decision; PENDING_DECISION and DEFERRED rules are not in force.
+# Decision status of an end-of-life rule. APPROVED rules are backed by a recorded owner
+# decision and implemented. PENDING_DECISION rules await a decision; DEFERRED rules are decided
+# or owned elsewhere but implemented by a later slice or specification. Neither is in force.
 class RuleStatus(StrEnum):
     APPROVED = "approved"
     PENDING_DECISION = "pending_decision"
@@ -212,6 +213,8 @@ CLASSES: dict[str, DataClass] = {
 PENDING = RuleStatus.PENDING_DECISION
 RETENTION = "Q-012; 003-A decision 2"
 ERASURE = "003-A decision 3"
+APPROVED = RuleStatus.APPROVED
+CLOSURE = "D-024; 003-A5"
 
 
 def _row(status: RuleStatus, reference: str, description: str) -> EndOfLifeRule:
@@ -232,10 +235,10 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                PENDING,
-                f"{ERASURE}; {RETENTION}",
-                "Never deleted or erased; the runtime cannot change email, name, or status. "
-                "Account closure and unverified registrations await decisions 2 and 3.",
+                RuleStatus.DEFERRED,
+                f"{CLOSURE}; {RETENTION}",
+                "Never deleted or erased yet. Closure by pseudonymization is decided (D-024) "
+                "for slice 003-A5; unverified registrations remain pending (Q-012).",
             ),
         ),
     ),
@@ -247,9 +250,10 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                PENDING,
-                ERASURE,
-                "Hash replaced on change or reset; the row is removed only by account closure.",
+                RuleStatus.DEFERRED,
+                CLOSURE,
+                "Hash replaced on change or reset; deletion after account closure is decided "
+                "(D-024) for slice 003-A5.",
             ),
         ),
     ),
@@ -268,9 +272,10 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                PENDING,
-                RETENTION,
-                "Revoked, absolutely expired, and idle sessions stay as rows (one per login).",
+                APPROVED,
+                "D-024",
+                "Deleted by the lifecycle runner 30 days after revocation, absolute expiry, or "
+                "idle expiry.",
             ),
         ),
     ),
@@ -282,7 +287,7 @@ TABLES: dict[str, TablePolicy] = {
                 "credential.lifecycle", "id", "purpose", "created_at", "expires_at", "consumed_at"
             ),
         },
-        (_row(PENDING, RETENTION, "Consumed and expired reset or legacy verify tokens stay."),),
+        (_row(APPROVED, "D-024", "Deleted 7 days after consumption or expiry."),),
     ),
     "verification_challenges": TablePolicy(
         {
@@ -299,7 +304,7 @@ TABLES: dict[str, TablePolicy] = {
                 "invalidated_at",
             ),
         },
-        (_row(PENDING, RETENTION, "Consumed, invalidated, and expired challenges stay (D-022)."),),
+        (_row(APPROVED, "D-024", "Deleted 7 days after consumption, invalidation, or expiry."),),
     ),
     "oauth_transactions": TablePolicy(
         {
@@ -309,7 +314,7 @@ TABLES: dict[str, TablePolicy] = {
                 "credential.lifecycle", "id", "purpose", "created_at", "expires_at", "consumed_at"
             ),
         },
-        (_row(PENDING, RETENTION, "Consumed and expired ten-minute transactions stay (D-022)."),),
+        (_row(APPROVED, "D-024", "Deleted 1 day after consumption or expiry."),),
     ),
     "external_identities": TablePolicy(
         {
@@ -319,15 +324,16 @@ TABLES: dict[str, TablePolicy] = {
         },
         (
             _row(
-                PENDING,
-                ERASURE,
-                "Kept while linked; unlinking and erasure await 003 (D-022 policy 5).",
+                RuleStatus.DEFERRED,
+                CLOSURE,
+                "Kept while linked; deletion after account closure is decided (D-024) for slice "
+                "003-A5. Unlinking without closure is not offered.",
             ),
         ),
     ),
     "auth_rate_limits": TablePolicy(
         _same("security.telemetry", "bucket_key", "attempts", "expires_at"),
-        (_row(PENDING, RETENTION, "Expired buckets restart in place on reuse; otherwise stay."),),
+        (_row(APPROVED, "D-024", "Deleted at window expiry; an expired bucket restarts anyway."),),
     ),
     "security_events": TablePolicy(
         {
@@ -354,13 +360,17 @@ TABLES: dict[str, TablePolicy] = {
         (
             EndOfLifeRule(
                 "encrypted_payload",
-                RuleStatus.APPROVED,
-                "D-019; D-022",
-                "Cleared after confirmed delivery; a verification-code payload is cleared "
-                "unsent at expires_at. Reset and invitation payloads have no expiry yet "
-                "(003-A decision 5).",
+                APPROVED,
+                "D-019; D-022; D-024",
+                "Cleared after confirmed delivery, or unsent at expires_at, which every new "
+                "message carries for its verification code or reset or invitation link.",
             ),
-            _row(PENDING, f"{RETENTION}; 003-A decision 5", "Delivered and expired rows stay."),
+            _row(
+                APPROVED,
+                "D-024",
+                "Deleted 30 days after delivery or expiry. Rows queued without expires_at before "
+                "D-024 remain until delivered.",
+            ),
         ),
     ),
     "agency_invitations": TablePolicy(

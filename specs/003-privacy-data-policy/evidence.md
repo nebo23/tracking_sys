@@ -1,4 +1,4 @@
-# Specification 003 evidence: 003-A1 and 003-A2
+# Specification 003 evidence: slices 003-A1 to 003-A4
 Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
 
 ## Scope
@@ -48,12 +48,41 @@ None in 003-A1/003-A2. The registry check runs as the migrator in tests only. Pr
 - Gmail's retention of API-sent messages in the sender's Sent folder is expected behavior but was not verified.
 - Library message templates are pinned to uvicorn 0.54 wording. A changed template degrades to `library_record_suppressed` (safe, less informative).
 
+## 003-A3 and 003-A4 under D-024
+The owner selected the recommended option of every decision packet item on 2026-11-04 (D-024).
+
+Changes:
+- **Mail expiry (A4).** Reset and invitation messages are queued with `expires_at` equal to their token expiry, so the worker clears an undelivered expired link unsent.
+- **Lifecycle runner (A3).** [backend/app/services/lifecycle.py](../../backend/app/services/lifecycle.py) and `python -m app.lifecycle` delete ended credential state after the D-024 periods. The periods are settings whose defaults are also their maxima. The runner holds an advisory lock in the two-key space and uses ordered batches that re-check eligibility in the outer `DELETE`. A batch waits at most 100 ms for a row lock, so a conflict defers only the lifecycle batch, never an API request. The runner also deletes development `.eml` files older than 7 days in local mode.
+- **Migration and role.** `0005_lifecycle` grants the new `tracking_lifecycle` role (`NOINHERIT`, no schema privileges) `SELECT` and `DELETE` on six tables. The role is provisioned in `init-roles.sh`, `local-roles.sql`, and the new `lifecycle-role.sql` for existing native installations. Compose gains a `lifecycle` profile. A generated password was added to the ignored `.env.docker` without being displayed. The data-class registry now marks the six tables and the outbox payload rule as approved under D-024.
+
+Results on the disposable database (fresh volume created with the new role):
+
+| Check | Result |
+|---|---|
+| Full suite | **240 passed** in 61.96 s: 69 unit/contract and 171 PostgreSQL. No failures, skips, or reported warnings. |
+| Lifecycle settings and file cleanup (unit) | 6 passed. Defaults equal the approved periods, and longer values are rejected. Only old `.eml` and `.pending` files directly in the directory are deleted; the 7-day boundary is kept. Nothing is deleted in production or Gmail mode. |
+| Boundaries (L3) | 13 anchor cases across six tables. A row exactly at its boundary and rows that have not ended are kept; a row one microsecond past is deleted. A second run deletes nothing. |
+| Bounded runs and resumption | Batch size 2 with one batch per run deletes 2, then 2 (status `partial`, target listed), then the last row; nothing is skipped. |
+| Competing runner | With the advisory lock held elsewhere, the run returns `skipped_concurrent_run` and deletes nothing; after release, the next run deletes the row. |
+| Row locked by a request | The run finishes in under 2 s with only that table incomplete, while other tables are purged. The request's transaction still commits, and the next run deletes the row. |
+| Authentication after purge | Through the real HTTP flow, after deleting revoked sessions, an expired reset token, a consumed challenge, and delivered outbox rows: the active session still works; a deleted session cookie gets 401; replaying the deleted reset token gets the generic `invalid_or_expired_token`; login still succeeds. No foreign-key error occurs. |
+| Mail expiry (L4) | Reset and invitation outbox rows carry exactly their token and invitation expiry. Once expired, the worker reports 2 expired, 0 attempts, payloads cleared, and no file written. |
+| Lifecycle role (L7) | 12 statements are refused: deleting users, credentials, identities, security and audit events, memberships, or invitations; reading users; updating or inserting credential state; creating a table. Role attributes show no superuser, database or role creation, RLS bypass, or inheritance. Existing `tracking_app` privilege tests still pass unchanged. |
+| OpenAPI | Unchanged (contract equality test passes). |
+| Ruff | Passes on `backend/app`, `backend/migrations`, and `backend/tests`, excluding only the owner's uncommitted `models/tenancy.py` edit. |
+
+Not validated for A3/A4:
+- Native rollout: no role was created and no migration was applied on tracking_sys. Until that owner-approved step, an API started from this branch against native tracking_sys reports readiness `not_ready` (`schema_mismatch`) while its endpoints keep working, and the runner cannot connect.
+- Rate-limit races are covered by the outer predicate re-check, but only by analysis; no deterministic concurrent-restart test.
+- Outbox rows queued without `expires_at` before D-024 stay until delivered.
+
 ## Acceptance criteria of specification 003
 | Criterion | Evidence now | Outstanding dependency |
 |---|---|---|
 | 1. Consent-violating events kept out of storage and outbound queues | None | 003-B with 004, 005, 014 |
 | 2. Password and payment fields excluded from form telemetry and logs | Logs: M1-M3, M6 pass on the real server path | Form telemetry M4/M5 with 005 and 004 |
-| 3. Deletion covers raw, derived, cache, export, and blocks replay | Registry identifies every column that references a user (10) as a closure target | Decision 3 (003-A5); 003-B, 003-C, 016 |
+| 3. Deletion covers raw, derived, cache, export, and blocks replay | Ended credential state is deleted on the approved schedule (A3); the registry identifies every column that references a user (10) as a closure target | 003-A5; 003-B, 003-C, 016 |
 | 4. Restore reapplies tombstones before service | None | 003-D with 019, 020 |
 
 The specification is not complete. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.

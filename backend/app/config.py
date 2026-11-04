@@ -236,6 +236,30 @@ class Settings(DatabaseSettings):
         return self.google_complete_url or f"{self.frontend_origin}/auth/google/complete"
 
 
+# Lifecycle runner configuration (specification 003-A3, D-024). It connects as the dedicated
+# tracking_lifecycle role through explicit TRACKING_LIFECYCLE_* aliases and needs no auth, mail,
+# or provider secret. Each retention period defaults to the owner-approved value, which is also
+# its upper bound: a deployment may shorten a period but cannot extend it without a new
+# recorded decision. Periods count from the row's end (revocation, expiry, consumption,
+# invalidation, or delivery), never from creation alone.
+class LifecycleSettings(DatabaseSettings):
+    database_user: str = Field(
+        default="tracking_lifecycle", validation_alias="TRACKING_LIFECYCLE_USER"
+    )
+    database_password: SecretStr = Field(validation_alias="TRACKING_LIFECYCLE_PASSWORD")
+    environment: Literal["development", "production"] = "development"
+    mail_mode: Literal["local", "gmail"] = "local"
+    mail_directory: Path = PROJECT_ROOT / "local-data" / "mail"
+    session_idle_seconds: int = Field(default=1800, ge=60, le=43200)
+    session_retention_days: int = Field(default=30, ge=0, le=30)
+    token_retention_days: int = Field(default=7, ge=0, le=7)
+    challenge_retention_days: int = Field(default=7, ge=0, le=7)
+    oauth_transaction_retention_days: int = Field(default=1, ge=0, le=1)
+    outbox_retention_days: int = Field(default=30, ge=0, le=30)
+    local_mail_retention_days: int = Field(default=7, ge=0, le=7)
+    lifecycle_batch_size: int = Field(default=500, ge=1, le=5000)
+
+
 # Separate migrator credentials through explicit TRACKING_MIGRATION_* aliases, with a longer
 # per-statement timeout for DDL. This is neither a database uptime allowance nor a grant of
 # schema privileges to the runtime role.

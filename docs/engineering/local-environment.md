@@ -94,7 +94,7 @@ path.write_text(content, encoding="utf-8")
 '@ | .\.venv\Scripts\python.exe -
 ```
 
-Keep .env and .env.docker private; Git and the Docker build context exclude them. Compose uses the administrator password only to initialize its PostgreSQL container. The API and local mail worker receive the runtime password and auth/mail keys; the migration service receives only its migration password.
+Keep .env and .env.docker private; Git and the Docker build context exclude them. Compose uses the administrator password only to initialize its PostgreSQL container. The API and local mail worker receive the runtime password and auth/mail keys; the migration service receives only its migration password, and the optional lifecycle runner only its own role password ([lifecycle guide](data-lifecycle.md)).
 
 Local Compose provisions the fixed roles tracking_app and tracking_migrator. Do not change the role names independently of the initialization contract. Changing passwords in .env.docker does not change roles inside an existing database volume; use a reviewed credential rotation procedure.
 

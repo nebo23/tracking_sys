@@ -231,7 +231,16 @@ class AccessService(TenancyService):
                 for item in grants
             ]
         )
-        queue_mail(self.session, self.settings, email, "invitation", raw)
+        # The message expires with its link (D-024 decision 5), so a failing delivery is cleared
+        # unsent instead of retrying a dead invitation link indefinitely.
+        queue_mail(
+            self.session,
+            self.settings,
+            email,
+            "invitation",
+            raw,
+            expires_at=invitation.expires_at,
+        )
         self._audit(agency_id, "invitation.created", "invitation", invitation.id)
         return invitation
 

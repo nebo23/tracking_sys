@@ -92,21 +92,28 @@ def test_malformed_policies_are_reported(monkeypatch, policy, problem):
     assert registry_problems(SCHEMA, USER_REFERENCES) == [problem]
 
 
-def test_no_retention_period_is_presented_as_approved():
+def test_only_recorded_decisions_are_presented_as_approved():
     approved = {
         (table, rule.target, rule.reference)
         for table, policy in TABLES.items()
         for rule in policy.rules
         if rule.status is RuleStatus.APPROVED
     }
-    # Only behavior already recorded under 002 decisions is approved; Q-012 remains open.
+    # D-017/D-019/D-022 behavior from specification 002 and the D-024 retention periods for
+    # ended credential state; security, audit, invitation, and account rules stay unapproved.
     assert approved == {
-        ("mail_outbox", "encrypted_payload", "D-019; D-022"),
         ("client_grants", "row", "D-017"),
+        ("mail_outbox", "encrypted_payload", "D-019; D-022; D-024"),
+        ("mail_outbox", "row", "D-024"),
+        ("auth_sessions", "row", "D-024"),
+        ("auth_tokens", "row", "D-024"),
+        ("verification_challenges", "row", "D-024"),
+        ("oauth_transactions", "row", "D-024"),
+        ("auth_rate_limits", "row", "D-024"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED
-        for name in ("users", "auth_sessions", "security_events", "audit_events")
+        for name in ("users", "security_events", "audit_events", "agency_invitations")
         for rule in TABLES[name].rules
     )
 
