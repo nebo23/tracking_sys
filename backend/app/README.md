@@ -5,6 +5,7 @@
 - main.py: FastAPI factory, lifespan, error handlers, CORS, and health endpoints.
 - logging_config.py: allowlisted structured logs; registered events only, library records and exceptions reduced to safe diagnostics (specification 003-A2).
 - data_policy.py: data-class registry for every stored column with end-of-life rule status (specification 003-A1); classification only.
+- privacy/: specification 003 contract libraries (consent, collection minimization, deletion and tombstones, token envelope encryption, provider rules, restore journal); stateless, for later consumers.
 - api/: identity-derived authorization, schemas, auth/tenant routes, and request controls.
 - models/: approved tenancy/auth/access entities.
 - services/: current membership/grant policy, audit, sessions, tokens, invitations, keys, and mail.
