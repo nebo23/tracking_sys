@@ -1,5 +1,5 @@
 # Specification 003: privacy, consent, and data lifecycle design
-Status: Proposal for owner review. Prepared: 2026-11-03. Reconciled on 2026-11-04 under D-023 with merged main `98747a2` (PR 1, revision `0004_identity`). Slices 003-A1 and 003-A2 are implemented locally for review; every other item is proposed, awaits an owner decision, or depends on a later specification (section 16).
+Status: Completed at contract level under D-025, pending owner review. Prepared: 2026-11-03. Reconciled on 2026-11-04 under D-023 with merged main `98747a2` (PR 1, revision `0004_identity`). Slice 003-A is implemented (D-023, D-024), and the 003-B to 003-D contracts are tested libraries (D-025) whose tables and end-to-end enforcement belong to the consuming specifications (section 16).
 
 Requirements: [spec](spec.md), [plan](plan.md), [tasks](tasks.md). Decisions blocking the next slices: [003-A decision packet](decision-packet-003a.md). Implementation evidence: [evidence](evidence.md). Research: [sources](../../research_notes/privacy-data-policy/sources.md); "[S-n]" cites an entry there.
 
@@ -10,10 +10,10 @@ Status labels used below: **implemented** (code and tests on this branch), **exi
 | Required contract | Section | Status 2026-11-04 |
 |---|---|---|
 | DataClassPolicy | 4 | **Implemented** for stored columns (003-A1); client-data fields (lawful basis, export, outbound) proposed for 003-B/003-C |
-| ConsentRecord | 5 | **Proposed; later specification** (003-B with 004, 005, 014); no consent data exists |
-| DeletionRequest | 10 | User-account scope **awaiting decision 3** (003-A5); subject, connector, client, and agency scopes **proposed** (003-B, 003-C, 017) |
-| TokenSecretReference | 8 | **Proposed; later specification** (first 009 slice); Google sign-in stores no token, and Gmail sender secrets are deployment settings |
-| Provider-specific policy table | 14 | Google sign-in and Gmail sender rows describe **existing** D-022 behavior; connector rows **proposed** and re-verified in 009-016 |
+| ConsentRecord | 5 | **Contract implemented** (D-025) in `app.privacy.consent` with J1 strict opt-in; the table and enforcement points belong to 004, 005, 006, and 014 |
+| DeletionRequest | 10 | User-account scope **implemented** (003-A5). Request lifecycle, target outcomes, keyed identifiers, and tombstone admission are **contract implemented** (D-025) in `app.privacy.deletion`; tables and consumers belong to 004, 006, 014, 016, and 017 |
+| TokenSecretReference | 8 | **Contract implemented** (D-025) in `app.privacy.token_secrets`: envelope encryption with a local development keyring refused in production; the table belongs to 009 and managed custody to 020 |
+| Provider-specific policy table | 14 | **Contract implemented** (D-025) in `app.privacy.providers`: connector rows are stale and block their features until re-verified in 009-016; the Google platform rows are current |
 
 ## 1. Purpose and boundaries
 This design proposes the five contracts required by specification 003 (ConsentRecord, DataClassPolicy, DeletionRequest, TokenSecretReference, and the provider-specific policy table) and applies them both to the data held today and to data that specifications 004-020 will introduce. It is design research, not legal advice. It makes no claim of legal compliance, certification, provider program approval, or app-review access. Counsel should confirm jurisdictional positions before Q-003 or Q-012 is recorded.
@@ -323,19 +323,19 @@ Acceptance:
 
 The decisions were recorded as D-024 on 2026-11-04. L1-L4, L6, L7, and L8 pass on the disposable database. L5 remains pending, because the unverified-registration rule was not approved. The native rollout of 0005/0006 and the lifecycle role has not been performed.
 
-- **003-B: consent and deletion contracts, delivered with the first 004 ingestion slice.** Status: **proposed; later specification**. consent_notice_versions, consent_records, consent_state, deletion_requests, deletion_tombstones, the journal outbox, and an evaluation library (purpose, profile, and state to allow or deny with reason; field allowlist; tombstone check). It is tested with synthetic 005 and 014 consumers so no contract ships without a consumer, and synthetic contract tests do not claim end-to-end enforcement before those consumers exist. Acceptance: C1-C5, M4-M5, D1-D2 (section 17). Blocked by Q-003 beyond J1, Q-012 consent refresh and tombstone retention, Q-010, and decisions 6-12.
-- **003-C: provider rows and secrets, delivered with 009-016.** Status: **proposed; later specification**. TokenSecretReference, the envelope module, and the local KEK keyring with the first 009 slice; each connector specification fills, re-verifies, and tests its rows and normalizers; export artifacts with 016. Acceptance: D3-D5. Blocked by provider app access, decision 15, and 020 key custody for production.
-- **003-D: restore verification, delivered with 019 and 020.** Status: **proposed; later specification**. Journal import, restore_epochs, the readiness gate, and a restore drill on a disposable database. Acceptance: R1-R4. Blocked by Q-011 and hosting.
+- **003-B: consent and deletion contracts.** Status: **contract implemented** under D-025 in `app.privacy.consent`, `app.privacy.collection`, and `app.privacy.deletion`, with no tables. J1 strict opt-in is the only enabled profile; tombstones block replay and require consent recorded after deletion unless the subject objected, and last for the workspace lifetime. The consent, deletion-request, and tombstone tables, the journal outbox, and the enforcement points E1-E6 belong to 004, 005, 006, 014, and 015, which must verify C1-C5, M4-M5, and D1-D2 end to end.
+- **003-C: provider rows and secrets.** Status: **contract implemented** under D-025 in `app.privacy.token_secrets` and `app.privacy.providers`. The TokenSecretReference table belongs to 009, provider-row re-verification to 010-016, export artifacts to 016, and managed key custody to 020; D3 to D5 are verified end to end there.
+- **003-D: restore verification.** Status: **contract implemented** under D-025 in `app.privacy.restore` (HMAC-chained journal, re-application plan, idempotent reconciliation, readiness gate). The journal store, restore_epochs, readiness integration, and the restore drill (R1-R4) belong to 019 and 020.
 
-Both social analytics and attribution, and multi-agency isolation, remain required launch scope (D-004, D-005); 003-A completes none of the four acceptance criteria by itself.
+Both social analytics and attribution, and multi-agency isolation, remain required launch scope (D-004, D-005). Under D-025 the specification closes at contract level. Each consuming specification lists its 003 obligations in its own spec.md, and no end-to-end enforcement is claimed before those consumers exist.
 
 ## 17. Acceptance case mapping
 
 Reconciled 2026-11-04 status per criterion:
-- Criterion 1: **not started**; it needs 004, 005, and 014 consumers.
-- Criterion 2: the log half is **implemented** (M1-M3, M6); the form-telemetry half (M4, M5) waits for 005 and 004.
-- Criterion 3: the platform-account part **awaits decision 3**; subject, connector, cache, and export deletion wait for 003-B, 003-C, and 016.
-- Criterion 4: **not started**; it needs 019 and 020.
+- Criterion 1: **contract verified** (C1-C3, C5 against `app.privacy.consent`); end-to-end verification transferred to 004, 005, and 014 (D-025).
+- Criterion 2: logs **implemented and verified** (M1-M3, M6); form telemetry **contract verified** (M4, M5 against `app.privacy.collection`), with tracker and ingestion verification transferred to 005 and 004.
+- Criterion 3: the platform-account scope is **implemented and verified** (003-A3, 003-A5). Subject and connector deletion, replay blocking, and outcome reporting are **contract verified** (D2, D4, D5, D3 at contract level); raw, derived, cache, and export coverage is transferred to 004, 006, 009, 014, and 016.
+- Criterion 4: **contract verified** (R1, R2, R4 against `app.privacy.restore`); the restore drill is transferred to 019 and 020.
 
 | Criterion | Slices | Test cases (synthetic fixtures only) |
 |---|---|---|

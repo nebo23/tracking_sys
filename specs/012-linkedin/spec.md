@@ -22,6 +22,8 @@ Separate member and organization capability types; complete field mappings after
 ## Dependencies and open decisions
 Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md)
 
+Specification 003 obligations (D-025): re-verify and test the LinkedIn rows in `app.privacy.providers` and mark them current before the features they govern run.
+
 Open decisions: Q-001; account type and program approval. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

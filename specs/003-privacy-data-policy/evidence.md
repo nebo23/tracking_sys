@@ -1,5 +1,5 @@
-# Specification 003 evidence: slice 003-A (003-A1 to 003-A5)
-Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work for 003-A1/003-A2) and D-024 (003-A3 to 003-A5). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
+# Specification 003 evidence
+Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work for 003-A1/003-A2), D-024 (003-A3 to 003-A5), and D-025 (003-B to 003-D contracts and contract-level completion). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
 
 ## Scope
 - **003-A1, data-class registry:** [backend/app/data_policy.py](../../backend/app/data_policy.py) maps every stored column to a data class. Each table has end-of-life rules with a decision status and reference. A check compares the registry with the SQLAlchemy metadata and the migrated database.
@@ -106,12 +106,33 @@ Not validated for A5:
 - A membership added concurrently in an agency that was not locked stays active for the disabled user. This is inert, and its adder remains an active Owner there.
 - Closure cannot be undone.
 
-## Acceptance criteria of specification 003
-| Criterion | Evidence now | Outstanding dependency |
-|---|---|---|
-| 1. Consent-violating events kept out of storage and outbound queues | None | 003-B with 004, 005, 014 |
-| 2. Password and payment fields excluded from form telemetry and logs | Logs: M1-M3, M6 pass on the real server path | Form telemetry M4/M5 with 005 and 004 |
-| 3. Deletion covers raw, derived, cache, export, and blocks replay | Platform-user scope: account closure pseudonymizes identity and the runner deletes credentials, external identities, and ended credential state (A3, A5) | Subject, connector, cache, export, and replay blocking: 003-B, 003-C, 016 |
-| 4. Restore reapplies tombstones before service | None | 003-D with 019, 020 |
+## 003-B, 003-C, and 003-D contracts under D-025
+The owner chose contract-level completion on 2026-11-04 (D-025): J1 strict opt-in everywhere; after deletion, replay is blocked and new collection needs consent recorded after the deletion unless the subject objected, with tombstones kept for the workspace lifetime; a local development keyring for token encryption. The package [backend/app/privacy](../../backend/app/privacy) is stateless, adds no table, migration, dependency, or API, and has no runtime consumer yet:
 
-The specification is not complete. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.
+| Module | Contract | Tests |
+|---|---|---|
+| `consent.py` | ConsentRecord (keyed subject and notice digests only, server-time ordering, no implicit sources, GPC may only deny sale, sharing, or advertising), J1 evaluation with closed reason codes, the all-purposes check for enforcement points E2-E6, and Google Consent Mode basic signals | 17: C1, C2, C3, C5, expiry, ordering, invalid records |
+| `collection.py` | Never-collect rules (password and hidden inputs, password, one-time-code, and `cc-*` autocomplete tokens, payment frames, sensitive name, id, and label tokens), allowlist sanitization by client mapping, Luhn card-number detection in free text, and URL minimization to campaign and click parameters. Results report counts by reason only. | 24: M4 and M5 at contract level, false-positive guards, URL minimization |
+| `deletion.py` | DeletionRequest lifecycle transitions, target outcomes (unsupported or failed targets are never done), canonical identifiers, domain- and client-separated HMAC subject and tombstone keys, and tombstone admission | 9: D2, D4, D5, objection, consent after deletion |
+| `token_secrets.py` | TokenSecretReference with AES-GCM envelope encryption, associated data binding tenant, connector, secret, kind, and version; KEK rotation by re-wrapping; a local keyring refused in production; destruction | Part of 19: tokens of 1,200 characters, moved-row and swapped-key failures, rotation and retirement |
+| `providers.py` | Provider policy table: 11 connector rows marked stale (blocking until re-verified in 009-016) and 2 current Google platform rows; a feature gate with closed reasons | Part of 19 |
+| `restore.py` | HMAC-chained deletion journal, re-application after a restore point, idempotent reconciliation, and the readiness gate | Part of 19: R1, R2, R4, four tampering cases |
+
+Results: the full suite passes **323** on a fresh disposable database (78.66 s): 138 unit/contract and 185 PostgreSQL, no failures or skips. The 69 new contract tests are unit tests. Ruff and `pip check` pass. Each consuming specification's spec.md now lists its "Specification 003 obligations (D-025)": 004, 005, 006, 009, 010, 011, 012, 013, 014, 015, 016, 019, and 020.
+
+Limits of this evidence:
+- Contract tests prove only the functions. Nothing enforces consent, tombstones, or token encryption at runtime until those consumers exist.
+- The Luhn rule can drop a long non-card number that happens to pass the check; this errs toward not collecting.
+- The phone trunk-zero rule is a candidate for review in 006.
+- Provider rows rest on research checked on 2026-11-03 and are deliberately blocking.
+- No market-specific consent profile exists (Q-003 open).
+
+## Acceptance criteria of specification 003
+| Criterion | Evidence | Transferred end-to-end verification (D-025) |
+|---|---|---|
+| 1. Consent-violating events kept out of storage and outbound queues | Contract: C1, C2, C3, C5 pass against `app.privacy.consent` | 004 (ingestion), 005 (tracker, C4), 014 (enqueue and delivery claim) |
+| 2. Password and payment fields excluded from form telemetry and logs | Logs end to end: M1-M3 and M6 on the real server path. Forms, contract: M4 and M5 against `app.privacy.collection` | 005 (tracker), 004 (ingestion) |
+| 3. Deletion covers raw, derived, cache, export, and blocks replay | Platform accounts end to end: closure, pseudonymization, credential and identity deletion, ended-state retention (A3, A5). Contract: D2 replay blocking, D4 outcome reporting, D5 key destruction, destruction of the token ciphertext (D3 contract part) | 004, 006, 009 (D3 with a provider), 014, 015, 016 (cache, export) |
+| 4. Restore reapplies tombstones before service | Contract: R1, R2, R4 against `app.privacy.restore` | 019, 020 (journal store, restore epochs, drill including R3) |
+
+Specification 003 is complete at contract level under D-025, pending owner review. Formal acceptance, upload, and merge are separate owner decisions. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.

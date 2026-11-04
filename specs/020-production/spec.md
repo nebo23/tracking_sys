@@ -23,6 +23,8 @@ Runbooks, release manifest, rollback plan, and operational ownership; configure 
 ## Dependencies and open decisions
 Dependencies: [019-quality-security](../019-quality-security/spec.md)
 
+Specification 003 obligations (D-025): implement the deletion journal store, restore epochs, and readiness gate from `app.privacy.restore`, run the restore drill for 003 acceptance criterion 4, and choose managed key custody to replace the local token keyring.
+
 Open decisions: Q-003, Q-004, Q-011, Q-012; hosting and production approval. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
