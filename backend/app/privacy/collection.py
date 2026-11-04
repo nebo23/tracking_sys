@@ -56,7 +56,8 @@ DEFAULT_URL_PARAMETERS = frozenset(
         "twclid",
     }
 )
-_CARD_CANDIDATE = re.compile(r"(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)")
+# A run of digit groups joined by single spaces or hyphens.
+_DIGIT_RUN = re.compile(r"\d+(?:[ -]\d+)*")
 
 
 @dataclass(frozen=True)
@@ -107,12 +108,22 @@ def _luhn_valid(digits: str) -> bool:
     return total % 10 == 0
 
 
-# True when free text contains a 13-19 digit sequence (spaces or hyphens allowed between
-# digits) that passes the Luhn check, as a card number typed into an ordinary field would.
+# True when free text contains a card number, as one typed into an ordinary field would be:
+# 13-19 digits passing the Luhn check, formed by consecutive digit groups of a run (groups
+# joined by single spaces or hyphens). Checking every group-aligned span keeps detection when
+# the number is followed or preceded by other digits, such as a security code or expiry date.
 def contains_card_number(value: str) -> bool:
-    return any(
-        _luhn_valid(re.sub(r"[ -]", "", match.group())) for match in _CARD_CANDIDATE.finditer(value)
-    )
+    for run in _DIGIT_RUN.finditer(value):
+        groups = re.split(r"[ -]", run.group())
+        for start in range(len(groups)):
+            digits = ""
+            for group in groups[start:]:
+                digits += group
+                if len(digits) > 19:
+                    break
+                if len(digits) >= 13 and _luhn_valid(digits):
+                    return True
+    return False
 
 
 # Apply the allowlist and never-collect rules to one submission. mapping names the client's

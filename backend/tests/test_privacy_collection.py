@@ -77,6 +77,10 @@ def test_m5_submission_keeps_only_mapped_safe_values_and_counts_reasons():
         ("4111111111111112", False),  # fails the Luhn check
         ("Order 123456789012", False),  # 12 digits
         ("Call +20 100 000 0000", False),
+        (CARD + " 123", True),  # followed by a security code
+        (CARD + " 12/27", True),  # followed by an expiry date
+        ("12 27 " + CARD, True),  # preceded by other digit groups
+        ("41111111111111111111", False),  # 20 contiguous digits are not a card number
     ],
 )
 def test_card_number_detection(text, expected):
