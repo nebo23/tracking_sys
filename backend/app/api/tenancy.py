@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
 
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
@@ -31,6 +31,7 @@ from app.services.access import (
     live_service_credential,
     resolve_scope,
 )
+from app.services.auth import enforce_rate_limit
 from app.services.tenancy import AccessDenied, TenancyService
 
 # Tenant administration router. Every route authenticates through BrowserDep or ReaderDep and
@@ -299,12 +300,45 @@ def revoke_invitation(
     return Response(status_code=204)
 
 
+# Persistent per-peer throttle for invitation acceptance in its own "invitation-ip" namespace.
+# As a decorator dependency it is resolved before BrowserDep, so it runs before session
+# authentication and its user-row lock. The counter commits through the security engine.
+def invitation_peer_limit(request: Request) -> None:
+    settings = request.app.state.settings
+    peer = request.client.host if request.client else "unknown"
+    enforce_rate_limit(
+        request.app.state.security_engine,
+        settings,
+        "invitation-ip",
+        peer,
+        limit=settings.auth_requests_per_minute,
+        period=60,
+    )
+
+
 # Accept an invitation token as the logged-in verified recipient. Creates the membership and
-# grants atomically with audit events. No route-specific persistent throttle is applied here.
-@router.post("/invitations/accept", response_model=MembershipResponse, tags=["Invitations"])
+# grants atomically with audit events. The per-peer limit runs first; after authentication a
+# per-user "invitation-accept" limit is counted before any invitation lookup or agency lock.
+# Both counters commit independently, so invalid, replayed, or denied attempts stay counted
+# when the business transaction rolls back. Over a limit, the sanitized 429 has Retry-After.
+@router.post(
+    "/invitations/accept",
+    response_model=MembershipResponse,
+    tags=["Invitations"],
+    dependencies=[Depends(invitation_peer_limit)],
+)
 def accept_invitation(
     data: TokenInput, request: Request, session: SessionDep, browser: BrowserDep
 ) -> MembershipResponse:
+    settings = request.app.state.settings
+    enforce_rate_limit(
+        request.app.state.security_engine,
+        settings,
+        "invitation-accept",
+        str(browser.user.id),
+        limit=settings.invitation_attempts_per_minute,
+        period=60,
+    )
     return MembershipResponse.model_validate(
         access(request, session, browser).accept_invitation(data.token.get_secret_value())
     )

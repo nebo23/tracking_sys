@@ -75,3 +75,16 @@ No commit, push, or PR was created during this implementation. Owner review and 
 - Applied Alembic upgrade head. Verified revision 0001_foundation and exactly one public table, alembic_version. No business tables were created.
 - FastAPI TestClient using the real native database returned /health/live=200 and /health/ready=200 with {"status":"ready"}. This was an in-process application check, not evidence of a persistent HTTP server on port 8000.
 - No downgrade, data-deletion test, or Docker integration test ran against the owner's native database.
+
+## Review amendments F-01 and F-02 (2026-11-04)
+Authority: D-020/D-021 and the [foundation amendments](review-amendments.md).
+
+F-02 (documentation only): the database, configuration, application factory, logging, worker, and migration environment modules received purpose comments. Their executable ASTs are identical to the previous commit; see the [002 evidence](../002-tenancy-access/auth-evidence.md) for the shared AST and reference-query checks.
+
+F-01 (Docker origins):
+- compose.yaml forwards `TRACKING_ALLOWED_ORIGINS` and `TRACKING_FRONTEND_ORIGIN` to the API and mail worker. The JSON-list default is derived from `TRACKING_API_PORT` through nested Compose interpolation; an explicit list in .env.docker overrides it.
+- `docker compose config` rendered valid JSON lists for the default port 8000 and for 18002, and identical values for the API and mail worker.
+- Unit regression: the forwarded alternate-port JSON resolves to the expected settings and a wildcard entry still fails validation. Integration regression: registration succeeds from the configured alternate origin and returns 403 `origin_not_allowed` for the default-port and a foreign origin; a foreign CORS preflight receives no allow-origin header.
+- Actual disposable Compose path: project tracking-system-origin-test with TRACKING_API_PORT=18002, database port 55434, and its own volume. After build, migration, and health: /health/ready 200; registration from http://127.0.0.1:18002 returned 202; http://127.0.0.1:8000 and https://foreign.example.test returned 403. The container environment contained the expected origins. The project containers, network, volume, and its two images were removed afterward. Only synthetic registration data was written to that disposable database.
+
+No Origin/CSRF check, cookie rule, or Host handling was relaxed. Native tracking_sys and the owner's development Docker volume were not used.

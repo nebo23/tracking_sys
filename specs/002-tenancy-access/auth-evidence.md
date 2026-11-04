@@ -73,3 +73,24 @@ Under D-020 the owner approved upload of the completed 001/002 work to the claud
 - A scan of the 163 commit candidates found no local configuration secret values, private keys, or credential URLs.
 
 No native tracking_sys data, migration, or configuration was changed by this re-verification.
+
+## Review amendments T-01 to T-04 (2026-11-04)
+Authority: D-020/D-021 and the [review amendments](review-amendments.md). All database checks used the guarded disposable tracking_foundation_test database on 127.0.0.1:55433 with synthetic data. Native tracking_sys was not migrated, seeded, or queried.
+
+Documentation slice (T-03, T-04; committed locally as 5892e42):
+- Purpose comments for every maintained backend module, class, and function, and bounded read-only PostgreSQL reference queries beside all 16 mapped models.
+- A script compared `ast.dump(ast.parse(...))` with the previous commit for all 20 changed Python files: every executable AST is identical.
+- All 30 reference queries were extracted from the comments and executed in a `SET TRANSACTION READ ONLY` transaction against the 0003_auth schema. All succeeded; none projects password hashes, token/key digests, bucket keys, or encrypted payloads, and every list query is bounded.
+
+T-01 lock cycle (reproduced, then fixed):
+- New deterministic test `tests/integration/test_lock_order.py`: the inviter's transaction takes the session-authentication user lock; the invitee's transaction accepts an invitation in a worker thread while the main thread polls `pg_stat_activity` for a `Lock` wait; then the inviter renames the agency.
+- Before the fix, the invitee blocked on the inviter's user row while holding the agency lock, and PostgreSQL aborted the acceptance with `DeadlockDetected` (SQLSTATE 40P01) on the issuer-attributed audit insert. This is reproduced evidence, not only a static hypothesis.
+- Fix: `_lock_user` and `_user_by_email` use `with_for_update(key_share=True)`, which SQLAlchemy compiles to `FOR NO KEY UPDATE` (confirmed by compiling the statement). The same test then passes: acceptance completes while the inviter holds its lock, the inviter's rename then succeeds, and audit attribution is unchanged (membership/grant events by the inviter, `invitation.accepted` by the invitee).
+- A second deterministic test shows a concurrent lock on the same user still waits until the first transaction commits, so per-user serialization is retained.
+
+T-02 invitation throttling:
+- `/invitations/accept` now applies an `invitation-ip` peer bucket as a decorator dependency (resolved before session authentication and its user lock) and an `invitation-accept` bucket per authenticated user before invitation lookup. Counters commit on the separate security engine.
+- `tests/integration/test_invitation_throttle.py` verifies: invalid tokens counted after rollback, success below the limit, replay rejection, 429 `rate_limited` with Retry-After, no membership/audit side effects for denied attempts, separate budgets per user, recovery after window expiry, and the peer limit counting unauthenticated attempts.
+- The OpenAPI snapshot is unchanged (the contract test passed without regeneration).
+
+Full verification after the slice: Ruff check/format pass except the pre-existing owner edit at backend/app/models/tenancy.py line 27 (E501 and formatter rewrap), which was left unchanged and uncommitted. **122 passed in 36.73 seconds** (18 unit/contract and 104 PostgreSQL cases), with no failures, skips, or warnings. F-01 evidence is recorded in the [foundation evidence](../001-foundation/evidence.md).

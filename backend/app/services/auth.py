@@ -77,27 +77,31 @@ class AuthService:
     def event(self, action: str, user_id: UUID | None = None) -> None:
         self.session.add(SecurityEvent(action=action, user_id=user_id))
 
-    # Lock the active user row (SELECT ... FOR UPDATE) to serialize credential, verification,
-    # and session changes for that user; populate_existing refreshes stale identity-map state.
-    # A missing or disabled user raises the generic AuthError.
+    # Lock the active user row with SELECT ... FOR NO KEY UPDATE. That mode still conflicts with
+    # itself, so credential, verification, and session changes for one user stay serialized,
+    # but it is compatible with the FOR KEY SHARE locks taken by foreign keys. Other
+    # transactions can therefore insert audit/membership rows that reference this user (for
+    # example invitation acceptance attributed to an inviter) without a user/agency lock
+    # cycle. These locks protect only non-key user columns. populate_existing refreshes stale
+    # identity-map state. A missing or disabled user raises the generic AuthError.
     def _lock_user(self, user_id: UUID) -> User:
         user = self.session.scalar(
             select(User)
             .where(User.id == user_id, User.status == "active")
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
         if user is None:
             raise AuthError()
         return user
 
-    # Find and lock (FOR UPDATE) an active user by normalized email; returns None when absent
-    # so callers can keep generic responses.
+    # Find and lock an active user by normalized email with the same FOR NO KEY UPDATE mode as
+    # _lock_user; returns None when absent so callers can keep generic responses.
     def _user_by_email(self, email: str) -> User | None:
         return self.session.scalar(
             select(User)
             .where(User.email_normalized == normalize_email(email), User.status == "active")
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
 

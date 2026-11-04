@@ -57,3 +57,22 @@ def test_migration_configuration_does_not_require_auth_secrets(settings, monkeyp
     monkeypatch.delenv("TRACKING_MAIL_ENCRYPTION_KEY")
     config = MigrationSettings(_env_file=None, TRACKING_MIGRATION_PASSWORD="synthetic")
     assert config.database_user == "tracking_migrator"
+
+
+def test_alternate_origins_resolve_from_forwarded_environment(settings, monkeypatch):
+    # Mirrors the JSON list Compose forwards when TRACKING_API_PORT=18002 (review F-01).
+    monkeypatch.setenv(
+        "TRACKING_ALLOWED_ORIGINS",
+        '["http://127.0.0.1:18002","http://localhost:18002","http://127.0.0.1:5173"]',
+    )
+    monkeypatch.setenv("TRACKING_FRONTEND_ORIGIN", "http://localhost:5173")
+    resolved = Settings(_env_file=None, database_password="synthetic", cookie_secure=False)
+    assert resolved.allowed_origins == [
+        "http://127.0.0.1:18002",
+        "http://localhost:18002",
+        "http://127.0.0.1:5173",
+    ]
+    assert resolved.frontend_origin == "http://localhost:5173"
+    monkeypatch.setenv("TRACKING_ALLOWED_ORIGINS", '["http://127.0.0.1:18002","*"]')
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, database_password="synthetic", cookie_secure=False)

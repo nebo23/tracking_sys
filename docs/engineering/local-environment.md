@@ -112,6 +112,8 @@ Default local endpoints:
 
 Both published ports bind to the loopback interface. These are local development services, not a production deployment.
 
+To publish the API on another port, set TRACKING_API_PORT for the Compose command, for example 18002. Compose then forwards matching default allowed origins for that port, so Swagger at http://127.0.0.1:18002/docs can register and log in. If the API or frontend is reached through any other origin, set the complete TRACKING_ALLOWED_ORIGINS JSON list in .env.docker; see the [Docker notes](../../infra/docker/README.md). Origin and CSRF checks are never disabled to work around a mismatch.
+
 ## 5. Validate
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check backend/app backend/migrations backend/tests

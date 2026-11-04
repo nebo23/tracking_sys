@@ -88,6 +88,9 @@ class Settings(DatabaseSettings):
     invitation_lifetime_seconds: int = Field(default=604800, ge=60, le=604800)
     login_attempts_per_minute: int = Field(default=5, ge=1, le=100)
     auth_requests_per_minute: int = Field(default=30, ge=1, le=1000)
+    # Per-user invitation acceptance attempts per minute (review amendment T-02). The default
+    # mirrors the login subject limit and is recorded as a proposed value in the auth design.
+    invitation_attempts_per_minute: int = Field(default=5, ge=1, le=100)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
