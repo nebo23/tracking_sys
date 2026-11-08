@@ -1,5 +1,7 @@
 # Claude handoff: Specification 003 privacy and data lifecycle
 
+Historical implementation handoff. For the scoped PR review corrections authorized on 2026-11-08, use [review-corrections-prompt.md](review-corrections-prompt.md) under D-026. Its correction-specific publication approval supersedes this document's earlier upload gate for that task only.
+
 Prepared: 2026-11-04. Authority: D-023. Working directory: `C:\Code\Tracking-system`.
 Branch: `codex/spec-003-privacy-data-policy`. Base: merged main at `98747a296dd570c5f40f76c68796d3e53edb9cc4` (PR 1).
 
