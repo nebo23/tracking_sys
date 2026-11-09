@@ -4,12 +4,17 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
+from urllib.parse import parse_qs, urlsplit
+from uuid import UUID
 
 import pytest
+import test_google as google_tests
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
+from test_google import count, finish
 
 from app.config import BACKEND_ROOT
 from app.models import (
@@ -18,6 +23,7 @@ from app.models import (
     AuditEvent,
     AuthSession,
     ExternalIdentity,
+    OAuthTransaction,
     PasswordCredential,
     SecurityEvent,
     User,
@@ -29,6 +35,7 @@ from app.services.lifecycle import run_lifecycle
 from app.services.tenancy import Role, tenancy_transaction
 
 pytestmark = pytest.mark.integration
+google_provider = google_tests.google
 
 EMAIL = "closing.user@example.test"
 CLAIMS = {
@@ -67,7 +74,7 @@ def active_owners(db, agency_id) -> int:
         )
 
 
-def registered_user(api, email=EMAIL):
+def registered_user(api, email=EMAIL, browser=None):
     response = api.client.post(
         "/auth/register",
         json={"email": email, "display_name": "Closing Person", "password": api.password},
@@ -78,7 +85,8 @@ def registered_user(api, email=EMAIL):
         api.client.post("/auth/verify-email-code", json={"email": email, "code": code}).status_code
         == 204
     )
-    browser = api.new_client()
+    if browser is None:
+        browser = api.new_client()
     user_id = api.login(browser, email).json()["user"]["id"]
     return browser, user_id
 
@@ -326,3 +334,124 @@ def test_owner_demotion_after_a_co_owner_closure_is_refused(api, authenticated_w
     )
     assert (demoted.status_code, demoted.json()) == (409, {"error": "state_conflict"})
     assert active_owners(world.db, world.a) == 1
+
+
+LINK_SUBJECT = "synthetic-google-subject-closure-link"
+
+
+# A verified password user signed in on a Google-enabled browser that has started a link.
+# Returns the browser, the provider substitute, the authorization parameters, and the user ID.
+def pending_google_link(api, google_provider):
+    browser, provider = google_provider
+    client, user_id = registered_user(api, browser=browser())
+    response = client.post("/auth/google/link")
+    assert response.status_code == 200
+    params = parse_qs(urlsplit(response.json()["authorization_url"]).query)
+    return client, provider, params, UUID(user_id)
+
+
+# Queries of the API's role waiting for a lock that the given backend holds. PostgreSQL shows
+# query text only for the observing role's own sessions.
+def queries_blocked_by(db, pid) -> list[str]:
+    with db.runtime.connect() as connection:
+        return list(
+            connection.execute(
+                text(
+                    "SELECT query FROM pg_stat_activity WHERE datname = current_database() "
+                    "AND wait_event_type = 'Lock' AND :pid = ANY(pg_blocking_pids(pid))"
+                ),
+                {"pid": pid},
+            ).scalars()
+        )
+
+
+# True while another transaction holds the row lock of the OAuth transaction.
+def oauth_row_locked(db, transaction_id) -> bool:
+    with db.runtime.connect() as connection:
+        free = connection.execute(
+            select(OAuthTransaction.id)
+            .where(OAuthTransaction.id == transaction_id)
+            .with_for_update(skip_locked=True)
+        ).scalar()
+        connection.rollback()
+    return free is None
+
+
+# Review finding R003-01. Closure holds the user and session locks from authentication; the
+# Google callback locks and consumes its OAuth transaction and then waits for the user lock.
+# Closure previously updated the user's open OAuth transactions at this point, completing a
+# lock cycle that PostgreSQL aborted with SQLSTATE 40P01 (the callback returned 503).
+def test_closure_completes_while_a_google_link_callback_waits(
+    api, db, google_provider, lifecycle_engine, lifecycle_settings
+):
+    client, provider, params, user_id = pending_google_link(api, google_provider)
+    raw = client.cookies.get(client.app.state.settings.cookie_name)
+    with Session(db.migration) as session:
+        transaction_id = session.scalar(select(OAuthTransaction.id))
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with Session(db.runtime) as closing, closing.begin():
+            closing_pid = closing.scalar(text("SELECT pg_backend_pid()"))
+            service = AuthService(closing, api.config)
+            user, auth_session = service.authenticate(raw)
+            callback = executor.submit(finish, client, provider, params, sub=LINK_SUBJECT)
+            deadline = time.monotonic() + 5
+            while not (waiting := queries_blocked_by(db, closing_pid)):
+                assert time.monotonic() < deadline, "The callback never waited for closure."
+                assert not callback.done(), "The callback finished without waiting for closure."
+                time.sleep(0.02)
+            # The callback holds its OAuth transaction row and waits for the user row.
+            assert len(waiting) == 1
+            assert "FROM users" in waiting[0] and "FOR NO KEY UPDATE" in waiting[0]
+            assert oauth_row_locked(db, transaction_id)
+            try:
+                service.close_account(user, auth_session, api.password)
+            except DBAPIError as error:
+                pytest.fail(f"Closure failed with SQLSTATE {getattr(error.orig, 'sqlstate', None)}")
+        # Closure committed; the waiting callback resumes and finds the account disabled.
+        response, result = callback.result(timeout=10)
+    assert result == {"error": ["google_sign_in_failed"]}
+    assert all("tracking_session=" not in item for item in response.headers.get_list("set-cookie"))
+    assert count(db, ExternalIdentity) == 0
+    assert count(db, SecurityEvent, SecurityEvent.action == "google_identity_linked") == 0
+    assert count(db, SecurityEvent, SecurityEvent.action == "account_closed") == 1
+    closed = user_row(db, user_id)
+    assert closed.status == "disabled" and closed.closed_at is not None
+    with Session(db.migration) as session:
+        assert session.get(OAuthTransaction, transaction_id).consumed_at is not None
+    assert client.get("/auth/me").status_code == 401
+
+    run = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert run["status"] == "completed"
+    assert run["deleted"]["oauth_transactions"] == 1
+    assert run["deleted"]["password_credentials"] == 1
+    with Session(db.migration) as session:
+        for model in (OAuthTransaction, AuthSession, PasswordCredential):
+            assert not session.scalar(
+                select(func.count()).select_from(model).where(model.user_id == user_id)
+            )
+
+
+def test_pending_google_link_cannot_complete_after_closure(
+    api, db, google_provider, lifecycle_engine, lifecycle_settings
+):
+    client, provider, params, user_id = pending_google_link(api, google_provider)
+    settings = client.app.state.settings
+    raw = client.cookies.get(settings.cookie_name)
+    assert close(client, api.password).status_code == 204
+    with Session(db.migration) as session:
+        pending = session.scalar(
+            select(OAuthTransaction).where(OAuthTransaction.user_id == user_id)
+        )
+    # Closure leaves the row to the callback's own checks and to the lifecycle runner.
+    assert pending.consumed_at is None
+    # A retained cookie must not matter: the server rejects the closed account's session.
+    client.cookies.set(settings.cookie_name, raw, domain="localhost.local", path="/")
+    _, result = finish(client, provider, params, sub=LINK_SUBJECT)
+    assert result == {"error": ["google_sign_in_failed"]}
+    assert count(db, ExternalIdentity) == 0
+    assert client.get("/auth/me").status_code == 401
+    assert user_row(db, user_id).status == "disabled"
+
+    run = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert run["status"] == "completed" and run["deleted"]["oauth_transactions"] == 1
+    assert count(db, OAuthTransaction) == 0

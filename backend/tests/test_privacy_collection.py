@@ -87,6 +87,62 @@ def test_card_number_detection(text, expected):
     assert contains_card_number(text) is expected
 
 
+GROUPS = ("4111", "1111", "1111", "1111")  # the same published test card, as digit groups
+MESSAGE = [FormField("message")]
+MAPPING = {"message": "lead.contact"}
+
+
+# Review finding R003-02: digit groups joined by whitespace other than one ASCII space escaped
+# detection in an ordinary mapped free-text field.
+@pytest.mark.parametrize(
+    "text",
+    [
+        " ".join(GROUPS),
+        "  ".join(GROUPS),  # double spaces
+        "\t".join(GROUPS),  # tabs
+        "\u00a0".join(GROUPS),  # no-break spaces
+        "\u202f".join(GROUPS),  # narrow no-break spaces
+        "\u2007".join(GROUPS),  # figure spaces
+        "4111 \t1111\u00a0 1111   1111",  # mixed whitespace runs
+        "4111\n1111\r\n1111\n1111",  # line breaks
+        "-".join(GROUPS),
+        " - ".join(GROUPS),  # spaced hyphens
+        "\u2013".join(GROUPS),  # en dashes
+        "\u2011".join(GROUPS),  # non-breaking hyphens
+        "".join(GROUPS),  # contiguous
+        "Please charge " + "  ".join(GROUPS) + " today",
+        "\t".join(GROUPS) + "\t123",  # followed by a security code
+        "\u00a0".join(GROUPS) + "  12/27",  # followed by an expiry date
+        "12\t27\u00a0" + "  ".join(GROUPS),  # preceded by other digit groups
+    ],
+)
+def test_card_numbers_with_common_separators_are_dropped_from_free_text(text):
+    result = sanitize_submission(MESSAGE, {"message": text}, MAPPING)
+    assert result.values == {}
+    assert result.dropped == {"payment_card_number": 1}
+    assert "4111" not in repr(result)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "  ".join(("4111", "1111", "1111", "1112")),  # fails the Luhn check
+        "\t".join(("4111", "1111", "1111", "1112")),
+        "\u00a0".join(("4111", "1111", "1111", "1112")),
+        "Order\t123456789012",  # 12 digits
+        "Call +20  100\u00a0000\t0000",
+        "Meeting at 10:30 on 12/27,\troom 4",
+        "Quantity 2, price 150 EGP",
+        "41111111111111111111",  # 20 contiguous digits are not a card number
+        "Please call me back about the quote.",
+    ],
+)
+def test_ordinary_free_text_with_numbers_is_kept(text):
+    result = sanitize_submission(MESSAGE, {"message": text}, MAPPING)
+    assert result.values == {"message": text}
+    assert result.dropped == {}
+
+
 def test_urls_keep_only_campaign_and_click_parameters():
     url, removed = minimize_url(
         "https://user:pass@shop.example.test:8443/landing?utm_source=ads&gclid=abc"

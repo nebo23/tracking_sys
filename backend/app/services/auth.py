@@ -16,7 +16,6 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
-    OAuthTransaction,
     PasswordCredential,
     SecurityEvent,
     User,
@@ -525,9 +524,13 @@ class AuthService:
     # another active Owner whose account is active. Otherwise, in this transaction: the email
     # and name become pseudonyms (the .invalid domain is rejected by registration, so the
     # pseudonym never collides and the original email is free at once), the account is disabled
-    # with closed_at, sessions are revoked, open tokens, challenges, and OAuth transactions are
-    # ended, memberships are disabled with audit rows, and account_closed is recorded. The
-    # lifecycle runner later deletes the credential, external identity, and ended state.
+    # with closed_at, sessions are revoked, open tokens and challenges are ended, memberships
+    # are disabled with audit rows, and account_closed is recorded. OAuth transactions are not
+    # touched: a Google callback locks its transaction row before it locks the user, so updating
+    # those rows under the user lock could deadlock with an in-flight link (review finding
+    # R003-01). A pending link stays unusable because the callback must authenticate its
+    # initiating session and lock an active user, which fail once this commits. The lifecycle
+    # runner later deletes the credential, external identity, OAuth transactions, and ended state.
     def close_account(self, user: User, auth_session: AuthSession, password: str | None) -> None:
         now = now_utc()
         credential = self.session.get(PasswordCredential, user.id)
@@ -601,11 +604,6 @@ class AuthService:
                 VerificationChallenge.invalidated_at.is_(None),
             )
             .values(invalidated_at=now)
-        )
-        self.session.execute(
-            update(OAuthTransaction)
-            .where(OAuthTransaction.user_id == user.id, OAuthTransaction.consumed_at.is_(None))
-            .values(consumed_at=now)
         )
         for membership in memberships:
             membership.status = "disabled"

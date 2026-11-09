@@ -56,8 +56,18 @@ DEFAULT_URL_PARAMETERS = frozenset(
         "twclid",
     }
 )
-# A run of digit groups joined by single spaces or hyphens.
-_DIGIT_RUN = re.compile(r"\d+(?:[ -]\d+)*")
+# Characters that may separate the digit groups of a card number in free text: any whitespace,
+# including the tabs, repeated spaces, and no-break, narrow no-break, and figure spaces that
+# copying or formatting can insert, and the hyphen-minus, Unicode hyphens and dashes, the minus
+# sign, and the fullwidth hyphen-minus. Line breaks are included because detection errs toward
+# not collecting.
+_SEPARATOR = r"[\s\-\u2010-\u2015\u2212\uff0d]"
+# A run of digit groups joined by separator runs. The groups of a run are then read with
+# _DIGIT_GROUP, so locating and splitting a run share one separator definition. Digits and
+# separators are disjoint and every separator run must be followed by digits, so a match is
+# unambiguous and found in linear time.
+_DIGIT_RUN = re.compile(rf"\d+(?:{_SEPARATOR}+\d+)*")
+_DIGIT_GROUP = re.compile(r"\d+")
 
 
 @dataclass(frozen=True)
@@ -110,11 +120,12 @@ def _luhn_valid(digits: str) -> bool:
 
 # True when free text contains a card number, as one typed into an ordinary field would be:
 # 13-19 digits passing the Luhn check, formed by consecutive digit groups of a run (groups
-# joined by single spaces or hyphens). Checking every group-aligned span keeps detection when
-# the number is followed or preceded by other digits, such as a security code or expiry date.
+# joined by any run of the separators above). Checking every group-aligned span keeps
+# detection when the number is followed or preceded by other digits, such as a security code
+# or expiry date. Each span stops growing past 19 digits, so the work stays linear.
 def contains_card_number(value: str) -> bool:
     for run in _DIGIT_RUN.finditer(value):
-        groups = re.split(r"[ -]", run.group())
+        groups = _DIGIT_GROUP.findall(run.group())
         for start in range(len(groups)):
             digits = ""
             for group in groups[start:]:
