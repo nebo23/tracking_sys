@@ -23,7 +23,7 @@ Runbooks, release manifest, rollback plan, and operational ownership; configure 
 ## Dependencies and open decisions
 Dependencies: [019-quality-security](../019-quality-security/spec.md)
 
-Specification 003 obligations (D-025): implement the deletion journal store, restore epochs, and readiness gate from `app.privacy.restore`, run the restore drill for 003 acceptance criterion 4, and choose managed key custody to replace the local token keyring.
+Specification 003 obligations (D-025): implement the deletion journal store, restore epochs, and readiness gate from `app.privacy.restore`, run the restore drill for 003 acceptance criterion 4, and choose managed key custody to replace the local token keyring. Since review finding R003-03 (D-026), the journal writer must also record the trusted journal head with every append, in custody independent of the database and the journal entries. Each recovery stops the writer, reads that head from its custody, establishes its freshness for the restore epoch, passes it to `to_reapply`, records the epoch's `RestoreState`, and keeps readiness blocked while the journal is unverified.
 
 Open decisions: Q-003, Q-004, Q-011, Q-012; hosting and production approval. See the [decision register](../../docs/planning/decisions.md).
 

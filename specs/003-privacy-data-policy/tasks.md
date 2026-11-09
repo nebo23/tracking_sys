@@ -1,7 +1,7 @@
 # Tasks: 003-privacy-data-policy
-Status: Not completed; this is a review checklist, not an implementation instruction.
+Status: completed at contract level (D-025) and under owner review in [PR 2](https://github.com/nebo23/tracking_sys/pull/2); owner acceptance and merge are not complete. This is a review checklist, not an implementation instruction.
 
-Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-privacy-data-policy`; use the [Claude handoff](implementation-prompt.md). Detailed policy and schema choices remain subject to review.
+Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-privacy-data-policy`; use the [Claude handoff](implementation-prompt.md). The PR review corrections follow the [D-026 handoff](review-corrections-prompt.md) and are recorded in the [correction evidence](review-corrections-evidence.md). Detailed policy and schema choices remain subject to review.
 
 - [x] Create the dedicated local branch from merged main (PR 1, `98747a2`) and prepare the Claude handoff.
 - [x] Reconcile the design inventory and historical amendments with `0004_identity` and the merged authentication corrections before proposing implementation changes. See the [design](design.md) and [evidence](evidence.md).
@@ -28,5 +28,8 @@ Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-priva
 - [x] Verify (contract level; restore drill in 019/020): Backup restoration reapplies deletion tombstones before making the service available.
 - [x] Update documentation, limitations, and untested assumptions for 003-A1/003-A2.
 - [x] Present a reviewable result to the owner (contract-level completion under D-025, with the transferred obligations recorded in each consuming spec.md).
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
+- [x] Publish the specification for review: PR 2 was opened on 2026-11-04.
+- [x] Correct the PR review findings R003-01 to R003-03 with regression tests under D-026, record the [correction evidence](review-corrections-evidence.md), and publish the corrections to PR 2.
+- [ ] Owner review of the corrected PR 2 and the merge decision.
+- [ ] Decide the [legacy queued-mail transition](../../docs/engineering/data-lifecycle.md#legacy-queued-mail-proposal-awaiting-owner-approval); only the proposal is documented.
 - [ ] Record owner acceptance before progressing to dependent work.

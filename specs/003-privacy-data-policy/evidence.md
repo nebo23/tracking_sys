@@ -1,11 +1,13 @@
 # Specification 003 evidence
-Date: 2026-11-04. Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work for 003-A1/003-A2), D-024 (003-A3 to 003-A5), and D-025 (003-B to 003-D contracts and contract-level completion). Status: implemented locally for owner review; not uploaded, not merged, not rolled out.
+Dates: 2026-11-04 (slices and contracts) and 2026-11-09 (review corrections). Branch: `codex/spec-003-privacy-data-policy`. Base: merged main `98747a2` (PR 1). Authority: D-023 (continuation and independent work for 003-A1/003-A2), D-024 (003-A3 to 003-A5), D-025 (003-B to 003-D contracts and contract-level completion), and D-026 (review corrections). Status: published for owner review in [PR 2](https://github.com/nebo23/tracking_sys/pull/2), open and not merged. The review findings R003-01 to R003-03 are corrected; see the [correction evidence](review-corrections-evidence.md), which also holds the current full-suite result. Native tracking_sys is not rolled out; it was last verified at `0004_identity` on 2026-11-04.
 
-## Scope
+The sections below are historical records in delivery order: 003-A1/003-A2, 003-A3/003-A4, 003-A5, then the 003-B to 003-D contracts. Each records that slice's scope, exclusions, and results when it was completed; an exclusion listed for an early slice does not describe the final scope.
+
+## Historical record: 003-A1 and 003-A2 (2026-11-04)
 - **003-A1, data-class registry:** [backend/app/data_policy.py](../../backend/app/data_policy.py) maps every stored column to a data class. Each table has end-of-life rules with a decision status and reference. A check compares the registry with the SQLAlchemy metadata and the migrated database.
 - **003-A2, log allowlist:** [backend/app/logging_config.py](../../backend/app/logging_config.py) admits only registered application events with closed field codes. It switches every existing handler and uvicorn's handlers to the allowlist formatter and reduces library records and exceptions to safe diagnostics. The application lifespan and the mail worker apply the same configuration.
 
-Excluded and unchanged: schema, migrations, runtime grants, dependencies, API and OpenAPI, retention periods, deletion behavior, mail delivery, configuration, native `tracking_sys`, and private `.env` files. Slices 003-A3 to 003-A5 await the [decision packet](decision-packet-003a.md).
+Excluded and unchanged in these two slices: schema, migrations, runtime grants, dependencies, API and OpenAPI, retention periods, deletion behavior, mail delivery, configuration, native `tracking_sys`, and private `.env` files. At that time, slices 003-A3 to 003-A5 awaited the [decision packet](decision-packet-003a.md); the later sections record how they changed several of these items under D-024.
 
 ## Baseline established before changes
 | Check | Command and target | Result |
@@ -80,7 +82,7 @@ Not validated for A3/A4:
 ## 003-A5 under D-024
 Changes:
 - **Migration 0006_account_closure.** It adds `users.closed_at` with the check `closed_at IS NULL OR status = 'disabled'` and the `account_closed` security action. It grants `tracking_app` `UPDATE` on only `email_normalized`, `display_name`, `status`, and `closed_at`, and grants `tracking_lifecycle` `SELECT` on users and `SELECT`/`DELETE` on password credentials and external identities. Its guarded downgrade refuses populated closure state. The `tenancy.py` model change was staged on top of HEAD, so the owner's uncommitted formatting edit in that file stays out of the commit.
-- **Closure endpoint.** `POST /auth/close-account` checks Origin and CSRF and is throttled per peer and per user. Reauthentication is the password, or, for an account without one, a session at most 10 minutes old (a setting with that approved maximum). The endpoint locks the user row, then every agency of the user's active memberships in ID order, and refuses with 409 if an agency would lose its last active Owner. Otherwise it pseudonymizes the email and name, disables the account with `closed_at`, revokes sessions, ends open tokens, challenges, and OAuth transactions, disables memberships with audit rows, and records `account_closed`.
+- **Closure endpoint.** `POST /auth/close-account` checks Origin and CSRF and is throttled per peer and per user. Reauthentication is the password, or, for an account without one, a session at most 10 minutes old (a setting with that approved maximum). The endpoint locks the user row, then every agency of the user's active memberships in ID order, and refuses with 409 if an agency would lose its last active Owner. Otherwise it pseudonymizes the email and name, disables the account with `closed_at`, revokes sessions, ends open tokens, challenges, and OAuth transactions, disables memberships with audit rows, and records `account_closed`. (Correction R003-01 on 2026-11-09 removed the OAuth transaction update from closure; the lifecycle runner deletes those rows, as before.)
 - **Runner.** It deletes a closed account's credential, external identity, sessions, tokens, challenges, and OAuth transactions without a period. The registry marks users, credentials, and external identities as approved under D-024. OpenAPI regenerated: 30 paths, 37 operations.
 - **Intentional change to 002 privilege expectations.** Two parametrized checks expected the runtime to be unable to run `UPDATE users SET status='disabled'`. D-024 grants exactly that column-limited update for closure, so the checks now assert that other user columns (`created_at`, `id`) and `DELETE FROM users` stay refused.
 
@@ -127,12 +129,20 @@ Limits of this evidence:
 - Provider rows rest on research checked on 2026-11-03 and are deliberately blocking.
 - No market-specific consent profile exists (Q-003 open).
 
+## Review corrections under D-026 (2026-11-09)
+The PR 2 review requested three changes; all three are corrected with regression tests, and the details and results are in the [correction evidence](review-corrections-evidence.md):
+- **R003-01:** account closure no longer updates OAuth transactions, which removes a lock cycle with an in-flight Google link callback. The pending link is still refused, and the lifecycle runner deletes the rows.
+- **R003-02:** card-number detection in free text treats any run of whitespace or hyphen and dash characters as a group separator, including double spaces, tabs, and no-break spaces.
+- **R003-03:** restore planning requires a trusted journal head, rejects incomplete journals and invalid watermarks, and reports explicit restore states to a fail-closed readiness gate.
+
+The full suite then passed **380** tests (193 unit/contract and 187 PostgreSQL). The legacy queued-mail transition is documented as a [proposal awaiting owner approval](../../docs/engineering/data-lifecycle.md#legacy-queued-mail-proposal-awaiting-owner-approval) and is not fixed.
+
 ## Acceptance criteria of specification 003
 | Criterion | Evidence | Transferred end-to-end verification (D-025) |
 |---|---|---|
 | 1. Consent-violating events kept out of storage and outbound queues | Contract: C1, C2, C3, C5 pass against `app.privacy.consent` | 004 (ingestion), 005 (tracker, C4), 014 (enqueue and delivery claim) |
-| 2. Password and payment fields excluded from form telemetry and logs | Logs end to end: M1-M3 and M6 on the real server path. Forms, contract: M4 and M5 against `app.privacy.collection` | 005 (tracker), 004 (ingestion) |
+| 2. Password and payment fields excluded from form telemetry and logs | Logs end to end: M1-M3 and M6 on the real server path. Forms, contract: M4 and M5 against `app.privacy.collection`, with the R003-02 separator correction | 005 (tracker), 004 (ingestion) |
 | 3. Deletion covers raw, derived, cache, export, and blocks replay | Platform accounts end to end: closure, pseudonymization, credential and identity deletion, ended-state retention (A3, A5). Contract: D2 replay blocking, D4 outcome reporting, D5 key destruction, destruction of the token ciphertext (D3 contract part) | 004, 006, 009 (D3 with a provider), 014, 015, 016 (cache, export) |
-| 4. Restore reapplies tombstones before service | Contract: R1, R2, R4 against `app.privacy.restore` | 019, 020 (journal store, restore epochs, drill including R3) |
+| 4. Restore reapplies tombstones before service | Contract: R1, R2, R4 against `app.privacy.restore`, with journal completeness checked against a trusted head (R003-03) | 019, 020 (journal store, head custody and freshness, restore epochs, drill including R3) |
 
-Specification 003 is complete at contract level under D-025, pending owner review. Formal acceptance, upload, and merge are separate owner decisions. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.
+Specification 003 is complete at contract level under D-025 and under owner review in PR 2. Formal acceptance and merge are separate owner decisions. Both social analytics and attribution, and multi-agency isolation, remain required launch scope.
