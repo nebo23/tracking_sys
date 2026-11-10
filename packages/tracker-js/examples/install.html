@@ -1,0 +1,91 @@
+<!doctype html>
+<!--
+  Installation example for the first-party tracker (specification 005, D-033).
+  Synthetic values only. Replace the collector origin, public source key and form definition
+  with the values registered for your client. The page loads the module from its own origin;
+  nothing is collected until the visitor makes an explicit choice in the banner.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; connect-src 'self' https://collect.example.test">
+    <title>Tracker installation example</title>
+  </head>
+  <body>
+    <section id="consent-banner" hidden>
+      <p>We would like to measure how this site is used. Nothing is collected unless you agree.</p>
+      <button id="accept" type="button">Allow analytics</button>
+      <button id="reject" type="button">Decline</button>
+    </section>
+
+    <!-- Tracked links open new windows with noopener, so session storage is not copied. -->
+    <a data-track href="https://shop.example.test/offer" rel="noopener">See the offer</a>
+
+    <form id="lead-form" action="/thanks" method="post">
+      <select name="plan">
+        <option value="basic">Basic</option>
+        <option value="pro">Pro</option>
+      </select>
+      <input name="quantity" type="number" min="1" value="1">
+      <!-- Never collected: password, payment, one-time-code, email, free text, unconfigured. -->
+      <input name="email" type="email" autocomplete="email">
+      <button type="submit">Request a quote</button>
+    </form>
+
+    <button id="withdraw" type="button">Withdraw consent</button>
+    <button id="erase" type="button">Delete my analytics data</button>
+
+    <script type="module">
+      import { createTracker } from "/assets/tracker-0.5.0/tracker.js";
+
+      const ANALYTICS = "analytics.first_party";
+      const tracker = createTracker({
+        collector: "https://collect.example.test",
+        publicKey: "pk_SYNTHETICSYNTHETICSYNTHETICSYNTHETICSYNTHET",
+        forms: {
+          lead: {
+            fields: [
+              { name: "plan", data_class: "form.option", options: ["basic", "pro"] },
+              { name: "quantity", data_class: "form.quantity" },
+            ],
+          },
+        },
+        bindings: { links: "a[data-track]", forms: { lead: "#lead-form" } },
+      });
+
+      // Your consent platform decides whether the visitor already chose; this example keeps
+      // its own decision record for the session only.
+      const banner = document.getElementById("consent-banner");
+      const decided = sessionStorage.getItem("example-consent-choice");
+      if (decided === "granted") {
+        tracker.resume({ [ANALYTICS]: "granted" }).then((result) => {
+          if (result.status === "resumed") tracker.trackPageView();
+          else banner.hidden = false; // unknown, withdrawn or expired: ask again
+        });
+      } else if (decided === null) {
+        banner.hidden = false;
+      }
+
+      document.getElementById("accept").addEventListener("click", async () => {
+        banner.hidden = true;
+        sessionStorage.setItem("example-consent-choice", "granted");
+        const result = await tracker.grant({ [ANALYTICS]: "granted" });
+        if (result.status === "granted") tracker.trackPageView();
+      });
+      document.getElementById("reject").addEventListener("click", () => {
+        banner.hidden = true;
+        sessionStorage.setItem("example-consent-choice", "denied");
+      });
+      document.getElementById("withdraw").addEventListener("click", () => {
+        sessionStorage.setItem("example-consent-choice", "denied");
+        tracker.withdraw();
+      });
+      document.getElementById("erase").addEventListener("click", () => {
+        sessionStorage.removeItem("example-consent-choice");
+        tracker.erase();
+      });
+    </script>
+  </body>
+</html>
