@@ -1,5 +1,5 @@
 # 004-event-collection — Event collection and contracts
-Status: Approved as D-027, implemented, and published for review in PR 3 (D-028); the pre-merge review findings are corrected locally under D-029 and the correction-review finding R004-04 under D-030 (481 tests on disposable storage); they await independent review. Level: L2. Prepared: 2026-10-28; design, approval and implementation: 2026-11-10. Read the [design](design.md), [decision packet](decision-packet.md), [plan](plan.md), [tasks](tasks.md), and [evidence](evidence.md).
+Status: Approved as D-027, implemented, and open for review in PR 3. Corrections under D-029/D-030 passed [independent review](final-review-2026-11-10.md): 481 suite tests and two additional reproduction checks on disposable storage. Publication is authorized under D-031; merge remains the owner's decision. Level: L2. Prepared: 2026-10-28; design, approval and implementation: 2026-11-10. Read the [design](design.md), [decision packet](decision-packet.md), [plan](plan.md), [tasks](tasks.md), and [evidence](evidence.md).
 
 ## Sources
 PDF-001,002,004,005,006,007,008,009,013,014,082,084. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

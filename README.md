@@ -1,5 +1,5 @@
 # Tracking System
-Status: foundation and specification 002 (with D-022 and R-01 to R-03) are merged in PR 1 (`98747a2`); specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`). Specification 004, event collection, is approved as D-027 and implemented locally on codex/spec-004-event-collection, verified on disposable storage and published for owner review under D-028; corrections of the pre-merge review findings (D-029) and of the correction-review finding R004-04 (D-030) are committed locally and await independent review. Updated: 2026-11-10.
+Status: foundation and specification 002 (with D-022 and R-01 to R-03) are merged in PR 1 (`98747a2`); specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`). Specification 004, event collection, is implemented on codex/spec-004-event-collection and open for review in PR 3. Corrections under D-029/D-030 passed independent review (481 suite tests and two additional reproduction checks) and are approved for publication under D-031; merge remains the owner's decision. Updated: 2026-11-10.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 

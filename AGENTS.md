@@ -26,6 +26,7 @@
 - D-028 approves publishing the completed specification 004 branch and opening its pull request for owner review. Merge, native rollout, real intake and deployment remain separately gated; predecessor items P1-P4 are not included.
 - D-029 authorizes correcting the 004 review findings R004-01 to R004-03 and the query-value observation on codex/spec-004-event-collection, with regressions and documentation, as a local commit only. Pushing, updating PR 3, merging, deployment and native migration wait for the owner's review of the corrections.
 - D-030 authorizes correcting only review finding R004-04 (partial lifecycle cleanup must never let an older grant become effective) on the same branch, with regressions and documentation, as a local commit only, before independent review.
+- D-031 authorizes publishing the independently verified Spec 004 corrections to the existing branch and PR 3 after the owner's review-for-upload request. See specs/004-event-collection/final-review-2026-11-10.md. Merge, deployment and native rollout remain separate decisions.
 - Routine reversible research, document organization and verification are authorized.
 - Preserve owner edits. Keep proposals, source requirements and approved decisions distinct.
 - Do not install tools merely because permission exists. Inspect installed tools and justify what is needed.

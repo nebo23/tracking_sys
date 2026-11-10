@@ -1,6 +1,8 @@
 # Specification 004 verification evidence
 
-Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and verified locally on disposable storage; published for owner review under D-028. The independent pre-merge review findings are corrected locally under D-029 ([review corrections](#review-corrections-2026-11-10)). The correction review then found R004-04, which is corrected locally under D-030 ([second correction](#second-correction-r004-04-2026-11-10)). Both await independent review. Not merged and not rolled out to native tracking_sys.
+Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and open in PR 3. The corrections under D-029 ([review corrections](#review-corrections-2026-11-10)) and D-030 ([R004-04](#second-correction-r004-04-2026-11-10)) passed independent review and are approved for publication under D-031. Not merged and not rolled out to native tracking_sys.
+
+Final independent review update (2026-11-10): **passed** at `7720868`; 481 tests passed in 136.79 seconds and both independent R004-04 reproduction checks passed in 2.61 seconds. Ruff, formatting, dependency and diff checks passed. D-031 authorizes publication to the existing PR 3. See the [final review](final-review-2026-11-10.md) for disposition, scope and limitations. The earlier local-review status in the paragraphs below is historical; merge and native rollout remain separate decisions.
 
 The sections below the review corrections describe the originally published result (`b90fa53`, 455 tests) and remain historical. The R004-02 row of the first review corrections is completed by R004-04: the client lock alone did not preserve consent between committed batches.
 
