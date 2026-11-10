@@ -15,7 +15,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
-from urllib.parse import parse_qsl, unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 from pydantic import (
@@ -211,14 +211,26 @@ def _http_parts(url: str):
     return parts
 
 
+# True when a decoded URL component carries a recognized prohibited value: an email-like value
+# or a Luhn-valid card number (the 003 card rule). One further level of percent-decoding is
+# also checked, so a double-encoded value cannot pass. This recognizes known patterns only; it
+# is not general personal-data detection.
+def _prohibited(decoded: str) -> bool:
+    return any(
+        _EMAIL_LIKE.search(text) or contains_card_number(text)
+        for text in {decoded, unquote(decoded)}
+    )
+
+
 # Minimize a page or link URL for the granted purposes: campaign parameters with analytics,
-# click identifiers only with attribution as well. A path that carries an email-like value or
-# a Luhn-valid card number rejects the event instead of being stored.
+# click identifiers only with attribution as well. A path that carries a prohibited value
+# rejects the event, because the page itself cannot be kept without it. An allowlisted query
+# parameter whose value is prohibited is removed and counted as sensitive_query_value; an
+# allowlisted name never makes its value safe (review observation on 004).
 def minimize_page_url(url: str, granted: Iterable[Purpose]) -> tuple[str, Counter[str]]:
     granted = set(granted)
     parts = _http_parts(url)
-    path = unquote(parts.path)
-    if _EMAIL_LIKE.search(path) or contains_card_number(path):
+    if _prohibited(unquote(parts.path)):
         raise Rejected("url_identifier")
     allowed: frozenset[str] = frozenset()
     if Purpose.ANALYTICS in granted:
@@ -233,6 +245,12 @@ def minimize_page_url(url: str, granted: Iterable[Purpose]) -> tuple[str, Counte
     minimized, removed = minimize_url(url, allowed)
     if removed - clicks:
         dropped["url_component"] += removed - clicks
+    kept = urlsplit(minimized)
+    retained = parse_qsl(kept.query, keep_blank_values=True)
+    safe = [(key, value) for key, value in retained if not _prohibited(value)]
+    if len(safe) < len(retained):
+        dropped["sensitive_query_value"] += len(retained) - len(safe)
+        minimized = urlunsplit(kept._replace(query=urlencode(safe)))
     if len(minimized) > MAX_TEXT:
         raise Rejected("url_not_allowed")
     return minimized, dropped
@@ -384,13 +402,14 @@ def parse_signature(header: str | None) -> tuple[int, str]:
     return int(timestamp), signature
 
 
-# Constant-time check against every live secret, then the time window. Runs before parsing.
+# Check the signature against the live secrets (newest first), then the time window. Runs
+# before parsing. Each comparison is constant time; stopping at the first match reveals only
+# which still-valid version signed, never secret material.
 def verify_webhook(header: str | None, body: bytes, secrets: Iterable[str], now: datetime) -> None:
     timestamp, signature = parse_signature(header)
-    valid = False
-    for secret in secrets:
-        valid |= hmac.compare_digest(sign_webhook(secret, timestamp, body), signature)
-    if not valid:
+    if not any(
+        hmac.compare_digest(sign_webhook(secret, timestamp, body), signature) for secret in secrets
+    ):
         raise Rejected("signature_invalid")
     if abs(now.timestamp() - timestamp) > WEBHOOK_WINDOW_SECONDS:
         raise Rejected("signature_expired")

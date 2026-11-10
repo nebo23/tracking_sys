@@ -9,12 +9,13 @@ an agency row lock (audited administration) may come before the client lock; whi
 lock is held, only rows of the 004 tables are locked.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import Engine, delete, func, select, text
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.orm import Session
 
@@ -125,13 +126,18 @@ def require_token_keys(settings: Settings) -> LocalKeyring:
     return keys
 
 
+# Second key of a client's privacy lock in namespace LOCK_NAMESPACE. Admission, consent changes,
+# erasure, and lifecycle expiry of collected data all use it (D-027 decision 10).
+def client_lock_key(client_id: UUID) -> int:
+    return int.from_bytes(client_id.bytes[:4], "big", signed=True)
+
+
 # Take the client's privacy lock (waiting at most LOCK_TIMEOUT; a timeout surfaces as a
 # retryable database error) and return the database clock read after the lock is held, which
 # orders receipts in the order the lock serialized them.
 def lock_client(session: Session, client_id: UUID) -> datetime:
-    key = int.from_bytes(client_id.bytes[:4], "big", signed=True)
     session.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
-    session.execute(select(func.pg_advisory_xact_lock(LOCK_NAMESPACE, key)))
+    session.execute(select(func.pg_advisory_xact_lock(LOCK_NAMESPACE, client_lock_key(client_id))))
     return session.scalar(select(func.clock_timestamp()))
 
 
@@ -195,6 +201,14 @@ def live_source(
     else:
         return None
     return session.scalar(query)
+
+
+# Registered Origins of the active browser source behind a public key, in a short read-only
+# unit of work; empty for unknown or inactive sources. Used to answer CORS preflights.
+def browser_origins(engine: Engine, public_key: str) -> frozenset[str]:
+    with Session(engine) as session:
+        source = live_source(session, "browser", public_key=public_key)
+        return frozenset(source.allowed_origins or ()) if source is not None else frozenset()
 
 
 def require_live_source(session: Session, kind: Literal["browser", "webhook"], source_id: UUID):
@@ -619,27 +633,31 @@ def issue_webhook_secret(
     return raw
 
 
-# Open every secret version of a webhook source that is still valid at now.
+# Every secret version of a webhook source that is still valid at now, newest first, opened
+# lazily so verification can stop at the first match. No version is dropped by a count limit:
+# each rotated-out version stays valid until its own retires_at (D-027, review finding
+# R004-03). The work is bounded by the versions rotated within one overlap period, and the
+# rows have already been read, so a lazy open adds no further query.
 def live_webhook_secrets(
     session: Session, keyring: LocalKeyring, source: IngestionSource, now: datetime
-) -> list[str]:
-    rows = session.scalars(
-        select(IngestionSourceSecret)
-        .where(
-            IngestionSourceSecret.source_id == source.id,
-            (IngestionSourceSecret.retires_at.is_(None)) | (IngestionSourceSecret.retires_at > now),
+) -> Iterator[str]:
+    rows = list(
+        session.scalars(
+            select(IngestionSourceSecret)
+            .where(
+                IngestionSourceSecret.source_id == source.id,
+                (IngestionSourceSecret.retires_at.is_(None))
+                | (IngestionSourceSecret.retires_at > now),
+            )
+            .order_by(IngestionSourceSecret.version.desc())
         )
-        .order_by(IngestionSourceSecret.version.desc())
-        .limit(3)
     )
-    return [
-        open_secret(
+    for row in rows:
+        yield open_secret(
             keyring,
             SealedSecret(row.kek_id, row.wrap_nonce, row.wrapped_dek, row.nonce, row.ciphertext),
             _secret_context(source, row.id, row.version),
         )
-        for row in rows
-    ]
 
 
 # Owner/Admin administration of sources, forms, and erasure requests; audited in the caller's

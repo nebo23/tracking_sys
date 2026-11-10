@@ -7483,6 +7483,16 @@
                 }
               }
             }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -7622,6 +7632,16 @@
                 }
               }
             }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -7753,6 +7773,16 @@
           },
           "404": {
             "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
             "content": {
               "application/json": {
                 "schema": {

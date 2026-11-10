@@ -18,7 +18,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.collection.contract import sign_webhook
+from app.collection.contract import Envelope, sign_webhook
 from app.config import BACKEND_ROOT
 from app.database import expected_revision
 from app.models import (
@@ -34,9 +34,15 @@ from app.models import (
 )
 from app.privacy.consent import ConsentSource, ConsentState, Purpose
 from app.privacy.deletion import RequesterKind
-from app.security import now_utc
-from app.services.collection import LOCK_NAMESPACE, erase_subject, record_consent
-from app.services.lifecycle import run_lifecycle
+from app.security import digest, now_utc
+from app.services.collection import (
+    LOCK_NAMESPACE,
+    Channel,
+    admit,
+    erase_subject,
+    record_consent,
+)
+from app.services.lifecycle import delete_client_batch, run_lifecycle, targets
 
 pytestmark = pytest.mark.integration
 
@@ -549,7 +555,13 @@ def test_erasure_removes_subject_data_and_tombstones_block_every_replay(c):
         "event_id",
         "subject_token",
     ]
-    assert all(len(item.match_key) == 32 and item.match_key_id == "tomb1" for item in tombstones)
+    keys = c.api.config.tombstone_keys()
+    assert all(item.match_key_id == keys.active for item in tombstones)
+    assert {bytes(item.match_key) for item in tombstones} == {
+        keys.seal(c.w.a1, "subject_token", digest(token))[0],
+        keys.seal(c.w.a1, "event_id", first["event_id"])[0],
+        keys.seal(c.w.a1, "event_id", second["event_id"])[0],
+    }
     assert c.send(envelope(token)).json() == {"error": "subject_deleted"}
     fresh = c.subject()
     replay = dict(first, subject_token=fresh)
@@ -834,3 +846,307 @@ def test_downgrade_refuses_populated_collection_state(c):
             connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
             == expected_revision()
         )
+
+
+# Review corrections of 2026-11-10 (R004-01 to R004-03 and the query-value observation).
+
+STRANGER = "https://attacker.example.test"
+
+
+def preflight(client, path, origin, *, method="POST", headers="content-type"):
+    request_headers = {"Origin": origin, "Access-Control-Request-Method": method}
+    if headers is not None:
+        request_headers["Access-Control-Request-Headers"] = headers
+    return client.options(path, headers=request_headers)
+
+
+def no_cors_grant(response) -> bool:
+    return (
+        "access-control-allow-origin" not in response.headers
+        and "access-control-allow-credentials" not in response.headers
+    )
+
+
+def test_registered_origin_reads_the_consent_token_and_sends_events(c):
+    base = f"/collect/v1/{c.public_key}"
+    for route in ("consent", "events", "erasure"):
+        allowed = preflight(c.public, f"{base}/{route}", ORIGIN)
+        assert allowed.status_code == 204
+        assert allowed.headers["access-control-allow-origin"] == ORIGIN
+        assert allowed.headers["access-control-allow-methods"] == "POST"
+        assert allowed.headers["access-control-allow-headers"] == "Content-Type"
+        assert allowed.headers["access-control-max-age"] == "600"
+        assert "access-control-allow-credentials" not in allowed.headers
+    simple = c.public.post(
+        f"{base}/consent",
+        content=json.dumps({"choices": {ANALYTICS: "granted"}}),
+        headers={"Content-Type": "text/plain;charset=UTF-8"},
+    )
+    assert simple.status_code == 200
+    assert simple.headers["access-control-allow-origin"] == ORIGIN
+    assert "access-control-allow-credentials" not in simple.headers
+    assert "Origin" in simple.headers["vary"]
+    token = simple.json()["subject_token"]
+    assert token.startswith("sbj_")
+    sent = c.public.post(f"{base}/events", json=envelope(token))
+    assert (sent.status_code, sent.json()) == (202, {"status": "received"})
+    assert sent.headers["access-control-allow-origin"] == ORIGIN
+    changed = c.public.post(
+        f"{base}/consent", json={"choices": {ATTRIBUTION: "granted"}, "subject_token": token}
+    )
+    assert changed.status_code == 200 and changed.json()["states"][ATTRIBUTION] == "granted"
+    assert changed.headers["access-control-allow-origin"] == ORIGIN
+    [row] = events(c)
+    assert (row.channel, row.source_id) == ("browser", c.browser_id)
+    for headers in ({"Content-Type": "application/x-www-form-urlencoded"}, {}):
+        refused = c.public.post(
+            f"{base}/events", content=json.dumps(envelope(token)), headers=headers
+        )
+        assert (refused.status_code, refused.json()) == (415, {"error": "unsupported_media_type"})
+        assert refused.headers["access-control-allow-origin"] == ORIGIN
+    assert len(events(c)) == 1
+
+
+def test_unregistered_origins_and_requests_receive_no_cors_grant(c):
+    base = f"/collect/v1/{c.public_key}"
+    stranger = c.api.new_client()
+    stranger.headers["Origin"] = STRANGER
+    denied = preflight(stranger, f"{base}/consent", STRANGER)
+    assert denied.status_code == 403 and no_cors_grant(denied)
+    posted = stranger.post(
+        f"{base}/consent",
+        content=json.dumps({"choices": {ANALYTICS: "granted"}}),
+        headers={"Content-Type": "text/plain"},
+    )
+    assert posted.status_code == 403 and no_cors_grant(posted)
+    for response in (
+        preflight(c.public, f"{base}/consent", ORIGIN, method="PUT"),
+        preflight(c.public, f"{base}/consent", ORIGIN, headers="content-type, x-custom"),
+        preflight(c.public, f"{base}/unknown", ORIGIN),
+        preflight(c.public, f"/collect/v1/pk_{'x' * 43}/consent", ORIGIN),
+        c.public.options(f"{base}/consent"),
+    ):
+        assert response.status_code == 403 and no_cors_grant(response)
+    disabled = c.owner.patch(
+        f"{c.base}/clients/{c.w.a1}/ingestion-sources/{c.browser_id}", json={"status": "disabled"}
+    )
+    assert disabled.status_code == 200
+    assert preflight(c.public, f"{base}/consent", ORIGIN).status_code == 403
+    assert count_rows(c.db, CollectionSubject) == 0
+
+
+def test_platform_cors_cookie_and_csrf_boundaries_are_unchanged(c):
+    platform = "http://localhost:8000"
+    login = preflight(c.api.new_client(), "/auth/login", platform)
+    assert login.status_code == 200
+    assert login.headers["access-control-allow-origin"] == platform
+    assert login.headers["access-control-allow-credentials"] == "true"
+    # Starlette's unchanged platform rejection omits Allow-Origin, so no browser grants access.
+    customer = preflight(c.public, "/auth/login", ORIGIN)
+    assert customer.status_code == 400
+    assert "access-control-allow-origin" not in customer.headers
+    assert "access-control-allow-origin" not in c.public.get("/health/live").headers
+    from_platform = c.api.new_client().post(
+        f"/collect/v1/{c.public_key}/consent",
+        content=json.dumps({"choices": {ANALYTICS: "granted"}}),
+        headers={"Content-Type": "text/plain"},
+    )
+    assert from_platform.status_code == 403 and no_cors_grant(from_platform)
+    csrf = c.owner.headers.pop("X-CSRF-Token")
+    try:
+        unprotected = c.owner.patch(
+            f"{c.base}/clients/{c.w.a1}/ingestion-sources/{c.browser_id}",
+            json={"status": "disabled"},
+        )
+        assert (unprotected.status_code, unprotected.json()) == (403, {"error": "csrf_failed"})
+    finally:
+        c.owner.headers["X-CSRF-Token"] = csrf
+    foreign_origin = c.owner.patch(
+        f"{c.base}/clients/{c.w.a1}/ingestion-sources/{c.browser_id}",
+        json={"status": "disabled"},
+        headers={"Origin": ORIGIN},
+    )
+    assert foreign_origin.status_code == 403
+    assert "access-control-allow-origin" not in foreign_origin.headers
+    [source] = c.owner.get(f"{c.base}/clients/{c.w.a1}/ingestion-sources").json()[:1]
+    assert source["status"] == "active"
+
+
+def idle_since(c, token: str, days: int) -> None:
+    with Session(c.db.migration) as session, session.begin():
+        session.execute(
+            update(CollectionSubject)
+            .where(CollectionSubject.token_digest == digest(token))
+            .values(last_activity_at=now_utc() - timedelta(days=days))
+        )
+
+
+def assert_consent_evidence(c) -> None:
+    with Session(c.db.migration) as session:
+        basis = {
+            item for row in session.scalars(select(CollectedEvent.consent_basis)) for item in row
+        }
+        present = set(session.scalars(select(StoredConsentRecord.id)))
+    assert basis <= present
+
+
+def retention(lifecycle_settings, days):
+    if days is None:
+        return lifecycle_settings
+    return lifecycle_settings.model_copy(update={"subject_retention_days": days})
+
+
+@pytest.mark.parametrize("days", [30, None], ids=["retention-30", "default-retention"])
+def test_lifecycle_waits_for_an_in_flight_admission_and_keeps_its_consent(
+    c, lifecycle_engine, lifecycle_settings, days
+):
+    settings = retention(lifecycle_settings, days)
+    token = c.subject()
+    idle_since(c, token, settings.subject_retention_days + 1)
+    body = envelope(token)
+    with Session(c.db.runtime) as session:
+        session.begin()
+        held = admit(
+            session,
+            c.api.config,
+            c.w.a,
+            c.w.a1,
+            Channel("server", credential_id=c.credential_id),
+            Envelope.model_validate(body),
+            recheck=lambda: None,
+        )
+        assert held.outcome == "accepted"
+        blocked = run_lifecycle(lifecycle_engine, settings)
+        assert blocked["status"] == "partial"
+        assert {"collected_events", "consent_records", "collection_subjects"} <= set(
+            blocked["incomplete"]
+        )
+        assert blocked["deleted"]["consent_records"] == 0
+        session.commit()
+    assert count_rows(c.db, StoredConsentRecord) == 2
+    after = run_lifecycle(lifecycle_engine, settings)
+    assert after["status"] == "completed"
+    assert after["deleted"]["consent_records"] == after["deleted"]["collection_subjects"] == 0
+    assert count_rows(c.db, StoredConsentRecord) == 2
+    assert c.send(body).json() == {"status": "duplicate", "revision": 1}
+    assert_consent_evidence(c)
+
+
+@pytest.mark.parametrize("days", [30, None], ids=["retention-30", "default-retention"])
+def test_an_admission_behind_lifecycle_sees_the_expired_subject(
+    c, lifecycle_engine, lifecycle_settings, days
+):
+    settings = retention(lifecycle_settings, days)
+    token, active = c.subject(), c.subject()
+    assert c.send(envelope(active)).status_code == 201
+    idle_since(c, token, settings.subject_retention_days + 1)
+    scoped = [target for target in targets(settings) if target.client_scoped]
+    with lifecycle_engine.connect() as connection:
+        counts = delete_client_batch(
+            connection, scoped, c.w.a1, now_utc(), settings.lifecycle_batch_size
+        )
+        assert counts == {"collected_events": 0, "consent_records": 2, "collection_subjects": 1}
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(c.send, envelope(token))
+            wait_for_blocked_lock(c.db)
+            assert not pending.done()
+            connection.commit()
+            response = pending.result(timeout=10)
+    assert response.json() == {"error": "unknown_subject"}
+    [row] = events(c)
+    assert count_rows(c.db, StoredConsentRecord) == 2
+    assert count_rows(c.db, CollectionSubject) == 1
+    assert row.consent_basis and c.send(envelope(active)).status_code == 201
+    assert_consent_evidence(c)
+
+
+def post_signed(c, source_id, secret: str, body) -> object:
+    raw = json.dumps(body).encode()
+    stamp = int(time.time())
+    return c.api.new_client().post(
+        f"/webhooks/v1/{source_id}/events",
+        content=raw,
+        headers={"X-Tracking-Signature": f"t={stamp},v1={sign_webhook(secret, stamp, raw)}"},
+    )
+
+
+def test_every_unexpired_webhook_secret_verifies_until_its_own_expiry(c):
+    token = c.subject()
+    rotate = f"{c.base}/clients/{c.w.a1}/ingestion-sources/{c.hook_id}/secret"
+    issued = [c.secret]
+    for _ in range(3):
+        response = c.owner.post(rotate)
+        assert response.status_code == 201
+        issued.append(response.json()["signing_secret"])
+    rows = select_rows(
+        c.db,
+        select(IngestionSourceSecret)
+        .where(IngestionSourceSecret.source_id == c.hook_id)
+        .order_by(IngestionSourceSecret.version),
+    )
+    assert [row.version for row in rows] == [1, 2, 3, 4]
+    assert rows[3].retires_at is None
+    assert rows[0].retires_at < rows[1].retires_at < rows[2].retires_at
+    for secret in issued:
+        assert c.webhook(envelope(token), secret=secret).status_code == 201
+    for version in (1, 2, 3):
+        with Session(c.db.migration) as session, session.begin():
+            session.execute(
+                update(IngestionSourceSecret)
+                .where(
+                    IngestionSourceSecret.source_id == c.hook_id,
+                    IngestionSourceSecret.version == version,
+                )
+                .values(retires_at=now_utc() - timedelta(seconds=1))
+            )
+        expired = c.webhook(envelope(token), secret=issued[version - 1])
+        assert expired.json() == {"error": "signature_invalid"}
+        for secret in issued[version:]:
+            assert c.webhook(envelope(token), secret=secret).status_code == 201
+    sibling = c.owner.post(
+        f"{c.base}/clients/{c.w.a1}/ingestion-sources", json={"kind": "webhook", "name": "Sibling"}
+    ).json()
+    other = c.owner.post(
+        f"{c.base}/clients/{c.w.a2}/ingestion-sources", json={"kind": "webhook", "name": "Other"}
+    ).json()
+    for secret in (sibling["signing_secret"], other["signing_secret"], "whsec_" + "x" * 43):
+        assert c.webhook(envelope(token), secret=secret).json() == {"error": "signature_invalid"}
+    for target in (sibling, other):
+        foreign = post_signed(c, target["source"]["id"], issued[3], envelope(token))
+        assert foreign.json() == {"error": "signature_invalid"}
+    assert len(events(c, c.w.a2)) == 0
+
+
+def test_prohibited_query_values_are_removed_before_storage(c, capfd):
+    token = c.subject()
+    url = (
+        "https://shop.example.test/offer?utm_campaign=4111111111111111"
+        "&utm_source=spring_2030&utm_content=4111%201111%201111%201111"
+        "&utm_term=someone%40example.test&gclid=Cj0KCQ-123"
+        "&utm_medium=4111%25201111%25201111%25201111"
+    )
+    assert c.send(envelope(token, payload={"url": url})).status_code == 201
+    link = envelope(
+        token,
+        event_type="link_click",
+        payload={
+            "url": "https://shop.example.test/",
+            "link_url": "https://pay.example.test/go?utm_id=4111-1111-1111-1111&utm_source=ok",
+        },
+    )
+    assert c.collect(link).status_code == 202
+    stored = {row.event_type: row.payload for row in events(c)}
+    assert stored["page_view"]["url"] == (
+        "https://shop.example.test/offer?utm_source=spring_2030&gclid=Cj0KCQ-123"
+    )
+    assert stored["link_click"]["link_url"] == "https://pay.example.test/go?utm_source=ok"
+    assert counters(c)[("server", "minimized", "sensitive_query_value")] == 4
+    assert counters(c)[("browser", "minimized", "sensitive_query_value")] == 1
+    with c.db.migration.connect() as connection:
+        dump = connection.execute(
+            text("SELECT coalesce(string_agg(t::text, ' '), '') FROM collected_events t")
+        ).scalar_one()
+    for value in ("4111111111111111", "4111 1111", "4111-1111", "%2520", "someone", "%40"):
+        assert value not in dump
+    output = capfd.readouterr()
+    assert "4111" not in output.out + output.err and "someone" not in output.out + output.err

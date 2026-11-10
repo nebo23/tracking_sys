@@ -1,5 +1,5 @@
 # Tasks: 004-event-collection
-Status: Implemented and verified locally on disposable storage under D-027, 2026-11-10 ([evidence](evidence.md)). Not pushed or merged; native rollout and real intake remain gated.
+Status: Implemented under D-027 and published in PR 3 (D-028); review findings corrected locally under D-029 and verified on disposable storage (474 tests), awaiting another review, 2026-11-10 ([evidence](evidence.md)). Not merged; native rollout and real intake remain gated.
 
 - [x] Prepare the [entry review](entry-review.md) and [predecessor closure matrix](../../docs/planning/spec-004-readiness.md), 2026-11-10. This is design preparation, not implementation approval.
 - [x] Prepare [design](design.md), [decision packet](decision-packet.md), synthetic acceptance examples and the 004-A to 004-F delivery plan.
@@ -24,6 +24,8 @@ Status: Implemented and verified locally on disposable storage under D-027, 2026
 - [x] Update documentation, limitations, and untested assumptions.
 - [x] Present a reviewable result to the owner, 2026-11-10.
 - [x] Obtain upload approval (D-028, 2026-11-10), then push the branch and open a pull request for owner review.
+- [x] Correct the independent pre-merge review findings R004-01 (public CORS read access), R004-02 (lifecycle under the client lock), R004-03 (webhook rotation overlap) and the query-value observation under D-029, with regressions, mutation check, real-browser check and [evidence](evidence.md#review-corrections-2026-11-10); local commit only, 2026-11-10.
+- [ ] Independent review of the corrections, then owner approval to push them to PR 3.
 - [ ] Owner review of the pull request and the merge decision.
 - [ ] Record owner acceptance before progressing to dependent work.
 - [ ] Native migration 0007 and lifecycle grants on tracking_sys: separate owner-approved rollout.

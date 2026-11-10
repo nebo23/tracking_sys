@@ -119,12 +119,43 @@ def test_campaign_parameters_need_analytics_and_click_identifiers_also_attributi
     [
         "https://a.test/users/someone@example.test/profile",
         "https://a.test/users/someone%40example.test",
+        "https://a.test/users/someone%2540example.test",
         f"https://a.test/pay/{CARD.replace(' ', '-')}",
+        "https://a.test/pay/4111%25201111%25201111%25201111",
     ],
 )
 def test_identifiers_in_paths_reject_the_event(url):
     with pytest.raises(Rejected, match="url_identifier"):
         minimize_page_url(url, BOTH)
+
+
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        "utm_campaign=4111111111111111",
+        "utm_campaign=4111%201111%201111%201111",
+        "utm_campaign=4111+1111+1111+1111",
+        "utm_campaign=4111%25201111%25201111%25201111",
+        "utm_term=someone%40example.test",
+        "utm_term=someone%2540example.test",
+        "gclid=4111-1111-1111-1111",
+    ],
+)
+def test_prohibited_values_in_retained_query_parameters_are_removed(parameter):
+    kept, dropped = minimize_page_url(f"https://a.test/p?{parameter}&utm_source=ok", BOTH)
+    assert kept == "https://a.test/p?utm_source=ok"
+    assert dropped == {"sensitive_query_value": 1}
+
+
+def test_legitimate_campaign_and_click_values_are_kept():
+    url = (
+        "https://a.test/p?utm_campaign=spring_sale_2030&utm_content=banner-300x250"
+        "&utm_term=size+42&gclid=EAIaIQobChMI8test&msclkid=1234abcd"
+    )
+    kept, dropped = minimize_page_url(url, BOTH)
+    assert kept == url and dropped == {}
+    analytics_only, dropped = minimize_page_url(url, ANALYTICS)
+    assert "gclid" not in analytics_only and dropped == {"click_identifier": 2}
 
 
 @pytest.mark.parametrize("url", ["javascript:alert(1)", "ftp://a.test/", "https://a.test:99999/"])

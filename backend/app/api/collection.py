@@ -1,8 +1,9 @@
 """Event collection routes (specification 004, D-027): trusted, public, webhook, and admin.
 
 Trusted routes authenticate an ingest key; public routes are limited-trust and routed by a
-non-secret public key with an exact Origin allowlist; webhook routes verify an HMAC over the
-raw body before parsing. Every write runs the admission transaction in app.services.collection,
+non-secret public key with an exact Origin allowlist, and their responses are readable only by
+that registered origin (app.api.public_cors); webhook routes verify an HMAC over the raw body
+before parsing. Every write runs the admission transaction in app.services.collection,
 and the request's SessionDep commits counters with it, including for rejected input.
 """
 
@@ -12,6 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.api.collection_schemas import (
     ConsentInput,
@@ -31,6 +33,7 @@ from app.api.collection_schemas import (
     SourceUpdate,
 )
 from app.api.dependencies import BrowserDep, IngestDep, RawBody, ReaderDep, SessionDep
+from app.api.public_cors import grant_origin
 from app.api.schemas import ErrorResponse
 from app.collection.contract import Envelope, FormDefinition, Rejected, verify_webhook
 from app.privacy.consent import ConsentSource, ConsentState, Purpose
@@ -55,8 +58,16 @@ from app.services.collection import (
 )
 
 UNAVAILABLE = {404: {"model": ErrorResponse, "description": "Unknown or inactive source."}}
+PUBLIC_MEDIA_TYPES = frozenset({"text/plain", "application/json"})
 router = APIRouter(tags=["Event collection"])
-public_router = APIRouter(prefix="/collect/v1", tags=["Public collection"], responses=UNAVAILABLE)
+public_router = APIRouter(
+    prefix="/collect/v1",
+    tags=["Public collection"],
+    responses={
+        **UNAVAILABLE,
+        415: {"model": ErrorResponse, "description": "Body is not text/plain or JSON."},
+    },
+)
 webhook_router = APIRouter(prefix="/webhooks/v1", tags=["Webhooks"], responses=UNAVAILABLE)
 PublicKey = Annotated[str, Path(pattern=r"^pk_[A-Za-z0-9_-]{43}$")]
 FormKey = Annotated[str, Path(pattern=r"^[a-z0-9_-]{1,100}$")]
@@ -172,16 +183,30 @@ def ingest_consent(
 
 # Resolve an active browser source, require an exact allowed Origin, and apply the per-source
 # and per-peer rate limit. A public key and Origin route and limit abuse; they authorize nothing.
+# Once the Origin is accepted, PublicCollectionCors lets that origin read the response, which
+# carries the subject token on first consent (R004-01). Earlier failures stay unreadable.
 def _browser_source(request: Request, session, public_key: str):
     source = live_source(session, "browser", public_key=public_key)
     if source is None:
         raise CollectionError("source_unavailable", 404)
-    if request.headers.get("origin") not in (source.allowed_origins or []):
+    origin = request.headers.get("origin")
+    if origin is None or origin not in (source.allowed_origins or []):
         raise AuthError("origin_not_allowed", 403)
+    grant_origin(request.scope, origin)
     peer = request.client.host if request.client else "unknown"
     settings = request.app.state.settings
     _limit(request, "ingest-public", f"{source.id}:{peer}", settings.ingest_public_per_minute)
     return source
+
+
+# Parse a public JSON body sent as text/plain (a CORS simple request without preflight) or as
+# application/json (which browsers preflight; PublicCollectionCors answers for registered
+# origins). Any other or missing media type is refused with 415.
+def _public_body[T: BaseModel](request: Request, body: bytes, model: type[T]) -> T:
+    media = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if media not in PUBLIC_MEDIA_TYPES:
+        raise CollectionError("unsupported_media_type", 415)
+    return model.model_validate_json(body)
 
 
 # Public browser intake (rank 1). Accepted, duplicate, conflicting, suppressed, unknown-subject,
@@ -196,7 +221,7 @@ def collect_event(
     public_key: PublicKey, request: Request, session: SessionDep, body: RawBody
 ) -> Received:
     source = _browser_source(request, session, public_key)
-    envelope = Envelope.model_validate_json(body)
+    envelope = _public_body(request, body, Envelope)
     admit(
         session,
         request.app.state.settings,
@@ -228,7 +253,7 @@ def collect_consent(
     public_key: PublicKey, request: Request, session: SessionDep, body: RawBody
 ) -> ConsentResponse:
     source = _browser_source(request, session, public_key)
-    data = ConsentInput.model_validate_json(body)
+    data = _public_body(request, body, ConsentInput)
     if data.notice_sha256 is not None:
         raise ValueError("The public route uses the source's registered notice.")
     result = record_consent(
@@ -271,7 +296,7 @@ def collect_erasure(
     public_key: PublicKey, request: Request, session: SessionDep, body: RawBody
 ) -> Received:
     source = _browser_source(request, session, public_key)
-    data = ErasureInput.model_validate_json(body)
+    data = _public_body(request, body, ErasureInput)
     erase_subject(
         session,
         request.app.state.settings,
