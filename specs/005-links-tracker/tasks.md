@@ -21,7 +21,9 @@ Status: Implemented and verified locally under D-033 (2026-11-10); awaiting inde
 - [x] Verify: Custom domains require ownership verification; implementation verifies TLS and slug conflicts (synthetic DNS/TLS; live operation not performed).
 - [x] Update documentation, limitations, and untested assumptions.
 - [x] Present a reviewable result to the owner (local commits on `codex/spec-005-links-tracker`).
-- [ ] Independent review of the local commits.
+- [x] Independent review of PR 4 (2026-11-11, eleven findings).
+- [x] Correct R005-01 to R005-11 with regressions and update PR 4 (D-035).
+- [ ] Independent review of the corrections.
 - [x] Obtain owner upload approval, then push and create a PR (D-012): D-034 on 2026-11-11. Merge, native rollout and deployment remain separate decisions.
 - [ ] Owner-authorized live custom-domain smoke test, if wanted (separately gated).
 - [ ] Record owner acceptance before progressing to dependent work.

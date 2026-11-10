@@ -2,6 +2,8 @@
 
 Date: 2026-11-10. Authority: D-033 (recommended D1-D10 and design revision 1 prepared at `a909990`). Branch: `codex/spec-005-links-tracker`, local commits only; nothing was pushed, published, merged, deployed or migrated natively.
 
+**Update 2026-11-11 (D-035):** the independent review of PR 4 at `14e8288` raised eleven findings (R005-01 to R005-11). They are corrected and verified in [Review corrections](#review-corrections-2026-11-11) below; the sections before it record the original 2026-11-10 implementation and its results.
+
 ## Scope delivered
 
 | Slice | Commit | Delivered |
@@ -98,6 +100,53 @@ Verified here, synthetically: all link, redirect, consent-state, tracker and ver
 - A remote withdrawal reaches an open tab at its next state read (at most 60 seconds while collecting); tabs do not share consent; delivery is not guaranteed after a page closes.
 - Development limits and retention values remain provisional (Q-004, Q-012). Q-001 to Q-003 stay open for real intake.
 - Predecessor items P1-P4 were not included.
+
+
+## Review corrections (2026-11-11)
+
+Authority: D-035. Review: independent review of PR 4 on 2026-11-11 at reviewed head `14e8288` (request changes; eleven findings). Corrections on `codex/spec-005-links-tracker`:
+
+| Commit | Content |
+|---|---|
+| `371c9f3` | D-035 record |
+| `834f871` | R005-10, R005-11 (domain verification) |
+| `85774db` | Consent writes return `expires_at` and `server_time` (additive; supports R005-03) |
+| `f6d9e1e` | R005-01 to R005-08 (tracker 0.5.1) |
+| `433fae7` | R005-09 (installation example) and tracker README |
+
+The documentation commit that updates this file follows `433fae7` and changes no code or test. **Tested tree: `433fae7`.**
+
+| Finding | Correction | Regression tests (all confirmed failing on the reviewed code first, except where noted) |
+|---|---|---|
+| R005-01, P1 retry kept `gclid` after attribution withdrawal | Each queued event records every purpose its serialized bytes need (analytics, plus attribution while a URL keeps a click identifier); narrowing drops affected events and every send rechecks them. Eligible retries keep their ID and bytes. | `review-corrections.test.js` "R005-01: a confirmed attribution withdrawal drops queued retries carrying click IDs"; "eligible retries keep their event ID and exact bytes" (preservation check, passed before and after); real-browser "review sequences R005-01 to R005-03" |
+| R005-02, P1 host denial still sent an event | `resume()` applies the host's choices synchronously: excluded purposes stop, the queue is purged and older state reads can no longer widen permission; a pending or unavailable read keeps the narrower ceiling. | "R005-02: a host denial on an active tracker stops new and queued events at once"; "a narrower host choice holds while a state read is pending or unavailable"; real-browser sequence |
+| R005-03, P1 server expiry ignored | Per-purpose `expires_at` is translated through `server_time` and enforced at capture and send, after a grant, a resume or a refresh; consent writes now return these fields. | "R005-03: an analytics grant expiring before the next refresh stops capture"; "a fresh grant and a resume establish earlier per-purpose deadlines"; "an expired attribution grant removes click IDs from new and queued events"; `test_consent_responses_report_each_granted_purpose_expiry`; real-browser sequence |
+| R005-04, P2 expired token used for refresh | Background reads (timers, visibility, page restore, refresh) check the fixed local lifetime first; expiry clears the subject, record and timers. An explicit `erase()` can still reach the expired subject. | "R005-04: background reads never send a token past the local lifetime" |
+| R005-05, P2 partial withdrawal revoked analytics | A late grant response is reconciled per purpose against the latest choices; the blanket compensating withdrawal is removed. | "R005-05: withdrawing one purpose during a pending grant keeps the others" (server state, tracker state and a later analytics event) |
+| R005-06, P2 GPC-refused purpose stayed enabled | GPC restrictions apply to every permission check, and a sale/share or advertising grant the collector still reports is withdrawn once through the existing tracker source (narrowing only, per D-033). | "R005-06: GPC narrows an existing subject's grants locally and on the server" (grant and resume paths) |
+| R005-07, P2 SPA used the first `ts_link` | The link reference is read from the current URL for each new event; queued retries keep their original bytes. | "R005-07: each page view carries the current route's link reference" |
+| R005-08, P2 stalled request blocked the queue | Each event request is aborted when the event's 60-second lifetime ends; the queue then continues with fresh events. | "R005-08: a stalled request is aborted at its lifetime and fresh events continue" |
+| R005-09, P2 example blocked by its CSP | The initializer moved to the same-origin module `examples/install.js`; the policy is unchanged. | `install-example.browser.test.js` (Chromium and Firefox, committed files served unchanged): module loads, banner visible, no pre-consent request, no policy violation, consent then page view |
+| R005-10, P2 verification exceeded five seconds | One absolute monotonic deadline is passed through DNS (TXT, CNAME, A, AAAA), TCP connect and TLS handshake; each blocking step gets only the remaining budget. Pinning, SNI and trust checks are unchanged. | `test_dns_subqueries_share_one_total_deadline` (lifetimes 13, 9, 5, 1 s under an injected clock); `test_connect_and_handshake_share_one_total_deadline` (handshake bounded by the remaining 1 s) |
+| R005-11, P3 mixed-case target failed | The configured target is stored canonically and the verifier compares canonical forms. | `test_service_target_comparison_is_case_insensitive`; `test_equivalent_service_target_spellings_verify_identically` (API) |
+
+Behavior change to note: `grant()` with only denials and no known subject now sends no request (previously one request that stored nothing); one existing Node expectation was updated accordingly.
+
+### Results on `433fae7`
+
+Same environment class as above: worktree without `.env`, project `.venv` (Python 3.12.4), a new disposable Compose project `tracking-spec005-review-20261111` running only PostgreSQL 18.6 as `tracking_foundation_test` on `127.0.0.1:55433` with separate runtime, migration and lifecycle roles and synthetic credentials outside the repository; Node 24.17.0 with the locked Playwright 1.64.1 browsers (Chromium 156.0.8078.4, Firefox 157.0) in the package. Native `tracking_sys` was not accessed.
+
+| Check | Result |
+|---|---|
+| Backend suite with PostgreSQL and browser journey (`TRACKING_RUN_DB_TESTS=1 TRACKING_RUN_BROWSER_TESTS=1 pytest -q -rs -W default`) | **616 passed** in 186.09 s; no failures or skips (611 before plus 5 new) |
+| Warnings | One `UnsupportedFieldAttributeWarning` from Pydantic in the inherited 002 test `test_concurrent_invitation_acceptance_creates_one_membership`; it appears intermittently when concurrent threads first build request validators and is unrelated to 005 code |
+| `ruff check`, `ruff format --check`, `pip check` | Clean (100 files formatted); no broken requirements |
+| Migration, grant, metadata, data-policy and OpenAPI checks | Pass inside the suite; OpenAPI snapshot updated additively (consent response fields), still 60 paths and 75 operations |
+| Node unit tests (`npm test`) | **36 passed** (24 before plus 12 review regressions) |
+| Real browsers (`npm run test:browser`) | **24 passed**: 12 cases in Chromium and in Firefox (10 before, the installation example, and the R005-01 to R005-03 transport sequences) |
+| Regressions against the reviewed code | Before the corrections, 11 of the 12 new Node cases, the 3 new verification unit cases and both installation-example cases failed in the ways the review describes |
+
+Limitations unchanged by these corrections: verification remains synthetic (no live DNS, CNAME, certificate, hosting or customer site); GPC reconciliation records withdrawals through the existing tracker source rather than a separate GPC source; a request already on the wire cannot be recalled when permission narrows, but it is never retried.
 
 ## Final review and cleanup
 
