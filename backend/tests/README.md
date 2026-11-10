@@ -14,6 +14,8 @@ Run from backend/:
 ..\.venv\Scripts\python.exe -m pytest -m "not integration" -q
 ```
 
+Specification 005 adds a real-browser journey that starts the API on loopback against the disposable database and drives the tracker through Playwright. It runs only with `TRACKING_RUN_BROWSER_TESTS=1` after `npm ci` and `npm run install:browsers` in `packages/tracker-js`; otherwise its two cases report as skipped, which is not a pass. Domain-verification tests use synthetic DNS answers and loopback TLS servers with a per-session test certificate authority; they never contact real DNS or certificate services.
+
 ## Disposable PostgreSQL integration environment
 Run from the repository root. The following uses .env.docker credentials, a separate Compose project and port, and restores the caller's environment afterward. It does not use the owner's native tracking_sys connection.
 

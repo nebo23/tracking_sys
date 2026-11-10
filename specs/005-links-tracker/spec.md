@@ -1,5 +1,5 @@
 # 005-links-tracker — Links, UTM parameters, and website tracker
-Status: Approved for local implementation by D-033 (2026-11-10): the recommended D1-D10 options and design revision 1 prepared at `a909990`. Implementation of slices 005-B to 005-E is in progress on `codex/spec-005-links-tracker`. Level: L2. Prepared: 2026-10-28. The entry review was refreshed against merged specification 004 on 2026-11-10 under D-032.
+Status: Approved for local implementation by D-033 (2026-11-10): the recommended D1-D10 options and design revision 1 prepared at `a909990`. Slices 005-B to 005-E are implemented and verified locally on `codex/spec-005-links-tracker`; see the [evidence](evidence.md) for the tested tree, results and limitations. Not published or merged. Level: L2. Prepared: 2026-10-28. The entry review was refreshed against merged specification 004 on 2026-11-10 under D-032.
 
 Design revision 1, the [D1-D10 decision packet](decision-packet.md), and the [verification matrix](verification-matrix.md) are approved by D-033 for local and disposable environments. Publication, merge, native rollout, live intake, domain purchases, DNS changes, certificate issuance and deployment remain separately gated.
 

@@ -1,6 +1,6 @@
 # Specification 005 verification matrix
 
-Status: proposed tests, **not executed**. Prepared 2026-11-10 against [design revision 1](design.md). Use synthetic domains, tenants, forms and tokens. External DNS/ACME/provider success must not be inferred from injected adapters.
+Status: **executed on 2026-11-10** against the D-033 implementation; see the [evidence](evidence.md) for the tested tree, commands, counts and the test that covers each row. Prepared against [design revision 1](design.md). Use synthetic domains, tenants, forms and tokens. External DNS/ACME/provider success must not be inferred from injected adapters.
 
 | Case | Scenario and required observable evidence | Requirement |
 |---|---|---|

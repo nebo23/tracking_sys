@@ -1,6 +1,6 @@
 # Specification 005 design — revision 1
 
-Prepared: 2026-11-10 against merged `main` at `e8ef587` and the local entry commit `05cc15a`. **Proposal for review, not implementation approval.** D-032 authorizes preparation. Every new schema, policy value and dependency below requires the [decision packet](decision-packet.md). Existing D-025/D-027 rules remain binding.
+Prepared: 2026-11-10 against merged `main` at `e8ef587` and the local entry commit `05cc15a`. **Approved by D-033 on 2026-11-10** (all recommended D1-D10 options) for local and disposable implementation; implemented as described in the [evidence](evidence.md). Prepared under D-032. Every new schema, policy value and dependency below requires the [decision packet](decision-packet.md). Existing D-025/D-027 rules remain binding.
 
 ## 1. Sources and baseline
 

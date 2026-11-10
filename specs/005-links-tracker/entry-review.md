@@ -1,6 +1,6 @@
 # Specification 005 entry review
 
-Date: 2026-11-10. Status: **preparation only; implementation, schema and tooling decisions remain unapproved**. Authority: D-032.
+Date: 2026-11-10. Status: preparation record (D-032). **Superseded for scope by D-033**, which approved D1-D10 and the implementation recorded in the [evidence](evidence.md); this review is kept as history.
 
 Preparation update: [design revision 1](design.md), the [decision packet](decision-packet.md), and the [verification matrix](verification-matrix.md) are now ready for owner review. They remain proposals; the next implementation gate is the recorded selection of D1-D10 or a scoped subset.
 

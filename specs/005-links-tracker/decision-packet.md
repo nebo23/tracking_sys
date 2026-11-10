@@ -1,6 +1,6 @@
 # Specification 005 decision packet
 
-Prepared: 2026-11-10. **All recommendations below are pending owner approval.** D-032 permits preparation only. Read the [design](design.md); detailed values there are part of each referenced recommendation, not hidden implementation defaults.
+Prepared: 2026-11-10 under D-032. **Decided on 2026-11-10 as D-033:** the owner approved the recommended option of every item D1-D10. Alternatives remain recorded for history. Read the [design](design.md); detailed values there are part of each referenced recommendation, not hidden implementation defaults.
 
 Recommended outcome: a synthetic link-to-consented-event journey, safe redirects, real tracker/browser integration and tested domain-verification logic. No React dashboard, public deployment or live customer rollout is included.
 
@@ -21,4 +21,4 @@ Recommended outcome: a synthetic link-to-consented-event journey, safe redirects
 
 The principal choices are: (1) six-table schema plus explicit event-link association (D3/D4), (2) consent-bound sessionStorage with the stated lifetime (D6), and (3) scope/tooling for domain verification and real-browser tests (D8/D9). Approving all recommended D1-D10 options approves the referenced local/synthetic implementation scope and policy values; it does not approve live DNS changes, provider use, native migrations, upload or deployment.
 
-No recommendation is marked approved by this document. Record the actual owner response in the decision register before implementing dependent code. If only a subset is approved, continue independent approved slices and label the remainder pending.
+The owner's response is recorded as D-033 in the decision register. Publication, merge, native rollout, live intake, domain purchases, DNS changes, certificate issuance and deployment remain separately gated.

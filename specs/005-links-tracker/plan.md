@@ -1,5 +1,5 @@
 # Plan: 005-links-tracker
-Status: Detailed design prepared for review on 2026-11-10. This plan does not authorize implementation or dependency selection. Read [design revision 1](design.md), the [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
+Status: Approved by D-033 and implemented locally on 2026-11-10; see the [evidence](evidence.md). Publication, merge, native rollout and deployment remain separately gated. Read [design revision 1](design.md), the [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
 
 Entry review: [merged baseline and preparation sequence](entry-review.md), refreshed on 2026-11-10 from `main` at `e8ef587` under D-032. Prepare the detailed design and decision packet before application changes.
 
@@ -24,10 +24,10 @@ Define per-content links, a URL registry, UTM templates, a branded-domain plan, 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
-- [ ] A test link reaches its destination and preserves content/campaign provenance without exposing personal information in the URL.
-- [ ] Disallowed destinations, unsafe protocols, and redirect loops are rejected; link management requires client permission.
-- [ ] Analytics failure does not break redirects; bots and prefetch requests are not automatically counted as qualified human clicks.
-- [ ] Custom domains require ownership verification; implementation verifies TLS and slug conflicts.
+- [x] A test link reaches its destination and preserves content/campaign provenance without exposing personal information in the URL (synthetic).
+- [x] Disallowed destinations, unsafe protocols, and redirect loops are rejected; link management requires client permission.
+- [x] Analytics failure does not break redirects; bots and prefetch requests are not automatically counted as qualified human clicks.
+- [x] Custom domains require ownership verification; implementation verifies TLS and slug conflicts (synthetic DNS/TLS; live operation not performed).
 
 ## Rollout and recovery
 Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.
