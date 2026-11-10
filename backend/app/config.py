@@ -16,6 +16,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
 from app.collection.keys import TombstoneKeyring
+from app.links.policy import LinkRuleError, canonical_hostname, platform_authorities
 from app.privacy.token_secrets import LocalKeyring
 
 # Absolute anchors keep configuration and migration discovery independent of the working
@@ -131,6 +132,19 @@ class Settings(DatabaseSettings):
     # Approved development rates per minute (D-027 decision 6); a deployment may lower them.
     ingest_public_per_minute: int = Field(default=60, ge=1, le=60)
     ingest_trusted_per_minute: int = Field(default=600, ge=1, le=600)
+    # Public consent-state reads (D-033) use their own bucket per source and peer.
+    consent_state_per_minute: int = Field(default=60, ge=1, le=60)
+    # Managed links (D-033). Platform short-link authorities ("host" or "host:port", never a
+    # wildcard) resolve links without a custom domain; a custom domain resolves only while its
+    # verification is current, on link_custom_domain_port (443 outside local tests). Loopback
+    # HTTP destinations are a development aid that must stay off elsewhere. Live DNS/TLS domain
+    # verification runs only when explicitly enabled with an operator-configured CNAME service
+    # target; synthetic adapters are injected by test code, never selected by configuration.
+    link_platform_hosts: list[str] = ["127.0.0.1:8000", "localhost:8000"]
+    link_allow_loopback_destinations: bool = False
+    link_custom_domain_port: int = Field(default=443, ge=1, le=65535)
+    link_service_target: str = ""
+    link_domain_verification: Literal["disabled", "live"] = "disabled"
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -187,6 +201,7 @@ class Settings(DatabaseSettings):
         if self.otp_secret.get_secret_value() == self.auth_secret.get_secret_value():
             raise ValueError("The verification key must be independent of the auth secret.")
         self.token_keys()
+        self._validate_links()
         tombstones = self.tombstone_keys()
         if tombstones is not None:
             others = {
@@ -202,6 +217,20 @@ class Settings(DatabaseSettings):
         if self.environment == "production":
             raise ValueError("Production requires an approved external mail delivery adapter.")
         return self
+
+    # Platform short-link hosts must be exact authorities; live verification needs a valid
+    # service target hostname.
+    def _validate_links(self) -> None:
+        try:
+            if not self.link_platform_hosts or any("*" in h for h in self.link_platform_hosts):
+                raise LinkRuleError("invalid_platform_host")
+            platform_authorities(self.link_platform_hosts)
+            if self.link_service_target:
+                canonical_hostname(self.link_service_target)
+        except LinkRuleError as error:
+            raise ValueError("The managed-link host configuration is invalid.") from error
+        if self.link_domain_verification == "live" and not self.link_service_target:
+            raise ValueError("Live domain verification requires the CNAME service target.")
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.

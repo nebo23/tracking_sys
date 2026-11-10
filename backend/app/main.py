@@ -15,6 +15,8 @@ from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
 from app.api.collection import webhook_router as collection_webhook_router
 from app.api.google import router as google_router
+from app.api.links import redirect_router
+from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
 from app.api.public_cors import PlatformCors, PublicCollectionCors
 from app.api.schemas import ErrorResponse
@@ -25,6 +27,7 @@ from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
 from app.services.google import GoogleOIDC
+from app.services.links import LinkConflict
 from app.services.tenancy import AccessDenied, MembershipConflict
 
 
@@ -68,7 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(
         title="Tracking System API",
-        version="0.4.0",
+        version="0.5.0",
         description=(
             "Agency/client access, email/password authentication, invitations, "
             "scoped service credentials, numeric email verification, and optional Google sign-in. "
@@ -76,7 +79,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Cookie mutations require an allowed Origin and X-CSRF-Token "
             "from login or /auth/me. "
             "Event collection (specification 004): trusted intake with ingest keys, limited-trust "
-            "public intake, generic signed webhooks, consent, erasure, and diagnostics."
+            "public intake, generic signed webhooks, consent, erasure, and diagnostics. "
+            "Managed links (specification 005): campaigns, content references, UTM templates, "
+            "destination origins, custom domains, managed links, safe redirects, and a "
+            "non-mutating public consent-state read for the website tracker."
         ),
         lifespan=lifespan,
         responses={
@@ -115,6 +121,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def collection_error(request: Request, error: CollectionError) -> JSONResponse:
         headers = {"Retry-After": "1"} if error.status == 503 else None
         return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
+
+    # Managed-host or hostname conflicts (specification 005) carry a fixed code.
+    @application.exception_handler(LinkConflict)
+    async def link_conflict(request: Request, error: LinkConflict) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=409)
 
     # Tenant policy denials share one response so callers cannot probe resource existence.
     @application.exception_handler(AccessDenied)
@@ -162,6 +173,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(collection_router)
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)
+    application.include_router(links_router)
+    application.include_router(redirect_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

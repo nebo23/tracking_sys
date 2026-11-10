@@ -222,6 +222,10 @@ def _prohibited(decoded: str) -> bool:
     )
 
 
+# Public name of the same rule for managed-link destinations (specification 005).
+has_prohibited_value = _prohibited
+
+
 # Minimize a page or link URL for the granted purposes: campaign parameters with analytics,
 # click identifiers only with attribution as well. A path that carries a prohibited value
 # rejects the event, because the page itself cannot be kept without it. An allowlisted query

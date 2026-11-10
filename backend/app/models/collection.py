@@ -212,7 +212,8 @@ class StoredConsentRecord(Base):
 
 
 # One accepted event per client and sender event ID; the row is also the deduplication
-# receipt. Upgrades replace the content and increase revision; conflicts only count.
+# receipt. Upgrades replace the content and increase revision; conflicts only count. link_id is
+# the optional same-client managed link the sender attributed the event to (005).
 # SELECT id, event_id, event_type, channel, trust_rank, revision, first_received_at,
 #        traffic_label, conflict_count
 # FROM public.collected_events
@@ -238,6 +239,11 @@ class CollectedEvent(Base):
             ["agency_id", "credential_id"],
             ["service_credentials.agency_id", "service_credentials.id"],
         ),
+        # Optional managed-link provenance (specification 005, D-033): a same-client link only.
+        ForeignKeyConstraint(
+            ["agency_id", "client_id", "link_id"],
+            ["managed_links.agency_id", "managed_links.client_id", "managed_links.id"],
+        ),
         UniqueConstraint("client_id", "event_id", name="uq_collected_events_client_event"),
         CheckConstraint(
             "event_type IN ('page_view', 'link_click', 'form_submit', 'lead_signal', "
@@ -260,6 +266,7 @@ class CollectedEvent(Base):
         Index("ix_collected_events_client_received", "client_id", "first_received_at", "id"),
         Index("ix_collected_events_subject_id", "subject_id"),
         Index("ix_collected_events_expires_at", "expires_at"),
+        Index("ix_collected_events_link_id", "link_id"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -287,6 +294,8 @@ class CollectedEvent(Base):
     conflict_count: Mapped[int] = mapped_column(Integer, server_default="0")
     last_conflict_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Validated, limited-trust link provenance; null for events without a link reference.
+    link_id: Mapped[UUID | None] = mapped_column(Uuid)
 
 
 # Daily outcome counters by channel and closed reason code; no subject, event ID, or content.
