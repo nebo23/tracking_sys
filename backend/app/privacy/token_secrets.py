@@ -34,13 +34,15 @@ class SecretStatus(StrEnum):
     DESTROYED = "destroyed"
 
 
+# Binding of one secret version. For a 004 webhook signing secret (D-027), connector_id holds
+# the ingestion source ID and kind is "webhook_signing".
 @dataclass(frozen=True)
 class SecretContext:
     agency_id: UUID
     client_id: UUID
     connector_id: UUID
     secret_id: UUID
-    kind: Literal["access_token", "refresh_token"]
+    kind: Literal["access_token", "refresh_token", "webhook_signing"]
     version: int
 
 

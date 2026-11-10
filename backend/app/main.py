@@ -6,20 +6,24 @@ from typing import Literal
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.auth import router as auth_router
+from app.api.collection import public_router as collection_public_router
+from app.api.collection import router as collection_router
+from app.api.collection import webhook_router as collection_webhook_router
 from app.api.google import router as google_router
 from app.api.middleware import RequestBoundary
+from app.api.public_cors import PlatformCors, PublicCollectionCors
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
 from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
+from app.services.collection import CollectionError, browser_origins
 from app.services.google import GoogleOIDC
 from app.services.tenancy import AccessDenied, MembershipConflict
 
@@ -64,13 +68,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(
         title="Tracking System API",
-        version="0.3.0",
+        version="0.4.0",
         description=(
             "Agency/client access, email/password authentication, invitations, "
             "scoped service credentials, numeric email verification, and optional Google sign-in. "
             "Facebook sign-in is deferred. "
             "Cookie mutations require an allowed Origin and X-CSRF-Token "
-            "from login or /auth/me."
+            "from login or /auth/me. "
+            "Event collection (specification 004): trusted intake with ingest keys, limited-trust "
+            "public intake, generic signed webhooks, consent, erasure, and diagnostics."
         ),
         lifespan=lifespan,
         responses={
@@ -81,12 +87,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Google endpoint client (network access, cached discovery and keys); tests substitute it.
     application.state.google = GoogleOIDC(configuration)
     application.add_middleware(RequestBoundary)
+    # Credentialed CORS for the configured platform origins only; it skips public collection
+    # routes, whose registered customer origins get uncredentialed, per-source access from the
+    # outermost PublicCollectionCors (specification 004, R004-01).
     application.add_middleware(
-        CORSMiddleware,
+        PlatformCors,
         allow_origins=configuration.allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
+    )
+    application.add_middleware(
+        PublicCollectionCors,
+        origins=lambda app, public_key: browser_origins(app.state.engine, public_key),
     )
 
     # The handlers below translate known exceptions into fixed, sanitized JSON error codes.
@@ -96,6 +109,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.exception_handler(AuthError)
     async def authentication_error(request: Request, error: AuthError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Event collection failures carry a fixed public code; 503 responses invite a retry.
+    @application.exception_handler(CollectionError)
+    async def collection_error(request: Request, error: CollectionError) -> JSONResponse:
+        headers = {"Retry-After": "1"} if error.status == 503 else None
+        return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
 
     # Tenant policy denials share one response so callers cannot probe resource existence.
     @application.exception_handler(AccessDenied)
@@ -128,15 +147,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def integrity_error(request: Request, error: IntegrityError) -> JSONResponse:
         return JSONResponse({"error": "state_conflict"}, status_code=409)
 
-    # Other database failures are logged by event name only and reported as temporary.
+    # Other database failures, including lock timeouts, are logged by event name only and
+    # reported as temporary with a short Retry-After.
     @application.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
         logger.error("database_operation_failed")
-        return JSONResponse({"error": "temporarily_unavailable"}, status_code=503)
+        return JSONResponse(
+            {"error": "temporarily_unavailable"}, status_code=503, headers={"Retry-After": "1"}
+        )
 
     application.include_router(auth_router)
     application.include_router(google_router)
     application.include_router(tenancy_router)
+    application.include_router(collection_router)
+    application.include_router(collection_public_router)
+    application.include_router(collection_webhook_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

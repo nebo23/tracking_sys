@@ -28,6 +28,6 @@ def test_migrated_schema_matches_registry(db):
     schema: dict[str, list[str]] = {}
     for table, column in columns:
         schema.setdefault(table, []).append(column)
-    assert len(schema) == 20
+    assert len(schema) == 29
     assert len(references) == 10
     assert registry_problems(schema, [tuple(row) for row in references]) == []

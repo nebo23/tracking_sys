@@ -1,11 +1,9 @@
 # Next specification review
-Review the completed local scope of specification 002 before progression or upload.
+Updated: 2026-11-10. Specifications 001/002 are merged in PR 1 and specification 003 with its corrections in PR 2 (`bab3a33`). Specification 004 is implemented under D-027 on `codex/spec-004-event-collection` and published for owner review under D-028.
 
-1. Read the approved [auth design](../../specs/002-tenancy-access/auth-design.md) and [current evidence](../../specs/002-tenancy-access/auth-evidence.md).
-2. Inspect 0003_auth and all 16 empty application tables in native tracking_sys.
-3. Review the 115 passing cases, especially isolation, revocation, invitation races, key scope, and audit atomicity.
-4. Follow the [local auth walkthrough](../engineering/authentication.md) to create synthetic review data if desired.
-5. Review [OpenAPI](../../contracts/openapi.json) and the deferrals: Google/Facebook sign-in, external email, React, and future job/export/report consumers.
-6. Record findings and owner acceptance. Push/PR requires upload approval under D-012; merge remains the owner's decision.
+1. Review the [004 final independent review](../../specs/004-event-collection/final-review-2026-11-10.md), [design](../../specs/004-event-collection/design.md) and the [event collection guide](../engineering/event-collection.md). The latest verification passed 481 suite tests and two additional reproduction checks, covering the corrections as well as isolation, consent, erasure, lifecycle and privileges.
+2. Corrections R004-01 to R004-04 and the query-value observation passed independent review; D-031 authorizes publication on the existing PR 3. The next owner decision is whether to merge the corrected pull request. Merge remains separate from publication.
+3. Decide the separate predecessor items P1-P4 in the [decision packet](../../specs/004-event-collection/decision-packet.md) (local 003 card-scan follow-up, status reconciliation, owner edits, legacy mail).
+4. Keep native rollout (0005 to 0007, lifecycle role) and real customer intake (Q-002, Q-004, Q-012) separate from synthetic verification.
 
-Specification 003 is the next planned review, particularly retention/consent/deletion before real customer data. Do not silently choose markets, retention periods, hosting, or production providers.
+Do not run native inspection, migrations, deletion, or live provider requests as a checklist shortcut. Native revision was last verified as 0004_identity on 2026-11-04; this branch expects 0007_event_collection. Do not silently choose markets, retention, capacity, hosting, or providers. See the [readiness review](spec-004-readiness.md).

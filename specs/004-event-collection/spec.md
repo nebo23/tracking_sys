@@ -1,5 +1,5 @@
 # 004-event-collection — Event collection and contracts
-Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Approved as D-027, implemented, and open for review in PR 3. Corrections under D-029/D-030 passed [independent review](final-review-2026-11-10.md): 481 suite tests and two additional reproduction checks on disposable storage. Publication is authorized under D-031; merge remains the owner's decision. Level: L2. Prepared: 2026-10-28; design, approval and implementation: 2026-11-10. Read the [design](design.md), [decision packet](decision-packet.md), [plan](plan.md), [tasks](tasks.md), and [evidence](evidence.md).
 
 ## Sources
 PDF-001,002,004,005,006,007,008,009,013,014,082,084. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -28,4 +28,6 @@ Specification 003 obligations (D-025): call the consent evaluation (`app.privacy
 Open decisions: Q-002, Q-004, Q-012. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-027 (2026-11-10) approves decisions D1-D11 for local and disposable implementation. Q-002, Q-004 and Q-012 remain open for real customer intake; publication, merge, native rollout and deployment keep their gates.
+
+Preparation update (2026-11-10): the owner requested predecessor closure and readiness review, then the start of specification 004. PR 2 is merged (`bab3a33`) and this specification's branch starts there. The [entry packet](entry-review.md) maps inherited contracts and acceptance tests; [design](design.md) revision 2 reflects the merged code, and the [decision packet](decision-packet.md) lists D1-D11. Preparation does not approve its schema or policy proposals.

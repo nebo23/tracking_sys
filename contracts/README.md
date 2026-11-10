@@ -1,7 +1,7 @@
 # Interface contracts
 Technical contracts define the data exchanged between components; they are not legal contracts.
 
-[openapi.json](openapi.json) describes 30 paths and 37 operations: health, email/password identity, numeric email verification, optional Google sign-in and linking, sessions/recovery, self-service account closure, agencies/clients/members/grants/audit, invitations, and scoped service credentials. An automated test compares the snapshot with the actual FastAPI routes.
+[openapi.json](openapi.json) describes 44 paths and 53 operations: health, email/password identity, numeric email verification, optional Google sign-in and linking, sessions/recovery, self-service account closure, agencies/clients/members/grants/audit, invitations, scoped read and ingest service credentials, and specification 004 event collection (EventEnvelope v1 trusted intake, public collection, consent and self-erasure, generic signed webhooks, sources, forms, erasure requests, diagnostics, and event metadata). An automated test compares the snapshot with the actual FastAPI routes. Public collection routes accept the JSON body as `text/plain` or `application/json` (other media types return 415) and are readable only by the origins registered for their browser source. Their CORS preflights are answered by middleware and do not appear as OpenAPI operations. Webhook routes document the `X-Tracking-Signature` header. See the [event collection guide](../docs/engineering/event-collection.md).
 
 The existing health contract remains public:
 - GET /health/live: 200 with status ok; independent of database readiness.
@@ -15,4 +15,4 @@ Regenerate the snapshot from backend/ after changing endpoint definitions:
 ..\.venv\Scripts\python.exe -c 'import json; from pathlib import Path; from app.main import create_app; Path("../contracts/openapi.json").write_text(json.dumps(create_app().openapi(), indent=2) + "\n", encoding="utf-8")'
 ```
 
-Future event schemas, provider mappings, pagination, authorization, and business contracts require the appropriate approved specification.
+Custom event schemas, provider-specific mappings, and later business contracts require the appropriate approved specification.

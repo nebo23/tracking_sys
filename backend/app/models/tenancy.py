@@ -194,11 +194,13 @@ class AuditEvent(Base):
             "action IN ('agency.created', 'agency.updated', 'client.created', 'client.updated', "
             "'membership.created', 'membership.updated', 'grant.created', 'grant.updated', "
             "'grant.revoked', 'invitation.created', 'invitation.revoked', 'invitation.accepted', "
-            "'credential.created', 'credential.revoked')",
+            "'credential.created', 'credential.revoked', 'source.created', 'source.updated', "
+            "'source.secret_rotated', 'form.updated', 'deletion.requested')",
             name="valid_action",
         ),
         CheckConstraint(
-            "resource_type IN ('agency', 'client', 'membership', 'invitation', 'credential')",
+            "resource_type IN ('agency', 'client', 'membership', 'invitation', 'credential', "
+            "'source', 'form', 'deletion_request')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

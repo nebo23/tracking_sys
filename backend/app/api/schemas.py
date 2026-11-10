@@ -184,11 +184,13 @@ class InvitationResponse(Output):
     expires_at: datetime
 
 
-# Service key request: name, at least one client grant, and a 1-90 day lifetime.
+# Service key request: name, at least one client grant, a 1-90 day lifetime, and the immutable
+# kind: "read" (default) or "ingest" for event and consent writes only (D-027).
 class ServiceKeyInput(Input):
     name: str = Field(min_length=1, max_length=100, pattern=r"\S")
     clients: list[ClientGrantInput] = Field(min_length=1, max_length=100)
     expires_in_days: int = Field(default=90, ge=1, le=90)
+    kind: Literal["read", "ingest"] = "read"
 
 
 # Service key metadata projection without the stored key digest.
@@ -196,6 +198,7 @@ class ServiceKeyResponse(Output):
     id: UUID
     agency_id: UUID
     name: str
+    kind: str
     status: str
     created_at: datetime
     expires_at: datetime

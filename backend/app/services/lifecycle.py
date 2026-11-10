@@ -4,31 +4,63 @@ Each target deletes rows whose end (revocation, expiry, consumption, invalidatio
 plus the approved period lies strictly before one cutoff sampled from the database clock. Rows
 belonging to a closed account (users.closed_at set) are deleted on the next run without a
 period: its password credential, external identity, sessions, tokens, challenges, and OAuth
-transactions.
+transactions. Specification 004 (D-027 decision 7) adds collected data: event rows past their
+expiry (395 days after first receipt), diagnostic counters 30 days after their day, rotated-out
+webhook secrets after their 24-hour overlap, and subjects with their consent records 395 days
+after last activity once no event references them. Event, consent-record, and subject
+expiry depends on a client's privacy state, so those targets run one client at a time inside a
+transaction that first takes that client's privacy lock (D-027 decision 10) and then
+re-evaluates eligibility: an admission, consent change, or erasure in flight either finishes
+first and is observed, or waits for the batch (review finding R004-02). Because each batch
+commits and releases that lock, consent history is removed so that every committed state keeps
+each purpose's effective record: the latest record of a subject and purpose is deleted only
+once no older record of it remains, so no batch can expose an older grant (review finding
+R004-04).
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import ColumnElement, Engine, delete, func, or_, select, text
+from sqlalchemy import (
+    ColumnElement,
+    Engine,
+    and_,
+    delete,
+    exists,
+    func,
+    or_,
+    select,
+    text,
+    tuple_,
+    union,
+)
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import aliased
 
 from app.config import LifecycleSettings
 from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    CollectedEvent,
+    CollectionSubject,
+    EventDiagnostic,
     ExternalIdentity,
+    IngestionSourceSecret,
     MailOutbox,
     OAuthTransaction,
     PasswordCredential,
+    StoredConsentRecord,
     User,
     VerificationChallenge,
 )
+from app.services.collection import LOCK_NAMESPACE as CLIENT_LOCK_NAMESPACE
+from app.services.collection import client_lock_key
 
 # Session-level advisory lock in PostgreSQL's two-key space, which does not overlap the 64-bit
 # keys of the registration and verification email locks: (specification 003, job).
@@ -47,6 +79,9 @@ class Target:
     model: Any
     key: Any
     eligible: Callable[[datetime], ColumnElement[bool]]
+    # Collected data whose eligibility depends on a client's privacy state; deleted per client
+    # under that client's privacy lock (delete_client_batch). The model has a client_id column.
+    client_scoped: bool = False
 
 
 # The approved targets with their end-of-life predicates for a given cutoff.
@@ -108,6 +143,61 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         # Deleting the identity frees the Google subject for a new sign-up (D-024).
         return ExternalIdentity.user_id.in_(closed)
 
+    def events(cutoff: datetime) -> ColumnElement[bool]:
+        limit = before(settings.event_retention_days, cutoff)
+        return or_(CollectedEvent.expires_at < cutoff, CollectedEvent.first_received_at < limit)
+
+    def counters(cutoff: datetime) -> ColumnElement[bool]:
+        return EventDiagnostic.day < before(settings.diagnostic_retention_days, cutoff).date()
+
+    def secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return IngestionSourceSecret.retires_at < cutoff
+
+    # Subjects inactive for the approved period that no event row references any longer.
+    def idle(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            CollectionSubject.last_activity_at < before(settings.subject_retention_days, cutoff),
+            ~exists().where(CollectedEvent.subject_id == CollectionSubject.id),
+        )
+
+    # Consent records of idle subjects, removed so that no committed batch can change a
+    # purpose's effective consent into a grant (review finding R004-04). Admission evaluates
+    # the latest record per subject and purpose, ordered by (received_at, id) exactly as
+    # app.privacy.consent.current_state does. A record is eligible only when
+    # - a newer record of the same subject and purpose exists: deleting it leaves the
+    #   effective record, and so the evaluated state, unchanged; or
+    # - no older record of that subject and purpose exists: deleting it leaves the purpose
+    #   with no record, which J1 evaluates as unknown, a denial.
+    # The latest record of a purpose that still has older records is therefore never deleted,
+    # so a withdrawal or denial cannot disappear while an older grant remains. Each DELETE
+    # evaluates these predicates on one snapshot, so the latest record becomes eligible only in
+    # a later statement, after its older records are gone.
+    def consent_records(cutoff: datetime) -> ColumnElement[bool]:
+        record = tuple_(StoredConsentRecord.received_at, StoredConsentRecord.id)
+
+        def sibling(other: Any) -> ColumnElement[bool]:
+            return and_(
+                other.subject_id == StoredConsentRecord.subject_id,
+                other.purpose == StoredConsentRecord.purpose,
+            )
+
+        newer, older = aliased(StoredConsentRecord), aliased(StoredConsentRecord)
+        return and_(
+            StoredConsentRecord.subject_id.in_(select(CollectionSubject.id).where(idle(cutoff))),
+            or_(
+                exists().where(sibling(newer), tuple_(newer.received_at, newer.id) > record),
+                ~exists().where(sibling(older), tuple_(older.received_at, older.id) < record),
+            ),
+        )
+
+    # A subject is deleted only after all its consent records, so a bounded batch never breaks
+    # the consent foreign key.
+    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            idle(cutoff),
+            ~exists().where(StoredConsentRecord.subject_id == CollectionSubject.id),
+        )
+
     return (
         Target(
             "password_credentials",
@@ -124,6 +214,15 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target("oauth_transactions", OAuthTransaction, OAuthTransaction.id, transactions),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
+        Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),
+        Target("event_diagnostics", EventDiagnostic, EventDiagnostic.id, counters),
+        Target(
+            "ingestion_source_secrets", IngestionSourceSecret, IngestionSourceSecret.id, secrets
+        ),
+        Target(
+            "consent_records", StoredConsentRecord, StoredConsentRecord.id, consent_records, True
+        ),
+        Target("collection_subjects", CollectionSubject, CollectionSubject.id, subjects, True),
     )
 
 
@@ -135,6 +234,37 @@ def _delete_batch(connection: Any, target: Target, cutoff: datetime, size: int) 
     keys = select(target.key).where(condition).order_by(target.key).limit(size)
     connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
     return connection.execute(delete(target.model).where(target.key.in_(keys), condition)).rowcount
+
+
+# Delete one bounded batch of each client-scoped target for one client, in the caller's open
+# transaction, which the caller commits or rolls back. The client's privacy lock is taken first
+# with the batch lock timeout, so a held lock aborts this batch (OperationalError) instead of
+# waiting. Every predicate runs after the lock is held and therefore sees the committed result
+# of any admission, consent change, or erasure that held it.
+def delete_client_batch(
+    connection: Any, scoped: Sequence[Target], client_id: UUID, cutoff: datetime, size: int
+) -> dict[str, int]:
+    connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
+    connection.execute(
+        select(func.pg_advisory_xact_lock(CLIENT_LOCK_NAMESPACE, client_lock_key(client_id)))
+    )
+    counts: dict[str, int] = {}
+    for target in scoped:
+        condition = and_(target.model.client_id == client_id, target.eligible(cutoff))
+        keys = select(target.key).where(condition).order_by(target.key).limit(size)
+        counts[target.name] = connection.execute(
+            delete(target.model).where(target.key.in_(keys), condition)
+        ).rowcount
+    return counts
+
+
+# Clients that may have eligible collected data; only a candidate list; eligibility is decided
+# again under each client's lock.
+def _client_candidates(connection: Any, scoped: Sequence[Target], cutoff: datetime) -> list[UUID]:
+    query = union(
+        *(select(target.model.client_id).where(target.eligible(cutoff)) for target in scoped)
+    )
+    return sorted(connection.execute(query).scalars())
 
 
 # Delete development .eml captures (and interrupted .pending files) older than the approved
@@ -164,7 +294,11 @@ def clean_local_mail(settings: LifecycleSettings, cutoff: datetime) -> dict[str,
 # Run every target once under the job's advisory lock. A concurrent run returns
 # skipped_concurrent_run without deleting anything. Each batch commits separately. A batch that
 # times out on a lock marks its target incomplete and the run continues with the next target;
-# max_batches bounds the work per target (None means until no eligible row remains). Returns
+# max_batches bounds the work per target (None means until no eligible row remains). Then the
+# client-scoped targets run client by client under each client's privacy lock: a client whose
+# lock is busy is skipped and marked incomplete, and max_batches bounds the batches per client.
+# A client's batches continue until one deletes nothing, because a consent record that becomes
+# eligible only after its older history is gone may follow a short batch (R004-04). Returns
 # counts and status codes only.
 def run_lifecycle(
     engine: Engine,
@@ -187,7 +321,12 @@ def run_lifecycle(
             if cutoff is None:
                 cutoff = connection.execute(select(func.now())).scalar_one()
                 connection.commit()
-            for target in targets(settings):
+            every = targets(settings)
+            scoped = [target for target in every if target.client_scoped]
+            deleted.update((target.name, 0) for target in scoped)
+            for target in every:
+                if target.client_scoped:
+                    continue
                 deleted[target.name] = 0
                 batches = 0
                 while max_batches is None or batches < max_batches:
@@ -204,6 +343,25 @@ def run_lifecycle(
                         break
                 else:
                     incomplete.append(target.name)
+            clients = _client_candidates(connection, scoped, cutoff) if scoped else []
+            connection.commit()
+            for client_id in clients:
+                batches = 0
+                while max_batches is None or batches < max_batches:
+                    try:
+                        counts = delete_client_batch(connection, scoped, client_id, cutoff, size)
+                        connection.commit()
+                    except OperationalError:
+                        connection.rollback()
+                        _mark(incomplete, scoped)
+                        break
+                    batches += 1
+                    for name, count in counts.items():
+                        deleted[name] += count
+                    if not any(counts.values()):
+                        break
+                else:
+                    _mark(incomplete, scoped)
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))
@@ -217,3 +375,7 @@ def run_lifecycle(
         "deleted": {**deleted, "local_mail_files": files["deleted"]},
         "incomplete": incomplete,
     }
+
+
+def _mark(incomplete: list[str], scoped: Sequence[Target]) -> None:
+    incomplete.extend(target.name for target in scoped if target.name not in incomplete)

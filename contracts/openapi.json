@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me.",
-    "version": "0.3.0"
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics.",
+    "version": "0.4.0"
   },
   "paths": {
     "/auth/register": {
@@ -5362,6 +5362,2620 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/events": {
+      "post": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Ingest Event",
+        "operationId": "ingest_event_agencies__agency_id__clients__client_id__events_post",
+        "security": [
+          {
+            "ServiceKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Envelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflicting copy of an accepted event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "description": "Rejected or consent-suppressed event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "200": {
+            "description": "Duplicate or upgraded copy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/consent": {
+      "post": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Ingest Consent",
+        "operationId": "ingest_consent_agencies__agency_id__clients__client_id__consent_post",
+        "security": [
+          {
+            "ServiceKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/ingestion-sources": {
+      "post": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Create Source",
+        "operationId": "create_source_agencies__agency_id__clients__client_id__ingestion_sources_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "List Sources",
+        "operationId": "list_sources_agencies__agency_id__clients__client_id__ingestion_sources_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceResponse"
+                  },
+                  "title": "Response List Sources Agencies  Agency Id  Clients  Client Id  Ingestion Sources Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/ingestion-sources/{source_id}": {
+      "patch": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Update Source",
+        "operationId": "update_source_agencies__agency_id__clients__client_id__ingestion_sources__source_id__patch",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/ingestion-sources/{source_id}/secret": {
+      "post": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Rotate Secret",
+        "operationId": "rotate_secret_agencies__agency_id__clients__client_id__ingestion_sources__source_id__secret_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedSecret"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/collection-forms/{form_key}": {
+      "put": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Put Form",
+        "operationId": "put_form_agencies__agency_id__clients__client_id__collection_forms__form_key__put",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "form_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,100}$",
+              "title": "Form Key"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/collection-forms": {
+      "get": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "List Forms",
+        "operationId": "list_forms_agencies__agency_id__clients__client_id__collection_forms_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FormResponse"
+                  },
+                  "title": "Response List Forms Agencies  Agency Id  Clients  Client Id  Collection Forms Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/deletion-requests": {
+      "post": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Request Erasure",
+        "operationId": "request_erasure_agencies__agency_id__clients__client_id__deletion_requests_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErasureRequestInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "List Erasure Requests",
+        "operationId": "list_erasure_requests_agencies__agency_id__clients__client_id__deletion_requests_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErasureRequestResponse"
+                  },
+                  "title": "Response List Erasure Requests Agencies  Agency Id  Clients  Client Id  Deletion Requests Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/event-diagnostics": {
+      "get": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Read Diagnostics",
+        "operationId": "read_diagnostics_agencies__agency_id__clients__client_id__event_diagnostics_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiagnosticResponse"
+                  },
+                  "title": "Response Read Diagnostics Agencies  Agency Id  Clients  Client Id  Event Diagnostics Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/events/{event_id}": {
+      "get": {
+        "tags": [
+          "Event collection"
+        ],
+        "summary": "Read Event",
+        "operationId": "read_event_agencies__agency_id__clients__client_id__events__event_id__get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventMetadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/collect/v1/{public_key}/events": {
+      "post": {
+        "tags": [
+          "Public collection"
+        ],
+        "summary": "Collect Event",
+        "operationId": "collect_event_collect_v1__public_key__events_post",
+        "parameters": [
+          {
+            "name": "public_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^pk_[A-Za-z0-9_-]{43}$",
+              "title": "Public Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Received"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Envelope"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "description": "Envelope as JSON text."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collect/v1/{public_key}/consent": {
+      "post": {
+        "tags": [
+          "Public collection"
+        ],
+        "summary": "Collect Consent",
+        "operationId": "collect_consent_collect_v1__public_key__consent_post",
+        "parameters": [
+          {
+            "name": "public_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^pk_[A-Za-z0-9_-]{43}$",
+              "title": "Public Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentInput"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collect/v1/{public_key}/erasure": {
+      "post": {
+        "tags": [
+          "Public collection"
+        ],
+        "summary": "Collect Erasure",
+        "operationId": "collect_erasure_collect_v1__public_key__erasure_post",
+        "parameters": [
+          {
+            "name": "public_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^pk_[A-Za-z0-9_-]{43}$",
+              "title": "Public Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Received"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subject_token"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/v1/{source_id}/events": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Webhook Event",
+        "operationId": "webhook_event_webhooks_v1__source_id__events_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "X-Tracking-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "t=<unix seconds>,v1=<hex HMAC-SHA256 of '<t>.<raw body>'>"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Missing, invalid, or expired signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflicting copy of an accepted event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "description": "Rejected or consent-suppressed event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Duplicate or upgraded copy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Envelope"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "description": "Envelope as JSON text."
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "tags": [
@@ -5833,6 +8447,147 @@
         "type": "object",
         "title": "ClientUpdate"
       },
+      "ConsentInput": {
+        "properties": {
+          "subject_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sbj_[A-Za-z0-9_-]{43}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Token"
+          },
+          "choices": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "granted",
+                "denied",
+                "withdrawn"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "analytics.first_party",
+                "attribution",
+                "identity_link",
+                "ads.measurement",
+                "ads.personalization",
+                "sale_or_share"
+              ]
+            },
+            "type": "object",
+            "maxProperties": 6,
+            "minProperties": 1,
+            "title": "Choices"
+          },
+          "captured_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured At"
+          },
+          "notice_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "choices"
+        ],
+        "title": "ConsentInput"
+      },
+      "ConsentResponse": {
+        "properties": {
+          "subject_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Token"
+          },
+          "receipts": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Receipts"
+          },
+          "states": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "States"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_token",
+          "receipts",
+          "states"
+        ],
+        "title": "ConsentResponse"
+      },
+      "DiagnosticResponse": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "channel",
+          "outcome",
+          "reason",
+          "count"
+        ],
+        "title": "DiagnosticResponse"
+      },
       "EmailInput": {
         "properties": {
           "email": {
@@ -5849,6 +8604,154 @@
         ],
         "title": "EmailInput"
       },
+      "Envelope": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "page_view",
+              "link_click",
+              "form_submit",
+              "lead_signal",
+              "purchase_signal"
+            ],
+            "title": "Event Type"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "subject_token": {
+            "type": "string",
+            "pattern": "^sbj_[A-Za-z0-9_-]{43}$",
+            "title": "Subject Token"
+          },
+          "internal": {
+            "type": "boolean",
+            "title": "Internal",
+            "default": false
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "event_id",
+          "event_type",
+          "occurred_at",
+          "subject_token",
+          "payload"
+        ],
+        "title": "Envelope"
+      },
+      "ErasureRequestInput": {
+        "properties": {
+          "subject_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sbj_[A-Za-z0-9_-]{43}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Token"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "objected": {
+            "type": "boolean",
+            "title": "Objected",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ErasureRequestInput"
+      },
+      "ErasureRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "requester_kind": {
+            "type": "string",
+            "title": "Requester Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "objected": {
+            "type": "boolean",
+            "title": "Objected"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "target_outcomes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Target Outcomes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "requester_kind",
+          "status",
+          "objected",
+          "received_at",
+          "completed_at",
+          "target_outcomes"
+        ],
+        "title": "ErasureRequestResponse"
+      },
       "ErrorResponse": {
         "properties": {
           "error": {
@@ -5862,6 +8765,91 @@
         ],
         "title": "ErrorResponse"
       },
+      "EventMetadata": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "trust_rank": {
+            "type": "integer",
+            "title": "Trust Rank"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "first_received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Received At"
+          },
+          "last_received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Received At"
+          },
+          "traffic_label": {
+            "type": "string",
+            "title": "Traffic Label"
+          },
+          "conflict_count": {
+            "type": "integer",
+            "title": "Conflict Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "channel",
+          "trust_rank",
+          "revision",
+          "occurred_at",
+          "first_received_at",
+          "last_received_at",
+          "traffic_label",
+          "conflict_count"
+        ],
+        "title": "EventMetadata"
+      },
+      "EventResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "duplicate",
+              "upgraded"
+            ],
+            "title": "Status"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "revision"
+        ],
+        "title": "EventResult"
+      },
       "FinancialGrant": {
         "properties": {
           "can_view_financials": {
@@ -5873,6 +8861,118 @@
         "additionalProperties": false,
         "type": "object",
         "title": "FinancialGrant"
+      },
+      "FormDefinition": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FormFieldDefinition"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fields"
+        ],
+        "title": "FormDefinition"
+      },
+      "FormFieldDefinition": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,100}$",
+            "title": "Name"
+          },
+          "input_type": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Input Type",
+            "default": "text"
+          },
+          "autocomplete": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Autocomplete",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Label",
+            "default": ""
+          },
+          "data_class": {
+            "type": "string",
+            "enum": [
+              "form.option",
+              "form.code",
+              "form.quantity"
+            ],
+            "title": "Data Class"
+          },
+          "options": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "data_class"
+        ],
+        "title": "FormFieldDefinition"
+      },
+      "FormResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "form_key": {
+            "type": "string",
+            "title": "Form Key"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/FormDefinition"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "form_key",
+          "version",
+          "status",
+          "fields",
+          "updated_at"
+        ],
+        "title": "FormResponse"
       },
       "HealthResponse": {
         "properties": {
@@ -5962,6 +9062,19 @@
         ],
         "title": "InvitationResponse"
       },
+      "IssuedSecret": {
+        "properties": {
+          "signing_secret": {
+            "type": "string",
+            "title": "Signing Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signing_secret"
+        ],
+        "title": "IssuedSecret"
+      },
       "IssuedServiceKey": {
         "properties": {
           "credential": {
@@ -5978,6 +9091,29 @@
           "key"
         ],
         "title": "IssuedServiceKey"
+      },
+      "IssuedSource": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/SourceResponse"
+          },
+          "signing_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "IssuedSource"
       },
       "Login": {
         "properties": {
@@ -6142,6 +9278,18 @@
         ],
         "title": "ReadinessResponse"
       },
+      "Received": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "received",
+            "title": "Status",
+            "default": "received"
+          }
+        },
+        "type": "object",
+        "title": "Received"
+      },
       "Registration": {
         "properties": {
           "email": {
@@ -6209,6 +9357,15 @@
             "minimum": 1.0,
             "title": "Expires In Days",
             "default": 90
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "read",
+              "ingest"
+            ],
+            "title": "Kind",
+            "default": "read"
           }
         },
         "additionalProperties": false,
@@ -6235,6 +9392,10 @@
             "type": "string",
             "title": "Name"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -6255,6 +9416,7 @@
           "id",
           "agency_id",
           "name",
+          "kind",
           "status",
           "created_at",
           "expires_at"
@@ -6277,6 +9439,214 @@
           "csrf_token"
         ],
         "title": "SessionResponse"
+      },
+      "SourceInput": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "webhook"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Name"
+          },
+          "allowed_origins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 10,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Origins"
+          },
+          "notice_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "SourceInput"
+      },
+      "SourceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "agency_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Agency Id"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Key"
+          },
+          "allowed_origins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Origins"
+          },
+          "notice_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Sha256"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "agency_id",
+          "client_id",
+          "kind",
+          "name",
+          "status",
+          "public_key",
+          "allowed_origins",
+          "notice_sha256",
+          "created_at"
+        ],
+        "title": "SourceResponse"
+      },
+      "SourceUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "allowed_origins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 10,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Origins"
+          },
+          "notice_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SourceUpdate"
       },
       "TokenInput": {
         "properties": {

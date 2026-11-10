@@ -47,7 +47,7 @@ class ScopedAccess:
     principal: Principal
     agency_id: UUID
     client_id: UUID
-    permission: Literal["client:read", "finance:read"]
+    permission: Literal["client:read", "finance:read", "events:write"]
 
     # Partition future cache entries by agency, client, principal, permission, and resource.
     def cache_key(self, resource: str) -> str:
@@ -60,10 +60,14 @@ class ScopedAccess:
         )
 
 
-# Load a service credential only while it is active and unexpired, its agency is active, and its
-# creator still has an active Owner/Admin membership as an active verified user. Every use
-# rechecks these conditions, so revocation or demotion takes effect immediately.
-def live_service_credential(session: Session, identifier: UUID) -> ServiceCredential:
+# Load a service credential of the given kind only while it is active and unexpired, its agency
+# is active, and its creator still has an active Owner/Admin membership as an active verified
+# user. Every use rechecks these conditions, so revocation or demotion takes effect
+# immediately. A key of another kind is treated as unknown (D-027: read and ingest keys never
+# substitute for each other).
+def live_service_credential(
+    session: Session, identifier: UUID, kind: Literal["read", "ingest"] = "read"
+) -> ServiceCredential:
     credential = session.scalar(
         select(ServiceCredential)
         .join(Agency, Agency.id == ServiceCredential.agency_id)
@@ -77,6 +81,7 @@ def live_service_credential(session: Session, identifier: UUID) -> ServiceCreden
         .join(User, User.id == AgencyMembership.user_id)
         .where(
             ServiceCredential.id == identifier,
+            ServiceCredential.kind == kind,
             ServiceCredential.status == "active",
             ServiceCredential.expires_at > now_utc(),
             Agency.status == "active",
@@ -93,8 +98,11 @@ def live_service_credential(session: Session, identifier: UUID) -> ServiceCreden
 
 
 # Authenticate a Bearer key: check its tsk_ prefix and length, find the credential by SHA-256
-# digest, then require live_service_credential. Unknown keys fail with a generic error.
-def authenticate_service_key(session: Session, raw: str) -> Principal:
+# digest, then require live_service_credential of the expected kind. Unknown keys and keys of
+# another kind fail with the same generic error.
+def authenticate_service_key(
+    session: Session, raw: str, kind: Literal["read", "ingest"] = "read"
+) -> Principal:
     if not raw.startswith("tsk_") or not 32 <= len(raw) <= 128:
         raise AuthError("authentication_required")
     identifier = session.scalar(
@@ -102,22 +110,26 @@ def authenticate_service_key(session: Session, raw: str) -> Principal:
     )
     if identifier is None:
         raise AuthError("authentication_required")
-    credential = live_service_credential(session, identifier)
+    credential = live_service_credential(session, identifier, kind)
     return Principal("service", credential.id)
 
 
-# Shared live authorization for client reads by routes and future jobs, exports, and caches.
-# Users are rechecked through TenancyService membership/grant rules; service keys need their own
-# agency, an active client, and an explicit grant (with the financial flag for finance:read).
-# Denials raise AccessDenied; success returns a ScopedAccess for this unit of work only.
+# Shared live authorization for client reads by routes and future jobs, exports, and caches,
+# and for event writes (D-027). Users are rechecked through TenancyService membership/grant
+# rules and never hold events:write; service keys need their own agency, an active client, an
+# explicit grant (with the financial flag for finance:read), and the matching kind: read keys
+# for reads, ingest keys for events:write. Denials raise AccessDenied; success returns a
+# ScopedAccess for this unit of work only.
 def resolve_scope(
     session: Session,
     principal: Principal,
     agency_id: UUID,
     client_id: UUID,
-    permission: Literal["client:read", "finance:read"] = "client:read",
+    permission: Literal["client:read", "finance:read", "events:write"] = "client:read",
 ) -> ScopedAccess:
-    if permission not in {"client:read", "finance:read"}:
+    if permission not in {"client:read", "finance:read", "events:write"}:
+        raise AccessDenied()
+    if principal.kind == "user" and permission == "events:write":
         raise AccessDenied()
     if principal.kind == "user":
         user = session.scalar(
@@ -135,7 +147,8 @@ def resolve_scope(
         else:
             service.get_client(agency_id, client_id)
     elif principal.kind == "service":
-        credential = live_service_credential(session, principal.identifier)
+        kind: Literal["read", "ingest"] = "ingest" if permission == "events:write" else "read"
+        credential = live_service_credential(session, principal.identifier, kind)
         if credential.agency_id != agency_id:
             raise AccessDenied()
         grant = session.scalar(
@@ -335,8 +348,10 @@ class AccessService(TenancyService):
         self._audit(agency_id, "invitation.accepted", "invitation", item.id)
         return member
 
-    # Create an expiring read-only key (1-90 days) with explicit grants under the agency write
-    # lock. Returns the raw tsk_ key once; only its digest is stored. Audited.
+    # Create an expiring key (1-90 days) with explicit grants under the agency write lock: a
+    # read key by default, or an ingest key (D-027) that can only write events and API consent
+    # and therefore never carries financial visibility. Returns the raw tsk_ key once; only its
+    # digest is stored. Audited.
     def issue_service_key(
         self,
         agency_id: UUID,
@@ -344,16 +359,22 @@ class AccessService(TenancyService):
         grants: list[ClientPermission],
         *,
         expires_in_days: int = 90,
+        kind: Literal["read", "ingest"] = "read",
     ) -> tuple[ServiceCredential, str]:
         actor = self._manager(agency_id, write=True)
         if not grants or not 1 <= expires_in_days <= 90 or len(name.strip()) > 100:
             raise ValueError("Provide client grants, a name up to 100 characters, and 1-90 days.")
+        if kind not in {"read", "ingest"} or (
+            kind == "ingest" and any(grant.can_view_financials for grant in grants)
+        ):
+            raise ValueError("Ingest keys cannot read financial data.")
         self._check_grants(agency_id, grants)
         raw = "tsk_" + new_token()
         item = ServiceCredential(
             agency_id=agency_id,
             creator_membership_id=actor.id,
             name=self._name(name),
+            kind=kind,
             token_digest=digest(raw),
             expires_at=now_utc() + timedelta(days=expires_in_days),
         )

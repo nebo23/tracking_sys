@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from test_google import count, finish
 
 from app.config import BACKEND_ROOT
+from app.database import expected_revision
 from app.models import (
     Agency,
     AgencyMembership,
@@ -286,10 +287,12 @@ def test_downgrade_refuses_populated_closure_state(api, db):
     assert close(browser, api.password).status_code == 204
     with pytest.raises(RuntimeError, match="account-closure state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0005_lifecycle")
+    # The refused downgrade rolls back as a whole, including later revisions above 0006.
     with db.migration.connect() as connection:
-        assert connection.exec_driver_sql(
-            "SELECT version_num FROM alembic_version"
-        ).scalar_one() == ("0006_account_closure")
+        assert (
+            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
+            == expected_revision()
+        )
 
 
 # Observe the API's own role: PostgreSQL hides other roles' activity details.

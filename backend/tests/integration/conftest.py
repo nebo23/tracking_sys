@@ -1,7 +1,9 @@
 """Safety guards and synthetic fixtures for the disposable PostgreSQL service."""
 
+import base64
 import os
 import re
+import secrets
 from collections.abc import Iterator
 from contextlib import ExitStack
 from email import policy
@@ -13,6 +15,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session
 
@@ -24,7 +27,17 @@ from app.security import now_utc, password_hash
 from app.services.mail import process_mail
 from app.services.tenancy import Role, tenancy_transaction
 
+# Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "deletion_tombstones",
+    "deletion_requests",
+    "event_diagnostics",
+    "collected_events",
+    "consent_records",
+    "collection_subjects",
+    "collection_forms",
+    "ingestion_source_secrets",
+    "ingestion_sources",
     "audit_events",
     "security_events",
     "external_identities",
@@ -54,14 +67,28 @@ def test_password_hash() -> str:
     return password_hash.hash(TEST_PASSWORD)
 
 
+# Synthetic collection keyrings generated per test session, so collection tests never depend
+# on keyrings, or key IDs, in the environment that runs them (D-027 decision 9).
+@pytest.fixture(scope="session")
+def collection_keyrings() -> dict[str, object]:
+    token_key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
+    return {
+        "token_keyring": SecretStr(f"test-token:{token_key}"),
+        "token_keyring_active": "test-token",
+        "tombstone_keyring": SecretStr(f"test-tomb:{secrets.token_hex(32)}"),
+        "tombstone_keyring_active": "test-tomb",
+    }
+
+
 @pytest.fixture
-def api(db, database_settings, tmp_path: Path):
+def api(db, database_settings, tmp_path: Path, collection_keyrings):
     config = database_settings.model_copy(
         update={
             "cookie_secure": False,
             "mail_directory": tmp_path / "mail",
             "login_attempts_per_minute": 100,
             "auth_requests_per_minute": 1000,
+            **collection_keyrings,
         }
     )
     with ExitStack() as stack:
