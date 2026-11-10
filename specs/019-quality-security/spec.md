@@ -23,6 +23,8 @@ A test evidence matrix; instrumentation starts in earlier specifications, while 
 ## Dependencies and open decisions
 Dependencies: [018-react-workspace](../018-react-workspace/spec.md)
 
+Specification 003 obligations (D-025): assemble release evidence for all four 003 acceptance criteria from the consuming specifications, including the restore drill (R1-R4) and a recovery attempt with an incomplete journal that stays blocked (R003-03, D-026).
+
 Open decisions: Q-004, Q-011, Q-012. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

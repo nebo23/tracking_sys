@@ -22,6 +22,8 @@ Link, ContentReference, Campaign, and DomainVerification; the browser tracker is
 ## Dependencies and open decisions
 Dependencies: [004-event-collection](../004-event-collection/spec.md)
 
+Specification 003 obligations (D-025): apply the never-collect form rules and URL minimization (`app.privacy.collection`) in the tracker before any identifying request (E1), under J1 strict opt-in; verify 003 cases C4 and M4 end to end.
+
 Open decisions: Q-001, Q-002, Q-003. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

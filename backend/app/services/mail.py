@@ -18,8 +18,9 @@ from app.services.gmail import GmailError, GmailSender
 
 
 # Add an encrypted outbox row in the caller's transaction. Verification messages carry a
-# numeric code (D-022) and an expires_at matching the code, so stale codes are never sent.
-# Reset and invitation messages keep links that carry the raw token in the URL fragment, which
+# numeric code (D-022); every message carries an expires_at matching its code or link
+# (D-022, D-024), so the worker clears stale content unsent. Reset and invitation messages keep
+# links that carry the raw token in the URL fragment, which
 # browsers do not send to the frontend server. The payload is Fernet-encrypted with the separate
 # mail key; this function neither commits nor delivers. The worker delivers after commit.
 def queue_mail(

@@ -231,7 +231,7 @@ def test_database_rejects_cross_agency_audit_references(
         "DELETE FROM audit_events",
         "TRUNCATE audit_events",
         "UPDATE alembic_version SET version_num='tampered'",
-        "UPDATE users SET status='disabled'",
+        "UPDATE users SET created_at = now()",
         "DELETE FROM client_workspaces",
     ],
 )

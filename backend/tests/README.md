@@ -1,5 +1,5 @@
 # Backend verification
-Unit tests cover configuration isolation, secret redaction, health behavior under database failure, missing/mismatched schema revisions, and engine cleanup.
+Unit tests cover configuration isolation, secret redaction, health behavior under database failure, missing/mismatched schema revisions, and engine cleanup. Specification 003 adds the data-class registry check (metadata and migrated schema) and log allowlist cases, including real uvicorn servers in child processes.
 
 The suite covers unit/contract cases and real PostgreSQL cases; see the latest evidence file for the current count and result. D-022 adds numeric verification, Google sign-in with a controlled provider substitute (no live Google calls), Gmail transport substitutes, outbox expiry, and 0004 migration/privilege cases. It covers HTTP authentication, email capture/retry, sessions/tokens/CSRF, invitations, service credentials, live scope resolution, tenancy isolation, audit atomicity, migration recovery, runtime grants, and concurrency. Integration setup refuses to run unless:
 - TRACKING_RUN_DB_TESTS=1 is explicitly set.

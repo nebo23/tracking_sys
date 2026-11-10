@@ -1,5 +1,5 @@
 # Specification index
-Each specification contains spec.md, plan.md, and tasks.md. The foundation and approved specification 002 are implemented, verified, and uploaded to the claude/development branch (D-020); formal acceptance and merge remain pending. See [current 002 evidence](002-tenancy-access/auth-evidence.md) for 115 checks and explicit later obligations: social sign-in, external email, and actual job/export/cache consumers.
+Each specification contains spec.md, plan.md, and tasks.md. The foundation and approved specification 002, including the D-022 additions and R-01 to R-03 corrections, are merged into main (PR 1, `98747a2`); see the [002 evidence](002-tenancy-access/auth-evidence.md) and [corrections](002-tenancy-access/auth-corrections-2026-11-04.md). Specification 003 is completed at contract level on its own branch under D-023 to D-025 and is under owner review in [PR 2](https://github.com/nebo23/tracking_sys/pull/2), with the review findings R003-01 to R003-03 corrected under D-026 ([evidence](003-privacy-data-policy/evidence.md), [corrections](003-privacy-data-policy/review-corrections-evidence.md)); the consuming specifications list their 003 obligations. Later obligations remain explicit: Facebook sign-in, production email, and actual job/export/cache consumers.
 
 | Specification | Level | Purpose |
 |---|---|---|

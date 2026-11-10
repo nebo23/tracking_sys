@@ -22,6 +22,8 @@ A provider capability matrix is mandatory; do not invent final metric names.
 ## Dependencies and open decisions
 Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md)
 
+Specification 003 obligations (D-025): re-verify and test the Meta and Instagram rows in `app.privacy.providers` and mark them current before the features they govern run.
+
 Open decisions: Q-001; exact Meta Insights metrics, access, and history require verification. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

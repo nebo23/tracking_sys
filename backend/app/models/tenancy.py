@@ -37,8 +37,10 @@ class Entity:
 
 # Platform identity; one user may belong to several agencies. status = 'active' means
 # administratively enabled, while email_verified_at separately records verified mailbox
-# ownership. An active but unverified user is still denied password login.
-# SELECT id, email_normalized, display_name, status, email_verified_at, created_at
+# ownership. An active but unverified user is still denied password login. closed_at records a
+# self-service closure (D-024): the email and name were replaced by pseudonyms and the account
+# is permanently disabled; an administrator-disabled account keeps closed_at NULL.
+# SELECT id, email_normalized, display_name, status, email_verified_at, closed_at, created_at
 # FROM public.users
 # WHERE id = '00000000-0000-0000-0000-000000000001'::uuid;
 # SELECT id, email_normalized, display_name, status, email_verified_at, created_at
@@ -55,12 +57,14 @@ class User(Entity, Base):
         ),
         CheckConstraint("length(btrim(display_name)) > 0", name="display_name_not_blank"),
         CheckConstraint("status IN ('active', 'disabled')", name="valid_status"),
+        CheckConstraint("closed_at IS NULL OR status = 'disabled'", name="closed_is_disabled"),
     )
 
     email_normalized: Mapped[str] = mapped_column(String(320))
     display_name: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(16), server_default="active")
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # Tenant boundary: an agency is active or suspended and owns its client workspaces.

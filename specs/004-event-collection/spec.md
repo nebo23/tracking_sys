@@ -23,6 +23,8 @@ EventEnvelope v1, idempotency scope, public/trusted credentials, and quarantine,
 ## Dependencies and open decisions
 Dependencies: [003-privacy-data-policy](../003-privacy-data-policy/spec.md)
 
+Specification 003 obligations (D-025): call the consent evaluation (`app.privacy.consent`), collection minimization (`app.privacy.collection`), and tombstone admission (`app.privacy.deletion`) at ingestion (E2); add the consent, deletion-request, and tombstone tables through this specification's reviewed schema; verify 003 acceptance criteria 1 and 3 (replay blocking, cases C1, D2, M5) end to end.
+
 Open decisions: Q-002, Q-004, Q-012. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

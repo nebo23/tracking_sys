@@ -109,7 +109,7 @@ class SecurityEvent(Base):
             "action IN ('registered', 'email_verified', 'login_succeeded', 'login_failed', "
             "'logout', 'logout_all', 'password_changed', 'reset_requested', 'reset_completed', "
             "'google_login_succeeded', 'google_registered', 'google_identity_linked', "
-            "'verification_code_failed')",
+            "'verification_code_failed', 'account_closed')",
             name="valid_action",
         ),
     )
@@ -123,7 +123,8 @@ class SecurityEvent(Base):
 
 # Durable transactional mail queue. The payload is Fernet-encrypted with a key outside
 # PostgreSQL and cleared after delivery or expiry; a row is not proof that a mailbox received
-# mail. expires_at, when set, stops delivery of a verification code that is no longer valid.
+# mail. expires_at, set to the code or link expiry (D-022, D-024), stops delivery of content
+# that is no longer valid. The lifecycle runner deletes rows 30 days after delivery or expiry.
 # SELECT id, purpose, attempts, next_attempt_at, expires_at, failure_code, created_at
 # FROM public.mail_outbox
 # WHERE delivered_at IS NULL

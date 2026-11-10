@@ -22,6 +22,8 @@ Public/private metric distinction, provider cost ledger, and rate-limit metadata
 ## Dependencies and open decisions
 Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md)
 
+Specification 003 obligations (D-025): re-verify and test the X row in `app.privacy.providers` and mark it current before the features it governs run.
+
 Open decisions: Q-001, Q-004; X budget and entitlement. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval

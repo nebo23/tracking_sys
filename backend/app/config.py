@@ -99,6 +99,9 @@ class Settings(DatabaseSettings):
     # Per-user invitation acceptance attempts per minute (review amendment T-02). The default
     # mirrors the login subject limit and is recorded as a proposed value in the auth design.
     invitation_attempts_per_minute: int = Field(default=5, ge=1, le=100)
+    # Account closure (D-024): an account without a password must present a session created
+    # within this window, which means a fresh Google sign-in. Ten minutes is the approved maximum.
+    closure_reauthentication_seconds: int = Field(default=600, ge=60, le=600)
     # Google sign-in (D-022) is off unless explicitly enabled with a Web client. The completion
     # URL receives the browser after the callback; it defaults to the frontend completion page.
     google_sign_in_enabled: bool = False
@@ -234,6 +237,30 @@ class Settings(DatabaseSettings):
     @property
     def google_completion_url(self) -> str:
         return self.google_complete_url or f"{self.frontend_origin}/auth/google/complete"
+
+
+# Lifecycle runner configuration (specification 003-A3, D-024). It connects as the dedicated
+# tracking_lifecycle role through explicit TRACKING_LIFECYCLE_* aliases and needs no auth, mail,
+# or provider secret. Each retention period defaults to the owner-approved value, which is also
+# its upper bound: a deployment may shorten a period but cannot extend it without a new
+# recorded decision. Periods count from the row's end (revocation, expiry, consumption,
+# invalidation, or delivery), never from creation alone.
+class LifecycleSettings(DatabaseSettings):
+    database_user: str = Field(
+        default="tracking_lifecycle", validation_alias="TRACKING_LIFECYCLE_USER"
+    )
+    database_password: SecretStr = Field(validation_alias="TRACKING_LIFECYCLE_PASSWORD")
+    environment: Literal["development", "production"] = "development"
+    mail_mode: Literal["local", "gmail"] = "local"
+    mail_directory: Path = PROJECT_ROOT / "local-data" / "mail"
+    session_idle_seconds: int = Field(default=1800, ge=60, le=43200)
+    session_retention_days: int = Field(default=30, ge=0, le=30)
+    token_retention_days: int = Field(default=7, ge=0, le=7)
+    challenge_retention_days: int = Field(default=7, ge=0, le=7)
+    oauth_transaction_retention_days: int = Field(default=1, ge=0, le=1)
+    outbox_retention_days: int = Field(default=30, ge=0, le=30)
+    local_mail_retention_days: int = Field(default=7, ge=0, le=7)
+    lifecycle_batch_size: int = Field(default=500, ge=1, le=5000)
 
 
 # Separate migrator credentials through explicit TRACKING_MIGRATION_* aliases, with a longer
