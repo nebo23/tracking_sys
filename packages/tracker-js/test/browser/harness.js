@@ -17,6 +17,7 @@ export const PUBLIC_KEY = `pk_${"B".repeat(43)}`;
 export const BROWSERS = { chromium, firefox };
 const SOURCE = fileURLToPath(new URL("../../src/", import.meta.url));
 const FIXTURES = fileURLToPath(new URL("../fixtures/", import.meta.url));
+const EXAMPLES = fileURLToPath(new URL("../../examples/", import.meta.url));
 
 function listen(server) {
   return new Promise((resolve) => {
@@ -39,6 +40,17 @@ export async function startServers() {
   const collector = { requests: [], plans: new Map(), consent: new Map(), held: [] };
   const siteServer = createServer(async (request, response) => {
     const url = new URL(request.url, "http://127.0.0.1");
+    // The shipped installation example, exactly as committed: its page and module from
+    // examples/, and the tracker at the versioned asset path the example imports.
+    const example = url.pathname.match(/^\/examples\/(install\.(?:html|js))$/);
+    const asset = url.pathname.match(/^\/assets\/tracker-[0-9.]+\/((?:tracker|minimize)\.js)$/);
+    if (example || asset) {
+      const file = example ? EXAMPLES + example[1] : SOURCE + asset[1];
+      const type = file.endsWith(".html") ? "text/html; charset=utf-8" : "text/javascript";
+      response.writeHead(200, { "Content-Type": type, "Cache-Control": "no-store" });
+      response.end(await readFile(file));
+      return;
+    }
     if (url.pathname.startsWith("/src/") || url.pathname.startsWith("/fixtures/")) {
       const root = url.pathname.startsWith("/src/") ? SOURCE : FIXTURES;
       const name = url.pathname.split("/").pop();
