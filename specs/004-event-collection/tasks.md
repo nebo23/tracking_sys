@@ -25,6 +25,7 @@ Status: Implemented under D-027 and published in PR 3 (D-028); review findings c
 - [x] Present a reviewable result to the owner, 2026-11-10.
 - [x] Obtain upload approval (D-028, 2026-11-10), then push the branch and open a pull request for owner review.
 - [x] Correct the independent pre-merge review findings R004-01 (public CORS read access), R004-02 (lifecycle under the client lock), R004-03 (webhook rotation overlap) and the query-value observation under D-029, with regressions, mutation check, real-browser check and [evidence](evidence.md#review-corrections-2026-11-10); local commit only, 2026-11-10.
+- [x] Correct the correction-review finding R004-04 (partial lifecycle cleanup could resurrect an older grant) under D-030, with the exact reproduction and further regressions; local commit only, 2026-11-10 ([evidence](evidence.md#second-correction-r004-04-2026-11-10)).
 - [ ] Independent review of the corrections, then owner approval to push them to PR 3.
 - [ ] Owner review of the pull request and the merge decision.
 - [ ] Record owner acceptance before progressing to dependent work.

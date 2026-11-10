@@ -35,10 +35,12 @@ from app.models import (
 from app.privacy.consent import ConsentSource, ConsentState, Purpose
 from app.privacy.deletion import RequesterKind
 from app.security import digest, now_utc
+from app.services import collection as collection_service
 from app.services.collection import (
     LOCK_NAMESPACE,
     Channel,
     admit,
+    consent_view,
     erase_subject,
     record_consent,
 )
@@ -1150,3 +1152,253 @@ def test_prohibited_query_values_are_removed_before_storage(c, capfd):
         assert value not in dump
     output = capfd.readouterr()
     assert "4111" not in output.out + output.err and "someone" not in output.out + output.err
+
+
+# Review finding R004-04: committed lifecycle batches must never let an older grant become the
+# effective consent. The latest record of a subject and purpose is (received_at, id), as in
+# app.privacy.consent.current_state.
+
+EARLY_ID = UUID("00000000-0000-4000-8000-000000000001")
+LATE_ID = UUID("00000000-0000-4000-8000-0000000000ff")
+
+
+def issue_with_id(c, monkeypatch, record_id: UUID, choices, token: str) -> None:
+    # Issue one consent record through the real endpoint with a fixed, valid record UUID. Only
+    # the first identifier is fixed; every later uuid4 call (counters) stays random.
+    issued = iter([record_id])
+    original = collection_service.uuid4
+    monkeypatch.setattr(collection_service, "uuid4", lambda: next(issued, None) or original())
+    try:
+        assert c.consent(choices, token=token)["receipts"] == [str(record_id)]
+    finally:
+        monkeypatch.setattr(collection_service, "uuid4", original)
+
+
+def subject_id_of(c, token: str) -> UUID:
+    [subject] = select_rows(
+        c.db, select(CollectionSubject.id).where(CollectionSubject.token_digest == digest(token))
+    )
+    return subject
+
+
+def add_grants(c, subject: UUID, purpose: str, received, count: int) -> None:
+    # Older synthetic grants of one purpose, all received before the subject's later records.
+    with Session(c.db.migration) as session, session.begin():
+        session.add_all(
+            StoredConsentRecord(
+                id=uuid4(),
+                agency_id=c.w.a,
+                client_id=c.w.a1,
+                subject_id=subject,
+                purpose=purpose,
+                state="granted",
+                source="api",
+                jurisdiction_profile="J1",
+                policy_version="003-B.1",
+                notice_sha256=NOTICE,
+                received_at=received - timedelta(seconds=index + 1),
+                expires_at=received + timedelta(days=365),
+            )
+            for index in range(count)
+        )
+
+
+def historical_subject(c, monkeypatch, latest: str, grants: int) -> tuple[str, UUID]:
+    # The review reproduction: an analytics grant 33 days old (still valid), grants-1 further
+    # older grants, then the newer latest record (withdrawn or denied) with the fixed UUID that
+    # sorts before every grant UUID, received and last active 31 days ago.
+    now = now_utc()
+    token = c.subject({ANALYTICS: "granted"})
+    subject = subject_id_of(c, token)
+    issue_with_id(c, monkeypatch, EARLY_ID, {ANALYTICS: latest}, token)
+    with Session(c.db.migration) as session, session.begin():
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.subject_id == subject, StoredConsentRecord.id != EARLY_ID)
+            .values(
+                received_at=now - timedelta(days=33),
+                expires_at=now - timedelta(days=33) + timedelta(days=365),
+            )
+        )
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.id == EARLY_ID)
+            .values(received_at=now - timedelta(days=31))
+        )
+        session.execute(
+            update(CollectionSubject)
+            .where(CollectionSubject.id == subject)
+            .values(last_activity_at=now - timedelta(days=31))
+        )
+    add_grants(c, subject, ANALYTICS, now - timedelta(days=33), grants - 1)
+    return token, subject
+
+
+def effective_states(c, subject: UUID) -> dict[str, str] | None:
+    # Evaluate the stored records exactly as admission does; None once the subject is gone.
+    with Session(c.db.migration) as session:
+        row = session.get(CollectionSubject, subject)
+        if row is None:
+            return None
+        view = consent_view(session, row, now_utc())
+    return {purpose.value: state.value for purpose, state in view.states.items()}
+
+
+def consent_ids(c, subject: UUID) -> list[UUID]:
+    return select_rows(
+        c.db, select(StoredConsentRecord.id).where(StoredConsentRecord.subject_id == subject)
+    )
+
+
+@pytest.mark.parametrize("latest", ["withdrawn", "denied"])
+@pytest.mark.parametrize(("size", "grants"), [(1, 1), (500, 500)], ids=["batch-1", "batch-500"])
+def test_partial_lifecycle_never_resurrects_an_older_grant(
+    c, monkeypatch, lifecycle_engine, lifecycle_settings, latest, size, grants
+):
+    settings = lifecycle_settings.model_copy(
+        update={"subject_retention_days": 30, "lifecycle_batch_size": size}
+    )
+    token, subject = historical_subject(c, monkeypatch, latest, grants)
+    refused = {"error": f"consent_{latest}"}
+    assert len(consent_ids(c, subject)) == grants + 1
+    assert c.send(envelope(token)).json() == refused
+    first = run_lifecycle(lifecycle_engine, settings, max_batches=1)
+    assert first["status"] == "partial"
+    assert first["deleted"]["consent_records"] == size
+    assert first["deleted"]["collection_subjects"] == 0
+    assert consent_ids(c, subject) == [EARLY_ID]
+    assert effective_states(c, subject)[ANALYTICS] == latest
+    between = c.send(envelope(token))
+    assert between.json() == refused
+    assert events(c) == []
+    resumed = run_lifecycle(lifecycle_engine, settings)
+    assert resumed["status"] == "completed"
+    assert resumed["deleted"]["consent_records"] == 1
+    assert resumed["deleted"]["collection_subjects"] == 1
+    assert effective_states(c, subject) is None
+    assert c.send(envelope(token)).json() == {"error": "unknown_subject"}
+    assert events(c) == []
+
+
+def test_every_committed_batch_preserves_effective_consent_across_purposes(
+    c, monkeypatch, lifecycle_engine, lifecycle_settings
+):
+    # Batch size 1 and one batch per run, so every single deletion is a committed boundary:
+    # analytics granted then withdrawn (with older grants), attribution granted then denied,
+    # and an active subject whose events and consent must stay untouched.
+    settings = lifecycle_settings.model_copy(
+        update={"subject_retention_days": 30, "lifecycle_batch_size": 1}
+    )
+    now = now_utc()
+    active = c.subject()
+    assert c.send(envelope(active)).status_code == 201
+    token = c.subject({ANALYTICS: "granted", ATTRIBUTION: "granted"})
+    subject = subject_id_of(c, token)
+    issue_with_id(c, monkeypatch, EARLY_ID, {ANALYTICS: "withdrawn"}, token)
+    issue_with_id(
+        c, monkeypatch, UUID("00000000-0000-4000-8000-000000000002"), {ATTRIBUTION: "denied"}, token
+    )
+    with Session(c.db.migration) as session, session.begin():
+        session.execute(
+            update(StoredConsentRecord)
+            .where(
+                StoredConsentRecord.subject_id == subject, StoredConsentRecord.state == "granted"
+            )
+            .values(received_at=now - timedelta(days=33))
+        )
+        session.execute(
+            update(StoredConsentRecord)
+            .where(
+                StoredConsentRecord.subject_id == subject, StoredConsentRecord.state != "granted"
+            )
+            .values(received_at=now - timedelta(days=31))
+        )
+        session.execute(
+            update(CollectionSubject)
+            .where(CollectionSubject.id == subject)
+            .values(last_activity_at=now - timedelta(days=31))
+        )
+    add_grants(c, subject, ANALYTICS, now - timedelta(days=33), 3)
+    add_grants(c, subject, ATTRIBUTION, now - timedelta(days=33), 2)
+    expected = {ANALYTICS: "withdrawn", ATTRIBUTION: "denied"}
+    page = {"error": "consent_withdrawn"}
+    lead = {"error": "consent_denied"}
+    for run in range(1, 40):
+        states = effective_states(c, subject)
+        if states is None:
+            break
+        for purpose, state in expected.items():
+            assert states[purpose] in {state, "unknown"}, (run, states)
+            if states[purpose] == "unknown":
+                expected[purpose] = "unknown"
+        assert "granted" not in states.values(), (run, states)
+        page_reply = c.send(envelope(token)).json()
+        lead_reply = c.send(
+            envelope(token, event_type="lead_signal", payload={"action": "book_call"})
+        ).json()
+        assert page_reply in (page, {"error": "consent_unknown"})
+        assert lead_reply in (lead, {"error": "consent_unknown"})
+        assert run_lifecycle(lifecycle_engine, settings, max_batches=1)["status"] in {
+            "partial",
+            "completed",
+        }
+    else:
+        raise AssertionError("Cleanup did not finish within the bounded number of runs.")
+    assert run > 2
+    assert c.send(envelope(token)).json() == {"error": "unknown_subject"}
+    assert [row.subject_id for row in events(c)] == [subject_id_of(c, active)]
+    assert c.send(envelope(active)).status_code == 201
+    assert_consent_evidence(c)
+
+
+def test_receipt_time_ties_keep_the_record_the_evaluator_uses(
+    c, monkeypatch, lifecycle_engine, lifecycle_settings
+):
+    # Same received_at: the evaluator's tie-break picks the higher UUID, here the withdrawal.
+    settings = lifecycle_settings.model_copy(
+        update={"subject_retention_days": 30, "lifecycle_batch_size": 1}
+    )
+    token = c.subject({ANALYTICS: "granted"})
+    subject = subject_id_of(c, token)
+    issue_with_id(c, monkeypatch, LATE_ID, {ANALYTICS: "withdrawn"}, token)
+    tie = now_utc() - timedelta(days=31)
+    with Session(c.db.migration) as session, session.begin():
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.subject_id == subject, StoredConsentRecord.id != LATE_ID)
+            .values(id=EARLY_ID, received_at=tie)
+        )
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.id == LATE_ID)
+            .values(received_at=tie)
+        )
+        session.execute(
+            update(CollectionSubject)
+            .where(CollectionSubject.id == subject)
+            .values(last_activity_at=tie)
+        )
+    assert effective_states(c, subject)[ANALYTICS] == "withdrawn"
+    assert c.send(envelope(token)).json() == {"error": "consent_withdrawn"}
+    first = run_lifecycle(lifecycle_engine, settings, max_batches=1)
+    assert first["deleted"]["consent_records"] == 1
+    assert consent_ids(c, subject) == [LATE_ID]
+    assert c.send(envelope(token)).json() == {"error": "consent_withdrawn"}
+    assert run_lifecycle(lifecycle_engine, settings)["status"] == "completed"
+    assert effective_states(c, subject) is None
+    assert events(c) == []
+
+
+def test_an_unbounded_run_removes_a_whole_history_in_one_pass(
+    c, monkeypatch, lifecycle_engine, lifecycle_settings
+):
+    # Older history goes first and the effective record in a later batch of the same run, so a
+    # run reported completed leaves nothing eligible behind (default batch size).
+    settings = lifecycle_settings.model_copy(update={"subject_retention_days": 30})
+    token, subject = historical_subject(c, monkeypatch, "withdrawn", 3)
+    result = run_lifecycle(lifecycle_engine, settings)
+    assert result["status"] == "completed"
+    assert result["deleted"]["consent_records"] == 4
+    assert result["deleted"]["collection_subjects"] == 1
+    assert effective_states(c, subject) is None
+    assert c.send(envelope(token)).json() == {"error": "unknown_subject"}

@@ -2,7 +2,7 @@
 Updated: 2026-11-10. Specifications 001/002 are merged in PR 1 and specification 003 with its corrections in PR 2 (`bab3a33`). Specification 004 is implemented under D-027 on `codex/spec-004-event-collection` and published for owner review under D-028.
 
 1. Review the [004 evidence](../../specs/004-event-collection/evidence.md), [design revision 2](../../specs/004-event-collection/design.md) and the [event collection guide](../engineering/event-collection.md); the 455-test run covers isolation, deduplication, consent, minimization, webhook signatures, erasure/replay, concurrency, lifecycle and privileges.
-2. Review the local corrections of the pre-merge findings R004-01 to R004-03 and the query-value observation (D-029, [evidence](../../specs/004-event-collection/evidence.md#review-corrections-2026-11-10)). They are committed locally and not yet pushed to PR 3. Then record the merge decision; merge remains a separate owner decision.
+2. Review the local corrections of the pre-merge findings R004-01 to R004-03 and the query-value observation (D-029, [evidence](../../specs/004-event-collection/evidence.md#review-corrections-2026-11-10)). They are committed locally and not yet pushed to PR 3, together with the R004-04 correction from the correction review (D-030). Then record the merge decision; merge remains a separate owner decision.
 3. Decide the separate predecessor items P1-P4 in the [decision packet](../../specs/004-event-collection/decision-packet.md) (local 003 card-scan follow-up, status reconciliation, owner edits, legacy mail).
 4. Keep native rollout (0005 to 0007, lifecycle role) and real customer intake (Q-002, Q-004, Q-012) separate from synthetic verification.
 

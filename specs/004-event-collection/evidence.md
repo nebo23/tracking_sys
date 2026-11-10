@@ -1,8 +1,58 @@
 # Specification 004 verification evidence
 
-Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and verified locally on disposable storage; published for owner review under D-028. The independent pre-merge review findings are corrected locally under D-029 and await another review; see [review corrections](#review-corrections-2026-11-10). Not merged and not rolled out to native tracking_sys.
+Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and verified locally on disposable storage; published for owner review under D-028. The independent pre-merge review findings are corrected locally under D-029 ([review corrections](#review-corrections-2026-11-10)). The correction review then found R004-04, which is corrected locally under D-030 ([second correction](#second-correction-r004-04-2026-11-10)). Both await independent review. Not merged and not rolled out to native tracking_sys.
 
-The sections below the review corrections describe the originally published result (`b90fa53`, 455 tests) and remain historical.
+The sections below the review corrections describe the originally published result (`b90fa53`, 455 tests) and remain historical. The R004-02 row of the first review corrections is completed by R004-04: the client lock alone did not preserve consent between committed batches.
+
+## Second correction: R004-04 (2026-11-10)
+
+Source: the correction review of local commit `c229ac7` (report `corrections-review-2026-11-10.md`, kept uncommitted in the main workspace). Authority: D-030. Before the change, the branch was still at `c229ac7`, one commit ahead of the remote `b90fa53`, and the worktree was clean.
+
+**Root cause.** Cleanup deleted the consent records of idle subjects in UUID order, in bounded batches, each committed separately. When a subject's history spanned batches, a batch could delete the latest withdrawal or denial while an older, still-valid grant survived. Once that batch committed and released the client lock, admission evaluated the surviving grant as current consent and accepted an event. The event refreshed the subject's activity, so resumed cleanup could no longer remove the state. The shared client lock serializes transactions but does not protect the state between committed batches.
+
+**Correction** (`backend/app/services/lifecycle.py` only). A consent record is eligible for deletion only when:
+- a newer record of the same subject and purpose exists, which leaves the effective record and the evaluated state unchanged; or
+- no older record of that subject and purpose exists, which leaves the purpose without a record, evaluated as `unknown`, a denial under J1.
+
+"Newer" and "older" use the row comparison `(received_at, id)`. This is the same order that `app.privacy.consent.current_state` and the admission query use: PostgreSQL compares UUIDs bytewise, which matches the evaluator's comparison of canonical UUID strings. The latest record of a purpose that still has older records is never deleted. Each DELETE evaluates the predicate on one statement snapshot, so that record becomes eligible only in a later statement, once its older history is gone.
+
+Invariant: at every committed boundary, each purpose keeps either its original effective record or no record at all. Denied, withdrawn, expired or unknown consent therefore cannot become granted without a new explicit grant. A client's batches now continue until one deletes nothing, so an unbounded run still removes the effective records and the subject in the same run. The client lock, the 100 ms lock timeout, bounded batches, `max_batches`, resumability and role grants are unchanged. No schema, dependency or policy changed.
+
+### Regression evidence
+
+All cases run on real PostgreSQL in `tests/integration/test_collection.py`, issue the consent records through the real trusted consent endpoint, assert response outcomes and stored rows, and use no sleeps.
+
+| Test | Covers |
+|---|---|
+| `test_partial_lifecycle_never_resurrects_an_older_grant` (4 cases: `withdrawn`/`denied` x batch size 1 with 1 grant, default 500 with 500 grants) | The review's exact reproduction: latest record issued with UUID `00000000-0000-4000-8000-000000000001` (sorting before every grant), grant 33 days old and still valid, latest record and activity 31 days old, `subject_retention_days=30`. Before cleanup: 422 `consent_<state>`. `run_lifecycle(..., max_batches=1)` is `partial` and deletes exactly the batch size of grants, leaving only the latest record. A new event without new consent is still refused and nothing is stored. The resumed run is `completed`, deletes the latest record and the subject, and the token then returns `unknown_subject`. |
+| `test_every_committed_batch_preserves_effective_consent_across_purposes` | Two purposes (analytics: 4 grants, then withdrawn; attribution: 3 grants, then denied), batch size 1, one batch per run. At every committed boundary, until the subject is gone: the evaluated state of each purpose is its original latest state or `unknown`, never `granted`; page-view and lead events between batches are refused. An active subject with events keeps its consent evidence and still accepts events. |
+| `test_receipt_time_ties_keep_the_record_the_evaluator_uses` | A grant and a withdrawal with the same `received_at`. The evaluator's UUID tie-break makes the withdrawal effective, and cleanup removes the grant and keeps the withdrawal. |
+| `test_an_unbounded_run_removes_a_whole_history_in_one_pass` | A history across batches is fully removed by one unbounded run (4 records, then the subject), with status `completed`. |
+
+Before the correction, the four reproduction cases and the multi-purpose test failed (**5 failed, 2 passed** on the unfixed code): the latest record was deleted, an older grant was left, and analytics became `granted` at the second boundary. The tie test and the one-pass test passed on the unfixed code; they protect properties of the new rule. A mutation that reverses the UUID tie-break direction makes the tie test fail (1 failed). The existing R004-02 concurrency tests (both transaction orders, shortened and default retention) still pass.
+
+### Verification
+
+Environment: worktree `.worktrees/spec-004-event-collection` (no `.env`), project `.venv`, and the new Compose project `tracking-spec004-r004-04-20261110`, running only the `database` service with a fresh volume: `tracking_foundation_test` on `127.0.0.1:55433` with separate runtime, migration and lifecycle roles. Synthetic credentials were generated outside the repository, with no keyrings in the environment (the fixtures generate their own). Inherited `TRACKING_`/`PG`/`PYTHON` variables were removed. Native `tracking_sys` was not accessed.
+
+Tested content: backend tree `d7dfff34c823022757f0a7f08476758957918a78`. Only documentation changed afterwards.
+
+| Check | Result |
+|---|---|
+| Full suite, `python -m pytest -q -p no:cacheprovider -rs` | **481 passed in 134.56 s**, no skips or failures: 244 unit/contract and 237 PostgreSQL cases (7 new) |
+| `python -m ruff check app migrations tests` | All checks passed |
+| `python -m ruff format --check app migrations tests` | 83 files already formatted |
+| `python -m pip check` | No broken requirements found |
+| `git diff --check` | Passed |
+| Migration cycle, model/migration comparison, populated-downgrade refusal, grant matrix, data-policy registry, OpenAPI snapshot | Passed within the suite; no schema, grant, registry or API change |
+
+The disposable Compose project and the temporary scripts were removed after use.
+
+### Remaining limitations
+
+- A purpose's latest record can outlive its subject's other history by one extra batch per run; work stays bounded by `max_batches` and the batch size.
+- The R004-04 reproduction requires retention shorter than grant validity, as the review noted; it does not show that a 365-day grant survives 395 days of inactivity under default values.
+- Earlier limitations are unchanged: no load test, no API-container smoke test, no native migration, development retention and rates only, Q-002/Q-004/Q-012 open.
 
 ## Review corrections (2026-11-10)
 

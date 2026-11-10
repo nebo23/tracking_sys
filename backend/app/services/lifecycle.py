@@ -11,7 +11,11 @@ after last activity once no event references them. Event, consent-record, and su
 expiry depends on a client's privacy state, so those targets run one client at a time inside a
 transaction that first takes that client's privacy lock (D-027 decision 10) and then
 re-evaluates eligibility: an admission, consent change, or erasure in flight either finishes
-first and is observed, or waits for the batch (review finding R004-02).
+first and is observed, or waits for the batch (review finding R004-02). Because each batch
+commits and releases that lock, consent history is removed so that every committed state keeps
+each purpose's effective record: the latest record of a subject and purpose is deleted only
+once no older record of it remains, so no batch can expose an older grant (review finding
+R004-04).
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -32,9 +36,11 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
     union,
 )
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import aliased
 
 from app.config import LifecycleSettings
 from app.models import (
@@ -154,8 +160,35 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             ~exists().where(CollectedEvent.subject_id == CollectionSubject.id),
         )
 
+    # Consent records of idle subjects, removed so that no committed batch can change a
+    # purpose's effective consent into a grant (review finding R004-04). Admission evaluates
+    # the latest record per subject and purpose, ordered by (received_at, id) exactly as
+    # app.privacy.consent.current_state does. A record is eligible only when
+    # - a newer record of the same subject and purpose exists: deleting it leaves the
+    #   effective record, and so the evaluated state, unchanged; or
+    # - no older record of that subject and purpose exists: deleting it leaves the purpose
+    #   with no record, which J1 evaluates as unknown, a denial.
+    # The latest record of a purpose that still has older records is therefore never deleted,
+    # so a withdrawal or denial cannot disappear while an older grant remains. Each DELETE
+    # evaluates these predicates on one snapshot, so the latest record becomes eligible only in
+    # a later statement, after its older records are gone.
     def consent_records(cutoff: datetime) -> ColumnElement[bool]:
-        return StoredConsentRecord.subject_id.in_(select(CollectionSubject.id).where(idle(cutoff)))
+        record = tuple_(StoredConsentRecord.received_at, StoredConsentRecord.id)
+
+        def sibling(other: Any) -> ColumnElement[bool]:
+            return and_(
+                other.subject_id == StoredConsentRecord.subject_id,
+                other.purpose == StoredConsentRecord.purpose,
+            )
+
+        newer, older = aliased(StoredConsentRecord), aliased(StoredConsentRecord)
+        return and_(
+            StoredConsentRecord.subject_id.in_(select(CollectionSubject.id).where(idle(cutoff))),
+            or_(
+                exists().where(sibling(newer), tuple_(newer.received_at, newer.id) > record),
+                ~exists().where(sibling(older), tuple_(older.received_at, older.id) < record),
+            ),
+        )
 
     # A subject is deleted only after all its consent records, so a bounded batch never breaks
     # the consent foreign key.
@@ -264,7 +297,9 @@ def clean_local_mail(settings: LifecycleSettings, cutoff: datetime) -> dict[str,
 # max_batches bounds the work per target (None means until no eligible row remains). Then the
 # client-scoped targets run client by client under each client's privacy lock: a client whose
 # lock is busy is skipped and marked incomplete, and max_batches bounds the batches per client.
-# Returns counts and status codes only.
+# A client's batches continue until one deletes nothing, because a consent record that becomes
+# eligible only after its older history is gone may follow a short batch (R004-04). Returns
+# counts and status codes only.
 def run_lifecycle(
     engine: Engine,
     settings: LifecycleSettings,
@@ -323,7 +358,7 @@ def run_lifecycle(
                     batches += 1
                     for name, count in counts.items():
                         deleted[name] += count
-                    if all(count < size for count in counts.values()):
+                    if not any(counts.values()):
                         break
                 else:
                     _mark(incomplete, scoped)
