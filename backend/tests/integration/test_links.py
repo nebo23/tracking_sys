@@ -13,11 +13,15 @@ from urllib.parse import parse_qsl, urlsplit
 from uuid import UUID, uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import BACKEND_ROOT
+from app.database import expected_revision
 from app.main import create_app
 from app.models import (
     AuditEvent,
@@ -526,3 +530,75 @@ def test_missing_link_storage_returns_503_without_a_fallback(links):
     assert response.status_code == 503
     assert response.json() == {"error": "temporarily_unavailable"}
     assert "location" not in response.headers
+
+
+def test_scoped_foreign_keys_refuse_cross_client_references(links):
+    w = links.w
+    new_link(links)
+    other = links.post(
+        "link-destination-origins",
+        {"origin": SHOP},
+        scope=f"/agencies/{w.a}/clients/{w.a2}",
+    )
+    foreign_link = ManagedLink(
+        id=uuid4(),
+        agency_id=w.a,
+        client_id=w.a1,
+        slug="cross-client",
+        origin_id=UUID(other["id"]),
+        destination=f"{SHOP}/x",
+        utm={},
+        target_url=f"{SHOP}/x",
+    )
+    with pytest.raises(IntegrityError), Session(links.db.migration) as session, session.begin():
+        session.add(foreign_link)
+    with pytest.raises(IntegrityError), links.db.migration.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO managed_links (id, agency_id, client_id, slug, origin_id, "
+                "destination, utm, target_url, campaign_id) VALUES (gen_random_uuid(), "
+                ":agency, :client, 'cross-campaign', :origin, 'x', '{}', 'x', :campaign)"
+            ),
+            {
+                "agency": w.a,
+                "client": w.a2,
+                "origin": UUID(other["id"]),
+                "campaign": UUID(links.campaign["id"]),
+            },
+        )
+
+
+def test_concurrent_duplicate_hostname_claims_have_one_winner(links):
+    w = links.w
+    barrier = threading.Barrier(2)
+
+    def claim(args):
+        user, agency, client = args
+        barrier.wait()
+        try:
+            with Session(w.db.runtime) as session, session.begin():
+                LinkAdmin(session, user, links.api.config).create_domain(
+                    agency, client, hostname="claimed.example.test"
+                )
+            return "created"
+        except IntegrityError:
+            return "conflict"
+
+    with ThreadPoolExecutor(2) as pool:
+        outcomes = sorted(
+            pool.map(claim, [(w.users.owner_a, w.a, w.a1), (w.users.owner_b, w.b, w.b1)])
+        )
+    assert outcomes == ["conflict", "created"]
+    assert total(links.db, LinkDomain, LinkDomain.hostname == "claimed.example.test") == 1
+
+
+def test_downgrade_refuses_populated_link_state(links):
+    new_link(links)
+    with pytest.raises(RuntimeError, match="managed-link state"):
+        command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0007_event_collection")
+    with links.db.migration.connect() as connection:
+        assert (
+            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
+            == expected_revision()
+        )
+    assert total(links.db, ManagedLink) == 1

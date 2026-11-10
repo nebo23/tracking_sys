@@ -9,7 +9,8 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.collection.contract import fingerprint
@@ -126,6 +127,7 @@ def ev(authenticated_world, api):
         api=api,
         db=w.db,
         owner=owner,
+        ingest=ingest,
         base=base,
         own=own,
         second=UUID(second),
@@ -350,3 +352,17 @@ def test_consent_state_enforces_origin_body_and_its_own_rate_limit(ev):
     assert ev.collect("consent-state", {"subject_token": token}).status_code == 404
     platform = ev.api.new_client().get("/health/live")
     assert "access-control-expose-headers" not in platform.headers
+
+
+def test_event_link_references_are_scoped_by_the_database(ev):
+    body = {"choices": {ANALYTICS: "granted"}, "notice_sha256": NOTICE}
+    path = f"{ev.base}/clients/{ev.w.a2}"
+    token = ev.ingest.post(f"{path}/consent", json=body).json()["subject_token"]
+    event = envelope(token, link_id=ev.foreign)
+    assert ev.ingest.post(f"{path}/events", json=event).status_code == 201
+    with pytest.raises(IntegrityError), ev.db.migration.begin() as connection:
+        connection.execute(
+            text("UPDATE collected_events SET link_id = :link WHERE event_id = :event"),
+            {"link": ev.own, "event": UUID(event["event_id"])},
+        )
+    assert stored(ev.db, UUID(event["event_id"])).link_id == ev.foreign

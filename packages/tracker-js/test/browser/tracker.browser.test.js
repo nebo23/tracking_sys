@@ -202,6 +202,26 @@ for (const name of ["chromium", "firefox"]) {
       await Promise.all([blocked.context.close(), context.close()]);
     });
 
+    test("noopener windows start without a copy of the consent record", async () => {
+      collector.reset();
+      const { context, page } = await openPage(browser, shop());
+      await grant(page);
+      const isolated = context.waitForEvent("page");
+      await page.evaluate(() => window.open("/next.html", "_blank", "noopener"));
+      const fresh = await isolated;
+      await fresh.waitForLoadState();
+      assert.deepEqual(await fresh.evaluate(() => Object.keys(sessionStorage)), []);
+      // Without noopener, both engines copy session storage into the new window (observed in
+      // Chromium and Firefox); the tracker documents this instead of promising tab isolation.
+      const opened = context.waitForEvent("page");
+      await page.evaluate(() => window.open("/next.html", "_blank"));
+      const child = await opened;
+      await child.waitForLoadState();
+      const copied = await child.evaluate((key) => sessionStorage.getItem(key) !== null, STORAGE_KEY);
+      assert.equal(copied, true);
+      await context.close();
+    });
+
     test("Global Privacy Control refuses sale and advertising grants only", async () => {
       collector.reset();
       const { context, page } = await openPage(browser, shop(), { init: [GPC] });

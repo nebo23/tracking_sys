@@ -294,3 +294,43 @@ def test_end_to_end_with_loopback_dns_and_tls(synthetic_pki, tls_server):
         assert wrong.failure == "ownership_missing"
     finally:
         dns_server.close()
+
+
+def test_configuration_selects_only_live_adapters_or_none(settings):
+    from app.main import create_app
+
+    assert create_app(settings).state.domain_verifier is None
+    live = settings.model_copy(
+        update={"link_domain_verification": "live", "link_service_target": "links.platform.test"}
+    )
+    verifier = create_app(live).state.domain_verifier
+    assert isinstance(verifier.resolver, DnsResolver)
+    assert isinstance(verifier.tls, PinnedTlsProbe) and verifier.tls.port == 443
+    assert verifier.address_allowed is is_global_address
+    assert verifier.deadline_seconds == 5.0
+
+
+def test_link_settings_refuse_wildcards_and_live_mode_without_a_target(monkeypatch):
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    base = {
+        "database_password": "synthetic",
+        "auth_secret": "ab" * 32,
+        "otp_secret": "cd" * 32,
+        "mail_encryption_key": "dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHQ=",
+    }
+    for name in [n for n in __import__("os").environ if n.startswith("TRACKING_")]:
+        monkeypatch.delenv(name)
+    for bad in (
+        {"link_platform_hosts": ["*.example.test"]},
+        {"link_platform_hosts": []},
+        {"link_platform_hosts": ["user@host"]},
+        {"link_service_target": "printer.local"},
+        {"link_domain_verification": "live"},
+        {"link_domain_verification": "synthetic"},
+    ):
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, **base, **bad)
+    assert Settings(_env_file=None, **base).link_domain_verification == "disabled"
