@@ -117,3 +117,28 @@ def reader_principal(
 
 # Route parameter alias for routes readable by browser users or scoped service keys.
 ReaderDep = Annotated[Principal, Depends(reader_principal)]
+
+
+# Resolve an ingest key (D-027) for trusted event and consent writes. Only a Bearer key of kind
+# "ingest" is accepted; a read key, a session cookie, or both credentials are rejected.
+def ingest_principal(
+    request: Request,
+    session: SessionDep,
+    authorization: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
+) -> Principal:
+    if request.cookies.get(request.app.state.settings.cookie_name) or authorization is None:
+        raise AuthError("authentication_required")
+    return authenticate_service_key(session, authorization.credentials, "ingest")
+
+
+IngestDep = Annotated[Principal, Depends(ingest_principal)]
+
+
+# The bounded raw request body (RequestBoundary already limited it to 16 KiB). Public and
+# webhook routes parse it themselves: browsers may send JSON as text/plain to avoid a CORS
+# preflight, and webhook signatures cover the exact bytes.
+async def raw_body(request: Request) -> bytes:
+    return await request.body()
+
+
+RawBody = Annotated[bytes, Depends(raw_body)]

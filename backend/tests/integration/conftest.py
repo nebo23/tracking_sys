@@ -24,7 +24,17 @@ from app.security import now_utc, password_hash
 from app.services.mail import process_mail
 from app.services.tenancy import Role, tenancy_transaction
 
+# Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "deletion_tombstones",
+    "deletion_requests",
+    "event_diagnostics",
+    "collected_events",
+    "consent_records",
+    "collection_subjects",
+    "collection_forms",
+    "ingestion_source_secrets",
+    "ingestion_sources",
     "audit_events",
     "security_events",
     "external_identities",

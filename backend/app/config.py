@@ -4,6 +4,7 @@
 # urlsplit parses origin components so the boundary validator can reject paths and wildcards.
 # Fernet is the authenticated symmetric scheme used here only to validate the mail key; the
 # mail service performs encryption. Imports do not execute an application feature by themselves.
+import binascii
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -13,6 +14,9 @@ from email_validator import EmailNotValidError, validate_email
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
+
+from app.collection.keys import TombstoneKeyring
+from app.privacy.token_secrets import LocalKeyring
 
 # Absolute anchors keep configuration and migration discovery independent of the working
 # directory from which the API, worker, Alembic, or tests are started.
@@ -115,6 +119,18 @@ class Settings(DatabaseSettings):
     gmail_client_secret: SecretStr = SecretStr("")
     gmail_refresh_token: SecretStr = SecretStr("")
     gmail_sender: str = ""
+    # Event collection (D-027). Development-only local keyrings in ignored .env, refused with
+    # every production configuration below: TRACKING_TOKEN_KEYRING ("id:base64url,...", the
+    # D-025 token keyring) seals webhook signing secrets; TRACKING_TOMBSTONE_KEYRING
+    # ("id:hex,...") keys deletion tombstones independently of every other secret. Collection
+    # routes that need a missing keyring fail closed.
+    token_keyring: SecretStr = SecretStr("")
+    token_keyring_active: str = ""
+    tombstone_keyring: SecretStr = SecretStr("")
+    tombstone_keyring_active: str = ""
+    # Approved development rates per minute (D-027 decision 6); a deployment may lower them.
+    ingest_public_per_minute: int = Field(default=60, ge=1, le=60)
+    ingest_trusted_per_minute: int = Field(default=600, ge=1, le=600)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -170,6 +186,15 @@ class Settings(DatabaseSettings):
                 raise ValueError("Insecure development cookies require loopback origins.")
         if self.otp_secret.get_secret_value() == self.auth_secret.get_secret_value():
             raise ValueError("The verification key must be independent of the auth secret.")
+        self.token_keys()
+        tombstones = self.tombstone_keys()
+        if tombstones is not None:
+            others = {
+                bytes.fromhex(self.auth_secret.get_secret_value()),
+                bytes.fromhex(self.otp_secret.get_secret_value()),
+            }
+            if tombstones.key_material() & others:
+                raise ValueError("Tombstone keys must be independent of other secrets.")
         if self.google_sign_in_enabled:
             self._validate_google()
         if self.mail_mode == "gmail":
@@ -221,6 +246,26 @@ class Settings(DatabaseSettings):
         except EmailNotValidError as error:
             raise ValueError("The Gmail sender must be a valid email address.") from error
 
+    # The D-025 local token keyring, or None while unset. Parsing validates every key.
+    def token_keys(self) -> "LocalKeyring | None":
+        text = self.token_keyring.get_secret_value().strip()
+        if not text:
+            return None
+        try:
+            return LocalKeyring.from_text(text, self.token_keyring_active)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("The token keyring is invalid.") from error
+
+    # The independent tombstone keyring, or None while unset.
+    def tombstone_keys(self) -> "TombstoneKeyring | None":
+        text = self.tombstone_keyring.get_secret_value().strip()
+        if not text:
+            return None
+        try:
+            return TombstoneKeyring.from_text(text, self.tombstone_keyring_active)
+        except ValueError as error:
+            raise ValueError("The tombstone keyring is invalid.") from error
+
     # Computed when read: secure deployments use the __Host- prefix, which browsers accept only
     # for Secure, host-only, path=/ cookies. Reading it does not issue a session cookie.
     @property
@@ -260,6 +305,12 @@ class LifecycleSettings(DatabaseSettings):
     oauth_transaction_retention_days: int = Field(default=1, ge=0, le=1)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
+    # Provisional development retention for collected data (D-027 decision 7): event rows 13
+    # months (395 days) after first receipt, diagnostic counters 30 days after their day, and
+    # subjects with their consent records 13 months after last activity.
+    event_retention_days: int = Field(default=395, ge=0, le=395)
+    diagnostic_retention_days: int = Field(default=30, ge=0, le=30)
+    subject_retention_days: int = Field(default=395, ge=0, le=395)
     lifecycle_batch_size: int = Field(default=500, ge=1, le=5000)
 
 

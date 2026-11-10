@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "003-A5"
+POLICY_VERSION = "004-B"
 
 
 class Sensitivity(StrEnum):
@@ -197,6 +197,81 @@ CLASSES: dict[str, DataClass] = {
             Provenance.OBSERVED,
             "Delete after the approved period; actor follows account erasure (decision 3).",
             "003-A",
+        ),
+        DataClass(
+            "credential.sealed_secret",
+            "AES-GCM sealed webhook signing secret with its wrapped data key and key ID.",
+            Sensitivity.HIGH,
+            Personal.NONE,
+            Provenance.DERIVED,
+            "Delete after rotation overlap or with the source (D-027).",
+            "004",
+        ),
+        DataClass(
+            "collection.subject",
+            "Opaque collection subject: identifier, bearer-token digest, and activity times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Delete on erasure or after inactivity (D-027).",
+            "004",
+        ),
+        DataClass(
+            "consent.record",
+            "Consent choices of a subject: purpose, state, source, profile, policy and notice "
+            "digests, and times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.PROVIDED,
+            "Delete with the subject (D-027).",
+            "004",
+        ),
+        DataClass(
+            "event.content",
+            "Sanitized event content: minimized URLs, mapped form values, lead actions, "
+            "purchase claims, occurred time, fingerprint, and consent basis.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Delete after the approved period or on erasure (D-027).",
+            "004",
+        ),
+        DataClass(
+            "event.delivery_state",
+            "Event identity and processing state: event ID, type, channel, trust, revision, "
+            "receipt times, conflict counters, traffic label, policy version, and expiry.",
+            Sensitivity.LOW,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Delete with the event row (D-027).",
+            "004",
+        ),
+        DataClass(
+            "event.diagnostic_count",
+            "Daily outcome counters by channel and closed reason code.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Delete after the approved period (D-027).",
+            "004",
+        ),
+        DataClass(
+            "deletion.request",
+            "Erasure request state and per-store outcomes; no identifier of the subject.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Keep for the workspace lifetime (D-027).",
+            "004, 017",
+        ),
+        DataClass(
+            "deletion.tombstone",
+            "Keyed match values that block reuse and replay after erasure.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.DERIVED,
+            "Keep for the workspace lifetime (D-025, D-027).",
+            "004, 017",
         ),
         DataClass(
             "system.schema_version",
@@ -416,6 +491,7 @@ TABLES: dict[str, TablePolicy] = {
                 "id",
                 "agency_id",
                 "creator_membership_id",
+                "kind",
                 "expires_at",
                 "status",
                 "created_at",
@@ -502,6 +578,219 @@ TABLES: dict[str, TablePolicy] = {
                 f"{RETENTION}; D-024",
                 "Append-only; kept indefinitely (retention pending). After closure the actor ID "
                 "points to the pseudonymized user (D-024).",
+            ),
+        ),
+    ),
+    # Specification 004 (D-027): provisional development periods; Q-012 stays open for real
+    # customer intake.
+    "ingestion_sources": TablePolicy(
+        {
+            "name": "tenancy.label",
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "creator_membership_id",
+                "kind",
+                "status",
+                "public_key",
+                "allowed_origins",
+                "notice_sha256",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-027",
+                "Kept while the client exists; disabling keeps the row. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "ingestion_source_secrets": TablePolicy(
+        {
+            **_same(
+                "credential.sealed_secret",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same("credential.lifecycle", "version", "created_at", "retires_at"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-027",
+                "A rotated-out version is deleted by the lifecycle runner once retires_at "
+                "(24 hours after rotation) has passed; the current version stays with its source.",
+            ),
+        ),
+    ),
+    "collection_forms": TablePolicy(
+        _same(
+            "tenancy.configuration",
+            "id",
+            "agency_id",
+            "client_id",
+            "form_key",
+            "version",
+            "fields",
+            "status",
+            "created_at",
+            "updated_at",
+        ),
+        (_row(RuleStatus.DEFERRED, "017; D-027", "Kept while the client exists (017)."),),
+    ),
+    "collection_subjects": TablePolicy(
+        _same(
+            "collection.subject",
+            "id",
+            "agency_id",
+            "client_id",
+            "token_digest",
+            "created_at",
+            "last_activity_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-027",
+                "Deleted on erasure, or by the lifecycle runner 395 days after last activity "
+                "once no event row references it.",
+            ),
+        ),
+    ),
+    "consent_records": TablePolicy(
+        _same(
+            "consent.record",
+            "id",
+            "agency_id",
+            "client_id",
+            "subject_id",
+            "purpose",
+            "state",
+            "source",
+            "jurisdiction_profile",
+            "policy_version",
+            "notice_sha256",
+            "received_at",
+            "captured_at",
+            "expires_at",
+            "supersedes_id",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-027",
+                "Never updated; deleted with their subject (erasure or inactivity). A grant is "
+                "evaluated as expired 365 days after receipt.",
+            ),
+        ),
+    ),
+    "collected_events": TablePolicy(
+        {
+            **_same(
+                "event.content",
+                "occurred_at",
+                "payload",
+                "fingerprint",
+                "consent_basis",
+                "subject_id",
+            ),
+            **_same(
+                "event.delivery_state",
+                "id",
+                "agency_id",
+                "client_id",
+                "event_id",
+                "event_type",
+                "channel",
+                "source_id",
+                "credential_id",
+                "trust_rank",
+                "first_received_at",
+                "last_received_at",
+                "revision",
+                "traffic_label",
+                "policy_version",
+                "conflict_count",
+                "last_conflict_at",
+                "expires_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-027",
+                "Deleted by the lifecycle runner 395 days after first receipt (expires_at), or "
+                "on erasure. Purchase claims are readable only with financial access.",
+            ),
+        ),
+    ),
+    "event_diagnostics": TablePolicy(
+        _same(
+            "event.diagnostic_count",
+            "id",
+            "agency_id",
+            "client_id",
+            "day",
+            "channel",
+            "outcome",
+            "reason",
+            "count",
+        ),
+        (_row(APPROVED, "D-027", "Deleted by the lifecycle runner 30 days after their day."),),
+    ),
+    "deletion_requests": TablePolicy(
+        {
+            "requested_by_user_id": "account.reference",
+            **_same(
+                "deletion.request",
+                "id",
+                "agency_id",
+                "client_id",
+                "requester_kind",
+                "scope_kind",
+                "status",
+                "objected",
+                "received_at",
+                "completed_at",
+                "target_outcomes",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-027",
+                "Kept for the workspace lifetime as the record of erasure; offboarding is 017.",
+            ),
+        ),
+    ),
+    "deletion_tombstones": TablePolicy(
+        _same(
+            "deletion.tombstone",
+            "id",
+            "agency_id",
+            "client_id",
+            "deletion_request_id",
+            "scope_kind",
+            "match_type",
+            "match_key",
+            "match_key_id",
+            "effective_at",
+            "objected",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-025; D-027",
+                "Insert-only for the runtime and unreachable by the lifecycle role; kept for the "
+                "workspace lifetime. Offboarding is 017.",
             ),
         ),
     ),

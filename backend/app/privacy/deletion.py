@@ -37,6 +37,8 @@ class RequesterKind(StrEnum):
     PROVIDER_CALLBACK = "provider_callback"
     PLATFORM_OPERATOR = "platform_operator"
     CONSENT_WITHDRAWAL = "consent_withdrawal"
+    # The holder of a pseudonymous subject token erasing that subject (004, D-027).
+    DATA_SUBJECT = "data_subject"
 
 
 class RequestStatus(StrEnum):

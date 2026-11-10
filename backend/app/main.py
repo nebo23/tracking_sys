@@ -12,6 +12,9 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.auth import router as auth_router
+from app.api.collection import public_router as collection_public_router
+from app.api.collection import router as collection_router
+from app.api.collection import webhook_router as collection_webhook_router
 from app.api.google import router as google_router
 from app.api.middleware import RequestBoundary
 from app.api.schemas import ErrorResponse
@@ -20,6 +23,7 @@ from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
+from app.services.collection import CollectionError
 from app.services.google import GoogleOIDC
 from app.services.tenancy import AccessDenied, MembershipConflict
 
@@ -64,13 +68,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(
         title="Tracking System API",
-        version="0.3.0",
+        version="0.4.0",
         description=(
             "Agency/client access, email/password authentication, invitations, "
             "scoped service credentials, numeric email verification, and optional Google sign-in. "
             "Facebook sign-in is deferred. "
             "Cookie mutations require an allowed Origin and X-CSRF-Token "
-            "from login or /auth/me."
+            "from login or /auth/me. "
+            "Event collection (specification 004): trusted intake with ingest keys, limited-trust "
+            "public intake, generic signed webhooks, consent, erasure, and diagnostics."
         ),
         lifespan=lifespan,
         responses={
@@ -96,6 +102,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.exception_handler(AuthError)
     async def authentication_error(request: Request, error: AuthError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Event collection failures carry a fixed public code; 503 responses invite a retry.
+    @application.exception_handler(CollectionError)
+    async def collection_error(request: Request, error: CollectionError) -> JSONResponse:
+        headers = {"Retry-After": "1"} if error.status == 503 else None
+        return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
 
     # Tenant policy denials share one response so callers cannot probe resource existence.
     @application.exception_handler(AccessDenied)
@@ -128,15 +140,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def integrity_error(request: Request, error: IntegrityError) -> JSONResponse:
         return JSONResponse({"error": "state_conflict"}, status_code=409)
 
-    # Other database failures are logged by event name only and reported as temporary.
+    # Other database failures, including lock timeouts, are logged by event name only and
+    # reported as temporary with a short Retry-After.
     @application.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
         logger.error("database_operation_failed")
-        return JSONResponse({"error": "temporarily_unavailable"}, status_code=503)
+        return JSONResponse(
+            {"error": "temporarily_unavailable"}, status_code=503, headers={"Retry-After": "1"}
+        )
 
     application.include_router(auth_router)
     application.include_router(google_router)
     application.include_router(tenancy_router)
+    application.include_router(collection_router)
+    application.include_router(collection_public_router)
+    application.include_router(collection_webhook_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

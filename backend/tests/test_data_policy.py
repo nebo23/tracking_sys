@@ -29,7 +29,7 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    assert len(SCHEMA) == 20  # 19 application tables at 0004_identity plus alembic_version
+    assert len(SCHEMA) == 29  # 28 application tables at 0007_event_collection plus alembic_version
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -100,8 +100,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         if rule.status is RuleStatus.APPROVED
     }
     # D-017/D-019/D-022 behavior from specification 002, the D-024 retention periods for ended
-    # credential state, and D-024 account closure; security, audit, and invitation rules stay
-    # unapproved.
+    # credential state, D-024 account closure, and the D-027 collection periods; security,
+    # audit, and invitation rules stay unapproved.
     assert approved == {
         ("client_grants", "row", "D-017"),
         ("mail_outbox", "encrypted_payload", "D-019; D-022; D-024"),
@@ -114,6 +114,13 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("users", "row", "D-024"),
         ("password_credentials", "row", "D-024"),
         ("external_identities", "row", "D-024"),
+        ("ingestion_source_secrets", "row", "D-027"),
+        ("collection_subjects", "row", "D-027"),
+        ("consent_records", "row", "D-027"),
+        ("collected_events", "row", "D-027"),
+        ("event_diagnostics", "row", "D-027"),
+        ("deletion_requests", "row", "D-027"),
+        ("deletion_tombstones", "row", "D-025; D-027"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

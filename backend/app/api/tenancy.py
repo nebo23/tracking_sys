@@ -344,8 +344,8 @@ def accept_invitation(
     )
 
 
-# Issue an expiring read-only service key with explicit client grants (Owner/Admin). The raw
-# key is returned once in this response and only its digest is stored; audited.
+# Issue an expiring read or ingest service key with explicit client grants (Owner/Admin). The
+# raw key is returned once in this response and only its digest is stored; audited.
 @router.post(
     "/agencies/{agency_id}/service-credentials",
     status_code=201,
@@ -364,6 +364,7 @@ def issue_service_key(
         data.name,
         [ClientPermission(**grant.model_dump()) for grant in data.clients],
         expires_in_days=data.expires_in_days,
+        kind=data.kind,
     )
     return IssuedServiceKey(credential=ServiceKeyResponse.model_validate(item), key=raw)
 

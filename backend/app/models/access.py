@@ -86,9 +86,11 @@ class InvitationClientGrant(Base):
     can_view_financials: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
-# Expiring read-only service API key for one agency; only the key digest is stored. Its
-# creator membership must remain an active manager for the key to work.
-# SELECT id, agency_id, creator_membership_id, name, status, expires_at, created_at
+# Expiring service API key for one agency; only the key digest is stored. Its creator
+# membership must remain an active manager for the key to work. kind is immutable: "read" keys
+# (every key issued before 004) read granted clients; "ingest" keys (D-027) only write events
+# and API consent for granted clients and can read nothing.
+# SELECT id, agency_id, creator_membership_id, name, kind, status, expires_at, created_at
 # FROM public.service_credentials
 # WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
 #   AND id = '00000000-0000-0000-0000-000000000008'::uuid;
@@ -107,10 +109,12 @@ class ServiceCredential(Entity, Base):
         ),
         CheckConstraint("status IN ('active', 'revoked')", name="valid_status"),
         CheckConstraint("length(btrim(name)) > 0", name="name_not_blank"),
+        CheckConstraint("kind IN ('read', 'ingest')", name="valid_kind"),
     )
     agency_id: Mapped[UUID] = mapped_column(ForeignKey("agencies.id"))
     creator_membership_id: Mapped[UUID] = mapped_column(Uuid)
     name: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(16), server_default="read")
     token_digest: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(16), server_default="active")

@@ -4,7 +4,11 @@ Each target deletes rows whose end (revocation, expiry, consumption, invalidatio
 plus the approved period lies strictly before one cutoff sampled from the database clock. Rows
 belonging to a closed account (users.closed_at set) are deleted on the next run without a
 period: its password credential, external identity, sessions, tokens, challenges, and OAuth
-transactions.
+transactions. Specification 004 (D-027 decision 7) adds collected data: event rows past their
+expiry (395 days after first receipt), diagnostic counters 30 days after their day, rotated-out
+webhook secrets after their 24-hour overlap, and subjects with their consent records 395 days
+after last activity once no event references them. Admission locks a subject's row before
+using it, so a subject that becomes active again cannot be deleted under it.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -14,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Engine, delete, func, or_, select, text
+from sqlalchemy import ColumnElement, Engine, and_, delete, exists, func, or_, select, text
 from sqlalchemy.exc import OperationalError
 
 from app.config import LifecycleSettings
@@ -22,10 +26,15 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    CollectedEvent,
+    CollectionSubject,
+    EventDiagnostic,
     ExternalIdentity,
+    IngestionSourceSecret,
     MailOutbox,
     OAuthTransaction,
     PasswordCredential,
+    StoredConsentRecord,
     User,
     VerificationChallenge,
 )
@@ -108,6 +117,28 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         # Deleting the identity frees the Google subject for a new sign-up (D-024).
         return ExternalIdentity.user_id.in_(closed)
 
+    def events(cutoff: datetime) -> ColumnElement[bool]:
+        limit = before(settings.event_retention_days, cutoff)
+        return or_(CollectedEvent.expires_at < cutoff, CollectedEvent.first_received_at < limit)
+
+    def counters(cutoff: datetime) -> ColumnElement[bool]:
+        return EventDiagnostic.day < before(settings.diagnostic_retention_days, cutoff).date()
+
+    def secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return IngestionSourceSecret.retires_at < cutoff
+
+    # Subjects inactive for the approved period that no event row references any longer.
+    def inactive(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            CollectionSubject.last_activity_at < before(settings.subject_retention_days, cutoff),
+            ~exists().where(CollectedEvent.subject_id == CollectionSubject.id),
+        )
+
+    def consent_records(cutoff: datetime) -> ColumnElement[bool]:
+        return StoredConsentRecord.subject_id.in_(
+            select(CollectionSubject.id).where(inactive(cutoff))
+        )
+
     return (
         Target(
             "password_credentials",
@@ -124,6 +155,13 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target("oauth_transactions", OAuthTransaction, OAuthTransaction.id, transactions),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
+        Target("collected_events", CollectedEvent, CollectedEvent.id, events),
+        Target("event_diagnostics", EventDiagnostic, EventDiagnostic.id, counters),
+        Target(
+            "ingestion_source_secrets", IngestionSourceSecret, IngestionSourceSecret.id, secrets
+        ),
+        Target("consent_records", StoredConsentRecord, StoredConsentRecord.id, consent_records),
+        Target("collection_subjects", CollectionSubject, CollectionSubject.id, inactive),
     )
 
 
