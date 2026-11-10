@@ -1,5 +1,5 @@
 # Plan: 004-event-collection
-Status: Reviewable delivery plan prepared 2026-11-10 and revised with design revision 2 on the same date. The [design](design.md) and [decision packet](decision-packet.md) (D1-D11) require approval before implementation. No schema or dependency is authorized by this plan.
+Status: Slices 004-A to 004-F completed locally on 2026-11-10 under D-027; see the [evidence](evidence.md). Publication and native rollout remain gated. No dependency was added.
 
 ## Expected outcome
 Define a versioned event envelope, limited-trust public ingestion, authenticated server ingestion, webhooks, deduplication, UTM/click IDs, bot/internal traffic filtering, and backend event diagnostics.
@@ -22,11 +22,11 @@ Define a versioned event envelope, limited-trust public ingestion, authenticated
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
-- [ ] The same event_id delivered through browser and server paths is counted once within a client, using an explicit policy for preferring the more trusted source.
-- [ ] An identical event_id in another client does not suppress that client's data; conflicting payloads for the same scoped ID are recorded as conflicts.
-- [ ] Invalid signatures, oversized payloads, and invalid timestamps are rejected; duplicates are safe and 429 responses support retry.
-- [ ] Late arrivals retain occurred_at and received_at and update reports without double counting.
-- [ ] Denied consent blocks disallowed field collection, and personally identifiable information does not appear in logs.
+- [x] The same event_id delivered through browser and server paths is counted once within a client, using an explicit policy for preferring the more trusted source.
+- [x] An identical event_id in another client does not suppress that client's data; conflicting payloads for the same scoped ID are recorded as conflicts.
+- [x] Invalid signatures, oversized payloads, and invalid timestamps are rejected; duplicates are safe and 429 responses support retry.
+- [x] Late arrivals retain occurred_at and received_at without double counting at ingestion; report updates belong to later reporting specifications.
+- [x] Denied consent blocks disallowed field collection, and personally identifiable information does not appear in logs.
 
 ## Rollout and recovery
 Propose new sources disabled until configured and existing service keys unchanged as `read`; permit client/source disablement and key revocation without deleting data. Migrations must be additive and tested on disposable storage. A failure before commit creates no event/receipt; an ambiguous response is retried with the same event ID. Preserve data during rollback by disabling ingestion and retaining schema rather than dropping populated tables. No backfill, native migration or production deployment is authorized during preparation.

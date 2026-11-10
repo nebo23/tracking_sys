@@ -38,7 +38,7 @@ Cleanup: the earlier project's container, network and volume, and its ignored `t
 
 | Item | Next action | Blocks |
 |---|---|---|
-| 004 design | Owner decisions D1-D11 in the [decision packet](../../specs/004-event-collection/decision-packet.md). | Dependent code, schema and permissions. |
+| 004 design | Decided as D-027 on 2026-11-10 and implemented locally; see the [004 evidence](../../specs/004-event-collection/evidence.md). | Upload approval and owner acceptance. |
 | 003 follow-up and status reconciliation (P1/P2) | Owner direction; recommended small follow-up PR from the 003 branch. | Nothing in 004. |
 | Native rollout | Separate approved role/migration/readiness procedure; last verified native revision was 0004_identity on 2026-11-04. | Running this branch against native data, not synthetic design work. |
 | Legacy mail | Approve/revise [T1/T2 proposal](../engineering/data-lifecycle.md#legacy-queued-mail-proposal-awaiting-owner-approval), then implement/test separately. | Claiming legacy-mail cleanup complete, not independent 004 design. |

@@ -124,12 +124,14 @@ Order inside one database transaction:
 1. Bound and parse the body (16 KiB, strict schema). For webhooks, verify the signature over the raw body before parsing.
 2. Resolve the source or ingest key (no row locks) and apply the rate limit.
 3. Set `lock_timeout` (2 s) and take `pg_advisory_xact_lock(4004, int4(client_id))` (packet D10).
-4. Re-resolve live scope: client, agency, source or key, creator membership and user. A disabled or archived item rejects the event.
+4. Re-resolve live scope: client, agency, source or key, creator membership and user. A disabled or archived item rejects the event. Then check the occurred time against the receipt time, a public `internal` flag, and the payload schema.
 5. Look up the subject by token digest. An unknown token is rejected (`unknown_subject`, or `subject_deleted` when a subject tombstone matches).
 6. Check event replay tombstones with `deletion.admission`. A matching key rejects the event (`replay_before_deletion`).
 7. Evaluate consent with `require_all` under J1. Denial suppresses the event, stores nothing and increments a counter.
 8. Minimize and validate (section 5). Compute the canonical fingerprint: SHA-256 of sorted-key JSON over the schema version, type, occurred time (UTC, microseconds), subject ID, payload and internal flag.
 9. `INSERT ... ON CONFLICT (client_id, event_id) DO NOTHING`, then resolve the outcome (section 9). Update the subject's `last_activity_at` and the daily counter, then commit.
+
+Receipt times (`first_received_at`, consent `received_at`, tombstone `effective_at`) are read with `clock_timestamp()` after the lock is held, not from the transaction start, so receipt order is lock order even when a later-starting transaction acquires the lock first.
 
 Every consent change and deletion takes the same client lock before reading privacy state. A withdrawal or deletion therefore either commits before the event's privacy check, and the event observes it, or waits for the event to commit and then removes or supersedes it. No interleaving lets an event pass a stale check. The lock key's 32-bit hash may make two clients share a lock; that costs throughput, never authorization.
 
@@ -196,7 +198,7 @@ Every new column is registered in `data_policy.py`. Proposed new classes: `colle
 | Tombstones and deletion requests | Workspace lifetime (D-025 for subject tombstones; proposed for replay tombstones and requests) | 017 offboarding |
 | Sources and forms | Until client offboarding | 017 |
 
-Why expired rows need no receipt: an honest retry repeats the original `occurred_at`, and the lateness bound (7 days) is far shorter than row retention (13 months). A retry after expiry is therefore rejected as late before identity is checked. A sender that invents a new time or ID creates a new claim, which no receipt could prevent. The lifecycle runner takes the client lock with `pg_try_advisory_xact_lock` and skips busy clients, so expiry never races with admission.
+Why expired rows need no receipt: an honest retry repeats the original `occurred_at`, and the lateness bound (7 days) is far shorter than row retention (13 months). A retry after expiry is therefore rejected as late before identity is checked. A sender that invents a new time or ID creates a new claim, which no receipt could prevent. Admission locks the subject row before using it, and the lifecycle runner's batch deletes wait at most 100 ms for a row lock and re-check their predicates, so expiry never deletes a subject that an admission is using. The rare case of an expired conflicting row deleted between the insert and its read returns a retryable 503.
 
 ## 13. Key custody and rotation (packet D9)
 
@@ -230,8 +232,8 @@ Tests assert database rows and their absence, not helper calls. They use synthet
 - **Lifecycle:** row expiry, then a late retry rejected; counter, subject and secret expiry; lifecycle grants cannot touch tombstones.
 - **Schema:** migration up and down on empty and populated state (refused); grant matrix; data-policy registry; OpenAPI snapshot.
 
-Baseline before 004 changes: `bab3a33`, 380 passed in 72.11 s on 2026-11-10 (Compose project `tracking-spec004-test-20261110`, synthetic credentials, no `.env`).
+Baseline before 004 changes: `bab3a33`, 380 passed in 72.11 s on 2026-11-10 (Compose project `tracking-spec004-test-20261110`, synthetic credentials, no `.env`). Implementation results are in the [evidence](evidence.md).
 
 ## 16. Rollout and recovery
 
-New sources start disabled until configured, and existing keys stay `read`. Disabling a source or revoking a key stops intake without deleting data. The migration is additive and tested only on disposable storage. Rolling back populated state means disabling intake and keeping the schema, never dropping tables with data. Native migration, real customer intake and production deployment each need their own approval (Q-004 and Q-012 stay open). The independent restore journal and its custody remain with 019/020.
+A source exists only once fully configured (origins and notice digest, or a sealed secret), and existing keys stay `read`. Disabling a source or revoking a key stops intake without deleting data. The migration is additive and tested only on disposable storage. Rolling back populated state means disabling intake and keeping the schema, never dropping tables with data. Native migration, real customer intake and production deployment each need their own approval (Q-004 and Q-012 stay open). The independent restore journal and its custody remain with 019/020.

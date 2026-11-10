@@ -1,5 +1,5 @@
 # Data lifecycle runner
-Specification 003-A3/003-A4/003-A5 under D-024. Status: implemented and tested on the disposable database. Native tracking_sys rollout needs its own owner approval; it had not been performed when native status was last verified (2026-11-04, revision `0004_identity`).
+Specification 003-A3/003-A4/003-A5 under D-024, extended for collected data by specification 004 under D-027. Status: implemented and tested on the disposable database. Native tracking_sys rollout needs its own owner approval; it had not been performed when native status was last verified (2026-11-04, revision `0004_identity`).
 
 ## What is deleted, and when
 `python -m app.lifecycle` runs one bounded pass and prints counts only. Each period counts from the row's end, never from creation alone, and is compared strictly with one cutoff sampled from the database clock.
@@ -14,11 +14,16 @@ Specification 003-A3/003-A4/003-A5 under D-024. Status: implemented and tested o
 | Outbox rows | 30 days after delivery or expiry |
 | Password credential, Google identity, sessions, tokens, challenges, and OAuth transactions of a closed account | On the next run after closure, without a period |
 | Development `.eml` and `.pending` files in the mail directory | 7 days after they were written; only in development local mode, non-recursive, never symbolic links |
+| Collected event rows, payload and receipt together (004, D-027) | 395 days (13 months) after first receipt; provisional development value |
+| Event diagnostic counters (004) | 30 days after their day |
+| Rotated-out webhook signing secrets (004) | When their 24-hour overlap ends |
+| Collection subjects and their consent records (004) | 395 days after last activity, once no event row references the subject |
 
-Security events, audit events, invitations, service credentials, and unverified registrations are not deleted; their rules remain pending (Q-012). A closed user's row stays pseudonymized for audit references ([account closure](authentication.md#account-closure)). The approved periods are also the settings' upper bounds: `TRACKING_SESSION_RETENTION_DAYS` and similar variables may shorten a period but cannot extend it. Every new verification, reset, and invitation message carries the expiry of its code or link, and the mail worker clears an undelivered message at that time instead of retrying it. Messages queued without an expiry are outside this cleanup; see [legacy queued mail](#legacy-queued-mail-proposal-awaiting-owner-approval).
+Security events, audit events, invitations, service credentials, and unverified registrations are not deleted; their rules remain pending (Q-012). Erasure tombstones and deletion requests are kept for the workspace lifetime (D-025, D-027) and are never touched by the runner. A closed user's row stays pseudonymized for audit references ([account closure](authentication.md#account-closure)). The approved periods are also the settings' upper bounds: `TRACKING_SESSION_RETENTION_DAYS` and similar variables may shorten a period but cannot extend it. Every new verification, reset, and invitation message carries the expiry of its code or link, and the mail worker clears an undelivered message at that time instead of retrying it. Messages queued without an expiry are outside this cleanup; see [legacy queued mail](#legacy-queued-mail-proposal-awaiting-owner-approval).
 
 ## Safety properties
-- A dedicated `tracking_lifecycle` role can select and delete rows only in the six credential-state tables, plus password credentials and external identities. The grants cannot restrict rows; the runner's predicates delete those two only for closed accounts, which it finds by reading users. It cannot update or insert anything, cannot change users, tenancy, audit, or security rows, and has no schema privileges.
+- A dedicated `tracking_lifecycle` role can select and delete rows only in the six credential-state tables, plus password credentials and external identities, and (migration 0007) collected events, diagnostic counters, webhook secrets, consent records and collection subjects. The grants cannot restrict rows; the runner's predicates delete password credentials and identities only for closed accounts, which it finds by reading users. It cannot update or insert anything, cannot change users, tenancy, audit, or security rows, cannot reach erasure tombstones or requests, and has no schema privileges.
+- Event admission locks a subject's row before using it, so a subject that becomes active again is never deleted underneath an admission; the runner's batch waits at most 100 ms and re-checks its predicate. Erasure, consent and tombstone handling are described in the [event collection guide](event-collection.md).
 - One run at a time: a second runner finds the advisory lock held and exits with `skipped_concurrent_run`.
 - Batches commit separately. A batch waits at most 100 ms for a row lock held by an API request, then rolls back only its own batch; that table is reported as incomplete and finished by the next run. Because every run re-evaluates the predicates, an interrupted or bounded run never skips an eligible row permanently.
 
