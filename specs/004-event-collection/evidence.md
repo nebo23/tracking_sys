@@ -1,6 +1,6 @@
 # Specification 004 verification evidence
 
-Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and verified locally on disposable storage; not pushed, not merged, not rolled out to native tracking_sys. Owner review and upload approval are pending.
+Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and verified locally on disposable storage; published for owner review under D-028; not merged and not rolled out to native tracking_sys.
 
 ## Delivered
 

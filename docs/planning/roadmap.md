@@ -3,7 +3,7 @@ Updated: 2026-11-10. Proposed sequence; no delivery dates or cost estimates have
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 
-Current progress: 001/002 and their approved corrections are merged in PR 1 (98747a2); specification 003 and its D-026 corrections are merged in PR 2 (ab3a33). Specification 004 (event collection, consent and erasure) is approved as D-027 and implemented locally on codex/spec-004-event-collection; it passes 455 checks on disposable storage and awaits owner review before upload. Native tracking_sys was last verified at 0004_identity on 2026-11-04; rollout of 0005 to 0007 and the lifecycle role needs separate approval. Real customer intake waits for Q-002, Q-004 and Q-012. Remaining transferred 003 cases stay with their consuming specifications; Facebook sign-in and production mail remain explicit later obligations.
+Current progress: 001/002 and their approved corrections are merged in PR 1 (`98747a2`); specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`). Specification 004 (event collection, consent and erasure) is approved as D-027 and implemented locally on codex/spec-004-event-collection; it passes 455 checks on disposable storage and is published for owner review under D-028. Native tracking_sys was last verified at 0004_identity on 2026-11-04; rollout of 0005 to 0007 and the lifecycle role needs separate approval. Real customer intake waits for Q-002, Q-004 and Q-012. Remaining transferred 003 cases stay with their consuming specifications; Facebook sign-in and production mail remain explicit later obligations.
 
 | Level | Specifications | Reviewable outcome | Exit gate |
 |---|---|---|---|

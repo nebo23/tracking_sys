@@ -23,6 +23,7 @@ Status: Implemented and verified locally on disposable storage under D-027, 2026
 - [x] Verify: Denied consent blocks disallowed field collection, and personally identifiable information does not appear in logs.
 - [x] Update documentation, limitations, and untested assumptions.
 - [x] Present a reviewable result to the owner, 2026-11-10.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
+- [x] Obtain upload approval (D-028, 2026-11-10), then push the branch and open a pull request for owner review.
+- [ ] Owner review of the pull request and the merge decision.
 - [ ] Record owner acceptance before progressing to dependent work.
 - [ ] Native migration 0007 and lifecycle grants on tracking_sys: separate owner-approved rollout.
