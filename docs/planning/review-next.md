@@ -1,11 +1,9 @@
 # Next specification review
-Review the completed local scope of specification 002 before progression or upload.
+Updated: 2026-11-10. Specifications 001/002 are merged in PR 1 and specification 003 with its corrections in PR 2 (`bab3a33`). Specification 004 is in design review on `codex/spec-004-event-collection`.
 
-1. Read the approved [auth design](../../specs/002-tenancy-access/auth-design.md) and [current evidence](../../specs/002-tenancy-access/auth-evidence.md).
-2. Inspect 0003_auth and all 16 empty application tables in native tracking_sys.
-3. Review the 115 passing cases, especially isolation, revocation, invitation races, key scope, and audit atomicity.
-4. Follow the [local auth walkthrough](../engineering/authentication.md) to create synthetic review data if desired.
-5. Review [OpenAPI](../../contracts/openapi.json) and the deferrals: Google/Facebook sign-in, external email, React, and future job/export/report consumers.
-6. Record findings and owner acceptance. Push/PR requires upload approval under D-012; merge remains the owner's decision.
+1. Review [design revision 2](../../specs/004-event-collection/design.md) and decide D1-D11 in the [decision packet](../../specs/004-event-collection/decision-packet.md).
+2. Decide the separate predecessor items P1-P4 listed there (local 003 card-scan follow-up, status reconciliation, owner edits, legacy mail).
+3. After the decisions are recorded, implementation proceeds through slices 004-B to 004-F in the [plan](../../specs/004-event-collection/plan.md); each is verified on disposable storage.
+4. Keep native rollout and legacy-mail policy separate from synthetic design and testing. Record transferred consumer obligations without marking them complete.
 
-Specification 003 is the next planned review, particularly retention/consent/deletion before real customer data. Do not silently choose markets, retention periods, hosting, or production providers.
+Do not run native inspection, migrations, deletion, or live provider requests as a checklist shortcut. Native revision was last verified as 0004_identity on 2026-11-04; `main` expects 0006_account_closure. Do not silently choose markets, retention, capacity, hosting, or providers. See the [readiness review](spec-004-readiness.md).

@@ -1,5 +1,5 @@
 # 004-event-collection — Event collection and contracts
-Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Design revision 2 prepared for owner decisions; implementation and schema are not approved. Level: L2. Prepared: 2026-10-28; design preparation and revision 2: 2026-11-10. Read the [design](design.md), [decision packet](decision-packet.md), [plan](plan.md), and [tasks](tasks.md).
 
 ## Sources
 PDF-001,002,004,005,006,007,008,009,013,014,082,084. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -29,3 +29,5 @@ Open decisions: Q-002, Q-004, Q-012. See the [decision register](../../docs/plan
 
 ## Owner approval
 Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+
+Preparation update (2026-11-10): the owner requested predecessor closure and readiness review, then the start of specification 004. PR 2 is merged (`bab3a33`) and this specification's branch starts there. The [entry packet](entry-review.md) maps inherited contracts and acceptance tests; [design](design.md) revision 2 reflects the merged code, and the [decision packet](decision-packet.md) lists D1-D11. Preparation does not approve its schema or policy proposals.
