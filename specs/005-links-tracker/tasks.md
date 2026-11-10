@@ -2,12 +2,18 @@
 Status: Not completed; this is a review checklist, not an implementation instruction.
 
 - [ ] Approve the scope and sources for links, utm parameters, and website tracker.
-- [ ] Resolve Q-001, Q-002, Q-003 and record the owner decision.
+- [ ] Record owner choices for [D1-D10](decision-packet.md) and any open Q decisions needed by the approved slice; keep real-intake questions explicit.
 - [x] Verify the merged code dependency: 004-event-collection, PR 3 at `e8ef587`; 481 suite tests and two independent reproduction checks recorded before merge. Native rollout remains separate.
 - [x] Prepare the [entry review](entry-review.md) on the fresh `codex/spec-005-links-tracker` branch (D-032).
-- [ ] Prepare the detailed design and decision packet, including schema, tracker consent/storage, tooling and domain-verification boundaries, before implementation.
-- [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
+- [x] Prepare [design revision 1](design.md) and the [decision packet](decision-packet.md), including schema, tracker consent/storage, tooling and domain-verification boundaries; all options remain proposals.
+- [x] Prepare proposed contracts, synthetic journey/permission examples and the [verification matrix](verification-matrix.md); these tests have not been run.
+- [x] Define independently reviewable proposed slices 005-A to 005-E in the [plan](plan.md).
+- [ ] Review and approve the six-table schema, event-link column and grants before migration implementation.
+- [ ] Select exact compatible dependency versions for approved tools; pin in local manifests/locks and install only in the isolated project environments.
+- [ ] 005-B: implement approved resources, safe redirects and tenant/host isolation.
+- [ ] 005-C: implement approved consent-state and event-link contracts with 004 compatibility tests.
+- [ ] 005-D: implement approved tracker state machine, storage and browser-side minimization with real-browser tests.
+- [ ] 005-E: implement approved domain verification and complete acceptance evidence; label live operational checks separately.
 - [ ] Implement the first approved slice.
 - [ ] Verify: A test link reaches its destination and preserves content/campaign provenance without exposing personal information in the URL.
 - [ ] Verify: Disallowed destinations, unsafe protocols, and redirect loops are rejected; link management requires client permission.

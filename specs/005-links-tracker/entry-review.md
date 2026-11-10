@@ -2,6 +2,8 @@
 
 Date: 2026-11-10. Status: **preparation only; implementation, schema and tooling decisions remain unapproved**. Authority: D-032.
 
+Preparation update: [design revision 1](design.md), the [decision packet](decision-packet.md), and the [verification matrix](verification-matrix.md) are now ready for owner review. They remain proposals; the next implementation gate is the recorded selection of D1-D10 or a scoped subset.
+
 Branch: `codex/spec-005-links-tracker`, created from merged `main` at `e8ef587eb4df39f9f0bf1b31421d0a672388e9dd`. PR 3 was merged on 2026-11-10 with verified head `f888197`. Its merge tree is identical to that reviewed head. The root workspace's unrelated changes remain outside this branch. This entry packet is local and has not been uploaded.
 
 ## What the project can do now
