@@ -316,11 +316,17 @@ def merge_utm(
 
 
 # The issued redirect target: static pairs in destination order, then UTM pairs by name, then
-# the link's stable ts_link UUID. All values are codes, so encoding never changes them.
+# the link's stable ts_link UUID. All values are codes, so encoding never changes them. The
+# prohibited-value check covers the configured part only: a random UUID's hyphen-joined digit
+# groups can form a Luhn-valid number by chance, and the generated reference is not customer
+# data, so checking it would refuse valid links intermittently.
 def compose_target(destination: Destination, utm: Mapping[str, str], link_id: UUID) -> str:
-    pairs = [*destination.static, *sorted(utm.items()), (LINK_PARAMETER, str(link_id))]
-    target = f"{destination.origin.text}{destination.path}?{urlencode(pairs)}"
-    if len(target) > MAX_URL or has_prohibited_value(target):
+    configured = [*destination.static, *sorted(utm.items())]
+    base = f"{destination.origin.text}{destination.path}"
+    if has_prohibited_value(f"{base}?{urlencode(configured)}" if configured else base):
+        raise LinkRuleError("invalid_destination")
+    target = f"{base}?{urlencode([*configured, (LINK_PARAMETER, str(link_id))])}"
+    if len(target) > MAX_URL:
         raise LinkRuleError("invalid_destination")
     return target
 

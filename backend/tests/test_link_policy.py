@@ -22,6 +22,7 @@ from app.links.policy import (
     validate_slug,
     validate_utm,
 )
+from app.privacy.collection import contains_card_number
 
 SHOP = Origin("https", "shop.example.test", None)
 LINK = UUID("00000000-0000-4000-8000-000000000123")
@@ -186,6 +187,20 @@ def test_issued_target_is_deterministic_and_carries_only_the_link_reference():
         f"&ts_link={LINK}"
     )
     assert compose_target(parsed, utm, LINK) == target
+
+
+def test_link_references_that_look_like_card_numbers_are_still_issued():
+    # Found by the final verification run: this random UUID's digit groups "2142041-6274-442"
+    # form a Luhn-valid 14-digit number, which the configured-part check must not consider.
+    lucky = UUID("c2142041-6274-442a-a369-9d9cdac8d98b")
+    assert contains_card_number(str(lucky))
+    parsed = parse_destination("https://shop.example.test/x", SHOP, [])
+    assert compose_target(parsed, {}, lucky) == f"https://shop.example.test/x?ts_link={lucky}"
+    with pytest.raises(LinkRuleError):
+        compose_target(parsed, {"utm_term": "4111111111111111"}, lucky)
+    long_path = parse_destination("https://shop.example.test/" + "a" * 1980, SHOP, [])
+    with pytest.raises(LinkRuleError):
+        compose_target(long_path, {"utm_source": "x" * 40}, lucky)
 
 
 def test_request_authority_and_managed_targets():
