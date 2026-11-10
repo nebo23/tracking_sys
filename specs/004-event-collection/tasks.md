@@ -6,7 +6,7 @@ Status: Design revision 2 prepared for owner decisions, 2026-11-10; implementati
 - [x] Verify dependencies: 003 merged in PR 2 (`bab3a33`); create `codex/spec-004-event-collection` from it; full suite 380 passed with PostgreSQL enabled on disposable storage, 2026-11-10.
 - [x] Compare the design with the merged code and prepare revision 2 with decisions D1-D11, 2026-11-10.
 
-- [ ] Record the owner's D1-D11 decisions (scope, write authority, consent binding, field matrix, deduplication, limits, development retention, schema and privileges, key custody, concurrency, deletion surface).
+- [x] Record the owner's D1-D11 decisions as D-027, 2026-11-10.
 - [ ] Keep Q-002, Q-004 and Q-012 open for real intake unless the owner decides them explicitly.
 - [ ] 004-B: migration 0007, models, registry rules, settings and grants.
 - [ ] 004-C: ingest keys, trusted consent and trusted intake (smallest complete path).

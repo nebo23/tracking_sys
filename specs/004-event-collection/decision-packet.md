@@ -1,6 +1,6 @@
 # Specification 004 decisions for owner review
 
-Prepared: 2026-11-10. Revision 2: 2026-11-10, after comparison with the code merged at `bab3a33`. Status: proposed; nothing below is approved by preparation. The [design](design.md) gives the behavior and schema; section numbers below refer to it. Record the selected options in the decision register before dependent implementation.
+Prepared: 2026-11-10. Revision 2: 2026-11-10, after comparison with the code merged at `bab3a33`. Status: **approved as D-027 on 2026-11-10** (see the approval record below). The [design](design.md) gives the behavior and schema; section numbers below refer to it. Record the selected options in the decision register before dependent implementation.
 
 ## Decisions for 004
 
@@ -39,4 +39,4 @@ These are kept out of 004 commits and listed here because they need the owner's 
 
 ## Approval record
 
-Pending. Record the date, the selected option or revision for each of D1-D11, the permitted environment (local and disposable only), and deferred items.
+Approved 2026-11-10 as **D-027** in the [decision register](../../docs/planning/decisions.md). The owner selected the recommended option for D2 (ingest credential kind), D4 (non-identifying field matrix) and D7 (provisional 13-month development retention), and approved D1, D3, D5, D6 and D8-D11 as recommended, with the instruction to begin implementation. Permitted environment: local and disposable storage only. Q-002, Q-004 and Q-012 remain open for real customer intake. Native migration, publication, merge and deployment keep their separate gates. Predecessor items P1-P4 were not decided.

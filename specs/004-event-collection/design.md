@@ -1,6 +1,6 @@
 # Specification 004: ingestion design for review
 
-Prepared: 2026-11-10. Revision 2: 2026-11-10, after comparison with the code merged in `main` at `bab3a33` (PR 2). Status: proposed; no schema, permission, retention value, key arrangement or dependency below is approved until the owner records the decisions in the [decision packet](decision-packet.md). Read with the [spec](spec.md), [entry review](entry-review.md) and [predecessor readiness](../../docs/planning/spec-004-readiness.md).
+Prepared: 2026-11-10. Revision 2: 2026-11-10, after comparison with the code merged in `main` at `bab3a33` (PR 2). Status: approved for local and disposable implementation as D-027 (2026-11-10), which accepts every recommendation in the [decision packet](decision-packet.md). Real customer intake, native migration and publication keep their separate gates. Read with the [spec](spec.md), [entry review](entry-review.md) and [predecessor readiness](../../docs/planning/spec-004-readiness.md).
 
 ## 1. Verified baseline
 
