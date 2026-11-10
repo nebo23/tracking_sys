@@ -5,32 +5,44 @@
 //
 // - Before an explicit grant (or a host-confirmed resume) it reads no storage, URL, referrer or
 //   form value, creates no identifier, sends nothing and keeps no event backlog.
+// - A purpose is effective only while all of these hold: the collector reports it granted and
+//   its server expiry has not passed; the host (the visitor's latest choice given to grant,
+//   resume or withdraw) still allows it; Global Privacy Control does not restrict it; and the
+//   fixed local lifetime has not ended. Every capture and every send re-evaluates this, and
+//   every queued event records each purpose its serialized bytes depend on (analytics, plus
+//   attribution when a URL keeps a click identifier), so a narrowing drops affected events.
 // - grant() records the visitor's explicit choice once; resume() only reads the stored token
 //   and the server's current state (POST consent-state) and never recreates or renews consent.
-// - withdraw() and erase() stop local collection immediately, discard affected queued events,
-//   and are serialized after any pending consent request, so a late response never re-enables
-//   capture. Consent-state responses older than the latest local change are ignored.
+//   Narrowing by the host takes effect synchronously; late responses can never widen it.
+// - withdraw() and erase() stop local collection immediately and are serialized after any
+//   pending consent request. A grant response is reconciled per purpose with the latest
+//   choices, so a partial withdrawal leaves the other purposes untouched.
 // - The subject token, granted-purpose snapshot and a fixed local expiry (at most 24 hours from
 //   first storage, never extended) live in sessionStorage only after permission, with an
-//   in-memory fallback. No localStorage, cookie, fingerprint or cross-site identifier is used.
+//   in-memory fallback. No background request uses a token past that lifetime.
 // - URL and form minimization runs in the browser before transmission (./minimize.js) and again
 //   on the server. Only explicitly configured option/code/quantity fields are read, after the
 //   never-collect rules have excluded their controls.
 // - Events go one per request in a bounded in-memory queue (20 events, 128 KiB, 60 seconds),
-//   at most three attempts, honoring readable Retry-After; a 202 is a generic acknowledgement,
-//   not proof of storage. Tracking failures never block navigation or form submission.
+//   at most three attempts, honoring readable Retry-After; each request is aborted when its
+//   event's lifetime ends. A 202 is a generic acknowledgement, not proof of storage. Tracking
+//   failures never block navigation or form submission.
 
 import {
   ANALYTICS,
+  ATTRIBUTION,
+  CLICK_PARAMETERS,
   MAX_TEXT,
   Rejected,
   minimizePageUrl,
   neverCollectReason,
   originOnly,
+  parseQsl,
   sanitizeFieldValue,
+  urlsplit,
 } from "./minimize.js";
 
-export const VERSION = "0.5.0";
+export const VERSION = "0.5.1";
 export const PURPOSES = Object.freeze([
   "analytics.first_party",
   "attribution",
@@ -52,11 +64,6 @@ export const LIMITS = Object.freeze({
   refreshLeadMs: 5_000,
   localLifetimeMs: 24 * 60 * 60 * 1000,
   retryDelaysMs: [1_000, 4_000],
-});
-const REQUIRED = Object.freeze({
-  page_view: ANALYTICS,
-  link_click: ANALYTICS,
-  form_submit: ANALYTICS,
 });
 const CHOICES = new Set(["granted", "denied", "withdrawn"]);
 const PUBLIC_KEY = /^pk_[A-Za-z0-9_-]{43}$/;
@@ -128,6 +135,23 @@ function retryAfterMs(response, now) {
   return Number.isNaN(date) ? null : Math.max(0, date - now);
 }
 
+// Purposes the serialized payload depends on: analytics always, and attribution when a kept
+// URL still carries a click identifier (which minimization keeps only with attribution).
+function contentPurposes(payload) {
+  const purposes = new Set([ANALYTICS]);
+  for (const url of [payload.url, payload.link_url]) {
+    if (typeof url !== "string") continue;
+    try {
+      if (parseQsl(urlsplit(url).query).some(([name]) => CLICK_PARAMETERS.has(name))) {
+        purposes.add(ATTRIBUTION);
+      }
+    } catch {
+      // Minimized URLs always parse; nothing more to record.
+    }
+  }
+  return purposes;
+}
+
 // Create a tracker. config: { collector, publicKey, forms?, bindings? }. environment injects
 // window, document, fetch, crypto, timers and clock for tests; it defaults to the browser.
 export function createTracker(config, environment = {}) {
@@ -147,15 +171,17 @@ export function createTracker(config, environment = {}) {
   const base = `${collector}/collect/v1/${config.publicKey}`;
   const storageKey = `${STORAGE_PREFIX}${config.publicKey}`;
 
-  let generation = 0; // bumped by withdraw, erase and destroy: older consent results are stale
-  let stateEpoch = 0; // bumped by every local change and page restore: older state reads ignored
-  let destroyed = false;
-  let token = null;
-  let granted = new Set();
-  let expiresAt = 0;
+  let token = null; // the subject token while it may be used
+  let localExpiresAt = 0; // fixed local deadline of that token, never extended
+  let erasable = null; // a token that outlived its local lifetime, kept for an explicit erasure
+  const server = new Map(); // purposes the collector reports granted -> local expiry time
+  const host = new Set(); // purposes the visitor's latest choices allow
+  const intent = new Map(); // purpose -> counter, bumped by every choice that concerns it
+  const reconciledGpc = new Set(); // GPC purposes already withdrawn on the server by this page
+  let stateEpoch = 0; // bumped by every state read and local change: older reads are ignored
   let confirmedAt = 0;
+  let destroyed = false;
   let continuity = "none";
-  let linkId; // undefined until read after permission; null when the page has none
   let mutation = Promise.resolve();
   let refreshing = null;
   let refreshTimer = null;
@@ -168,6 +194,7 @@ export function createTracker(config, environment = {}) {
     retried: 0,
     failed: 0,
     rejected: 0,
+    timed_out: 0,
     dropped_overflow: 0,
     dropped_ttl: 0,
     dropped_permission: 0,
@@ -187,7 +214,31 @@ export function createTracker(config, environment = {}) {
       };
     });
 
-  // Storage is touched only from grant, resume, withdraw and erase, never before permission.
+  function gpcActive() {
+    try {
+      return win?.navigator?.globalPrivacyControl === true;
+    } catch {
+      return false;
+    }
+  }
+
+  // The single permission rule: server grant and expiry, host choice, GPC, local lifetime.
+  function effective(purpose) {
+    if (destroyed || token === null || now() >= localExpiresAt) return false;
+    if (!host.has(purpose) || (gpcActive() && GPC_PURPOSES.includes(purpose))) return false;
+    const deadline = server.get(purpose);
+    return deadline !== undefined && now() < deadline;
+  }
+
+  function effectiveSet() {
+    return new Set(PURPOSES.filter(effective));
+  }
+
+  function bump(purpose) {
+    intent.set(purpose, (intent.get(purpose) ?? 0) + 1);
+  }
+
+  // Storage is touched only from consent actions (grant, resume, withdraw, erase).
   function area() {
     try {
       return win?.sessionStorage ?? null;
@@ -196,7 +247,7 @@ export function createTracker(config, environment = {}) {
     }
   }
 
-  function readRecord() {
+  function readRecord({ allowExpired = false } = {}) {
     const storage = area();
     if (!storage) {
       continuity = "memory";
@@ -211,9 +262,9 @@ export function createTracker(config, environment = {}) {
         SUBJECT_TOKEN.test(record.token ?? "") &&
         Array.isArray(record.purposes) &&
         Number.isFinite(record.expiresAt);
-      if (!valid || record.expiresAt <= now()) {
+      if (!valid || (!allowExpired && record.expiresAt <= now())) {
         storage.removeItem(storageKey);
-        return null;
+        return valid && allowExpired ? record : null;
       }
       return record;
     } catch {
@@ -231,7 +282,7 @@ export function createTracker(config, environment = {}) {
     try {
       storage.setItem(
         storageKey,
-        JSON.stringify({ v: 1, token, purposes: [...granted].sort(), expiresAt }),
+        JSON.stringify({ v: 1, token, purposes: [...effectiveSet()].sort(), expiresAt: localExpiresAt }),
       );
       continuity = "session";
     } catch {
@@ -252,14 +303,56 @@ export function createTracker(config, environment = {}) {
     refreshTimer = null;
   }
 
+  // Drop queued events whose bytes need a purpose that is no longer effective. A request
+  // already on the wire cannot be recalled; it is not retried if it fails.
+  function purge() {
+    for (let index = queue.length - 1; index >= 0; index -= 1) {
+      const item = queue[index];
+      if (item.inFlight) continue;
+      if (!eligible(item)) {
+        queue.splice(index, 1);
+        stats.dropped_permission += 1;
+      }
+    }
+  }
+
+  function eligible(item) {
+    return item.token === token && [...item.purposes].every(effective);
+  }
+
+  // Forget the subject after its local lifetime or an unknown server state. The token stays
+  // in memory only so that an explicit erase() can still reach it.
+  function clearSubject() {
+    if (token !== null) erasable = token;
+    token = null;
+    localExpiresAt = 0;
+    server.clear();
+    confirmedAt = 0;
+    stateEpoch += 1;
+    cancelRefresh();
+    queue.splice(0).forEach((item) => {
+      if (!item.inFlight) stats.dropped_permission += 1;
+    });
+    removeRecord();
+  }
+
+  function expireIfNeeded() {
+    if (token !== null && now() >= localExpiresAt) {
+      clearSubject();
+      return true;
+    }
+    return false;
+  }
+
   function scheduleRefresh() {
     cancelRefresh();
-    if (destroyed || !token || granted.size === 0) return;
-    const delay = Math.max(0, confirmedAt + LIMITS.refreshMs - LIMITS.refreshLeadMs - now());
+    if (destroyed || token === null || effectiveSet().size === 0) return;
+    const due = Math.min(confirmedAt + LIMITS.refreshMs - LIMITS.refreshLeadMs, localExpiresAt);
     refreshTimer = setTimer(() => {
       refreshTimer = null;
+      if (expireIfNeeded()) return;
       if (!doc?.hidden) refresh().catch(() => {});
-    }, delay);
+    }, Math.max(0, due - now()));
   }
 
   function control(route, body) {
@@ -280,44 +373,50 @@ export function createTracker(config, environment = {}) {
     return run;
   }
 
-  function grantedFrom(states) {
-    return new Set(
-      Object.entries(states || {})
-        .filter(([purpose, state]) => PURPOSES.includes(purpose) && state === "granted")
-        .map(([purpose]) => purpose),
-    );
+  // Adopt the collector's view: granted purposes with their expiry translated onto the local
+  // clock through the reported server time (no clock agreement is assumed).
+  function applyServer(data) {
+    const received = now();
+    const serverTime = Date.parse(data?.server_time ?? "");
+    server.clear();
+    for (const [purpose, state] of Object.entries(data?.states ?? {})) {
+      if (!PURPOSES.includes(purpose) || state !== "granted") continue;
+      const expiry = Date.parse(data?.expires_at?.[purpose] ?? "");
+      const deadline =
+        Number.isFinite(expiry) && Number.isFinite(serverTime)
+          ? received + (expiry - serverTime)
+          : Number.POSITIVE_INFINITY;
+      server.set(purpose, deadline);
+    }
+    confirmedAt = received;
+    stateEpoch += 1;
   }
 
-  function dropQueued(predicate, reason) {
-    for (let index = queue.length - 1; index >= 0; index -= 1) {
-      if (predicate(queue[index])) {
-        queue.splice(index, 1);
-        stats[reason] += 1;
+  // Under an active GPC signal, a subject's existing sale/share or advertising grant is
+  // narrowed on the server too: one withdrawal through the tracker's existing source. GPC
+  // only ever denies these purposes (D-033); it never grants or touches other purposes.
+  function reconcileGpc() {
+    if (!gpcActive() || token === null) return;
+    const affected = GPC_PURPOSES.filter((purpose) => server.has(purpose) && !reconciledGpc.has(purpose));
+    if (affected.length === 0) return;
+    affected.forEach((purpose) => reconciledGpc.add(purpose));
+    const subject = token;
+    serialized(async () => {
+      const choices = Object.fromEntries(affected.map((purpose) => [purpose, "withdrawn"]));
+      if (!(await sendControl("consent", { subject_token: subject, choices }))) {
+        stats.unconfirmed_withdrawals += 1;
       }
-    }
+    });
   }
 
-  // Permission for one purpose right now: granted, inside the fixed local lifetime, and
-  // confirmed by the server within the refresh interval.
-  function allowed(purpose) {
-    return !destroyed && token !== null && granted.has(purpose) && now() < expiresAt;
-  }
-
-  function clearLocal() {
-    granted = new Set();
-    expiresAt = 0;
-    confirmedAt = 0;
-    cancelRefresh();
-    dropQueued(() => true, "dropped_permission");
-    removeRecord();
-  }
-
-  function gpcActive() {
-    try {
-      return win?.navigator?.globalPrivacyControl === true;
-    } catch {
-      return false;
-    }
+  // After a server response: narrow under GPC, drop ineligible events, and persist the record
+  // only while some purpose is effective (nothing is stored once every purpose has stopped).
+  function settled() {
+    reconcileGpc();
+    purge();
+    if (effectiveSet().size > 0) writeRecord();
+    else removeRecord();
+    scheduleRefresh();
   }
 
   function validChoices(choices) {
@@ -333,7 +432,8 @@ export function createTracker(config, environment = {}) {
   }
 
   // Record the visitor's explicit choices (one consent request). A Global Privacy Control
-  // signal refuses sale/share and advertising grants before anything is sent.
+  // signal refuses sale/share and advertising grants before anything is sent. Choices take
+  // local effect at once; the response can only enable purposes the latest choices allow.
   function grant(choices) {
     const refused = [];
     const send = {};
@@ -342,11 +442,39 @@ export function createTracker(config, environment = {}) {
       if (gpc && state === "granted" && GPC_PURPOSES.includes(purpose)) refused.push(purpose);
       else send[purpose] = state;
     }
+    const versions = {};
+    for (const [purpose, state] of Object.entries(send)) {
+      bump(purpose);
+      versions[purpose] = intent.get(purpose);
+      if (state === "granted") host.add(purpose);
+      else host.delete(purpose);
+    }
+    for (const purpose of refused) {
+      bump(purpose);
+      host.delete(purpose);
+    }
+    stateEpoch += 1;
+    purge();
     if (Object.keys(send).length === 0) return Promise.resolve({ status: "nothing_sent", refused });
-    const started = generation;
     return serialized(async () => {
-      if (destroyed || started !== generation) return { status: "superseded", refused };
-      const body = { choices: send };
+      if (destroyed) return { status: "superseded", refused };
+      const current = Object.fromEntries(
+        Object.entries(send).filter(([purpose]) => intent.get(purpose) === versions[purpose]),
+      );
+      if (Object.keys(current).length === 0) return { status: "superseded", refused };
+      expireIfNeeded();
+      const granting = Object.values(current).includes("granted");
+      if (token === null && granting) {
+        const record = readRecord();
+        if (record) {
+          token = record.token;
+          localExpiresAt = record.expiresAt;
+        }
+      }
+      if (token === null && !granting) {
+        return { status: "nothing_granted", refused };
+      }
+      const body = { choices: current };
       if (token) body.subject_token = token;
       let response;
       let data;
@@ -360,53 +488,44 @@ export function createTracker(config, environment = {}) {
         return { status: response.status === 429 ? "rate_limited" : "rejected", refused };
       }
       const returned = SUBJECT_TOKEN.test(data?.subject_token ?? "") ? data.subject_token : null;
-      const serverGranted = grantedFrom(data?.states);
-      if (destroyed || started !== generation) {
-        // Withdrawal, erasure or destruction happened while this grant was pending: never
-        // enable it. Withdraw what the response granted; keep a new token in memory only, so
-        // a queued erasure can still reach it.
-        if (returned && !token) token = returned;
-        if (token && serverGranted.size > 0) {
-          const withdrawal = Object.fromEntries([...serverGranted].map((p) => [p, "withdrawn"]));
-          try {
-            await control("consent", { subject_token: token, choices: withdrawal });
-          } catch {
-            stats.unconfirmed_withdrawals += 1;
-          }
-        }
-        return { status: "superseded", refused };
+      if (returned && returned !== token) {
+        token = returned;
+        localExpiresAt = now() + LIMITS.localLifetimeMs;
+        erasable = null;
       }
-      const fresh = returned !== null && returned !== token;
-      if (returned) token = returned;
-      if (!token) return { status: "nothing_granted", refused };
-      if (fresh || expiresAt <= now()) {
-        const stored = fresh ? null : readRecord();
-        expiresAt =
-          stored && stored.token === token ? stored.expiresAt : now() + LIMITS.localLifetimeMs;
-      }
-      granted = serverGranted;
-      confirmedAt = now();
-      stateEpoch += 1;
-      dropQueued((item) => !granted.has(item.purpose), "dropped_permission");
-      writeRecord();
-      scheduleRefresh();
-      return { status: granted.size ? "granted" : "nothing_granted", purposes: [...granted], refused, continuity };
+      if (token === null) return { status: "nothing_granted", refused };
+      if (destroyed) return { status: "superseded", refused };
+      applyServer(data);
+      settled();
+      const changed = Object.keys(current).some((purpose) => intent.get(purpose) !== versions[purpose]);
+      const purposes = [...effectiveSet()];
+      const status = changed ? "superseded" : purposes.length ? "granted" : "nothing_granted";
+      return { status, purposes, refused, continuity };
     });
   }
 
-  // Resume a decision the host or its consent platform confirms for this visitor. Reads the
-  // stored token and the server's current state; never grants, renews or recreates consent.
+  // Apply a decision the host or its consent platform confirms for this visitor. Purposes the
+  // host no longer allows stop at once; then the stored token and the server's current state
+  // are read. Never grants, renews or recreates consent.
   function resume(choices) {
     const wanted = new Set();
     const gpc = gpcActive();
     for (const [purpose, state] of validChoices(choices)) {
       if (state === "granted" && !(gpc && GPC_PURPOSES.includes(purpose))) wanted.add(purpose);
     }
+    for (const purpose of PURPOSES) {
+      if (host.has(purpose) !== wanted.has(purpose)) bump(purpose);
+    }
+    host.clear();
+    wanted.forEach((purpose) => host.add(purpose));
+    stateEpoch += 1;
+    purge();
+    if (token !== null && effectiveSet().size === 0 && wanted.size === 0) cancelRefresh();
     if (wanted.size === 0) return Promise.resolve({ status: "blocked" });
-    const started = generation;
     return serialized(async () => {
-      if (destroyed || started !== generation) return { status: "superseded" };
-      const record = token ? { token, expiresAt } : readRecord();
+      if (destroyed) return { status: "superseded" };
+      expireIfNeeded();
+      const record = token !== null ? { token, expiresAt: localExpiresAt } : readRecord();
       if (!record || record.expiresAt <= now()) return { status: "needs_grant" };
       const epoch = ++stateEpoch;
       let state;
@@ -417,49 +536,39 @@ export function createTracker(config, environment = {}) {
       } catch {
         return { status: "unavailable" };
       }
-      if (destroyed || started !== generation || epoch !== stateEpoch) return { status: "superseded" };
+      if (destroyed || epoch !== stateEpoch) return { status: "superseded" };
+      token = record.token;
+      localExpiresAt = record.expiresAt;
       if (state?.status !== "active") {
-        token = null;
-        clearLocal();
+        clearSubject();
         return { status: "needs_grant" };
       }
-      const enabled = new Set([...grantedFrom(state.states)].filter((p) => wanted.has(p)));
-      token = record.token;
-      expiresAt = record.expiresAt;
-      granted = enabled;
-      confirmedAt = now();
-      writeRecord();
-      scheduleRefresh();
-      return enabled.size ? { status: "resumed", purposes: [...enabled], continuity } : { status: "needs_grant" };
+      applyServer(state);
+      settled();
+      const purposes = [...effectiveSet()];
+      return purposes.length ? { status: "resumed", purposes, continuity } : { status: "needs_grant" };
     });
   }
 
-  // Re-read the server state while collecting. A failure leaves capture blocked once due.
+  // Re-read the server state while collecting. A failure leaves capture blocked once due. No
+  // request is made with a token past its local lifetime.
   function refresh() {
     if (refreshing) return refreshing;
-    if (destroyed || !token) return Promise.resolve(false);
+    if (destroyed || token === null || expireIfNeeded()) return Promise.resolve(false);
     const epoch = ++stateEpoch;
-    const started = generation;
     const current = token;
     refreshing = (async () => {
       try {
         const response = await control("consent-state", { subject_token: current });
         if (!response.ok) return false;
         const state = await response.json();
-        if (destroyed || epoch !== stateEpoch || started !== generation || current !== token) {
-          return false;
-        }
+        if (destroyed || epoch !== stateEpoch || current !== token) return false;
         if (state?.status !== "active") {
-          token = null;
-          clearLocal();
+          clearSubject();
           return false;
         }
-        const server = grantedFrom(state.states);
-        granted = new Set([...granted].filter((purpose) => server.has(purpose)));
-        dropQueued((item) => !granted.has(item.purpose), "dropped_permission");
-        confirmedAt = now();
-        writeRecord();
-        scheduleRefresh();
+        applyServer(state);
+        settled();
         return true;
       } catch {
         return false;
@@ -487,15 +596,17 @@ export function createTracker(config, environment = {}) {
   // Withdraw purposes (default: all). Local collection stops before any request is sent.
   function withdraw(purposes = PURPOSES) {
     const list = [...purposes].filter((purpose) => PURPOSES.includes(purpose));
-    generation += 1;
+    for (const purpose of list) {
+      bump(purpose);
+      host.delete(purpose);
+    }
     stateEpoch += 1;
-    for (const purpose of list) granted.delete(purpose);
-    dropQueued((item) => !granted.has(item.purpose), "dropped_permission");
-    const known = token ?? readRecord()?.token ?? null;
-    if (granted.size === 0) {
+    purge();
+    const known = token ?? readRecord({ allowExpired: true })?.token ?? erasable;
+    if (effectiveSet().size === 0) {
       cancelRefresh();
       removeRecord();
-    } else if (token) {
+    } else if (token !== null) {
       writeRecord();
     }
     return serialized(async () => {
@@ -508,51 +619,44 @@ export function createTracker(config, environment = {}) {
     });
   }
 
-  // Erase this visitor's subject. Local state is cleared first; only a new explicit grant may
-  // start a new subject afterwards.
+  // Erase this visitor's subject, including one whose local lifetime has ended. Local state is
+  // cleared first; only a new explicit grant may start a new subject afterwards.
   function erase() {
-    generation += 1;
-    stateEpoch += 1;
-    const known = token ?? readRecord()?.token ?? null;
-    clearLocal();
-    queue.length = 0;
+    PURPOSES.forEach(bump);
+    host.clear();
+    const known = token ?? readRecord({ allowExpired: true })?.token ?? erasable;
+    clearSubject();
     return serialized(async () => {
-      const subject = token ?? known;
+      const subject = token ?? erasable ?? known;
       token = null;
+      erasable = null;
       if (!subject) return { status: "erased", confirmed: false };
       const confirmed = await sendControl("erasure", { subject_token: subject });
       return { status: "erased", confirmed };
     });
   }
 
+  // The managed-link reference of the page at capture time (single-page routes change it).
   function currentLinkId() {
-    if (linkId === undefined) {
-      linkId = null;
-      try {
-        const value = new URL(win.location.href).searchParams.get("ts_link");
-        if (value && LINK_ID.test(value)) linkId = value;
-      } catch {
-        linkId = null;
-      }
+    try {
+      const value = new URL(win.location.href).searchParams.get("ts_link");
+      return value && LINK_ID.test(value) ? value : null;
+    } catch {
+      return null;
     }
-    return linkId;
-  }
-
-  function pageUrl() {
-    return minimizePageUrl(win.location.href, granted).url;
   }
 
   // Build, bound and queue one event. Returns a closed status; never throws to the page.
   function capture(eventType, buildPayload) {
-    const purpose = REQUIRED[eventType];
-    if (!allowed(purpose)) return { status: "blocked" };
+    if (expireIfNeeded() || !effective(ANALYTICS)) return { status: "blocked" };
     if (now() - confirmedAt > LIMITS.refreshMs) {
       refresh().catch(() => {});
       return { status: "blocked" };
     }
+    const granted = effectiveSet();
     let payload;
     try {
-      payload = buildPayload();
+      payload = buildPayload(granted);
     } catch (error) {
       stats.rejected += 1;
       return { status: "rejected", reason: error instanceof Rejected ? error.reason : "invalid" };
@@ -573,9 +677,16 @@ export function createTracker(config, environment = {}) {
       stats.dropped_size += 1;
       return { status: "rejected", reason: "too_large" };
     }
-    queue.push({ body, bytes, purpose, token, enqueuedAt: now(), attempts: 0, notBefore: 0 });
-    // Overflow drops the oldest event that is not already in flight; a request on the wire
-    // cannot be recalled, so it stays counted until its outcome.
+    queue.push({
+      body,
+      bytes,
+      purposes: contentPurposes(payload),
+      token,
+      enqueuedAt: now(),
+      attempts: 0,
+      notBefore: 0,
+    });
+    // Overflow drops the oldest event that is not already in flight.
     let total = queue.reduce((sum, item) => sum + item.bytes, 0);
     while (queue.length > LIMITS.queueEvents || total > LIMITS.queueBytes) {
       const index = queue.findIndex((item) => !item.inFlight);
@@ -587,9 +698,11 @@ export function createTracker(config, environment = {}) {
     return { status: "queued", event_id: envelope.event_id };
   }
 
+  const pageUrl = (granted) => minimizePageUrl(win.location.href, granted).url;
+
   function trackPageView() {
-    return capture("page_view", () => {
-      const payload = { url: pageUrl() };
+    return capture("page_view", (granted) => {
+      const payload = { url: pageUrl(granted) };
       const referrer = doc?.referrer;
       if (referrer) {
         try {
@@ -603,10 +716,10 @@ export function createTracker(config, environment = {}) {
   }
 
   function trackLinkClick(element) {
-    return capture("link_click", () => {
+    return capture("link_click", (granted) => {
       const href = element?.href;
       if (typeof href !== "string") throw new Rejected("url_not_allowed");
-      return { url: pageUrl(), link_url: minimizePageUrl(href, granted).url };
+      return { url: pageUrl(granted), link_url: minimizePageUrl(href, granted).url };
     });
   }
 
@@ -654,7 +767,7 @@ export function createTracker(config, environment = {}) {
   }
 
   function trackForm(formKey, form) {
-    return capture("form_submit", () => {
+    return capture("form_submit", (granted) => {
       const fields = forms.get(formKey);
       if (!fields || !form?.elements) throw new Rejected("unknown_form");
       const values = {};
@@ -662,22 +775,23 @@ export function createTracker(config, environment = {}) {
         const value = sanitizeFieldValue(field, readField(field, form));
         if (value !== undefined) values[field.name] = value;
       }
-      return { url: pageUrl(), form_key: formKey, fields: values };
+      return { url: pageUrl(granted), form_key: formKey, fields: values };
     });
   }
 
-  function permitted(item) {
-    return (
-      !destroyed &&
-      item.token === token &&
-      granted.has(item.purpose) &&
-      now() < expiresAt
-    );
-  }
-
+  // Send one event. The request is aborted when the event's lifetime ends, so a stalled
+  // connection can neither keep an expired payload nor hold back fresh events.
   async function send(item) {
     item.attempts += 1;
     item.inFlight = true;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const budget = item.enqueuedAt + LIMITS.eventTtlMs - now();
+    const timer = controller
+      ? setTimer(() => {
+          stats.timed_out += 1;
+          controller.abort();
+        }, Math.max(0, budget))
+      : null;
     try {
       const response = await fetchImpl(`${base}/events`, {
         method: "POST",
@@ -688,6 +802,7 @@ export function createTracker(config, environment = {}) {
         keepalive: item.bytes <= LIMITS.keepaliveBytes,
         headers: { "Content-Type": "text/plain;charset=UTF-8" },
         body: item.body,
+        signal: controller?.signal,
       });
       if (response.status === 202) return { done: true, acknowledged: true };
       if (response.status === 429 || response.status === 503) {
@@ -698,6 +813,7 @@ export function createTracker(config, environment = {}) {
     } catch {
       return { done: false, delay: null };
     } finally {
+      if (timer !== null) clearTimer(timer);
       item.inFlight = false;
     }
   }
@@ -713,20 +829,19 @@ export function createTracker(config, environment = {}) {
     try {
       while (queue.length > 0 && !destroyed) {
         const item = queue[0];
-        if (now() - item.enqueuedAt > LIMITS.eventTtlMs) {
+        if (expireIfNeeded()) break;
+        if (now() - item.enqueuedAt >= LIMITS.eventTtlMs) {
           queue.shift();
           stats.dropped_ttl += 1;
           continue;
         }
-        if (!permitted(item)) {
+        if (!eligible(item)) {
           queue.shift();
           stats.dropped_permission += 1;
           continue;
         }
         if (now() - confirmedAt > LIMITS.refreshMs) {
-          if (!(await refresh())) {
-            await sleep(1_000);
-          }
+          if (!(await refresh())) await sleep(1_000);
           continue;
         }
         if (item.notBefore > now()) {
@@ -734,15 +849,20 @@ export function createTracker(config, environment = {}) {
           continue;
         }
         const outcome = await send(item);
-        if (queue[0] !== item) continue;
+        const index = queue.indexOf(item);
+        if (index < 0) continue;
         if (outcome.done) {
-          queue.shift();
+          queue.splice(index, 1);
           stats[outcome.acknowledged ? "acknowledged" : "rejected"] += 1;
           continue;
         }
         const delay = outcome.delay ?? backoff(item.attempts);
-        if (item.attempts >= LIMITS.maxAttempts || now() + delay - item.enqueuedAt > LIMITS.eventTtlMs) {
-          queue.shift();
+        if (
+          item.attempts >= LIMITS.maxAttempts ||
+          now() + delay - item.enqueuedAt >= LIMITS.eventTtlMs ||
+          !eligible(item)
+        ) {
+          queue.splice(index, 1);
           stats.failed += 1;
           continue;
         }
@@ -774,7 +894,7 @@ export function createTracker(config, environment = {}) {
       doc,
       "click",
       (event) => {
-        if (!allowed(ANALYTICS)) return;
+        if (!effective(ANALYTICS)) return;
         const anchor = event.target?.closest?.(bindings.links);
         if (anchor) trackLinkClick(anchor);
       },
@@ -786,7 +906,7 @@ export function createTracker(config, environment = {}) {
       doc,
       "submit",
       (event) => {
-        if (!allowed(ANALYTICS)) return;
+        if (!effective(ANALYTICS)) return;
         for (const [formKey, selector] of Object.entries(bindings.forms)) {
           if (event.target?.matches?.(selector)) trackForm(formKey, event.target);
         }
@@ -797,7 +917,7 @@ export function createTracker(config, environment = {}) {
   if (win) {
     // A page restored from the back/forward cache must confirm consent again before sending.
     listen(win, "pageshow", (event) => {
-      if (!event.persisted || !token) return;
+      if (!event.persisted || token === null || expireIfNeeded()) return;
       stateEpoch += 1;
       confirmedAt = 0;
       refresh().then((ok) => ok && pump()).catch(() => {});
@@ -805,7 +925,8 @@ export function createTracker(config, environment = {}) {
   }
   if (doc) {
     listen(doc, "visibilitychange", () => {
-      if (!doc.hidden && token && granted.size && now() - confirmedAt > LIMITS.refreshMs - LIMITS.refreshLeadMs) {
+      if (doc.hidden || token === null || expireIfNeeded()) return;
+      if (effectiveSet().size && now() - confirmedAt > LIMITS.refreshMs - LIMITS.refreshLeadMs) {
         refresh().catch(() => {});
       }
     });
@@ -813,7 +934,6 @@ export function createTracker(config, environment = {}) {
 
   function destroy() {
     destroyed = true;
-    generation += 1;
     stateEpoch += 1;
     cancelRefresh();
     queue.length = 0;
@@ -832,8 +952,8 @@ export function createTracker(config, environment = {}) {
     trackForm,
     destroy,
     state: () => ({
-      purposes: [...granted].sort(),
-      collecting: allowed(ANALYTICS) && now() - confirmedAt <= LIMITS.refreshMs,
+      purposes: [...effectiveSet()].sort(),
+      collecting: effective(ANALYTICS) && now() - confirmedAt <= LIMITS.refreshMs,
       continuity,
       queued: queue.length,
     }),

@@ -272,6 +272,52 @@ for (const name of ["chromium", "firefox"]) {
       await offline.context.close();
     });
 
+    test("review sequences R005-01 to R005-03 hold at the real transport", async () => {
+      collector.reset();
+      // R005-01: a retry carrying gclid is dropped after a confirmed attribution withdrawal.
+      const one = await openPage(browser, shop("?gclid=g1&utm_source=ad"));
+      await one.page.evaluate(() =>
+        window.tracker.grant({ "analytics.first_party": "granted", attribution: "granted" }),
+      );
+      collector.plan("events", { status: 503, headers: { "Retry-After": "1" } });
+      await one.page.evaluate(() => window.tracker.trackPageView());
+      await until(() => collector.of("events").length === 1);
+      assert.match(collector.of("events")[0].raw, /gclid=g1/);
+      const withdrawn = await one.page.evaluate(() => window.tracker.withdraw(["attribution"]));
+      assert.equal(withdrawn.confirmed, true);
+      await one.page.waitForTimeout(2_500);
+      assert.equal(collector.of("events").length, 1);
+      await one.page.evaluate(() => window.tracker.trackPageView());
+      await until(() => collector.of("events").length === 2);
+      assert.ok(!collector.of("events")[1].raw.includes("gclid"));
+      // R005-02: a host denial on an active tracker stops collection at once.
+      assert.deepEqual(
+        await one.page.evaluate(() => window.tracker.resume({ "analytics.first_party": "denied" })),
+        { status: "blocked" },
+      );
+      assert.equal((await one.page.evaluate(() => window.tracker.trackPageView())).status, "blocked");
+      // R005-03: a server expiry shorter than the refresh interval ends capture.
+      const two = await openPage(browser, shop());
+      await grant(two.page);
+      const soon = new Date(Date.now() + 1_000).toISOString();
+      collector.plan("consent-state", {
+        status: 200,
+        body: {
+          status: "active",
+          states: { [ANALYTICS]: "granted" },
+          expires_at: { [ANALYTICS]: soon },
+          server_time: new Date().toISOString(),
+        },
+      });
+      assert.equal(await two.page.evaluate(() => window.tracker.refresh()), true);
+      await two.page.waitForTimeout(1_500);
+      const before = collector.of("events").length;
+      assert.equal((await two.page.evaluate(() => window.tracker.trackPageView())).status, "blocked");
+      await two.page.waitForTimeout(300);
+      assert.equal(collector.of("events").length, before);
+      await Promise.all([one.context.close(), two.context.close()]);
+    });
+
     test("the browser engine minimizes the shared fixtures exactly like Python", async () => {
       const { context, page } = await openPage(browser, shop());
       const mismatches = await page.evaluate(async () => {

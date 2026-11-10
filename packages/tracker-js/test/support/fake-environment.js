@@ -1,11 +1,13 @@
 // Deterministic, instrumented browser stand-in for the tracker's Node unit tests: a manual
-// clock and timers, a fake collector that keeps per-token consent, and access logs for
+// clock and timers, a fake collector that keeps per-token consent with per-purpose expiry, a
+// mutable location for single-page navigation, abortable held requests, and access logs for
 // storage, location and network use. Synthetic values only.
 import { webcrypto } from "node:crypto";
 
 export const COLLECTOR = "https://collect.example.test";
 export const PUBLIC_KEY = `pk_${"A".repeat(43)}`;
 const START = Date.UTC(2026, 10, 10, 12, 0, 0);
+const YEAR = 365 * 24 * 60 * 60 * 1000;
 
 let counter = 0;
 const newToken = () => `sbj_${String(++counter).padStart(43, "x")}`;
@@ -17,6 +19,10 @@ function json(status, body, headers = {}) {
   });
 }
 
+function abortError() {
+  return new DOMException("The operation was aborted.", "AbortError");
+}
+
 export function fakeEnvironment({
   href = "https://shop.example.test/landing?utm_source=site",
   referrer = "",
@@ -25,10 +31,13 @@ export function fakeEnvironment({
 } = {}) {
   let time = START;
   let timerId = 0;
+  let location = href;
   const timers = new Map();
   const log = { storage: [], location: 0, requests: [] };
   const store = new Map();
-  const server = new Map(); // token -> { purpose: state }
+  // token -> { purpose: state } and token -> { purpose: expiry in ms }.
+  const server = new Map();
+  const expiries = new Map();
   const held = [];
   const scripted = [];
   const listeners = { window: {}, document: {} };
@@ -56,6 +65,7 @@ export function fakeEnvironment({
       bucket[type] = (bucket[type] ?? []).filter((item) => item !== handler);
     },
   });
+  const navigator = { globalPrivacyControl: gpc };
   const window = {
     ...target(listeners.window),
     get sessionStorage() {
@@ -66,12 +76,31 @@ export function fakeEnvironment({
     location: {
       get href() {
         log.location += 1;
-        return href;
+        return location;
       },
     },
-    navigator: { globalPrivacyControl: gpc },
+    navigator,
   };
   const document = { ...target(listeners.document), referrer, hidden: false };
+
+  // The collector's current view of one subject, as the real API reports it.
+  function view(token) {
+    const states = server.get(token) ?? {};
+    const expires = {};
+    const reported = {};
+    for (const [purpose, state] of Object.entries(states)) {
+      const deadline = expiries.get(token)?.[purpose];
+      if (state === "granted" && deadline !== undefined && deadline <= time) {
+        reported[purpose] = "expired";
+      } else {
+        reported[purpose] = state;
+        if (state === "granted" && deadline !== undefined) {
+          expires[purpose] = new Date(deadline).toISOString();
+        }
+      }
+    }
+    return { states: reported, expires_at: expires, server_time: new Date(time).toISOString() };
+  }
 
   function respond(request) {
     const route = request.url.split("/").pop();
@@ -79,26 +108,27 @@ export function fakeEnvironment({
     if (route === "consent") {
       let token = body.subject_token;
       if (token && !server.has(token)) return json(422, { error: "unknown_subject" });
+      let created = null;
       if (!token) {
         if (!Object.values(body.choices).includes("granted")) {
-          return json(200, { subject_token: null, receipts: [], states: {} });
+          return json(200, { subject_token: null, receipts: [], states: {}, expires_at: {} });
         }
         token = newToken();
+        created = token;
         server.set(token, {});
+        expiries.set(token, {});
       }
-      Object.assign(server.get(token), body.choices);
-      return json(200, {
-        subject_token: body.subject_token ? null : token,
-        receipts: [],
-        states: { ...server.get(token) },
-      });
+      for (const [purpose, state] of Object.entries(body.choices)) {
+        server.get(token)[purpose] = state;
+        if (state === "granted") expiries.get(token)[purpose] = time + YEAR;
+      }
+      return json(200, { subject_token: created, receipts: [], ...view(token) });
     }
     if (route === "consent-state") {
-      const states = server.get(body.subject_token);
+      const active = server.has(body.subject_token);
       return json(200, {
-        status: states ? "active" : "unknown",
-        states: states ?? {},
-        expires_at: {},
+        status: active ? "active" : "unknown",
+        ...(active ? view(body.subject_token) : { states: {}, expires_at: {} }),
         server_time: new Date(time).toISOString(),
       });
     }
@@ -119,8 +149,16 @@ export function fakeEnvironment({
     }
     const hold = held.findIndex((item) => request.url.endsWith(`/${item.route}`) && !item.request);
     if (hold >= 0) {
-      held[hold].request = request;
-      return held[hold].promise;
+      const item = held[hold];
+      item.request = request;
+      if (init?.signal) {
+        if (init.signal.aborted) return Promise.reject(abortError());
+        init.signal.addEventListener("abort", () => {
+          item.aborted = true;
+          item.reject(abortError());
+        });
+      }
+      return item.promise;
     }
     return respond(request);
   }
@@ -153,8 +191,12 @@ export function fakeEnvironment({
     log,
     store,
     server,
+    expiries,
     listeners,
+    navigator,
     settle,
+    now: () => time,
+    pendingTimers: () => timers.size,
     // Advance the manual clock, running due timers in order.
     async advance(ms) {
       const end = time + ms;
@@ -171,20 +213,32 @@ export function fakeEnvironment({
       time = end;
       await settle();
     },
+    // Single-page navigation: later reads of location.href see the new URL.
+    navigate(next) {
+      location = next;
+    },
     // Next request to route gets this handler (one use).
     script(route, handler) {
       scripted.push({ route, handler });
     },
-    // Hold the next request to route until release(handler) is called.
+    // Hold the next request to route until release(handler) is called; an abort signal on
+    // the request rejects it with an AbortError, as a browser fetch would.
     hold(route) {
       let resolve;
-      const item = { route, request: null };
-      item.promise = new Promise((done) => {
+      let reject;
+      const item = { route, request: null, aborted: false };
+      item.promise = new Promise((done, fail) => {
         resolve = done;
+        reject = fail;
       });
+      item.reject = reject;
       item.release = (handler = respond) => resolve(handler(item.request));
       held.push(item);
       return item;
+    },
+    // Grant expiry of one purpose of one subject, in milliseconds from now.
+    expireIn(token, purpose, ms) {
+      expiries.get(token)[purpose] = time + ms;
     },
     respond,
     json,

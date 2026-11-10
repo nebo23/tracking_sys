@@ -82,7 +82,8 @@ test("GPC refuses sale, sharing and advertising grants without granting anything
   const { fake: plain, tracker: other } = setup({ gpc: false });
   await other.grant({ [ANALYTICS]: "denied" });
   assert.equal(other.state().collecting, false);
-  assert.equal(plain.requests("consent").length, 1);
+  // A denial without a known subject has nothing to record: no request is sent.
+  assert.equal(plain.requests("consent").length, 0);
 });
 
 test("resume reads state without granting, renewing or extending anything", async () => {
