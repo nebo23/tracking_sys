@@ -226,7 +226,8 @@ class Settings(DatabaseSettings):
                 raise LinkRuleError("invalid_platform_host")
             platform_authorities(self.link_platform_hosts)
             if self.link_service_target:
-                canonical_hostname(self.link_service_target)
+                # Stored canonically, so CNAME answers compare consistently (R005-11).
+                self.link_service_target = canonical_hostname(self.link_service_target)
         except LinkRuleError as error:
             raise ValueError("The managed-link host configuration is invalid.") from error
         if self.link_domain_verification == "live" and not self.link_service_target:

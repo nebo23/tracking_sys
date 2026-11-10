@@ -51,16 +51,25 @@ class TlsInvalid(Exception):
     """The certificate chain, hostname, or validity did not verify."""
 
 
+# Adapters receive one absolute deadline on the monotonic clock (time.monotonic unless a test
+# injects another clock) and recompute the remaining budget before each blocking operation.
 class Resolver(Protocol):
-    def txt(self, name: str, timeout: float) -> list[str]: ...
+    def txt(self, name: str, deadline: float) -> list[str]: ...
 
-    def cname(self, name: str, timeout: float) -> str | None: ...
+    def cname(self, name: str, deadline: float) -> str | None: ...
 
-    def addresses(self, name: str, timeout: float) -> list[str]: ...
+    def addresses(self, name: str, deadline: float) -> list[str]: ...
 
 
 class TlsProbe(Protocol):
-    def certificate_expiry(self, address: str, hostname: str, timeout: float) -> datetime: ...
+    def certificate_expiry(self, address: str, hostname: str, deadline: float) -> datetime: ...
+
+
+def _remaining(clock: Callable[[], float], deadline: float) -> float:
+    left = deadline - clock()
+    if left <= 0:
+        raise VerificationUnavailable()
+    return left
 
 
 @dataclass(frozen=True)
@@ -116,41 +125,44 @@ class DomainVerifier:
         self.deadline_seconds = deadline_seconds
         self.clock, self.now = clock, now
 
+    # One total deadline covers every DNS query, the TCP connection and the TLS handshake. The
+    # service target is compared in canonical form, like every CNAME answer (R005-11).
     def check(self, hostname: str, challenge_digest: str, service_target: str) -> CheckResult:
         deadline = self.clock() + self.deadline_seconds
+        target_host = _canonical(service_target)
 
-        def remaining() -> float:
-            left = deadline - self.clock()
-            if left <= 0:
-                raise VerificationUnavailable()
-            return left
+        def within() -> float:
+            _remaining(self.clock, deadline)
+            return deadline
 
+        if target_host is None:
+            return CheckResult("routing_mismatch")
         try:
-            records = self.resolver.txt(f"{CHALLENGE_LABEL}.{hostname}", remaining())
+            records = self.resolver.txt(f"{CHALLENGE_LABEL}.{hostname}", within())
             if not _matches_challenge(records, challenge_digest):
                 return CheckResult("ownership_missing")
             name, seen, routed = hostname, {hostname}, False
             for _ in range(MAX_CNAME_CHAIN + 1):
-                target = self.resolver.cname(name, remaining())
+                target = self.resolver.cname(name, within())
                 if target is None:
                     break
                 target = _canonical(target)
                 if target is None or target in seen:
                     return CheckResult("routing_mismatch")
                 seen.add(target)
-                if target == service_target:
+                if target == target_host:
                     routed = True
                     break
                 name = target
             if not routed or len(seen) - 1 > MAX_CNAME_CHAIN:
                 return CheckResult("routing_mismatch")
-            addresses = self.resolver.addresses(hostname, remaining())
+            addresses = self.resolver.addresses(hostname, within())
             if not addresses:
                 return CheckResult("routing_mismatch")
             if not all(self.address_allowed(address) for address in addresses):
                 return CheckResult("address_not_allowed")
-            expiry = self.tls.certificate_expiry(sorted(addresses)[0], hostname, remaining())
-            remaining()
+            expiry = self.tls.certificate_expiry(sorted(addresses)[0], hostname, within())
+            within()
         except TlsInvalid:
             return CheckResult("tls_invalid")
         except VerificationUnavailable:
@@ -160,10 +172,13 @@ class DomainVerifier:
         return CheckResult(None, expiry)
 
 
-# Live DNS adapter (dnspython). Each query is bounded by the remaining deadline and never uses
-# the search list. A missing name or record is an empty answer; resolver failures and timeouts
-# are VerificationUnavailable. nameservers/port exist for loopback tests only.
+# Live DNS adapter (dnspython). Each query, including the separate A and AAAA queries, gets only
+# the budget left before the shared deadline and never uses the search list. A missing name or
+# record is an empty answer; resolver failures and timeouts are VerificationUnavailable.
+# nameservers/port exist for loopback tests only; clock is the monotonic clock.
 class DnsResolver:
+    clock: Callable[[], float] = staticmethod(time.monotonic)
+
     def __init__(self, nameservers: list[str] | None = None, port: int = 53) -> None:
         if nameservers is None:
             self.resolver = dns.resolver.Resolver()
@@ -172,10 +187,11 @@ class DnsResolver:
             self.resolver.nameservers = nameservers
             self.resolver.port = port
 
-    def _query(self, name: str, rdtype: str, timeout: float):
+    def _query(self, name: str, rdtype: str, deadline: float):
+        lifetime = _remaining(self.clock, deadline)
         try:
             answer = self.resolver.resolve(
-                name, rdtype, raise_on_no_answer=False, lifetime=timeout, search=False
+                name, rdtype, raise_on_no_answer=False, lifetime=lifetime, search=False
             )
         except dns.resolver.NXDOMAIN:
             return []
@@ -183,28 +199,31 @@ class DnsResolver:
             raise VerificationUnavailable() from error
         return list(answer.rrset or [])
 
-    def txt(self, name: str, timeout: float) -> list[str]:
+    def txt(self, name: str, deadline: float) -> list[str]:
         return [
             b"".join(record.strings).decode("ascii", "replace")
-            for record in self._query(name, "TXT", timeout)
+            for record in self._query(name, "TXT", deadline)
         ]
 
-    def cname(self, name: str, timeout: float) -> str | None:
-        records = self._query(name, "CNAME", timeout)
+    def cname(self, name: str, deadline: float) -> str | None:
+        records = self._query(name, "CNAME", deadline)
         return records[0].target.to_text(omit_final_dot=True) if records else None
 
-    def addresses(self, name: str, timeout: float) -> list[str]:
+    def addresses(self, name: str, deadline: float) -> list[str]:
         found = []
         for rdtype in ("A", "AAAA"):
-            found += [record.address for record in self._query(name, rdtype, timeout)]
+            found += [record.address for record in self._query(name, rdtype, deadline)]
         return found
 
 
 # Live TLS adapter: connect to the already validated address (no second resolution), present
 # the original hostname as SNI, and require a trusted chain whose names cover that hostname.
 # Only the handshake happens; no application data is sent. port and context_factory exist for
-# loopback tests with a synthetic certificate authority only.
+# loopback tests with a synthetic certificate authority only. The TCP connection and the
+# handshake each get only the budget left before the shared deadline.
 class PinnedTlsProbe:
+    clock: Callable[[], float] = staticmethod(time.monotonic)
+
     def __init__(
         self,
         *,
@@ -213,14 +232,19 @@ class PinnedTlsProbe:
     ) -> None:
         self.port, self.context_factory = port, context_factory
 
-    def certificate_expiry(self, address: str, hostname: str, timeout: float) -> datetime:
+    def certificate_expiry(self, address: str, hostname: str, deadline: float) -> datetime:
         context = self.context_factory()
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         try:
-            with socket.create_connection((address, self.port), timeout=timeout) as raw:
-                with context.wrap_socket(raw, server_hostname=hostname) as connection:
+            connect_budget = _remaining(self.clock, deadline)
+            with socket.create_connection((address, self.port), timeout=connect_budget) as raw:
+                raw.settimeout(_remaining(self.clock, deadline))
+                with context.wrap_socket(
+                    raw, server_hostname=hostname, do_handshake_on_connect=False
+                ) as connection:
+                    connection.do_handshake()
                     certificate = connection.getpeercert()
         except (ssl.SSLCertVerificationError, ssl.CertificateError) as error:
             raise TlsInvalid() from error

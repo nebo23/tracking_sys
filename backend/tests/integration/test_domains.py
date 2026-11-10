@@ -333,3 +333,15 @@ def test_redirects_never_probe_dns_or_tls(dom, monkeypatch):
     assert branded.get("/r/brand-offer", follow_redirects=False).status_code == 404
     with Session(dom.db.migration) as session:
         assert session.scalar(select(func.count()).select_from(LinkDomain)) == 1
+
+
+def test_equivalent_service_target_spellings_verify_identically(dom):
+    for spelling in ("LINKS.PLATFORM.TEST", "Links.Platform.Test"):
+        client = dom.signed_in(
+            "owner_a", dom.config.model_copy(update={"link_service_target": spelling})
+        )
+        issued = client.post(f"{dom.path}/link-domains/{dom.domain_id}/challenge")
+        dom.resolver.txt_values = [issued.json()["record_value"]]
+        assert issued.json()["cname_target"] == spelling
+        response = dom.verify(client).json()
+        assert (response["outcome"], response["domain"]["failure_code"]) == ("verified", None)

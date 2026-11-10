@@ -8,9 +8,13 @@ infrastructure, so these results are synthetic evidence, not live custom-domain 
 import hashlib
 import socket
 import threading
+import time
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
+import dns.exception
 import dns.message
+import dns.name
 import dns.rrset
 import pytest
 
@@ -170,6 +174,11 @@ def test_live_address_policy_rejects_private_special_and_mapped_addresses():
     assert live.check(HOST, DIGEST, TARGET).failure == "address_not_allowed"
 
 
+# Adapters take an absolute deadline on the monotonic clock.
+def soon(seconds):
+    return time.monotonic() + seconds
+
+
 def probe(server, synthetic_pki, **kwargs):
     return PinnedTlsProbe(port=server.port, context_factory=synthetic_pki.context, **kwargs)
 
@@ -177,7 +186,7 @@ def probe(server, synthetic_pki, **kwargs):
 def test_pinned_tls_probe_checks_chain_hostname_and_expiry_with_sni(synthetic_pki, tls_server):
     good = synthetic_pki.issue(HOST)
     server = tls_server(good)
-    expiry = probe(server, synthetic_pki).certificate_expiry("127.0.0.1", HOST, 3)
+    expiry = probe(server, synthetic_pki).certificate_expiry("127.0.0.1", HOST, soon(3))
     assert abs((expiry - good.not_after).total_seconds()) < 2
     assert server.names == [HOST]
     for case in (
@@ -186,19 +195,19 @@ def test_pinned_tls_probe_checks_chain_hostname_and_expiry_with_sni(synthetic_pk
         synthetic_pki.issue(HOST, ca=synthetic_pki.untrusted),
     ):
         with pytest.raises(TlsInvalid):
-            probe(tls_server(case), synthetic_pki).certificate_expiry("127.0.0.1", HOST, 3)
+            probe(tls_server(case), synthetic_pki).certificate_expiry("127.0.0.1", HOST, soon(3))
     with pytest.raises(TlsInvalid):
-        PinnedTlsProbe(port=server.port).certificate_expiry("127.0.0.1", HOST, 3)
+        PinnedTlsProbe(port=server.port).certificate_expiry("127.0.0.1", HOST, soon(3))
     closed = socket.create_server(("127.0.0.1", 0))
     port = closed.getsockname()[1]
     closed.close()
     with pytest.raises(VerificationUnavailable):
-        PinnedTlsProbe(port=port).certificate_expiry("127.0.0.1", HOST, 1)
+        PinnedTlsProbe(port=port).certificate_expiry("127.0.0.1", HOST, soon(1))
 
 
 def test_the_probe_sends_no_application_data(synthetic_pki, tls_server):
     server = tls_server(synthetic_pki.issue(HOST))
-    probe(server, synthetic_pki).certificate_expiry("127.0.0.1", HOST, 3)
+    probe(server, synthetic_pki).certificate_expiry("127.0.0.1", HOST, soon(3))
     deadline = datetime.now(UTC) + timedelta(seconds=3)
     while not server.data and datetime.now(UTC) < deadline:
         pass
@@ -256,18 +265,18 @@ def test_dnspython_adapter_reads_txt_cname_and_addresses_without_search(monkeypa
     server = LoopbackDns(zone)
     try:
         resolver = DnsResolver(["127.0.0.1"], port=server.port)
-        assert resolver.txt(f"_tracking-verification.{HOST}", 2) == [CHALLENGE_PREFIX + RAW]
-        assert resolver.cname(HOST, 2) == TARGET
-        assert resolver.addresses(HOST, 2) == ["198.51.100.7", "2001:db8::7"]
-        assert resolver.addresses("missing.example.test", 2) == []
-        assert resolver.cname("empty.example.test", 2) is None
+        assert resolver.txt(f"_tracking-verification.{HOST}", soon(2)) == [CHALLENGE_PREFIX + RAW]
+        assert resolver.cname(HOST, soon(2)) == TARGET
+        assert resolver.addresses(HOST, soon(2)) == ["198.51.100.7", "2001:db8::7"]
+        assert resolver.addresses("missing.example.test", soon(2)) == []
+        assert resolver.cname("empty.example.test", soon(2)) is None
         assert all(not name.endswith(".local") for name, _ in server.queries)
     finally:
         server.close()
     silent = LoopbackDns({}, silent=True)
     try:
         with pytest.raises(VerificationUnavailable):
-            DnsResolver(["127.0.0.1"], port=silent.port).txt(HOST, 0.5)
+            DnsResolver(["127.0.0.1"], port=silent.port).txt(HOST, soon(0.5))
     finally:
         silent.close()
 
@@ -334,3 +343,82 @@ def test_link_settings_refuse_wildcards_and_live_mode_without_a_target(monkeypat
         with pytest.raises(ValidationError):
             Settings(_env_file=None, **base, **bad)
     assert Settings(_env_file=None, **base).link_domain_verification == "disabled"
+
+
+# Review corrections of 2026-11-11 (R005-10, R005-11).
+
+
+class FakeClock:
+    def __init__(self):
+        self.value = 0.0
+
+    def __call__(self):
+        return self.value
+
+
+def test_dns_subqueries_share_one_total_deadline():
+    clock = FakeClock()
+    lifetimes = []
+    resolver = DnsResolver(["127.0.0.1"], port=9)
+    resolver.clock = clock
+
+    def slow_resolve(name, rdtype, **kwargs):
+        lifetime = kwargs["lifetime"]
+        lifetimes.append(round(lifetime, 3))
+        clock.value += min(4.0, lifetime)
+        if lifetime < 4.0:
+            raise dns.exception.Timeout()
+        if rdtype == "TXT":
+            return SimpleNamespace(
+                rrset=[SimpleNamespace(strings=[(CHALLENGE_PREFIX + RAW).encode()])]
+            )
+        if rdtype == "CNAME":
+            return SimpleNamespace(rrset=[SimpleNamespace(target=dns.name.from_text(TARGET))])
+        return SimpleNamespace(rrset=[SimpleNamespace(address=PUBLIC)])
+
+    resolver.resolver.resolve = slow_resolve
+    checker = DomainVerifier(
+        resolver, FakeTls(), address_allowed=lambda a: a == PUBLIC, clock=clock, deadline_seconds=13
+    )
+    result = checker.check(HOST, DIGEST, TARGET)
+    assert result.failure == "verification_unavailable"
+    # TXT and CNAME use 4 s each; A gets the remaining 5 s and AAAA only the last 1 s.
+    assert lifetimes == [13.0, 9.0, 5.0, 1.0]
+    assert clock.value <= 13.0
+
+
+def test_connect_and_handshake_share_one_total_deadline(monkeypatch, synthetic_pki):
+    silent = socket.create_server(("127.0.0.1", 0))  # accepts TCP, never answers TLS
+    clock = FakeClock()
+    real_connect = socket.create_connection
+
+    def slow_connect(address, timeout=None, *args, **kwargs):
+        clock.value += 4.0  # the TCP connection used four of the five seconds
+        return real_connect(address, timeout=timeout)
+
+    monkeypatch.setattr(socket, "create_connection", slow_connect)
+    tls = PinnedTlsProbe(port=silent.getsockname()[1], context_factory=synthetic_pki.context)
+    tls.clock = clock
+    checker = DomainVerifier(
+        FakeResolver(addresses=[["127.0.0.1"]]),
+        tls,
+        address_allowed=lambda a: a == "127.0.0.1",
+        clock=clock,
+        deadline_seconds=5.0,
+    )
+    started = time.monotonic()
+    try:
+        assert checker.check(HOST, DIGEST, TARGET).failure == "verification_unavailable"
+    finally:
+        silent.close()
+    assert time.monotonic() - started < 2.5  # one remaining second, not a fresh five
+
+
+def test_service_target_comparison_is_case_insensitive(settings):
+    mixed = settings.model_copy(update={"link_service_target": "Links.Platform.TEST"})
+    from app.config import Settings
+
+    validated = Settings.model_validate(mixed.model_dump())
+    assert validated.link_service_target == TARGET
+    for target in (TARGET, "Links.Platform.TEST", "LINKS.PLATFORM.TEST"):
+        assert verifier().check(HOST, DIGEST, target).ok, target
