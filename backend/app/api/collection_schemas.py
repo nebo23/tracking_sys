@@ -42,6 +42,20 @@ class ErasureInput(Input):
     subject_token: SubjectToken
 
 
+# Non-mutating consent-state read (specification 005); the token travels only in the body.
+class ConsentStateInput(Input):
+    subject_token: SubjectToken
+
+
+# Current per-purpose states, the expiry of each granted purpose, and the server time.
+# "unknown" covers missing and erased subjects alike; every state is then "unknown".
+class ConsentStateResponse(Output):
+    status: Literal["active", "unknown"]
+    states: dict[str, str]
+    expires_at: dict[str, datetime]
+    server_time: datetime
+
+
 # Generic public acknowledgement; identical for every accepted or discarded submission.
 class Received(Output):
     status: Literal["received"] = "received"

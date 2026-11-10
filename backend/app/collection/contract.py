@@ -88,7 +88,9 @@ class Strict(BaseModel):
 
 
 # EventEnvelope v1. The server adds tenancy, receipt times, trust, consent basis, labels,
-# revision and fingerprint; a sender cannot set them.
+# revision and fingerprint; a sender cannot set them. link_id (specification 005, D-033) is an
+# optional, limited-trust claim that the event belongs to one managed link of the same client;
+# senders that omit it are unchanged.
 class Envelope(Strict):
     schema_version: Literal[1]
     event_id: UUID
@@ -97,6 +99,7 @@ class Envelope(Strict):
     subject_token: SubjectToken
     internal: StrictBool = False
     payload: dict[str, Any]
+    link_id: UUID | None = None
 
 
 class PageView(Strict):
@@ -344,12 +347,15 @@ def minimize_payload(
 
 
 # SHA-256 over canonical JSON of the stored content; transport time and signatures excluded.
+# A present link reference is part of the content; an absent one leaves the canonical document
+# exactly as before 005, so retries of earlier events still deduplicate.
 def fingerprint(
     event_type: str,
     occurred_at: datetime,
     subject_id: UUID,
     payload: Mapping[str, Any],
     internal: bool,
+    link_id: UUID | None = None,
 ) -> str:
     document = {
         "schema_version": 1,
@@ -359,6 +365,8 @@ def fingerprint(
         "payload": payload,
         "internal": internal,
     }
+    if link_id is not None:
+        document["link_id"] = str(link_id)
     encoded = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(encoded.encode()).hexdigest()
 

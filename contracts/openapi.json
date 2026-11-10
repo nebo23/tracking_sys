@@ -7661,6 +7661,163 @@
         }
       }
     },
+    "/collect/v1/{public_key}/consent-state": {
+      "post": {
+        "tags": [
+          "Public collection"
+        ],
+        "summary": "Collect Consent State",
+        "operationId": "collect_consent_state_collect_v1__public_key__consent_state_post",
+        "parameters": [
+          {
+            "name": "public_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^pk_[A-Za-z0-9_-]{43}$",
+              "title": "Public Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown or inactive source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Body is not text/plain or JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subject_token"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
     "/collect/v1/{public_key}/erasure": {
       "post": {
         "tags": [
@@ -12143,6 +12300,46 @@
         ],
         "title": "ConsentResponse"
       },
+      "ConsentStateResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "states": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "States"
+          },
+          "expires_at": {
+            "additionalProperties": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "object",
+            "title": "Expires At"
+          },
+          "server_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Server Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "states",
+          "expires_at",
+          "server_time"
+        ],
+        "title": "ConsentStateResponse"
+      },
       "ContentInput": {
         "properties": {
           "external_code": {
@@ -12509,6 +12706,18 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Payload"
+          },
+          "link_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Id"
           }
         },
         "additionalProperties": false,

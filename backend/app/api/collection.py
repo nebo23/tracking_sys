@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from app.api.collection_schemas import (
     ConsentInput,
     ConsentResponse,
+    ConsentStateInput,
+    ConsentStateResponse,
     DiagnosticResponse,
     ErasureInput,
     ErasureRequestInput,
@@ -52,6 +54,7 @@ from app.services.collection import (
     event_metadata,
     live_source,
     live_webhook_secrets,
+    read_consent_state,
     record_consent,
     require_live_source,
     require_token_keys,
@@ -184,8 +187,10 @@ def ingest_consent(
 # Resolve an active browser source, require an exact allowed Origin, and apply the per-source
 # and per-peer rate limit. A public key and Origin route and limit abuse; they authorize nothing.
 # Once the Origin is accepted, PublicCollectionCors lets that origin read the response, which
-# carries the subject token on first consent (R004-01). Earlier failures stay unreadable.
-def _browser_source(request: Request, session, public_key: str):
+# carries the subject token on first consent (R004-01). Earlier failures stay unreadable. The
+# grant precedes the rate limit, so an accepted origin can read a 429 and its Retry-After.
+# Consent-state reads use their own bucket (specification 005).
+def _browser_source(request: Request, session, public_key: str, *, bucket: str = "ingest-public"):
     source = live_source(session, "browser", public_key=public_key)
     if source is None:
         raise CollectionError("source_unavailable", 404)
@@ -195,7 +200,12 @@ def _browser_source(request: Request, session, public_key: str):
     grant_origin(request.scope, origin)
     peer = request.client.host if request.client else "unknown"
     settings = request.app.state.settings
-    _limit(request, "ingest-public", f"{source.id}:{peer}", settings.ingest_public_per_minute)
+    limit = (
+        settings.consent_state_per_minute
+        if bucket == "consent-state"
+        else settings.ingest_public_per_minute
+    )
+    _limit(request, bucket, f"{source.id}:{peer}", limit)
     return source
 
 
@@ -268,6 +278,49 @@ def collect_consent(
         recheck=lambda: require_live_source(session, "browser", source.id),
     )
     return consent_response(result)
+
+
+# Current consent of a subject token holder (specification 005, D-033). It never issues a
+# token, appends a record, renews an expiry, or refreshes subject activity, so a tracker can
+# resume after a reload without recreating consent. Missing and erased subjects both answer
+# with the fixed unknown state.
+@public_router.post(
+    "/{public_key}/consent-state",
+    response_model=ConsentStateResponse,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"subject_token": {"type": "string"}},
+                        "required": ["subject_token"],
+                        "additionalProperties": False,
+                    }
+                },
+                "text/plain": {"schema": {"type": "string"}},
+            },
+        }
+    },
+)
+def collect_consent_state(
+    public_key: PublicKey, request: Request, session: SessionDep, body: RawBody
+) -> ConsentStateResponse:
+    source = _browser_source(request, session, public_key, bucket="consent-state")
+    data = _public_body(request, body, ConsentStateInput)
+    view = read_consent_state(
+        session,
+        source.client_id,
+        subject_token=data.subject_token,
+        recheck=lambda: require_live_source(session, "browser", source.id),
+    )
+    return ConsentStateResponse(
+        status=view.status,
+        states={purpose.value: state.value for purpose, state in view.states.items()},
+        expires_at={purpose.value: moment for purpose, moment in view.expires_at.items()},
+        server_time=view.server_time,
+    )
 
 
 # Self-erasure by the holder of a subject token; always the same 202.

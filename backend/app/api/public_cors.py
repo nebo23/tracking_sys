@@ -11,7 +11,9 @@ never added to the credentialed platform CORS policy. Instead:
   the only requested header is Content-Type. On actual requests it adds
   Access-Control-Allow-Origin, never Access-Control-Allow-Credentials, after the route itself
   has accepted the Origin (the route marks the request scope). Unregistered origins receive no
-  CORS grant, so a browser cannot read the response.
+  CORS grant, so a browser cannot read the response. For a granted origin only, Retry-After is
+  exposed (specification 005) so a tracker can honor 429 and 503 retry times; no other
+  non-safelisted response header is exposed.
 """
 
 import re
@@ -24,7 +26,9 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 PUBLIC_PREFIX = "/collect/v1/"
-PUBLIC_ROUTE = re.compile(r"/collect/v1/(pk_[A-Za-z0-9_-]{43})/(events|consent|erasure)")
+PUBLIC_ROUTE = re.compile(
+    r"/collect/v1/(pk_[A-Za-z0-9_-]{43})/(events|consent|consent-state|erasure)"
+)
 # Request scope key through which a public route reports the Origin it accepted.
 SCOPE_KEY = "tracking.public_cors"
 ALLOWED_REQUEST_HEADERS = frozenset({"content-type"})
@@ -78,6 +82,7 @@ class PublicCollectionCors:
                 response_headers.add_vary_header("Origin")
                 if origin is not None and grant.get("origin") == origin:
                     response_headers["Access-Control-Allow-Origin"] = origin
+                    response_headers["Access-Control-Expose-Headers"] = "Retry-After"
             await send(message)
 
         await self.app(scope, receive, cors_send)
