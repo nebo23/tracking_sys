@@ -26,7 +26,7 @@ Existing service keys are `read` keys. A key's kind is fixed at issuance and can
 
 ## Flow
 1. An Owner/Admin creates a browser source (`POST /agencies/{a}/clients/{c}/ingestion-sources` with `allowed_origins` and the SHA-256 of the consent notice text) and receives a non-secret `pk_` key. A webhook source returns its `whsec_` signing secret once.
-2. The banner records an explicit choice: `POST /collect/v1/{pk}/consent` with `{"choices": {"analytics.first_party": "granted"}}`. The first grant creates a subject and returns its `sbj_` token once; a request granting nothing stores nothing. Trusted servers use `POST /agencies/{a}/clients/{c}/consent` with an ingest key and `notice_sha256`.
+2. The banner records an explicit choice: `POST /collect/v1/{pk}/consent` with `{"choices": {"analytics.first_party": "granted"}}`. The first grant creates a subject and returns its `sbj_` token once; a request granting nothing stores nothing. Since specification 005 the response also lists `expires_at` for each granted purpose and the `server_time`. Trusted servers use `POST /agencies/{a}/clients/{c}/consent` with an ingest key and `notice_sha256`.
 3. Events carry that token in an EventEnvelope v1 (one event per request, at most 16 KiB):
 
 ```json

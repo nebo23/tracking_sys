@@ -104,6 +104,8 @@ def consent_response(result) -> ConsentResponse:
         subject_token=result.subject_token,
         receipts=result.receipts,
         states={purpose.value: state.value for purpose, state in result.states.items()},
+        expires_at={purpose.value: moment for purpose, moment in result.expires_at.items()},
+        server_time=result.server_time,
     )
 
 

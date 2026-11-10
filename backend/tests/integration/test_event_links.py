@@ -4,7 +4,7 @@ Disposable PostgreSQL only; every case checks stored rows or their absence. Synt
 """
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -366,3 +366,29 @@ def test_event_link_references_are_scoped_by_the_database(ev):
             {"link": ev.own, "event": UUID(event["event_id"])},
         )
     assert stored(ev.db, UUID(event["event_id"])).link_id == ev.foreign
+
+
+def test_consent_responses_report_each_granted_purpose_expiry(ev):
+    first = ev.collect("consent", {"choices": {ANALYTICS: "granted"}}).json()
+    token = first["subject_token"]
+    assert set(first["expires_at"]) == {ANALYTICS} and first["server_time"]
+    soon = now_utc() + timedelta(hours=1)
+    with Session(ev.db.migration) as session, session.begin():
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.purpose == ANALYTICS)
+            .values(expires_at=soon)
+        )
+    added = ev.collect(
+        "consent", {"choices": {ATTRIBUTION: "granted"}, "subject_token": token}
+    ).json()
+    assert added["subject_token"] is None
+    server_time = datetime.fromisoformat(added["server_time"])
+    analytics = datetime.fromisoformat(added["expires_at"][ANALYTICS])
+    attribution = datetime.fromisoformat(added["expires_at"][ATTRIBUTION])
+    assert abs((analytics - soon).total_seconds()) < 1
+    assert timedelta(days=364) < attribution - server_time <= timedelta(days=365)
+    withdrawn = ev.collect(
+        "consent", {"choices": {ANALYTICS: "withdrawn"}, "subject_token": token}
+    ).json()
+    assert set(withdrawn["expires_at"]) == {ATTRIBUTION}

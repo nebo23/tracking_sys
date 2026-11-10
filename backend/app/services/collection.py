@@ -111,6 +111,10 @@ class ConsentResult:
     subject_token: str | None
     receipts: list[UUID]
     states: dict[Purpose, ConsentState]
+    # Expiry of each granted purpose and the receipt time on the database clock (005, R005-03),
+    # so a tracker can apply per-purpose deadlines without a further state read.
+    expires_at: dict[Purpose, datetime] = field(default_factory=dict)
+    server_time: datetime | None = None
 
 
 # Current consent of a token holder (005 consent-state); "unknown" for a missing or erased
@@ -334,7 +338,8 @@ def record_consent(
             raise CollectionError("unknown_subject", 422)
     elif ConsentState.GRANTED not in choices.values():
         count(session, agency_id, client_id, now.date(), "consent", "suppressed", "nothing_granted")
-        return ConsentResult(None, [], {purpose: ConsentState.UNKNOWN for purpose in PURPOSES})
+        unknown = {purpose: ConsentState.UNKNOWN for purpose in PURPOSES}
+        return ConsentResult(None, [], unknown, {}, now)
     else:
         created = "sbj_" + new_token()
         subject = CollectionSubject(
@@ -386,7 +391,13 @@ def record_consent(
     subject.last_activity_at = now
     session.flush()
     count(session, agency_id, client_id, now.date(), "consent", "accepted", "recorded")
-    return ConsentResult(created, receipts, consent_view(session, subject, now).states)
+    view = consent_view(session, subject, now)
+    expiries = {
+        purpose: view.latest[purpose].expires_at
+        for purpose, state in view.states.items()
+        if state is ConsentState.GRANTED and view.latest[purpose].expires_at is not None
+    }
+    return ConsentResult(created, receipts, view.states, expiries, now)
 
 
 # Read a subject's current consent without changing anything (specification 005, D-033): no

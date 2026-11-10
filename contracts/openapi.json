@@ -12423,6 +12423,26 @@
             },
             "type": "object",
             "title": "States"
+          },
+          "expires_at": {
+            "additionalProperties": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "object",
+            "title": "Expires At"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Time"
           }
         },
         "type": "object",

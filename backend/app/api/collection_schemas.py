@@ -32,10 +32,14 @@ class ConsentInput(Input):
     notice_sha256: Digest | None = None
 
 
+# expires_at lists each granted purpose's expiry; server_time is the receipt time on the
+# database clock (additive in 005 for per-purpose tracker deadlines).
 class ConsentResponse(Output):
     subject_token: str | None
     receipts: list[UUID]
     states: dict[str, str]
+    expires_at: dict[str, datetime] = Field(default_factory=dict)
+    server_time: datetime | None = None
 
 
 class ErasureInput(Input):
