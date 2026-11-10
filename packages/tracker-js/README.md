@@ -47,4 +47,4 @@ npm test                 # Node built-in test runner: state machine, storage, tr
 npm run test:browser     # real Chromium and Firefox through Playwright
 ```
 
-`test/fixtures/parity.json` holds shared minimization fixtures whose expected values come from the Python contracts; `backend/tests/test_tracker_parity.py` asserts the same file.
+`test/fixtures/parity.json` holds shared minimization fixtures whose expected values come from the Python contracts; `backend/tests/test_tracker_parity.py` asserts the same file. The backend journey test (`backend/tests/integration/test_tracker_journey.py`, enabled with `TRACKING_RUN_BROWSER_TESTS=1`) runs `test/e2e/journey.js` and `test/e2e/parity-page.js` against the real API on loopback and a disposable database.

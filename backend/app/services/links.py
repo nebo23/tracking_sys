@@ -45,6 +45,7 @@ from app.links.policy import (
     validate_slug,
     validate_utm,
 )
+from app.links.verification import CERTIFICATE_MARGIN, CheckResult
 from app.models import (
     Agency,
     ClientWorkspace,
@@ -61,6 +62,7 @@ HOST_NAMESPACE = 5005
 HOST_LOCK_KEY = 1
 LOCK_TIMEOUT = "2s"
 CHALLENGE_LIFETIME = timedelta(hours=24)
+VERIFICATION_LIFETIME = timedelta(hours=24)
 CHALLENGE_LABEL = "_tracking-verification"
 CHALLENGE_PREFIX = "tracking-verification="
 PAGE_DEFAULT, PAGE_MAX = 50, 100
@@ -510,6 +512,95 @@ class LinkAdmin(TenancyService):
             item.expires_at = expires_at
         self._audit(agency_id, "link.updated", "link", item.id, client_id)
         return item
+
+
+# Values read before the network phase of a domain check; completion compares them again.
+@dataclass(frozen=True)
+class DomainSnapshot:
+    hostname: str
+    challenge_digest: str
+    generation: int
+    version: int
+    expired: bool
+
+
+# Phase 1 of a domain check (a short transaction): authorize an Owner/Admin of the active client
+# and read the domain's current challenge. The network phase runs after this commits.
+def begin_verification(
+    session: Session,
+    settings: Settings,
+    actor_user_id: UUID,
+    agency_id: UUID,
+    client_id: UUID,
+    domain_id: UUID,
+) -> DomainSnapshot:
+    admin = LinkAdmin(session, actor_user_id, settings)
+    admin._manager(agency_id)
+    admin.get_client(agency_id, client_id)
+    domain = session.scalar(
+        select(LinkDomain).where(
+            LinkDomain.agency_id == agency_id,
+            LinkDomain.client_id == client_id,
+            LinkDomain.id == domain_id,
+        )
+    )
+    if domain is None:
+        raise AccessDenied()
+    if domain.status == "disabled" or domain.challenge_digest is None:
+        raise ValueError("Issue a challenge for an enabled domain before verifying it.")
+    return DomainSnapshot(
+        domain.hostname,
+        domain.challenge_digest,
+        domain.challenge_generation,
+        domain.version,
+        domain.challenge_expires_at <= database_now(session),
+    )
+
+
+# Phase 3 of a domain check: re-authorize the actor under the agency write lock, take the
+# host-namespace lock and the domain row, and apply the result only if nothing changed since
+# phase 1 (no disablement, reissued challenge, or other completed check). A stale result changes
+# nothing. Success needs an unexpired challenge and no managed-host conflict; it is valid for at
+# most 24 hours and ends one hour before the observed certificate expiry. A failure records its
+# closed code and never extends an earlier verification deadline.
+def complete_verification(
+    session: Session,
+    settings: Settings,
+    actor_user_id: UUID,
+    agency_id: UUID,
+    client_id: UUID,
+    domain_id: UUID,
+    snapshot: DomainSnapshot,
+    result: CheckResult,
+) -> tuple[LinkDomain, str]:
+    admin = LinkAdmin(session, actor_user_id, settings)
+    admin._write(agency_id, client_id)
+    lock_host_namespace(session)
+    domain = admin._row(LinkDomain, agency_id, client_id, domain_id)
+    current = (domain.version, domain.challenge_generation, domain.challenge_digest)
+    expected = (snapshot.version, snapshot.generation, snapshot.challenge_digest)
+    if current != expected or domain.status == "disabled":
+        return domain, "stale"
+    now = database_now(session)
+    failure = result.failure
+    if failure is None and domain.challenge_expires_at <= now:
+        failure = "challenge_expired"
+    if failure is None and hostname_conflicts(session, settings, domain.hostname):
+        failure = "host_conflict"
+    domain.last_checked_at = now
+    domain.version += 1
+    if failure is None and result.certificate_expires_at is not None:
+        domain.status = "verified"
+        domain.verified_at = now
+        domain.certificate_expires_at = result.certificate_expires_at
+        domain.verification_expires_at = min(
+            now + VERIFICATION_LIFETIME, result.certificate_expires_at - CERTIFICATE_MARGIN
+        )
+        domain.failure_code = None
+    else:
+        domain.failure_code = failure or "verification_unavailable"
+    admin._audit(agency_id, "domain.checked", "domain", domain.id, client_id)
+    return domain, "verified" if domain.failure_code is None else "failed"
 
 
 @dataclass(frozen=True)

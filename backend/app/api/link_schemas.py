@@ -133,6 +133,13 @@ class ChallengeResponse(Output):
     cname_target: str | None
 
 
+# Outcome of one domain check: verified, failed (see domain.failure_code), or stale (the
+# domain changed during the check, so the result was discarded).
+class VerificationResponse(Output):
+    outcome: Literal["verified", "failed", "stale"]
+    domain: DomainResponse
+
+
 class LinkInput(Input):
     slug: Annotated[str, Field(min_length=3, max_length=64)]
     destination: Annotated[str, Field(min_length=1, max_length=2048)]

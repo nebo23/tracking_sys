@@ -23,6 +23,7 @@ from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
 from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
+from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
@@ -92,6 +93,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = configuration
     # Google endpoint client (network access, cached discovery and keys); tests substitute it.
     application.state.google = GoogleOIDC(configuration)
+    # Custom-domain verifier (specification 005-E): live DNS and TLS only when explicitly
+    # enabled; otherwise verification answers 503. Tests substitute synthetic adapters in code.
+    application.state.domain_verifier = (
+        DomainVerifier(DnsResolver(), PinnedTlsProbe())
+        if configuration.link_domain_verification == "live"
+        else None
+    )
     application.add_middleware(RequestBoundary)
     # Credentialed CORS for the configured platform origins only; it skips public collection
     # routes, whose registered customer origins get uncredentialed, per-source access from the

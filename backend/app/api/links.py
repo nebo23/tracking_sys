@@ -11,8 +11,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
+from sqlalchemy.orm import Session
 
-from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
+from app.api.dependencies import BrowserDep, ReaderDep, SessionDep, browser_identity
 from app.api.link_schemas import (
     CampaignInput,
     CampaignResponse,
@@ -33,8 +34,10 @@ from app.api.link_schemas import (
     TemplateInput,
     TemplateResponse,
     TemplateUpdate,
+    VerificationResponse,
 )
 from app.api.schemas import ErrorResponse
+from app.links.verification import CheckResult
 from app.models import (
     LinkCampaign,
     LinkContentReference,
@@ -44,7 +47,16 @@ from app.models import (
     ManagedLink,
 )
 from app.services.access import resolve_scope
-from app.services.links import PAGE_DEFAULT, PAGE_MAX, LinkAdmin, list_scoped, resolve_redirect
+from app.services.auth import enforce_rate_limit
+from app.services.links import (
+    PAGE_DEFAULT,
+    PAGE_MAX,
+    LinkAdmin,
+    begin_verification,
+    complete_verification,
+    list_scoped,
+    resolve_redirect,
+)
 
 router = APIRouter(tags=["Managed links"])
 redirect_router = APIRouter(tags=["Redirects"])
@@ -322,6 +334,51 @@ def issue_challenge(
         expires_at=issued.domain.challenge_expires_at,
         cname_target=target,
     )
+
+
+# Check DNS ownership, routing, and TLS for a domain (specification 005-E). The network phase
+# runs outside any database transaction; completion re-authorizes the actor and discards a stale
+# result. At most five checks per domain and actor per minute. Without an enabled verifier the
+# route answers 503 verification_unavailable and changes nothing.
+@router.post(
+    f"{CLIENT}/link-domains/{{domain_id}}/verify",
+    response_model=VerificationResponse,
+    responses={
+        429: {"model": ErrorResponse, "description": "Too many checks for this domain."},
+        503: {"model": ErrorResponse, "description": "Domain verification is not enabled."},
+    },
+)
+def verify_domain(
+    agency_id: UUID, client_id: UUID, domain_id: UUID, request: Request
+) -> VerificationResponse | JSONResponse:
+    settings = request.app.state.settings
+    engine = request.app.state.engine
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        actor = browser_identity(request, session).user.id
+        snapshot = begin_verification(session, settings, actor, agency_id, client_id, domain_id)
+    verifier = getattr(request.app.state, "domain_verifier", None)
+    if verifier is None or not settings.link_service_target:
+        return JSONResponse({"error": "verification_unavailable"}, status_code=503)
+    enforce_rate_limit(
+        request.app.state.security_engine,
+        settings,
+        "domain-verify",
+        f"{domain_id}:{actor}",
+        limit=5,
+        period=60,
+    )
+    if snapshot.expired:
+        result = CheckResult("challenge_expired")
+    else:
+        result = verifier.check(
+            snapshot.hostname, snapshot.challenge_digest, settings.link_service_target
+        )
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        actor = browser_identity(request, session).user.id
+        domain, outcome = complete_verification(
+            session, settings, actor, agency_id, client_id, domain_id, snapshot, result
+        )
+        return VerificationResponse(outcome=outcome, domain=DomainResponse.model_validate(domain))
 
 
 @router.post(
