@@ -22,6 +22,6 @@ Status: Implemented and verified locally under D-033 (2026-11-10); awaiting inde
 - [x] Update documentation, limitations, and untested assumptions.
 - [x] Present a reviewable result to the owner (local commits on `codex/spec-005-links-tracker`).
 - [ ] Independent review of the local commits.
-- [ ] Obtain owner upload approval, then push and create a PR (D-012); merge, native rollout and deployment remain separate decisions.
+- [x] Obtain owner upload approval, then push and create a PR (D-012): D-034 on 2026-11-11. Merge, native rollout and deployment remain separate decisions.
 - [ ] Owner-authorized live custom-domain smoke test, if wanted (separately gated).
 - [ ] Record owner acceptance before progressing to dependent work.

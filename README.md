@@ -1,5 +1,5 @@
 # Tracking System
-Status: specifications 001/002 are merged in PR 1, 003 in PR 2, and 004 with its reviewed corrections in PR 3 (`e8ef587`, 2026-11-10). Specification 005 (managed links, safe redirects, consent-state, the website tracker and custom-domain verification) is implemented locally under D-033 on `codex/spec-005-links-tracker` and awaits independent review; see its [evidence](specs/005-links-tracker/evidence.md). It is not published or merged. Native rollout, live custom domains and production deployment remain separate.
+Status: specifications 001/002 are merged in PR 1, 003 in PR 2, and 004 with its reviewed corrections in PR 3 (`e8ef587`, 2026-11-10). Specification 005 (managed links, safe redirects, consent-state, the website tracker and custom-domain verification) is implemented locally under D-033 on `codex/spec-005-links-tracker` and awaits independent review; see its [evidence](specs/005-links-tracker/evidence.md). It is published for review under D-034 and not merged. Native rollout, live custom domains and production deployment remain separate.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 
