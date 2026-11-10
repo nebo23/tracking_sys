@@ -1,5 +1,7 @@
 # Specification 004 verification evidence
 
+Merge update (2026-11-10, D-032): GitHub confirmed PR 3 merged at `e8ef587eb4df39f9f0bf1b31421d0a672388e9dd`, with reviewed head `f888197`. The merge tree is identical to the reviewed head. Native rollout and deployment were not performed. Status descriptions in the dated verification sections below are historical.
+
 Date: 2026-11-10. Authority: D-027 ([decision packet](decision-packet.md)). Branch: `codex/spec-004-event-collection`, created from merged `main` at `bab3a33` (PR 2). Status: implemented and open in PR 3. The corrections under D-029 ([review corrections](#review-corrections-2026-11-10)) and D-030 ([R004-04](#second-correction-r004-04-2026-11-10)) passed independent review and are approved for publication under D-031. Not merged and not rolled out to native tracking_sys.
 
 Final independent review update (2026-11-10): **passed** at `7720868`; 481 tests passed in 136.79 seconds and both independent R004-04 reproduction checks passed in 2.61 seconds. Ruff, formatting, dependency and diff checks passed. D-031 authorizes publication to the existing PR 3. See the [final review](final-review-2026-11-10.md) for disposition, scope and limitations. The earlier local-review status in the paragraphs below is historical; merge and native rollout remain separate decisions.

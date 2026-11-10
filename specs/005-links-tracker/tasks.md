@@ -3,7 +3,9 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 
 - [ ] Approve the scope and sources for links, utm parameters, and website tracker.
 - [ ] Resolve Q-001, Q-002, Q-003 and record the owner decision.
-- [ ] Verify dependencies: 004-event-collection.
+- [x] Verify the merged code dependency: 004-event-collection, PR 3 at `e8ef587`; 481 suite tests and two independent reproduction checks recorded before merge. Native rollout remains separate.
+- [x] Prepare the [entry review](entry-review.md) on the fresh `codex/spec-005-links-tracker` branch (D-032).
+- [ ] Prepare the detailed design and decision packet, including schema, tracker consent/storage, tooling and domain-verification boundaries, before implementation.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
 - [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.

@@ -1,6 +1,8 @@
 # Plan: 005-links-tracker
 Status: Draft. This plan does not authorize implementation or dependency selection.
 
+Entry review: [merged baseline and preparation sequence](entry-review.md), refreshed on 2026-11-10 from `main` at `e8ef587` under D-032. Prepare the detailed design and decision packet before application changes.
+
 ## Expected outcome
 Define per-content links, a URL registry, UTM templates, a branded-domain plan, redirects, a JavaScript tracker for client websites, and a form-field allowlist.
 

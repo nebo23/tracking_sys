@@ -1,5 +1,5 @@
 # Plan: 004-event-collection
-Status: Slices 004-A to 004-F completed locally on 2026-11-10 under D-027; see the [evidence](evidence.md). Publication and native rollout remain gated. No dependency was added.
+Status: Slices 004-A to 004-F and review corrections are complete and merged in PR 3 at `e8ef587` under D-032 on 2026-11-10; see the [evidence](evidence.md). Native rollout and deployment remain gated. No dependency was added.
 
 ## Expected outcome
 Define a versioned event envelope, limited-trust public ingestion, authenticated server ingestion, webhooks, deduplication, UTM/click IDs, bot/internal traffic filtering, and backend event diagnostics.

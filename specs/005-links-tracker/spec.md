@@ -1,5 +1,5 @@
 # 005-links-tracker — Links, UTM parameters, and website tracker
-Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; entry review refreshed against merged specification 004 on 2026-11-10 under D-032. Implementation is not approved. Level: L2. Prepared: 2026-10-28. See the [entry review](entry-review.md) for the implemented baseline, inherited contracts and next decisions.
 
 ## Sources
 PDF-003,015,016,024; PDF-001,008. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

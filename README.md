@@ -1,5 +1,5 @@
 # Tracking System
-Status: foundation and specification 002 (with D-022 and R-01 to R-03) are merged in PR 1 (`98747a2`); specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`). Specification 004, event collection, is implemented on codex/spec-004-event-collection and open for review in PR 3. Corrections under D-029/D-030 passed independent review (481 suite tests and two additional reproduction checks) and are approved for publication under D-031; merge remains the owner's decision. Updated: 2026-11-10.
+Status: specifications 001/002 are merged in PR 1, 003 in PR 2, and 004 with its reviewed corrections in PR 3 (`e8ef587`, 2026-11-10). Specification 005 is in preparation on `codex/spec-005-links-tracker`; its implementation is not approved. Native rollout and production deployment remain separate. See the [005 entry review](specs/005-links-tracker/entry-review.md) for current capabilities and next decisions.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 
@@ -35,7 +35,7 @@ All maintained project content and filenames must use formal English. Product lo
 | `infra/docker/` | Local API, PostgreSQL, role initialization, migration, and optional mail-worker containers. |
 | `infra/operations/` | Future deployment, monitoring, backup, restore, and incident runbooks. |
 | `docs/` | Maintained product, architecture, planning, decision, and engineering documentation. |
-| `specs/` | 22 specifications, numbered 000 through 021. 001 to 003 are merged; 004 is implemented locally and awaits owner review; later specs retain their decision gates. |
+| `specs/` | 22 specifications, numbered 000 through 021. 001 to 004 are merged; 005 is in preparation; later specifications retain their decision gates. |
 | `research_notes/` | Detailed evidence, source links, limitations, and research observations. |
 | `reports/` | Synthesized research and decision reports; not an automatic report after every task. |
 
@@ -44,4 +44,4 @@ Python dependencies are isolated in .venv and pinned with hashes in [backend/req
 One-time PDF repair tools, temporary files, and document exports have been removed from the project. The original reference PDF and final corrected reading copy are preserved outside the workspace. [Source provenance](docs/source/README.md) remains available to the team.
 
 ## Working method
-Follow the specification sequence. D-017/D-019 authorized the completed local 002 scope. Review the implementation, explicit deferrals, and evidence before progression. Specification 003 was merged through PR 2: see its [reconciled design](specs/003-privacy-data-policy/design.md), [evidence](specs/003-privacy-data-policy/evidence.md), and [review-correction evidence](specs/003-privacy-data-policy/review-corrections-evidence.md). Specification 004 is under owner review: see its [design](specs/004-event-collection/design.md), [decision packet](specs/004-event-collection/decision-packet.md), and [evidence](specs/004-event-collection/evidence.md). Completed 001/002 work was merged through PR 1; each later specification is reviewed with the owner before its upload.
+Follow the specification sequence. D-017/D-019 authorized the completed local 002 scope. Review the implementation, explicit deferrals, and evidence before progression. Specification 003 was merged through PR 2: see its [reconciled design](specs/003-privacy-data-policy/design.md), [evidence](specs/003-privacy-data-policy/evidence.md), and [review-correction evidence](specs/003-privacy-data-policy/review-corrections-evidence.md). Specification 004 is merged in PR 3: see its [design](specs/004-event-collection/design.md), [decision packet](specs/004-event-collection/decision-packet.md), and [evidence](specs/004-event-collection/evidence.md). Completed 001/002 work was merged through PR 1; each later specification is reviewed with the owner before its upload.
