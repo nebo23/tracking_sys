@@ -120,7 +120,10 @@ for (const name of ["chromium", "firefox"]) {
       const first = await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY);
       const stored = JSON.parse(first);
       assert.deepEqual(Object.keys(stored).sort(), ["expiresAt", "purposes", "token", "v"]);
-      assert.ok(stored.expiresAt - Date.now() <= 24 * 60 * 60 * 1000);
+      // The expiry was written with the page's clock, so it is checked against that clock:
+      // the browser and Node processes can read the system time a few milliseconds apart.
+      const pageNow = await page.evaluate(() => Date.now());
+      assert.ok(stored.expiresAt - pageNow <= 24 * 60 * 60 * 1000);
       await page.reload();
       await page.waitForFunction(() => window.__ready === true);
       assert.deepEqual(await logOf(page), []);
