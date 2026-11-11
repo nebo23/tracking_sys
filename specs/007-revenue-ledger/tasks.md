@@ -3,9 +3,9 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 
 - [ ] Approve the scope and sources for revenue, refunds, and currencies.
 - [ ] Resolve Q-002, Q-006, Q-007 and record the owner decision.
-- [ ] Verify dependencies: 006-identity-journey.
-- [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
+- [x] Inspect the merged Spec 006 design at `ec9a09b` and record its outstanding runtime dependencies in the [entry review](entry-review.md).
+- [x] Prepare the proposed contracts, financial access boundaries and synthetic acceptance cases for owner review.
+- [x] Propose independently reviewable slices 007-A, 007-B and 007-C.
 - [ ] Implement the first approved slice.
 - [ ] Verify: Duplicate payment/refund webhooks do not multiply amounts, regardless of delivery order.
 - [ ] Verify: A sale of 1,000 followed by a partial refund of 200 produces net revenue of 800 in the same currency; a full refund produces zero.

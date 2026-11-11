@@ -1,5 +1,5 @@
 # Plan: 007-revenue-ledger
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Draft. This plan does not authorize implementation or dependency selection. The [entry review](entry-review.md) defines the proposed 007-A contract, alternatives and synthetic acceptance cases.
 
 ## Expected outcome
 Maintain transactions and their evidence, audited manual revenue, payments, refunds, chargebacks, gross/net amounts, and original/reporting currencies.
@@ -12,9 +12,9 @@ Maintain transactions and their evidence, audited manual revenue, payments, refu
 - Distinguish confirmed decisions from proposals and resolve: Q-002, Q-006, Q-007.
 
 ## Proposed review slices
-1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
-2. Implement the smallest approved end-to-end slice with appropriate observability.
-3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
+1. 007-A: review A1–A3, then implement the approved provider-independent financial contract and its synthetic unit cases.
+2. 007-B: review persistence, concurrency, scope, audit, privacy and migration design before database or API work.
+3. 007-C: verify downstream identity and attribution handoffs with their implemented dependencies.
 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 

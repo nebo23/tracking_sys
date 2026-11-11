@@ -9,8 +9,8 @@ Each specification contains spec.md, plan.md, and tasks.md. The foundation and a
 | [003-privacy-data-policy](003-privacy-data-policy/spec.md) | L1 | Consent, data protection, and lifecycle |
 | [004-event-collection](004-event-collection/spec.md) | L2 | Event collection and contracts |
 | [005-links-tracker](005-links-tracker/spec.md) | L2 | Links, UTM parameters, and website tracker (merged in PR 4, `c251e20`) |
-| [006-identity-journey](006-identity-journey/spec.md) | L2 | Lead identity and customer journey (preparation for owner approval under D-039) |
-| [007-revenue-ledger](007-revenue-ledger/spec.md) | L3 | Revenue, refunds, and currencies |
+| [006-identity-journey](006-identity-journey/spec.md) | L2 | Lead identity and customer journey (design merged in PR 5, `ec9a09b`) |
+| [007-revenue-ledger](007-revenue-ledger/spec.md) | L3 | Revenue, refunds, and currencies ([entry review](007-revenue-ledger/entry-review.md), D-042) |
 | [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine |
 | [009-connector-runtime](009-connector-runtime/spec.md) | L4 | Connector runtime and OAuth |
 | [010-instagram](010-instagram/spec.md) | L4 | Instagram analytics |
