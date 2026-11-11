@@ -25,7 +25,9 @@ Status: Implemented and verified locally under D-033 (2026-11-10); awaiting inde
 - [x] Correct R005-01 to R005-11 with regressions and update PR 4 (D-035).
 - [x] Independent review of the corrections (2026-11-11, seven findings R005-12 to R005-18).
 - [x] Correct R005-12 to R005-18 of the corrections review with regressions and update PR 4 (D-036).
-- [ ] Independent review of the second corrections.
+- [x] Independent review of the second corrections (2026-11-11, four findings R005-19 to R005-22).
+- [x] Correct R005-19 to R005-22 of the second corrections review with regressions and update PR 4 (D-037).
+- [ ] Independent review of the third corrections.
 - [x] Obtain owner upload approval, then push and create a PR (D-012): D-034 on 2026-11-11. Merge, native rollout and deployment remain separate decisions.
 - [ ] Owner-authorized live custom-domain smoke test, if wanted (separately gated).
 - [ ] Record owner acceptance before progressing to dependent work.
