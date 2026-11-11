@@ -1,5 +1,5 @@
 # Plan: 006-identity-journey
-Status: Draft prepared for owner approval under D-039 (2026-11-11). This plan does not authorize implementation, schema, migrations or dependency selection. Read the [entry review](entry-review.md), [design revision 2](design.md), [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
+Status: Draft prepared for owner approval under D-039 (2026-11-11). This plan does not authorize implementation, schema, migrations or dependency selection. Read the [entry review](entry-review.md), [design revision 3](design.md), [decision packet](decision-packet.md), [verification matrix](verification-matrix.md) and [review register](preparation-review.md).
 
 ## Expected outcome
 Represent anonymous visitors, leads, and customers; support deterministic identity linking, sourced event timelines, and auditable merge/unmerge actions. An authorized agency user can see, for one client, which interactions are reliably associated with a person, in what order, and on what evidence.
@@ -17,7 +17,7 @@ Represent anonymous visitors, leads, and customers; support deterministic identi
 | 006-A | Migration 0009, models, data-policy classes, per-client key custody, normalizers, tombstone/audit/grant extensions. | D1–D12, as mapped in the decision packet |
 | 006-B | Handoff route, trusted assertions, matching rules, segments, consent (E3), withdrawal, expiry and lifecycle integration. | 006-A; D2, D5, D6, D7 |
 | 006-C | Profile, timeline, lead inbox and review read APIs with permissions. | 006-B; D8, D9, D13 |
-| 006-D | Merge, unmerge, erasure by person or identifier, change feed for 007/008. | 006-C; D10 |
+| 006-D | Merge, unmerge with dependency re-evaluation, erasure by person or identifier with clarification, change feed and rebuild contract for 007/008. | 006-C; D10 |
 | 006-E | Tracker `identityHandoff(challenge)` and `restart()`; Node, Chromium and Firefox tests; end-to-end journey. | 006-B for the tracker, 006-C for the timeline journey |
 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
@@ -31,7 +31,7 @@ Prepare small, reviewable local changes. Complete the approved specification and
 Each criterion maps to planned tests. For AC4, 006 verifies original evidence, reversible associations and the recalculation signal. Specification 008 must consume the signal and verify actual attribution recalculation.
 
 ## Rollout and recovery
-Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Migration 0009 is additive with a guarded downgrade; existing collection subjects receive an unknown issuance channel. No history is inferred from later consent updates. Native rollout and deployment require separate approval.
+Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Migration 0009 is additive with a guarded downgrade; existing collection subjects receive an unknown issuance channel and, as recommended under D3, cannot use either identity proof route. No history is inferred from later consent updates. Native rollout and deployment require separate approval.
 
 ## Progression gate
 Implementation starts after the owner records the applicable decisions. Record verification evidence per slice and obtain owner review before publication.
