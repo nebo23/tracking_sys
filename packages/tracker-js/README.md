@@ -25,7 +25,7 @@ This is not general personal-data detection, not a guarantee of delivery, and no
 4. Connect your consent banner to `grant`, `resume`, `withdraw` and `erase` (see [examples/install.html](examples/install.html) and its module [examples/install.js](examples/install.js); both are exercised unchanged in Chromium and Firefox by `test/browser/install-example.browser.test.js`).
 
 ```js
-import { createTracker } from "/assets/tracker-0.5.1/tracker.js";
+import { createTracker } from "/assets/tracker-0.5.2/tracker.js";
 
 const tracker = createTracker({
   collector: "https://collect.example.test", // exact origin of the Tracking System API
