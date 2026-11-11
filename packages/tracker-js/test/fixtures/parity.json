@@ -1,0 +1,701 @@
+{
+  "description": "Shared minimization fixtures (specification 005, M2). Expected values come from the Python contracts; tests/test_tracker_parity.py and the tracker's Node tests both assert them. Synthetic values only.",
+  "urls": [
+    {
+      "url": "https://shop.example.test/offer?utm_source=news&gclid=abc&ref=x#top",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/offer?utm_source=news",
+      "dropped": {
+        "click_identifier": 1,
+        "url_component": 2
+      }
+    },
+    {
+      "url": "https://shop.example.test/offer?utm_source=news&gclid=abc&ref=x#top",
+      "granted": [
+        "analytics.first_party",
+        "attribution"
+      ],
+      "expected": "https://shop.example.test/offer?utm_source=news&gclid=abc",
+      "dropped": {
+        "url_component": 2
+      }
+    },
+    {
+      "url": "https://shop.example.test/offer?utm_source=news&fbclid=f1",
+      "granted": [],
+      "expected": "https://shop.example.test/offer",
+      "dropped": {
+        "click_identifier": 1,
+        "url_component": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/u/someone@example.test/profile",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_identifier"
+    },
+    {
+      "url": "https://shop.example.test/u/someone%40example.test",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_identifier"
+    },
+    {
+      "url": "https://shop.example.test/u/someone%2540example.test",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_identifier"
+    },
+    {
+      "url": "https://shop.example.test/c/4111-1111-1111-1111",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_identifier"
+    },
+    {
+      "url": "https://shop.example.test/p?utm_term=4111%E2%80%911111%E2%80%911111%E2%80%911111",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_content=4111%C2%A01111%C2%A01111%C2%A01111",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_term=%D9%A4%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1%D9%A1",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_term=%EF%BC%94111111111111111",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=a&utm_source=b",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=a&utm_source=b",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?utm_campaign=spring+sale&utm_term=a%20b",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_campaign=spring+sale&utm_term=a+b",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?utm_content=a~b*c&utm_id=x%2Fy",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_content=a~b%2Ac&utm_id=x%2Fy",
+      "dropped": {}
+    },
+    {
+      "url": "https://user:secret@shop.example.test/x?utm_medium=email",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/x?utm_medium=email",
+      "dropped": {
+        "url_component": 1
+      }
+    },
+    {
+      "url": "http://localhost:8080/p?utm_id=1&session=abc",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "http://localhost:8080/p?utm_id=1",
+      "dropped": {
+        "url_component": 1
+      }
+    },
+    {
+      "url": "http://localhost:99999/p",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_not_allowed"
+    },
+    {
+      "url": "ftp://shop.example.test/p",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_not_allowed"
+    },
+    {
+      "url": "https:///nohost",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_not_allowed"
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=&utm_medium",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=&utm_medium=",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/caf%C3%A9?utm_source=x",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/caf%C3%A9?utm_source=x",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?q=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "url_component": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "rejected": "url_not_allowed"
+    },
+    {
+      "url": "https://shop.example.test/landing?ts_link=00000000-0000-4000-8000-000000000123&utm_source=site",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/landing?utm_source=site",
+      "dropped": {
+        "url_component": 1
+      }
+    },
+    {
+      "url": "HTTPS://SHOP.Example.Test/Path?UTM_SOURCE=x&utm_source=y",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/Path?utm_source=y",
+      "dropped": {
+        "url_component": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=a%40b.co&utm_medium=ok",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_medium=ok",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=a%2540b.co",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p",
+      "dropped": {
+        "sensitive_query_value": 1
+      }
+    },
+    {
+      "url": "https://shop.example.test/p?fbclid=f1&msclkid=m1&utm_source=s",
+      "granted": [
+        "analytics.first_party",
+        "attribution"
+      ],
+      "expected": "https://shop.example.test/p?fbclid=f1&msclkid=m1&utm_source=s",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?%75tm_source=encoded-name",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=encoded-name",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?&&utm_source=x&&",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=x",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=%zz",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=%25zz",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p?utm_source=%E2%82%AC",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/p?utm_source=%E2%82%AC",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test?utm_source=root",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test?utm_source=root",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/a/../b?utm_source=x",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/a/../b?utm_source=x",
+      "dropped": {}
+    },
+    {
+      "url": "https://shop.example.test/p\tq?utm_source=x",
+      "granted": [
+        "analytics.first_party"
+      ],
+      "expected": "https://shop.example.test/pq?utm_source=x",
+      "dropped": {}
+    }
+  ],
+  "referrers": [
+    {
+      "url": "https://ref.example.test/path?q=1#x",
+      "expected": "https://ref.example.test"
+    },
+    {
+      "url": "http://localhost:3000/p",
+      "expected": "http://localhost:3000"
+    },
+    {
+      "url": "https://user:pw@ref.example.test/",
+      "expected": "https://ref.example.test"
+    },
+    {
+      "url": "javascript:alert(1)",
+      "rejected": "url_not_allowed"
+    },
+    {
+      "url": "https://REF.Example.Test",
+      "expected": "https://ref.example.test"
+    }
+  ],
+  "cards": [
+    {
+      "text": "4111111111111111",
+      "card": true
+    },
+    {
+      "text": "4111 1111 1111 1111",
+      "card": true
+    },
+    {
+      "text": "4111-1111-1111-1111",
+      "card": true
+    },
+    {
+      "text": "4111\t1111\n1111  1111",
+      "card": true
+    },
+    {
+      "text": "4111111111111112",
+      "card": false
+    },
+    {
+      "text": "411111111111",
+      "card": false
+    },
+    {
+      "text": "order 99 4111 1111 1111 1111 exp 12 34",
+      "card": true
+    },
+    {
+      "text": "4111 1111 1111 1111 123",
+      "card": true
+    },
+    {
+      "text": "5500 0000 0000 0004",
+      "card": true
+    },
+    {
+      "text": "3782 822463 10005",
+      "card": true
+    },
+    {
+      "text": "12345678901234567890123",
+      "card": false
+    },
+    {
+      "text": "4111\u20101111\u20101111\u20101111",
+      "card": true
+    },
+    {
+      "text": "4111\u20111111\u20111111\u20111111",
+      "card": true
+    },
+    {
+      "text": "4111\u20121111\u20121111\u20121111",
+      "card": true
+    },
+    {
+      "text": "4111\u20131111\u20131111\u20131111",
+      "card": true
+    },
+    {
+      "text": "4111\u20141111\u20141111\u20141111",
+      "card": true
+    },
+    {
+      "text": "4111\u20151111\u20151111\u20151111",
+      "card": true
+    },
+    {
+      "text": "4111\u22121111\u22121111\u22121111",
+      "card": true
+    },
+    {
+      "text": "4111\uff0d1111\uff0d1111\uff0d1111",
+      "card": true
+    },
+    {
+      "text": "4111\u00a01111\u00a01111\u00a01111",
+      "card": true
+    },
+    {
+      "text": "4111\u202f1111\u202f1111\u202f1111",
+      "card": true
+    },
+    {
+      "text": "4111\u20071111\u20071111\u20071111",
+      "card": true
+    },
+    {
+      "text": "4111\u30001111\u30001111\u30001111",
+      "card": true
+    },
+    {
+      "text": "4111\u001c1111\u001c1111\u001c1111",
+      "card": true
+    },
+    {
+      "text": "4111\u00851111\u00851111\u00851111",
+      "card": true
+    },
+    {
+      "text": "4111\ufeff1111\ufeff1111\ufeff1111",
+      "card": false
+    },
+    {
+      "text": "4111.1111.1111.1111",
+      "card": false
+    },
+    {
+      "text": "4111/1111/1111/1111",
+      "card": false
+    },
+    {
+      "text": "\u0664\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661",
+      "card": true
+    },
+    {
+      "text": "\u06f4\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1\u06f1",
+      "card": true
+    },
+    {
+      "text": "\uff14\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11\uff11",
+      "card": true
+    },
+    {
+      "text": "\u096a\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967\u0967",
+      "card": true
+    }
+  ],
+  "fields": [
+    {
+      "field": {
+        "name": "plan"
+      },
+      "reason": null
+    },
+    {
+      "field": {
+        "name": "secret",
+        "input_type": "password"
+      },
+      "reason": "never_collect_type"
+    },
+    {
+      "field": {
+        "name": "token",
+        "input_type": " Hidden "
+      },
+      "reason": "never_collect_type"
+    },
+    {
+      "field": {
+        "name": "cc",
+        "autocomplete": "cc-number"
+      },
+      "reason": "never_collect_autocomplete"
+    },
+    {
+      "field": {
+        "name": "x",
+        "autocomplete": "section-a shipping cc-csc"
+      },
+      "reason": "never_collect_autocomplete"
+    },
+    {
+      "field": {
+        "name": "code",
+        "autocomplete": "one-time-code"
+      },
+      "reason": "never_collect_autocomplete"
+    },
+    {
+      "field": {
+        "name": "pw",
+        "autocomplete": "new-password"
+      },
+      "reason": "never_collect_autocomplete"
+    },
+    {
+      "field": {
+        "name": "cardNumber"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "card_number"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "field1",
+        "element_id": "user_pin"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "field2",
+        "label": "Security code"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "PINCode"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "spinner"
+      },
+      "reason": null
+    },
+    {
+      "field": {
+        "name": "cvv2"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "ccnum"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "OTPValue"
+      },
+      "reason": "sensitive_field_name"
+    },
+    {
+      "field": {
+        "name": "framed",
+        "in_payment_frame": true
+      },
+      "reason": "payment_frame"
+    },
+    {
+      "field": {
+        "name": "quantity",
+        "input_type": "number"
+      },
+      "reason": null
+    }
+  ],
+  "values": [
+    {
+      "field": {
+        "name": "plan",
+        "data_class": "form.option",
+        "options": [
+          "basic",
+          "pro"
+        ]
+      },
+      "value": "pro",
+      "expected": "pro"
+    },
+    {
+      "field": {
+        "name": "plan",
+        "data_class": "form.option",
+        "options": [
+          "basic",
+          "pro"
+        ]
+      },
+      "value": "Pro",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "coupon",
+        "data_class": "form.code"
+      },
+      "value": "SPRING-26",
+      "expected": "SPRING-26"
+    },
+    {
+      "field": {
+        "name": "coupon",
+        "data_class": "form.code"
+      },
+      "value": "has space",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "coupon",
+        "data_class": "form.code"
+      },
+      "value": "4111111111111111",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "coupon",
+        "data_class": "form.code"
+      },
+      "value": "a@b.co",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "coupon",
+        "data_class": "form.code"
+      },
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "3",
+      "expected": 3
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "1000000",
+      "expected": 1000000
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "1000001",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "-1",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "2.5",
+      "expected": null
+    },
+    {
+      "field": {
+        "name": "qty",
+        "data_class": "form.quantity"
+      },
+      "value": "",
+      "expected": null
+    }
+  ]
+}

@@ -272,6 +272,7 @@ dnspython==2.9.1 \
     # via
     #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
+    #   -r backend/requirements.in
     #   email-validator
 email-validator==2.3.0 \
     --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4 \
@@ -773,6 +774,7 @@ pyjwt==2.15.1 \
     --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
     --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
     # via
+    #   -c backend/requirements-dev.txt
     #   -c backend/requirements.txt
     #   -r backend/requirements.in
 pytest==9.2.0 \

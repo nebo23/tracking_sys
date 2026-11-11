@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "004-B"
+POLICY_VERSION = "005-B"
 
 
 class Sensitivity(StrEnum):
@@ -272,6 +272,38 @@ CLASSES: dict[str, DataClass] = {
             Provenance.DERIVED,
             "Keep for the workspace lifetime (D-025, D-027).",
             "004, 017",
+        ),
+        DataClass(
+            "link.configuration",
+            "Managed-link business configuration: campaign and content codes, UTM templates, "
+            "destination origins and static query names, custom hostnames, slugs, issued "
+            "destinations, UTM snapshots and targets, link references, statuses, and expiry.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Keep for the workspace lifetime to preserve provenance and unrecycled slugs "
+            "(D-033); offboarding is 017.",
+            "005, 017",
+        ),
+        DataClass(
+            "link.label",
+            "Free-text campaign labels, content platform labels, and template names; may name "
+            "a person.",
+            Sensitivity.MEDIUM,
+            Personal.DIRECT,
+            Provenance.PROVIDED,
+            "Delete with client offboarding (017).",
+            "005, 017",
+        ),
+        DataClass(
+            "domain.verification",
+            "Custom-domain ownership challenge digest, generation, expiry, verification times, "
+            "observed certificate expiry, closed failure code, and version.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Replaced on each challenge or check; kept with the domain (D-033).",
+            "005",
         ),
         DataClass(
             "system.schema_version",
@@ -722,13 +754,15 @@ TABLES: dict[str, TablePolicy] = {
                 "last_conflict_at",
                 "expires_at",
             ),
+            "link_id": "event.content",
         },
         (
             _row(
                 APPROVED,
-                "D-027",
+                "D-027; D-033",
                 "Deleted by the lifecycle runner 395 days after first receipt (expires_at), or "
-                "on erasure. Purchase claims are readable only with financial access.",
+                "on erasure, with any link reference. Purchase claims are readable only with "
+                "financial access.",
             ),
         ),
     ),
@@ -791,6 +825,166 @@ TABLES: dict[str, TablePolicy] = {
                 "D-025; D-027",
                 "Insert-only for the runtime and unreachable by the lifecycle role; kept for the "
                 "workspace lifetime. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "link_campaigns": TablePolicy(
+        {
+            "label": "link.label",
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "public_code",
+                "status",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
+                "and hostnames are not recycled. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "link_content_references": TablePolicy(
+        {
+            "platform_label": "link.label",
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "external_code",
+                "status",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
+                "and hostnames are not recycled. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "link_utm_templates": TablePolicy(
+        {
+            "name": "link.label",
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "parameters",
+                "revision",
+                "status",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
+                "and hostnames are not recycled. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "link_destination_origins": TablePolicy(
+        {
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "origin",
+                "hostname",
+                "query_names",
+                "status",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
+                "and hostnames are not recycled. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "link_domains": TablePolicy(
+        {
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "hostname",
+                "status",
+                "created_at",
+                "updated_at",
+            ),
+            **_same(
+                "domain.verification",
+                "challenge_digest",
+                "challenge_expires_at",
+                "challenge_generation",
+                "verified_at",
+                "verification_expires_at",
+                "certificate_expires_at",
+                "last_checked_at",
+                "failure_code",
+                "version",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; disabling keeps the hostname reserved to the "
+                "client. Reassignment and offboarding need a later reviewed process (017).",
+            ),
+        ),
+    ),
+    "managed_links": TablePolicy(
+        {
+            **_same(
+                "link.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "domain_id",
+                "slug",
+                "origin_id",
+                "destination",
+                "utm",
+                "target_url",
+                "campaign_id",
+                "content_reference_id",
+                "template_id",
+                "template_revision",
+                "status",
+                "expires_at",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-033",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
+                "and hostnames are not recycled. Offboarding is 017.",
             ),
         ),
     ),

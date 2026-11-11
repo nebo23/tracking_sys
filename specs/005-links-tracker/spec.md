@@ -1,5 +1,7 @@
 # 005-links-tracker — Links, UTM parameters, and website tracker
-Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Approved for local implementation by D-033 (2026-11-10): the recommended D1-D10 options and design revision 1 prepared at `a909990`. Slices 005-B to 005-E are implemented and verified locally on `codex/spec-005-links-tracker`; see the [evidence](evidence.md) for the tested tree, results and limitations. Published for review under D-034 (PR 4); the eleven independent-review findings are corrected under D-035, the seven findings of the corrections review under D-036, the four findings of the second corrections review under D-037 and the finding of the final review under D-038 (see the evidence). Not merged. Level: L2. Prepared: 2026-10-28. The entry review was refreshed against merged specification 004 on 2026-11-10 under D-032.
+
+Design revision 1, the [D1-D10 decision packet](decision-packet.md), and the [verification matrix](verification-matrix.md) are approved by D-033 for local and disposable environments. Publication, merge, native rollout, live intake, domain purchases, DNS changes, certificate issuance and deployment remain separately gated.
 
 ## Sources
 PDF-003,015,016,024; PDF-001,008. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -27,4 +29,4 @@ Specification 003 obligations (D-025): apply the never-collect form rules and UR
 Open decisions: Q-001, Q-002, Q-003. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-033 (2026-11-10): the owner approved the recommended D1-D10 options and design revision 1 prepared at `a909990`, and authorized implementation of 005-B to 005-E with local and disposable environments only. D-032 remains the record of the preparation-only phase; its restriction is superseded for this scope only.

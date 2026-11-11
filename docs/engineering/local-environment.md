@@ -1,7 +1,7 @@
 # Local backend and database setup
 Updated: 2026-10-30. Scope: foundation and approved specification 002, authorized by D-013 through D-019.
 
-Current target schema: revision 0004_identity, with six tenancy tables, ten auth/access tables, and three D-022 identity/verification tables. Native tracking_sys received the owner-approved additive 0004 rollout on 2026-11-04. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
+Current target schema on this branch: revision 0008_links_tracker (34 application tables, including the D-027 collection and D-033 managed-link tables). Native tracking_sys received the owner-approved additive 0004 rollout on 2026-11-04; migrations 0005 to 0008 and the lifecycle role need separate approval before any native rollout. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
 
 ## Requirements
 Use Python 3.12 and the owner's existing PostgreSQL 18 installation. The selected development database is tracking_sys on 127.0.0.1:5432. pgAdmin manages this PostgreSQL server; the application connects directly to PostgreSQL. Docker Desktop and Compose are required only for the optional container stack.
@@ -139,6 +139,23 @@ uv --no-cache pip sync --python .venv/Scripts/python.exe --require-hashes backen
 ```
 
 Recheck compatibility and relevant tests after an update. Container images are pinned by digest; update them deliberately rather than relying on a changing tag. Do not copy .venv or node_modules into images.
+
+## Website tracker tooling
+The tracker in `packages/tracker-js` needs Node.js 20 or later (24.17.0 was used) only for its tests. Its single development dependency, Playwright 1.64.1, and the Chromium and Firefox test browsers stay inside that package's `node_modules`:
+
+```powershell
+Push-Location packages/tracker-js
+try {
+    npm ci
+    npm run install:browsers
+    npm test
+    npm run test:browser
+} finally {
+    Pop-Location
+}
+```
+
+The backend browser journey (`backend/tests/integration/test_tracker_journey.py`) also runs these browsers; enable it with `TRACKING_RUN_BROWSER_TESTS=1` together with the disposable-database flag.
 
 ## Shutdown and recovery
 ```powershell

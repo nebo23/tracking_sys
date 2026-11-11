@@ -195,12 +195,17 @@ class AuditEvent(Base):
             "'membership.created', 'membership.updated', 'grant.created', 'grant.updated', "
             "'grant.revoked', 'invitation.created', 'invitation.revoked', 'invitation.accepted', "
             "'credential.created', 'credential.revoked', 'source.created', 'source.updated', "
-            "'source.secret_rotated', 'form.updated', 'deletion.requested')",
+            "'source.secret_rotated', 'form.updated', 'deletion.requested', "
+            "'campaign.created', 'campaign.updated', 'content.created', 'content.updated', "
+            "'template.created', 'template.updated', 'origin.created', 'origin.updated', "
+            "'domain.created', 'domain.updated', 'domain.challenge_issued', 'domain.checked', "
+            "'link.created', 'link.updated')",
             name="valid_action",
         ),
         CheckConstraint(
             "resource_type IN ('agency', 'client', 'membership', 'invitation', 'credential', "
-            "'source', 'form', 'deletion_request')",
+            "'source', 'form', 'deletion_request', 'campaign', 'content_reference', "
+            "'utm_template', 'destination_origin', 'domain', 'link')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

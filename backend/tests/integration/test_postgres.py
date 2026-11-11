@@ -53,6 +53,12 @@ def test_postgresql_migration_cycle_and_runtime_permissions(
                 "event_diagnostics",
                 "deletion_requests",
                 "deletion_tombstones",
+                "link_campaigns",
+                "link_content_references",
+                "link_utm_templates",
+                "link_destination_origins",
+                "link_domains",
+                "managed_links",
             }, "Refuse an unknown database schema."
             for table in tables - {"alembic_version"}:
                 assert not connection.execute(

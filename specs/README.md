@@ -8,7 +8,7 @@ Each specification contains spec.md, plan.md, and tasks.md. The foundation and a
 | [002-tenancy-access](002-tenancy-access/spec.md) | L1 | Agencies, clients, identity, and access |
 | [003-privacy-data-policy](003-privacy-data-policy/spec.md) | L1 | Consent, data protection, and lifecycle |
 | [004-event-collection](004-event-collection/spec.md) | L2 | Event collection and contracts |
-| [005-links-tracker](005-links-tracker/spec.md) | L2 | Links, UTM parameters, and website tracker |
+| [005-links-tracker](005-links-tracker/spec.md) | L2 | Links, UTM parameters, and website tracker (implemented locally under D-033; awaiting review) |
 | [006-identity-journey](006-identity-journey/spec.md) | L2 | Lead identity and customer journey |
 | [007-revenue-ledger](007-revenue-ledger/spec.md) | L3 | Revenue, refunds, and currencies |
 | [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine |

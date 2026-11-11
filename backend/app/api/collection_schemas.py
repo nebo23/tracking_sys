@@ -32,14 +32,32 @@ class ConsentInput(Input):
     notice_sha256: Digest | None = None
 
 
+# expires_at lists each granted purpose's expiry; server_time is the receipt time on the
+# database clock (additive in 005 for per-purpose tracker deadlines).
 class ConsentResponse(Output):
     subject_token: str | None
     receipts: list[UUID]
     states: dict[str, str]
+    expires_at: dict[str, datetime] = Field(default_factory=dict)
+    server_time: datetime | None = None
 
 
 class ErasureInput(Input):
     subject_token: SubjectToken
+
+
+# Non-mutating consent-state read (specification 005); the token travels only in the body.
+class ConsentStateInput(Input):
+    subject_token: SubjectToken
+
+
+# Current per-purpose states, the expiry of each granted purpose, and the server time.
+# "unknown" covers missing and erased subjects alike; every state is then "unknown".
+class ConsentStateResponse(Output):
+    status: Literal["active", "unknown"]
+    states: dict[str, str]
+    expires_at: dict[str, datetime]
+    server_time: datetime
 
 
 # Generic public acknowledgement; identical for every accepted or discarded submission.

@@ -29,7 +29,7 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    assert len(SCHEMA) == 29  # 28 application tables at 0007_event_collection plus alembic_version
+    assert len(SCHEMA) == 35  # 34 application tables at 0008_links_tracker plus alembic_version
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -117,7 +117,7 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("ingestion_source_secrets", "row", "D-027"),
         ("collection_subjects", "row", "D-027"),
         ("consent_records", "row", "D-027"),
-        ("collected_events", "row", "D-027"),
+        ("collected_events", "row", "D-027; D-033"),
         ("event_diagnostics", "row", "D-027"),
         ("deletion_requests", "row", "D-027"),
         ("deletion_tombstones", "row", "D-025; D-027"),
@@ -134,6 +134,7 @@ def test_direct_personal_classes_are_marked_high_or_medium():
     assert direct == {
         "account.identity",
         "contact.invitee",
+        "link.label",
         "message.transactional",
         "tenancy.label",
     }

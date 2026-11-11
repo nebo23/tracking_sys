@@ -1,9 +1,9 @@
-"""Approved SQLAlchemy metadata for specifications 002 to 004."""
+"""Approved SQLAlchemy metadata for specifications 002 to 005."""
 
 # Importing this package registers every mapped table in Base.metadata, which Alembic's env.py
 # and the readiness/model-agreement checks rely on. It covers the 002-A tenancy models, the
 # approved 002-B/C/D authentication and access models, the D-022 identity and verification
-# models, and the D-027 event collection models.
+# models, the D-027 event collection models, and the D-033 managed-link models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
@@ -31,6 +31,14 @@ from app.models.collection import (
     StoredConsentRecord,
     StoredTombstone,
     SubjectDeletionRequest,
+)
+from app.models.links import (
+    LinkCampaign,
+    LinkContentReference,
+    LinkDestinationOrigin,
+    LinkDomain,
+    LinkUtmTemplate,
+    ManagedLink,
 )
 from app.models.tenancy import (
     Agency,
@@ -70,4 +78,10 @@ __all__ = [
     "StoredConsentRecord",
     "StoredTombstone",
     "SubjectDeletionRequest",
+    "LinkCampaign",
+    "LinkContentReference",
+    "LinkDestinationOrigin",
+    "LinkDomain",
+    "LinkUtmTemplate",
+    "ManagedLink",
 ]

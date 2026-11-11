@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, delete, func, select, text
+from sqlalchemy import Engine, delete, exists, func, select, text
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.orm import Session
 
@@ -44,6 +44,7 @@ from app.models import (
     EventDiagnostic,
     IngestionSource,
     IngestionSourceSecret,
+    ManagedLink,
     StoredConsentRecord,
     StoredTombstone,
     SubjectDeletionRequest,
@@ -110,6 +111,20 @@ class ConsentResult:
     subject_token: str | None
     receipts: list[UUID]
     states: dict[Purpose, ConsentState]
+    # Expiry of each granted purpose and the receipt time on the database clock (005, R005-03),
+    # so a tracker can apply per-purpose deadlines without a further state read.
+    expires_at: dict[Purpose, datetime] = field(default_factory=dict)
+    server_time: datetime | None = None
+
+
+# Current consent of a token holder (005 consent-state); "unknown" for a missing or erased
+# subject, without saying which.
+@dataclass(frozen=True)
+class ConsentStateView:
+    status: Literal["active", "unknown"]
+    states: dict[Purpose, ConsentState]
+    expires_at: dict[Purpose, datetime]
+    server_time: datetime
 
 
 def require_tombstone_keys(settings: Settings) -> TombstoneKeyring:
@@ -323,7 +338,8 @@ def record_consent(
             raise CollectionError("unknown_subject", 422)
     elif ConsentState.GRANTED not in choices.values():
         count(session, agency_id, client_id, now.date(), "consent", "suppressed", "nothing_granted")
-        return ConsentResult(None, [], {purpose: ConsentState.UNKNOWN for purpose in PURPOSES})
+        unknown = {purpose: ConsentState.UNKNOWN for purpose in PURPOSES}
+        return ConsentResult(None, [], unknown, {}, now)
     else:
         created = "sbj_" + new_token()
         subject = CollectionSubject(
@@ -375,7 +391,53 @@ def record_consent(
     subject.last_activity_at = now
     session.flush()
     count(session, agency_id, client_id, now.date(), "consent", "accepted", "recorded")
-    return ConsentResult(created, receipts, consent_view(session, subject, now).states)
+    view = consent_view(session, subject, now)
+    expiries = {
+        purpose: view.latest[purpose].expires_at
+        for purpose, state in view.states.items()
+        if state is ConsentState.GRANTED and view.latest[purpose].expires_at is not None
+    }
+    return ConsentResult(created, receipts, view.states, expiries, now)
+
+
+# Read a subject's current consent without changing anything (specification 005, D-033): no
+# token is issued, no record appended, no expiry renewed, and last_activity_at is untouched. It
+# takes the client privacy lock, so it observes consent changes and erasure in their commit
+# order. Missing and erased subjects both read as unknown.
+def read_consent_state(
+    session: Session, client_id: UUID, *, subject_token: str, recheck
+) -> ConsentStateView:
+    now = lock_client(session, client_id)
+    recheck()
+    unknown = {purpose: ConsentState.UNKNOWN for purpose in PURPOSES}
+    subject = find_subject(session, client_id, subject_token)
+    if subject is None:
+        return ConsentStateView("unknown", unknown, {}, now)
+    view = consent_view(session, subject, now)
+    expiries = {
+        purpose: view.latest[purpose].expires_at
+        for purpose, state in view.states.items()
+        if state is ConsentState.GRANTED and view.latest[purpose].expires_at is not None
+    }
+    return ConsentStateView("active", view.states, expiries, now)
+
+
+# True when a managed link of this client has the given ID. Any status counts: a disabled or
+# expired link still identifies historical provenance, although it no longer redirects.
+def link_belongs_to_client(
+    session: Session, agency_id: UUID, client_id: UUID, link_id: UUID
+) -> bool:
+    return bool(
+        session.scalar(
+            select(
+                exists().where(
+                    ManagedLink.agency_id == agency_id,
+                    ManagedLink.client_id == client_id,
+                    ManagedLink.id == link_id,
+                )
+            )
+        )
+    )
 
 
 # Admit one event through the D-027 transaction (design section 8). Returns the outcome with a
@@ -434,6 +496,10 @@ def admit(
     decision = consent.require_all(required, view.states)
     if not decision.allowed:
         return finish("suppressed", decision.reason)
+    if envelope.link_id is not None and not link_belongs_to_client(
+        session, agency_id, client_id, envelope.link_id
+    ):
+        return finish("rejected", "unknown_link")
     granted = {purpose for purpose, state in view.states.items() if state is ConsentState.GRANTED}
     form = None
     if envelope.event_type == "form_submit":
@@ -451,7 +517,12 @@ def admit(
         return finish("rejected", rejection.reason)
     label = traffic_label(channel.kind, envelope.internal, user_agent)
     print_ = fingerprint(
-        envelope.event_type, envelope.occurred_at, subject.id, minimized.payload, envelope.internal
+        envelope.event_type,
+        envelope.occurred_at,
+        subject.id,
+        minimized.payload,
+        envelope.internal,
+        envelope.link_id,
     )
     basis = sorted(view.latest[purpose].id for purpose in required)
     content = {
@@ -465,6 +536,7 @@ def admit(
         "consent_basis": basis,
         "traffic_label": label,
         "policy_version": POLICY_VERSION,
+        "link_id": envelope.link_id,
     }
     inserted = session.scalar(
         insert(CollectedEvent)
