@@ -31,6 +31,8 @@
 //   newer answer was adopted meanwhile, and only while the host still allows a purpose.
 // - Under Global Privacy Control a known subject's sale/share or advertising grant is also
 //   withdrawn at the collector, with a bounded number of attempts for each distinct grant.
+//   The signal is read when grant() is called and again when a queued grant's request is
+//   issued; the choices actually serialized follow the restrictions in force at that moment.
 // - The subject token, granted-purpose snapshot and a fixed local expiry (at most 24 hours from
 //   first storage, never extended) live in sessionStorage only after permission, with an
 //   in-memory fallback. Background state reads (refresh timer, visibility, page restoration)
@@ -59,7 +61,7 @@ import {
   urlsplit,
 } from "./minimize.js";
 
-export const VERSION = "0.5.3";
+export const VERSION = "0.5.4";
 export const PURPOSES = Object.freeze([
   "analytics.first_party",
   "attribution",
@@ -595,8 +597,10 @@ export function createTracker(config, environment = {}) {
   }
 
   // Record the visitor's explicit choices (one consent request). A Global Privacy Control
-  // signal refuses sale/share and advertising grants before anything is sent. Choices take
-  // local effect at once; the response can only enable purposes the latest choices allow.
+  // signal refuses sale/share and advertising grants before anything is sent: when grant() is
+  // called and again when its queued request is issued, so a signal that became active in
+  // between is honored. Choices take local effect at once; the response can only enable
+  // purposes the latest choices allow.
   function grant(choices) {
     const refused = [];
     const send = {};
@@ -622,14 +626,34 @@ export function createTracker(config, environment = {}) {
     // even when nothing else is left to send. An unknown visitor has no subject to reconcile.
     if (refused.length > 0) reconcileGpc({ explicit: true });
     if (Object.keys(send).length === 0) return Promise.resolve({ status: "nothing_sent", refused });
+    const refusedAtCall = refused;
     return serialized(async () => {
-      if (destroyed) return { status: "superseded", refused };
+      if (destroyed) return { status: "superseded", refused: refusedAtCall };
       // Only the choices that are still the visitor's latest are sent; when none is, nothing
       // is read from storage and nothing leaves the browser.
       const current = Object.fromEntries(
         Object.entries(send).filter(([purpose]) => intent.get(purpose) === versions[purpose]),
       );
-      if (Object.keys(current).length === 0) return { status: "superseded", refused };
+      if (Object.keys(current).length === 0) return { status: "superseded", refused: refusedAtCall };
+      // The signal may have become active while this grant waited its turn. The restrictions
+      // in force now decide what is serialized: a sale/share or advertising grant is refused
+      // here exactly as grant() refuses it at the call, and the other choices go ahead. The
+      // request below is issued in this same turn, so nothing can change in between.
+      const refused = [...refusedAtCall];
+      if (gpcActive()) {
+        for (const [purpose, state] of Object.entries(current)) {
+          if (state !== "granted" || !GPC_PURPOSES.includes(purpose)) continue;
+          delete current[purpose];
+          refused.push(purpose);
+          disallow(purpose);
+        }
+        if (refused.length > refusedAtCall.length) {
+          stateEpoch += 1;
+          purge();
+          reconcileGpc({ explicit: true });
+        }
+      }
+      if (Object.keys(current).length === 0) return { status: "nothing_sent", refused };
       expireIfNeeded();
       const granting = Object.values(current).includes("granted");
       if (token === null && granting) {

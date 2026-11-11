@@ -1,6 +1,6 @@
 {
   "name": "@tracking-system/tracker",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Self-hosted first-party website tracker for the Tracking System collection API (specification 005).",
   "private": true,
   "license": "UNLICENSED",

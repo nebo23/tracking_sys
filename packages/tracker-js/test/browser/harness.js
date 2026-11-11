@@ -250,6 +250,11 @@ export const INSTRUMENT = `(() => {
 })();`;
 
 export const GPC = `Object.defineProperty(Navigator.prototype, "globalPrivacyControl", { get: () => true });`;
+// A Global Privacy Control signal the test can switch on later: window.__gpc = true.
+export const SWITCHABLE_GPC = `Object.defineProperty(Navigator.prototype, "globalPrivacyControl", {
+  configurable: true,
+  get: () => window.__gpc === true,
+});`;
 export const NO_SESSION_STORAGE = `Object.defineProperty(window, "sessionStorage", {
   get() { throw new DOMException("Blocked for this test", "SecurityError"); },
 });`;
