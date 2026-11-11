@@ -178,6 +178,8 @@ export async function startServers() {
     } else {
       [status, payload] = defaultResponse(route, JSON.parse(raw || "{}"));
     }
+    // The collector has applied the request; its answer is delayed on the way back.
+    if (plan?.holdReply) await plan.holdReply;
     if (response.destroyed) return;
     response.writeHead(status, {
       "Content-Type": "application/json",

@@ -23,6 +23,14 @@
 //   the affected purposes and are serialized after any pending consent request. A grant
 //   response is reconciled per purpose with the latest choices, so a partial withdrawal leaves
 //   the other purposes untouched. Consent and state requests are aborted after a fixed timeout.
+// - Queued consent work re-checks the host's intent when its turn comes: a grant or resume
+//   that a newer choice made obsolete ends without reading storage or sending the token.
+// - A background state read cannot be ordered against a consent write that was on the wire at
+//   the same time, so its answer is not adopted; the write's own answer is. A read that was
+//   answered but not adopted is repeated once the pending consent work has finished, unless a
+//   newer answer was adopted meanwhile, and only while the host still allows a purpose.
+// - Under Global Privacy Control a known subject's sale/share or advertising grant is also
+//   withdrawn at the collector, with a bounded number of attempts for each distinct grant.
 // - The subject token, granted-purpose snapshot and a fixed local expiry (at most 24 hours from
 //   first storage, never extended) live in sessionStorage only after permission, with an
 //   in-memory fallback. Background state reads (refresh timer, visibility, page restoration)
@@ -51,7 +59,7 @@ import {
   urlsplit,
 } from "./minimize.js";
 
-export const VERSION = "0.5.2";
+export const VERSION = "0.5.3";
 export const PURPOSES = Object.freeze([
   "analytics.first_party",
   "attribution",
@@ -189,13 +197,16 @@ export function createTracker(config, environment = {}) {
   // reported it), id (identity of this continuous grant; a regrant gets a new one) }.
   const server = new Map();
   // Purposes the newest adopted answer reports granted, whether or not their expiry data made
-  // them effective; GPC reconciliation narrows all of them.
-  const reported = new Set();
+  // them effective, each with the identity of that grant at the collector: its reported expiry
+  // instant, which a routine read repeats unchanged and every new grant replaces (0 when the
+  // answer carries no valid expiry). GPC reconciliation narrows all of them.
+  const reported = new Map();
   const host = new Set(); // purposes the visitor's latest choices allow
   const hostSince = new Map(); // purpose -> requestSeq when the host last newly allowed it
   const intent = new Map(); // purpose -> counter, bumped by every choice that concerns it
-  // GPC reconciliation per subject and purpose: { pending, failures, after (requestSeq when the
-  // last round ended; only a state read started later may trigger another round) }.
+  // GPC reconciliation per subject and purpose: { grant (identity of the grant the failures
+  // were counted for), pending, failures, after (requestSeq when the last round ended; only an
+  // answer requested later, or a choice GPC refuses, may trigger another round) }.
   const gpcRounds = new Map();
   let requestSeq = 0; // numbers consent and state requests in the order they start
   let appliedSeq = 0; // the newest request whose answer was adopted
@@ -205,6 +216,10 @@ export function createTracker(config, environment = {}) {
   let destroyed = false;
   let continuity = "none";
   let mutation = Promise.resolve();
+  let queued = 0; // serialized consent operations that have not finished
+  let writes = 0; // consent writes (grant, withdrawal, erasure) currently on the wire
+  let writeMark = 0; // bumped whenever a consent write goes on the wire
+  let rereadDue = false; // an answered background state read could not be adopted
   let refreshing = null;
   let refreshTimer = null;
   let pumping = false;
@@ -432,10 +447,44 @@ export function createTracker(config, environment = {}) {
     }
   }
 
+  // Consent operations run one at a time, in the order they were requested. Each one checks
+  // the host's current intent again when its turn comes, because choices made while it waited
+  // took local effect at once.
   function serialized(task) {
-    const run = mutation.then(task, task);
+    queued += 1;
+    const turn = async () => {
+      try {
+        return await task();
+      } finally {
+        queued -= 1;
+        reread();
+      }
+    };
+    const run = mutation.then(turn, turn);
     mutation = run.catch(() => {});
     return run;
+  }
+
+  // A consent write on the wire, including the handling of its answer. The collector may
+  // process a state read sent during this time before or after the write, so the order in
+  // which the two requests started says nothing about which answer is newer.
+  async function writing(send) {
+    writes += 1;
+    writeMark += 1;
+    try {
+      return await send();
+    } finally {
+      writes -= 1;
+    }
+  }
+
+  // Repeat a background state read that was answered but could not be adopted, once no consent
+  // operation is pending. refresh() checks host permission, the token and its lifetime again
+  // before anything is sent; an answer adopted in the meantime makes the repeat unnecessary.
+  function reread() {
+    if (!rereadDue || queued > 0 || refreshing) return;
+    rereadDue = false;
+    refresh().catch(() => {});
   }
 
   // Adopt the collector's view from the answer to request seq, which started at local time
@@ -453,8 +502,8 @@ export function createTracker(config, environment = {}) {
     reported.clear();
     for (const [purpose, state] of Object.entries(data?.states ?? {})) {
       if (!PURPOSES.includes(purpose) || state !== "granted") continue;
-      reported.add(purpose);
       const expiry = Date.parse(data?.expires_at?.[purpose] ?? "");
+      reported.set(purpose, Number.isFinite(expiry) ? expiry : 0);
       if (!Number.isFinite(expiry) || !Number.isFinite(serverTime) || expiry <= serverTime) continue;
       const prior = previous.get(purpose);
       const id = prior !== undefined && now() < prior.deadline ? prior.id : (grantIds += 1);
@@ -462,6 +511,7 @@ export function createTracker(config, environment = {}) {
     }
     confirmedAt = started;
     stateEpoch += 1;
+    rereadDue = false;
   }
 
   // Under an active GPC signal, a subject's existing sale/share or advertising grant is
@@ -469,41 +519,55 @@ export function createTracker(config, environment = {}) {
   // bounded withdrawal request) starts when an adopted answer reports such a grant and was
   // requested after the previous round for that subject and purpose ended, so a transient
   // failure is retried after recovery and a later regrant is withdrawn again, while answers
-  // older than a confirmed withdrawal never trigger one. At most LIMITS.gpcRounds consecutive
-  // rounds may fail. Local GPC restrictions apply throughout. GPC only ever denies these
-  // purposes (D-033); it never grants or touches other purposes.
-  function reconcileGpc() {
+  // older than a confirmed withdrawal never trigger one. A choice that GPC refuses (explicit)
+  // also starts a round for a grant the collector is known to report, because without host
+  // permission no later state read would. At most LIMITS.gpcRounds consecutive rounds may fail
+  // for one grant: a routine read of the unchanged grant keeps that count, and a distinct new
+  // grant (the collector reports a different expiry) starts its own. Local GPC restrictions
+  // apply throughout. GPC only ever denies these purposes (D-033); it never grants or touches
+  // other purposes.
+  function reconcileGpc({ explicit = false } = {}) {
     if (!gpcActive() || token === null) return;
     const subject = token;
     const affected = GPC_PURPOSES.filter((purpose) => {
       if (!reported.has(purpose)) return false;
       const round = gpcRounds.get(`${subject} ${purpose}`);
-      return !round || (!round.pending && round.failures < LIMITS.gpcRounds && appliedSeq > round.after);
+      if (!round) return true;
+      if (round.pending) return false;
+      const failures = round.grant === reported.get(purpose) ? round.failures : 0;
+      return failures < LIMITS.gpcRounds && (explicit || appliedSeq > round.after);
     });
     if (affected.length === 0) return;
     const rounds = affected.map((purpose) => {
       const key = `${subject} ${purpose}`;
-      const round = gpcRounds.get(key) ?? { failures: 0, after: 0 };
+      const grant = reported.get(purpose);
+      const round = gpcRounds.get(key) ?? { grant, failures: 0, after: 0 };
+      if (round.grant !== grant) {
+        round.grant = grant;
+        round.failures = 0;
+      }
       round.pending = true;
       gpcRounds.set(key, round);
       return round;
     });
-    serialized(async () => {
-      const choices = Object.fromEntries(affected.map((purpose) => [purpose, "withdrawn"]));
-      const confirmed = await sendControl("consent", { subject_token: subject, choices });
-      for (const round of rounds) {
-        round.pending = false;
-        round.after = requestSeq;
-        round.failures = confirmed ? 0 : round.failures + 1;
-      }
-      if (confirmed && token === subject) {
-        for (const purpose of affected) {
-          reported.delete(purpose);
-          server.delete(purpose);
+    serialized(() =>
+      writing(async () => {
+        const choices = Object.fromEntries(affected.map((purpose) => [purpose, "withdrawn"]));
+        const confirmed = await sendControl("consent", { subject_token: subject, choices });
+        for (const round of rounds) {
+          round.pending = false;
+          round.after = requestSeq;
+          round.failures = confirmed ? 0 : round.failures + 1;
         }
-      }
-      if (!confirmed) stats.unconfirmed_withdrawals += 1;
-    });
+        if (confirmed && token === subject) {
+          for (const purpose of affected) {
+            reported.delete(purpose);
+            server.delete(purpose);
+          }
+        }
+        if (!confirmed) stats.unconfirmed_withdrawals += 1;
+      }),
+    );
   }
 
   // After a server response: narrow under GPC, drop ineligible events, persist the record only
@@ -554,9 +618,14 @@ export function createTracker(config, environment = {}) {
     }
     stateEpoch += 1;
     purge();
+    // A grant the collector is known to hold for a purpose GPC refuses is withdrawn there too,
+    // even when nothing else is left to send. An unknown visitor has no subject to reconcile.
+    if (refused.length > 0) reconcileGpc({ explicit: true });
     if (Object.keys(send).length === 0) return Promise.resolve({ status: "nothing_sent", refused });
     return serialized(async () => {
       if (destroyed) return { status: "superseded", refused };
+      // Only the choices that are still the visitor's latest are sent; when none is, nothing
+      // is read from storage and nothing leaves the browser.
       const current = Object.fromEntries(
         Object.entries(send).filter(([purpose]) => intent.get(purpose) === versions[purpose]),
       );
@@ -575,32 +644,34 @@ export function createTracker(config, environment = {}) {
       }
       const body = { choices: current };
       if (token) body.subject_token = token;
-      const seq = ++requestSeq;
-      const started = now();
-      let reply;
-      try {
-        reply = await control("consent", body);
-      } catch {
-        return { status: "unavailable", refused };
-      }
-      if (!reply.ok) {
-        return { status: reply.status === 429 ? "rate_limited" : "rejected", refused };
-      }
-      const { data } = reply;
-      const returned = SUBJECT_TOKEN.test(data?.subject_token ?? "") ? data.subject_token : null;
-      if (returned && returned !== token) {
-        token = returned;
-        localExpiresAt = now() + LIMITS.localLifetimeMs;
-        erasable = null;
-      }
-      if (token === null) return { status: "nothing_granted", refused };
-      if (destroyed) return { status: "superseded", refused };
-      applyServer(data, seq, started);
-      settled();
-      const changed = Object.keys(current).some((purpose) => intent.get(purpose) !== versions[purpose]);
-      const purposes = [...effectiveSet()];
-      const status = changed ? "superseded" : purposes.length ? "granted" : "nothing_granted";
-      return { status, purposes, refused, continuity };
+      return writing(async () => {
+        const seq = ++requestSeq;
+        const started = now();
+        let reply;
+        try {
+          reply = await control("consent", body);
+        } catch {
+          return { status: "unavailable", refused };
+        }
+        if (!reply.ok) {
+          return { status: reply.status === 429 ? "rate_limited" : "rejected", refused };
+        }
+        const { data } = reply;
+        const returned = SUBJECT_TOKEN.test(data?.subject_token ?? "") ? data.subject_token : null;
+        if (returned && returned !== token) {
+          token = returned;
+          localExpiresAt = now() + LIMITS.localLifetimeMs;
+          erasable = null;
+        }
+        if (token === null) return { status: "nothing_granted", refused };
+        if (destroyed) return { status: "superseded", refused };
+        applyServer(data, seq, started);
+        settled();
+        const changed = Object.keys(current).some((purpose) => intent.get(purpose) !== versions[purpose]);
+        const purposes = [...effectiveSet()];
+        const status = changed ? "superseded" : purposes.length ? "granted" : "nothing_granted";
+        return { status, purposes, refused, continuity };
+      });
     });
   }
 
@@ -610,8 +681,11 @@ export function createTracker(config, environment = {}) {
   function resume(choices) {
     const wanted = new Set();
     const gpc = gpcActive();
+    let refused = false;
     for (const [purpose, state] of validChoices(choices)) {
-      if (state === "granted" && !(gpc && GPC_PURPOSES.includes(purpose))) wanted.add(purpose);
+      if (state !== "granted") continue;
+      if (gpc && GPC_PURPOSES.includes(purpose)) refused = true;
+      else wanted.add(purpose);
     }
     for (const purpose of PURPOSES) {
       if (host.has(purpose) !== wanted.has(purpose)) bump(purpose);
@@ -621,9 +695,20 @@ export function createTracker(config, environment = {}) {
     stateEpoch += 1;
     purge();
     if (token !== null && effectiveSet().size === 0 && wanted.size === 0) cancelRefresh();
+    // As in grant(): a known server grant for a purpose GPC refuses is withdrawn there too.
+    if (refused) reconcileGpc({ explicit: true });
     if (wanted.size === 0) return Promise.resolve({ status: "blocked" });
+    // The host's intent this read acts on. A newer choice for a purpose changes its counter.
+    const versions = new Map([...wanted].map((purpose) => [purpose, intent.get(purpose) ?? 0]));
     return serialized(async () => {
       if (destroyed) return { status: "superseded" };
+      // This read may have waited behind other consent work. It goes ahead only while the
+      // host still allows a purpose it was asked for under the same choice; otherwise it ends
+      // here, before storage is read or the subject token is sent.
+      const standing = [...wanted].some(
+        (purpose) => host.has(purpose) && (intent.get(purpose) ?? 0) === versions.get(purpose),
+      );
+      if (!standing) return { status: "superseded" };
       expireIfNeeded();
       const record = token !== null ? { token, expiresAt: localExpiresAt } : readRecord();
       if (!record || record.expiresAt <= now()) return { status: "needs_grant" };
@@ -654,20 +739,31 @@ export function createTracker(config, environment = {}) {
 
   // Re-read the server state while collecting. A failure leaves capture blocked once due. No
   // request is made without current host permission or with a token past its local lifetime;
-  // a token kept after a full withdrawal serves only an explicit erase().
+  // a token kept after a full withdrawal serves only an explicit erase(). The answer is
+  // adopted only if no local change and no consent write happened while it was outstanding:
+  // a write on the wire at the same time may have been processed before or after this read,
+  // so the write's own answer is the one that counts. A read that was answered but not
+  // adopted is repeated once the pending consent work has finished (see reread()).
   function refresh() {
     if (refreshing) return refreshing;
     if (destroyed || token === null || expireIfNeeded() || host.size === 0) return Promise.resolve(false);
+    // A repeat is already due when the pending consent work ends; nothing more is sent now.
+    if (rereadDue) return Promise.resolve(false);
     const epoch = ++stateEpoch;
     const seq = ++requestSeq;
     const started = now();
     const current = token;
+    const mark = writes > 0 ? -1 : writeMark;
     refreshing = (async () => {
       try {
         const reply = await control("consent-state", { subject_token: current });
         if (!reply.ok) return false;
         const state = reply.data;
-        if (destroyed || epoch !== stateEpoch || current !== token) return false;
+        if (destroyed || current !== token) return false;
+        if (epoch !== stateEpoch || mark !== writeMark) {
+          rereadDue = true;
+          return false;
+        }
         if (state?.status !== "active") {
           clearSubject();
           return false;
@@ -679,6 +775,7 @@ export function createTracker(config, environment = {}) {
         return false;
       } finally {
         refreshing = null;
+        reread();
       }
     })();
     return refreshing;
@@ -718,7 +815,7 @@ export function createTracker(config, environment = {}) {
       const subject = token ?? known;
       if (!subject || list.length === 0) return { status: "withdrawn", confirmed: false };
       const choices = Object.fromEntries(list.map((purpose) => [purpose, "withdrawn"]));
-      const confirmed = await sendControl("consent", { subject_token: subject, choices });
+      const confirmed = await writing(() => sendControl("consent", { subject_token: subject, choices }));
       if (!confirmed) stats.unconfirmed_withdrawals += 1;
       return { status: "withdrawn", confirmed };
     });
@@ -736,7 +833,7 @@ export function createTracker(config, environment = {}) {
       token = null;
       erasable = null;
       if (!subject) return { status: "erased", confirmed: false };
-      const confirmed = await sendControl("erasure", { subject_token: subject });
+      const confirmed = await writing(() => sendControl("erasure", { subject_token: subject }));
       return { status: "erased", confirmed };
     });
   }

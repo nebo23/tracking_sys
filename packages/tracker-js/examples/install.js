@@ -3,7 +3,7 @@
 // replace the collector origin, public source key and form definition with the values
 // registered for your client. Nothing is collected until the visitor makes an explicit choice.
 
-import { createTracker } from "/assets/tracker-0.5.2/tracker.js";
+import { createTracker } from "/assets/tracker-0.5.3/tracker.js";
 
 const ANALYTICS = "analytics.first_party";
 const tracker = createTracker({
