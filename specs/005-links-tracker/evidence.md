@@ -2,7 +2,7 @@
 
 Date: 2026-11-10. Authority: D-033 (recommended D1-D10 and design revision 1 prepared at `a909990`). Branch: `codex/spec-005-links-tracker`, local commits only; nothing was pushed, published, merged, deployed or migrated natively.
 
-**Update 2026-11-11 (D-035):** the independent review of PR 4 at `14e8288` raised eleven findings (R005-01 to R005-11). They are corrected and verified in [Review corrections](#review-corrections-2026-11-11) below; the sections before it record the original 2026-11-10 implementation and its results.
+**Update 2026-11-11 (D-035):** the independent review of PR 4 at `14e8288` raised eleven findings (R005-01 to R005-11). They are corrected and verified in [Review corrections](#review-corrections-2026-11-11) below; the sections before it record the original 2026-11-10 implementation and its results. **Update 2026-11-11 (D-036):** the independent review of those corrections at `9c49d89` raised seven further findings (R005-12 to R005-18), corrected and verified in [Second review corrections](#second-review-corrections-2026-11-11).
 
 ## Scope delivered
 
@@ -147,6 +147,47 @@ Same environment class as above: worktree without `.env`, project `.venv` (Pytho
 | Regressions against the reviewed code | Before the corrections, 11 of the 12 new Node cases, the 3 new verification unit cases and both installation-example cases failed in the ways the review describes |
 
 Limitations unchanged by these corrections: verification remains synthetic (no live DNS, CNAME, certificate, hosting or customer site); GPC reconciliation records withdrawals through the existing tracker source rather than a separate GPC source; a request already on the wire cannot be recalled when permission narrows, but it is never retried.
+
+## Second review corrections (2026-11-11)
+
+Authority: D-036. Review: independent review of the corrections on 2026-11-11 at reviewed head `9c49d89` (request changes; seven findings, all in the tracker and its installation example). The original R005-01 to R005-11 regressions are kept unchanged and still pass. Corrections on `codex/spec-005-links-tracker`:
+
+| Commit | Content |
+|---|---|
+| `9a9c8e6` | D-036 record |
+| `65534f8` | R005-12 to R005-17 (tracker 0.5.2); browser harness collector reports `expires_at` and `server_time` like the real API |
+| `1c1bb05` | R005-18 (installation example); example and README import tracker 0.5.2 |
+
+The documentation commit that updates this file follows `1c1bb05` and changes no code or test. **Tested tree: `1c1bb05`.** No backend code, schema, migration, dependency or API contract changed.
+
+| Finding | Correction | Regression tests (each confirmed failing on the reviewed code first) |
+|---|---|---|
+| R005-12, P1 failed resume re-enabled withdrawn analytics | A purpose the host newly allows (through `grant` or `resume`) records a request-sequence watermark; it becomes effective only from a consent or state answer whose request started after that point. `withdraw` and denials also drop the cached server grant at once. A pending, failed or older answer therefore cannot widen permission. | `consent-integrity.test.js` "R005-12: a pending, failed or stale state read never re-enables a confirmed withdrawal" (zero event requests while pending, after 503, after the stale answer and after a second 503; collector stays `withdrawn`; a confirmed regrant then sends a fresh event); "a server state confirmed before the host widened a purpose cannot enable it"; real-browser "review sequences R005-12 and R005-14 hold at the real transport" (Chromium and Firefox, same sequence at the loopback collector) |
+| R005-13, P1 latency extended the server expiry | Each grant's remaining lifetime (`expires_at - server_time`) is added to the local time at which its request started, for grant, resume and refresh alike; `confirmedAt` uses the same start time. A grant without a valid expiry or server time, or with no remaining lifetime, is not effective. | "R005-13: a state answer delivered after the grant's expiry never permits capture" (one second left, answer delivered 2.5 s later, for grant, resume and refresh: zero event requests); "a late answer ends attribution on time for new events and queued retries" (the queued retry carrying `gclid` is discarded and the fresh event's URL bytes keep only `utm_source`); "a grant reported without a valid expiry or server time is not effective" (four variants) |
+| R005-14, P1 page restore sent the token after full withdrawal | `refresh()`, the `pageshow` handler, the refresh timer and visibility handling need current host permission. After a full withdrawal the token stays in memory only so that `erase()` can reach the subject. | "R005-14: after a full withdrawal no background request carries the subject token" (page restore, visibility changes, three refresh intervals and `refresh()` produce zero requests and no timers; `erase()` then reaches the same subject); real-browser sequence (zero collector requests after restore and visibility events; erasure body carries the same token) |
+| R005-15, P2 GPC reconciliation stopped after transient failures | Reconciliation state is kept per subject and purpose (pending, consecutive failures, request sequence at which the last round ended). A round starts when an adopted answer, requested after the previous round ended, still reports a prohibited grant; at most `LIMITS.gpcRounds` (3) consecutive rounds may fail. Reconciliation follows every grant the collector reports, even one whose expiry data make it locally ineffective. Local GPC restrictions apply throughout. | "R005-15: GPC reconciliation resumes after transient withdrawal failures" (three 503 attempts, then one confirmed withdrawal after recovery: exactly 4 withdrawal requests, collector `withdrawn`, analytics untouched); "stays bounded while the collector keeps failing" (exactly 9 requests over six refreshes); "a newer grant is withdrawn again when GPC returns" (exact consent request sequence and final collector state) |
+| R005-16, P2 in-flight event retried across a withdrawal | Each server grant carries an identity that survives refreshes but not a withdrawal or lapse; each event records the identity of every grant its bytes depend on. Narrowing marks in-flight events as revoked, so they are never attempted again even after a regrant. | "R005-16: an in-flight event narrowed by a withdrawal is never retried after a regrant" (the original event transmitted exactly once; a fresh post-regrant event delivered, and its own retry keeps its ID and bytes); existing "R005-01: eligible retries keep their event ID and exact bytes" still passes |
+| R005-17, P2 stalled state read blocked the queue past its TTL | Consent, state and erasure requests are aborted after `LIMITS.controlTimeoutMs` (10 s), including reading the body. The queue waits for a state read at most until its oldest event's lifetime ends and is woken by any newly adopted state; a late answer is ignored as stale. The event-fetch abort and permission checks are unchanged. | "R005-17: a stalled state read cannot keep an expired event or block fresh traffic" (deterministic clock, hidden page, every state read held: the payload is removed at its lifetime with one event request; with a further read pending, an explicit grant lets a fresh event through; the late `unknown` answer is ignored and collection continues) |
+| R005-18, P2 example failed without session storage | `examples/install.js` keeps its own choice record through helpers that tolerate read and write failures with an in-memory fallback; each handler calls the tracker before recording the choice. The Content Security Policy is unchanged. | `install-example.browser.test.js`, committed files served unchanged in Chromium and Firefox with storage available, access blocked and writes failing: banner visible, no request before consent, no policy violation, consent then page view, withdrawal of all purposes, erasure of the same subject, nothing else sent |
+
+Before the corrections, all 11 new Node cases failed in the ways the review describes; the R005-17 case reproduces once the scheduled refresh is skipped by a hidden page, as in the reported sequence. The new browser cases failed in both engines on the reviewed tracker and example: the page view was queued while the resume read was pending, the banner never appeared with storage blocked, and no consent was sent when writes failed. The case with storage available passed before and after.
+
+### Results on `1c1bb05`
+
+Same environment class as above: worktree without `.env`, project `.venv` (Python 3.12.4), a new disposable Compose project `tracking-spec005r2` running only PostgreSQL 18.6 as `tracking_foundation_test` on `127.0.0.1:55433` with separate runtime, migration and lifecycle roles and synthetic credentials outside the repository; Node 24.17.0 with the locked Playwright 1.64.1 browsers (Chromium 156.0.8078.4, Firefox 157.0) in the package. Native `tracking_sys` was not accessed.
+
+| Check | Result |
+|---|---|
+| Backend suite with PostgreSQL and browser journey (`TRACKING_RUN_DB_TESTS=1 TRACKING_RUN_BROWSER_TESTS=1 pytest -q -rs -W default`) | **616 passed** in 238.00 s; no failures, skips or warnings |
+| `ruff check`, `ruff format --check`, `pip check` | Clean (100 files formatted); no broken requirements |
+| Migration, grant, metadata, data-policy and OpenAPI checks | Pass inside the suite; no backend or contract change in this round |
+| Node unit tests (`npm test`) | **47 passed** (36 before plus 11 new) |
+| Real browsers (`npm run test:browser`) | **30 passed**: 15 cases in Chromium and in Firefox (12 before; the installation example now runs in three storage modes; plus the R005-12 and R005-14 transport sequence) |
+| `git diff --check`, non-ASCII and credential scans of `9c49d89..HEAD` | Clean |
+
+Behavior changes to note: a purpose newly allowed through `resume` or `grant` becomes effective only when its own state or consent request succeeds; the tracker no longer treats a reported grant without expiry data as effective; consent and state requests time out after 10 seconds; `refresh()` returns `false` without a request when the host allows no purpose.
+
+Limitations: page restoration is exercised by dispatching a persisted `pageshow` event, not by a real back/forward-cache navigation; verification remains synthetic (no live DNS, CNAME, certificate, hosting or customer site); GPC withdrawals use the existing tracker consent source; a request already on the wire cannot be recalled when permission narrows, but it is never retried; a consent write aborted by the timeout may still have been applied by the collector, and its result is then learned at the next state read.
 
 ## Final review and cleanup
 

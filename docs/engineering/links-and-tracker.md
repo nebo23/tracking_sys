@@ -50,7 +50,7 @@ EventEnvelope v1 accepts an optional `link_id`. Admission accepts it only for a 
 
 ## Website tracker
 
-The tracker in [packages/tracker-js](../../packages/tracker-js/README.md) is a self-hosted ES module with no runtime dependency. See its README for the consent API (`grant`, `resume`, `withdraw`, `erase`), storage policy, form rules, transport limits and the [installation example](../../packages/tracker-js/examples/install.html). It never contains or needs a private service key.
+The tracker in [packages/tracker-js](../../packages/tracker-js/README.md) (version 0.5.2) is a self-hosted ES module with no runtime dependency. See its README for the consent API (`grant`, `resume`, `withdraw`, `erase`), storage policy, form rules, transport limits and the [installation example](../../packages/tracker-js/examples/install.html). It never contains or needs a private service key. It relies on the consent responses' `expires_at` and `server_time`: a grant without them is not effective in the tracker, and remaining lifetimes are counted from each request's start so that latency never extends them. Newly allowed purposes wait for a current server confirmation, and background state reads need current host permission.
 
 ## Custom domains
 
