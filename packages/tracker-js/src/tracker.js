@@ -10,23 +10,32 @@
 //   resume or withdraw) still allows it; Global Privacy Control does not restrict it; and the
 //   fixed local lifetime has not ended. Every capture and every send re-evaluates this, and
 //   every queued event records each purpose its serialized bytes depend on (analytics, plus
-//   attribution when a URL keeps a click identifier), so a narrowing drops affected events.
+//   attribution when a URL keeps a click identifier) and the server grant it was captured
+//   under, so a narrowing drops affected events and marks in-flight ones as never retried.
 // - grant() records the visitor's explicit choice once; resume() only reads the stored token
 //   and the server's current state (POST consent-state) and never recreates or renews consent.
-//   Narrowing by the host takes effect synchronously; late responses can never widen it.
-// - withdraw() and erase() stop local collection immediately and are serialized after any
-//   pending consent request. A grant response is reconciled per purpose with the latest
-//   choices, so a partial withdrawal leaves the other purposes untouched.
+//   Narrowing by the host takes effect synchronously. A purpose the host newly allows stays
+//   suspended until a consent or state request that started after that choice confirms it, so
+//   a pending, failed or older answer can never widen permission.
+// - Server expiry is translated onto the local clock from the time each request started, so
+//   transport latency never extends it. A grant without a valid expiry is not effective.
+// - withdraw() and erase() stop local collection immediately, drop the cached server grant of
+//   the affected purposes and are serialized after any pending consent request. A grant
+//   response is reconciled per purpose with the latest choices, so a partial withdrawal leaves
+//   the other purposes untouched. Consent and state requests are aborted after a fixed timeout.
 // - The subject token, granted-purpose snapshot and a fixed local expiry (at most 24 hours from
 //   first storage, never extended) live in sessionStorage only after permission, with an
-//   in-memory fallback. No background request uses a token past that lifetime.
+//   in-memory fallback. Background state reads (refresh timer, visibility, page restoration)
+//   need current host permission and a token within that lifetime; a token kept only so that
+//   an explicit erase() can reach its subject never authorizes background traffic.
 // - URL and form minimization runs in the browser before transmission (./minimize.js) and again
 //   on the server. Only explicitly configured option/code/quantity fields are read, after the
 //   never-collect rules have excluded their controls.
 // - Events go one per request in a bounded in-memory queue (20 events, 128 KiB, 60 seconds),
 //   at most three attempts, honoring readable Retry-After; each request is aborted when its
-//   event's lifetime ends. A 202 is a generic acknowledgement, not proof of storage. Tracking
-//   failures never block navigation or form submission.
+//   event's lifetime ends, and waiting for a state read never outlasts that lifetime either.
+//   A 202 is a generic acknowledgement, not proof of storage. Tracking failures never block
+//   navigation or form submission.
 
 import {
   ANALYTICS,
@@ -42,7 +51,7 @@ import {
   urlsplit,
 } from "./minimize.js";
 
-export const VERSION = "0.5.1";
+export const VERSION = "0.5.2";
 export const PURPOSES = Object.freeze([
   "analytics.first_party",
   "attribution",
@@ -64,6 +73,8 @@ export const LIMITS = Object.freeze({
   refreshLeadMs: 5_000,
   localLifetimeMs: 24 * 60 * 60 * 1000,
   retryDelaysMs: [1_000, 4_000],
+  controlTimeoutMs: 10_000,
+  gpcRounds: 3,
 });
 const CHOICES = new Set(["granted", "denied", "withdrawn"]);
 const PUBLIC_KEY = /^pk_[A-Za-z0-9_-]{43}$/;
@@ -174,10 +185,21 @@ export function createTracker(config, environment = {}) {
   let token = null; // the subject token while it may be used
   let localExpiresAt = 0; // fixed local deadline of that token, never extended
   let erasable = null; // a token that outlived its local lifetime, kept for an explicit erasure
-  const server = new Map(); // purposes the collector reports granted -> local expiry time
+  // Purposes the collector reports granted -> { deadline (local clock), seq (request that
+  // reported it), id (identity of this continuous grant; a regrant gets a new one) }.
+  const server = new Map();
+  // Purposes the newest adopted answer reports granted, whether or not their expiry data made
+  // them effective; GPC reconciliation narrows all of them.
+  const reported = new Set();
   const host = new Set(); // purposes the visitor's latest choices allow
+  const hostSince = new Map(); // purpose -> requestSeq when the host last newly allowed it
   const intent = new Map(); // purpose -> counter, bumped by every choice that concerns it
-  const reconciledGpc = new Set(); // GPC purposes already withdrawn on the server by this page
+  // GPC reconciliation per subject and purpose: { pending, failures, after (requestSeq when the
+  // last round ended; only a state read started later may trigger another round) }.
+  const gpcRounds = new Map();
+  let requestSeq = 0; // numbers consent and state requests in the order they start
+  let appliedSeq = 0; // the newest request whose answer was adopted
+  let grantIds = 0;
   let stateEpoch = 0; // bumped by every state read and local change: older reads are ignored
   let confirmedAt = 0;
   let destroyed = false;
@@ -202,17 +224,20 @@ export function createTracker(config, environment = {}) {
     unconfirmed_withdrawals: 0,
   };
 
+  // The queue pump's pause: wake() ends it early (new state, destroy). Only the pump uses it.
   const sleep = (ms) =>
     new Promise((resolve) => {
-      const timer = setTimer(() => {
-        if (wake === resolve) wake = null;
-        resolve();
-      }, ms);
-      wake = () => {
-        clearTimer(timer);
+      let timer = null;
+      const done = () => {
+        if (timer !== null) clearTimer(timer);
+        if (wake === done) wake = null;
         resolve();
       };
+      timer = setTimer(done, Math.max(0, ms));
+      wake = done;
     });
+  // A plain delay between control attempts, independent of the pump.
+  const delay = (ms) => new Promise((resolve) => setTimer(resolve, ms));
 
   function gpcActive() {
     try {
@@ -226,8 +251,23 @@ export function createTracker(config, environment = {}) {
   function effective(purpose) {
     if (destroyed || token === null || now() >= localExpiresAt) return false;
     if (!host.has(purpose) || (gpcActive() && GPC_PURPOSES.includes(purpose))) return false;
-    const deadline = server.get(purpose);
-    return deadline !== undefined && now() < deadline;
+    const grant = server.get(purpose);
+    return grant !== undefined && grant.seq > (hostSince.get(purpose) ?? 0) && now() < grant.deadline;
+  }
+
+  // The host allows a purpose. A newly allowed purpose stays suspended until a consent or state
+  // request that starts after this point confirms it; an earlier answer can never enable it.
+  function allow(purpose) {
+    if (host.has(purpose)) return;
+    host.add(purpose);
+    hostSince.set(purpose, requestSeq);
+  }
+
+  // The host no longer allows a purpose. A withdrawal or denial also drops its cached server
+  // grant, so nothing captured or confirmed before it can become eligible again.
+  function disallow(purpose, { forgetGrant = false } = {}) {
+    host.delete(purpose);
+    if (forgetGrant) server.delete(purpose);
   }
 
   function effectiveSet() {
@@ -304,20 +344,31 @@ export function createTracker(config, environment = {}) {
   }
 
   // Drop queued events whose bytes need a purpose that is no longer effective. A request
-  // already on the wire cannot be recalled; it is not retried if it fails.
+  // already on the wire cannot be recalled; it is marked revoked, so it is never attempted
+  // again even if a later grant makes the purpose effective once more.
   function purge() {
     for (let index = queue.length - 1; index >= 0; index -= 1) {
       const item = queue[index];
-      if (item.inFlight) continue;
-      if (!eligible(item)) {
-        queue.splice(index, 1);
-        stats.dropped_permission += 1;
+      if (eligible(item)) continue;
+      if (item.inFlight) {
+        item.revoked = true;
+        continue;
       }
+      queue.splice(index, 1);
+      stats.dropped_permission += 1;
     }
   }
 
+  // An event may be (re)sent only for its own subject, while every purpose its bytes depend on
+  // is effective under the same continuous server grant it was captured under.
   function eligible(item) {
-    return item.token === token && [...item.purposes].every(effective);
+    return (
+      !item.revoked &&
+      item.token === token &&
+      [...item.purposes].every(
+        (purpose) => effective(purpose) && server.get(purpose)?.id === item.grants.get(purpose),
+      )
+    );
   }
 
   // Forget the subject after its local lifetime or an unknown server state. The token stays
@@ -327,6 +378,7 @@ export function createTracker(config, environment = {}) {
     token = null;
     localExpiresAt = 0;
     server.clear();
+    reported.clear();
     confirmedAt = 0;
     stateEpoch += 1;
     cancelRefresh();
@@ -355,16 +407,29 @@ export function createTracker(config, environment = {}) {
     }, Math.max(0, due - now()));
   }
 
-  function control(route, body) {
-    return fetchImpl(`${base}/${route}`, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  // One consent, state or erasure request. It is aborted after LIMITS.controlTimeoutMs,
+  // including reading its body, so a stalled collector can hold neither the consent sequence
+  // nor a state read indefinitely. Returns { ok, status, data }; throws on network failure,
+  // abort or an unreadable success body (when read is requested).
+  async function control(route, body, { read = true } = {}) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimer(() => controller.abort(), LIMITS.controlTimeoutMs) : null;
+    try {
+      const response = await fetchImpl(`${base}/${route}`, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller?.signal,
+      });
+      const data = response.ok && read ? await response.json() : null;
+      return { ok: response.ok, status: response.status, data };
+    } finally {
+      if (timer !== null) clearTimer(timer);
+    }
   }
 
   function serialized(task) {
@@ -373,50 +438,84 @@ export function createTracker(config, environment = {}) {
     return run;
   }
 
-  // Adopt the collector's view: granted purposes with their expiry translated onto the local
-  // clock through the reported server time (no clock agreement is assumed).
-  function applyServer(data) {
-    const received = now();
+  // Adopt the collector's view from the answer to request seq, which started at local time
+  // started. Each grant's remaining lifetime (expires_at - server_time) is counted from the
+  // request start: the server cannot have answered earlier, so transport latency shortens the
+  // local deadline and never extends it. No clock agreement is assumed. A grant without a
+  // valid expiry or server time is not effective. Answers to requests older than the last
+  // adopted one are ignored.
+  function applyServer(data, seq, started) {
+    if (seq < appliedSeq) return;
+    appliedSeq = seq;
     const serverTime = Date.parse(data?.server_time ?? "");
+    const previous = new Map(server);
     server.clear();
+    reported.clear();
     for (const [purpose, state] of Object.entries(data?.states ?? {})) {
       if (!PURPOSES.includes(purpose) || state !== "granted") continue;
+      reported.add(purpose);
       const expiry = Date.parse(data?.expires_at?.[purpose] ?? "");
-      const deadline =
-        Number.isFinite(expiry) && Number.isFinite(serverTime)
-          ? received + (expiry - serverTime)
-          : Number.POSITIVE_INFINITY;
-      server.set(purpose, deadline);
+      if (!Number.isFinite(expiry) || !Number.isFinite(serverTime) || expiry <= serverTime) continue;
+      const prior = previous.get(purpose);
+      const id = prior !== undefined && now() < prior.deadline ? prior.id : (grantIds += 1);
+      server.set(purpose, { deadline: started + (expiry - serverTime), seq, id });
     }
-    confirmedAt = received;
+    confirmedAt = started;
     stateEpoch += 1;
   }
 
   // Under an active GPC signal, a subject's existing sale/share or advertising grant is
-  // narrowed on the server too: one withdrawal through the tracker's existing source. GPC
-  // only ever denies these purposes (D-033); it never grants or touches other purposes.
+  // narrowed on the server too, through the tracker's existing consent source. A round (one
+  // bounded withdrawal request) starts when an adopted answer reports such a grant and was
+  // requested after the previous round for that subject and purpose ended, so a transient
+  // failure is retried after recovery and a later regrant is withdrawn again, while answers
+  // older than a confirmed withdrawal never trigger one. At most LIMITS.gpcRounds consecutive
+  // rounds may fail. Local GPC restrictions apply throughout. GPC only ever denies these
+  // purposes (D-033); it never grants or touches other purposes.
   function reconcileGpc() {
     if (!gpcActive() || token === null) return;
-    const affected = GPC_PURPOSES.filter((purpose) => server.has(purpose) && !reconciledGpc.has(purpose));
-    if (affected.length === 0) return;
-    affected.forEach((purpose) => reconciledGpc.add(purpose));
     const subject = token;
+    const affected = GPC_PURPOSES.filter((purpose) => {
+      if (!reported.has(purpose)) return false;
+      const round = gpcRounds.get(`${subject} ${purpose}`);
+      return !round || (!round.pending && round.failures < LIMITS.gpcRounds && appliedSeq > round.after);
+    });
+    if (affected.length === 0) return;
+    const rounds = affected.map((purpose) => {
+      const key = `${subject} ${purpose}`;
+      const round = gpcRounds.get(key) ?? { failures: 0, after: 0 };
+      round.pending = true;
+      gpcRounds.set(key, round);
+      return round;
+    });
     serialized(async () => {
       const choices = Object.fromEntries(affected.map((purpose) => [purpose, "withdrawn"]));
-      if (!(await sendControl("consent", { subject_token: subject, choices }))) {
-        stats.unconfirmed_withdrawals += 1;
+      const confirmed = await sendControl("consent", { subject_token: subject, choices });
+      for (const round of rounds) {
+        round.pending = false;
+        round.after = requestSeq;
+        round.failures = confirmed ? 0 : round.failures + 1;
       }
+      if (confirmed && token === subject) {
+        for (const purpose of affected) {
+          reported.delete(purpose);
+          server.delete(purpose);
+        }
+      }
+      if (!confirmed) stats.unconfirmed_withdrawals += 1;
     });
   }
 
-  // After a server response: narrow under GPC, drop ineligible events, and persist the record
-  // only while some purpose is effective (nothing is stored once every purpose has stopped).
+  // After a server response: narrow under GPC, drop ineligible events, persist the record only
+  // while some purpose is effective (nothing is stored once every purpose has stopped), and let
+  // a waiting queue re-evaluate against the new state.
   function settled() {
     reconcileGpc();
     purge();
     if (effectiveSet().size > 0) writeRecord();
     else removeRecord();
     scheduleRefresh();
+    if (wake) wake();
   }
 
   function validChoices(choices) {
@@ -446,12 +545,12 @@ export function createTracker(config, environment = {}) {
     for (const [purpose, state] of Object.entries(send)) {
       bump(purpose);
       versions[purpose] = intent.get(purpose);
-      if (state === "granted") host.add(purpose);
-      else host.delete(purpose);
+      if (state === "granted") allow(purpose);
+      else disallow(purpose, { forgetGrant: true });
     }
     for (const purpose of refused) {
       bump(purpose);
-      host.delete(purpose);
+      disallow(purpose);
     }
     stateEpoch += 1;
     purge();
@@ -476,17 +575,18 @@ export function createTracker(config, environment = {}) {
       }
       const body = { choices: current };
       if (token) body.subject_token = token;
-      let response;
-      let data;
+      const seq = ++requestSeq;
+      const started = now();
+      let reply;
       try {
-        response = await control("consent", body);
-        data = response.ok ? await response.json() : null;
+        reply = await control("consent", body);
       } catch {
         return { status: "unavailable", refused };
       }
-      if (!response.ok) {
-        return { status: response.status === 429 ? "rate_limited" : "rejected", refused };
+      if (!reply.ok) {
+        return { status: reply.status === 429 ? "rate_limited" : "rejected", refused };
       }
+      const { data } = reply;
       const returned = SUBJECT_TOKEN.test(data?.subject_token ?? "") ? data.subject_token : null;
       if (returned && returned !== token) {
         token = returned;
@@ -495,7 +595,7 @@ export function createTracker(config, environment = {}) {
       }
       if (token === null) return { status: "nothing_granted", refused };
       if (destroyed) return { status: "superseded", refused };
-      applyServer(data);
+      applyServer(data, seq, started);
       settled();
       const changed = Object.keys(current).some((purpose) => intent.get(purpose) !== versions[purpose]);
       const purposes = [...effectiveSet()];
@@ -505,8 +605,8 @@ export function createTracker(config, environment = {}) {
   }
 
   // Apply a decision the host or its consent platform confirms for this visitor. Purposes the
-  // host no longer allows stop at once; then the stored token and the server's current state
-  // are read. Never grants, renews or recreates consent.
+  // host no longer allows stop at once; purposes it newly allows wait for this state read (or
+  // a later one) to confirm them. Never grants, renews or recreates consent.
   function resume(choices) {
     const wanted = new Set();
     const gpc = gpcActive();
@@ -515,9 +615,9 @@ export function createTracker(config, environment = {}) {
     }
     for (const purpose of PURPOSES) {
       if (host.has(purpose) !== wanted.has(purpose)) bump(purpose);
+      if (wanted.has(purpose)) allow(purpose);
+      else disallow(purpose);
     }
-    host.clear();
-    wanted.forEach((purpose) => host.add(purpose));
     stateEpoch += 1;
     purge();
     if (token !== null && effectiveSet().size === 0 && wanted.size === 0) cancelRefresh();
@@ -528,14 +628,16 @@ export function createTracker(config, environment = {}) {
       const record = token !== null ? { token, expiresAt: localExpiresAt } : readRecord();
       if (!record || record.expiresAt <= now()) return { status: "needs_grant" };
       const epoch = ++stateEpoch;
-      let state;
+      const seq = ++requestSeq;
+      const started = now();
+      let reply;
       try {
-        const response = await control("consent-state", { subject_token: record.token });
-        if (!response.ok) return { status: response.status === 429 ? "rate_limited" : "unavailable" };
-        state = await response.json();
+        reply = await control("consent-state", { subject_token: record.token });
       } catch {
         return { status: "unavailable" };
       }
+      if (!reply.ok) return { status: reply.status === 429 ? "rate_limited" : "unavailable" };
+      const state = reply.data;
       if (destroyed || epoch !== stateEpoch) return { status: "superseded" };
       token = record.token;
       localExpiresAt = record.expiresAt;
@@ -543,7 +645,7 @@ export function createTracker(config, environment = {}) {
         clearSubject();
         return { status: "needs_grant" };
       }
-      applyServer(state);
+      applyServer(state, seq, started);
       settled();
       const purposes = [...effectiveSet()];
       return purposes.length ? { status: "resumed", purposes, continuity } : { status: "needs_grant" };
@@ -551,23 +653,26 @@ export function createTracker(config, environment = {}) {
   }
 
   // Re-read the server state while collecting. A failure leaves capture blocked once due. No
-  // request is made with a token past its local lifetime.
+  // request is made without current host permission or with a token past its local lifetime;
+  // a token kept after a full withdrawal serves only an explicit erase().
   function refresh() {
     if (refreshing) return refreshing;
-    if (destroyed || token === null || expireIfNeeded()) return Promise.resolve(false);
+    if (destroyed || token === null || expireIfNeeded() || host.size === 0) return Promise.resolve(false);
     const epoch = ++stateEpoch;
+    const seq = ++requestSeq;
+    const started = now();
     const current = token;
     refreshing = (async () => {
       try {
-        const response = await control("consent-state", { subject_token: current });
-        if (!response.ok) return false;
-        const state = await response.json();
+        const reply = await control("consent-state", { subject_token: current });
+        if (!reply.ok) return false;
+        const state = reply.data;
         if (destroyed || epoch !== stateEpoch || current !== token) return false;
         if (state?.status !== "active") {
           clearSubject();
           return false;
         }
-        applyServer(state);
+        applyServer(state, seq, started);
         settled();
         return true;
       } catch {
@@ -582,13 +687,13 @@ export function createTracker(config, environment = {}) {
   async function sendControl(route, body) {
     for (let attempt = 0; attempt < LIMITS.maxAttempts; attempt += 1) {
       try {
-        const response = await control(route, body);
-        if (response.ok || response.status === 202) return true;
-        if (response.status !== 429 && response.status < 500) return false;
+        const reply = await control(route, body, { read: false });
+        if (reply.ok || reply.status === 202) return true;
+        if (reply.status !== 429 && reply.status < 500) return false;
       } catch {
-        // Network failure: retry within the bounded attempts.
+        // Network failure or timeout: retry within the bounded attempts.
       }
-      if (attempt + 1 < LIMITS.maxAttempts) await sleep(LIMITS.retryDelaysMs[attempt] ?? 4_000);
+      if (attempt + 1 < LIMITS.maxAttempts) await delay(LIMITS.retryDelaysMs[attempt] ?? 4_000);
     }
     return false;
   }
@@ -598,7 +703,7 @@ export function createTracker(config, environment = {}) {
     const list = [...purposes].filter((purpose) => PURPOSES.includes(purpose));
     for (const purpose of list) {
       bump(purpose);
-      host.delete(purpose);
+      disallow(purpose, { forgetGrant: true });
     }
     stateEpoch += 1;
     purge();
@@ -677,10 +782,12 @@ export function createTracker(config, environment = {}) {
       stats.dropped_size += 1;
       return { status: "rejected", reason: "too_large" };
     }
+    const purposes = contentPurposes(payload);
     queue.push({
       body,
       bytes,
-      purposes: contentPurposes(payload),
+      purposes,
+      grants: new Map([...purposes].map((purpose) => [purpose, server.get(purpose)?.id])),
       token,
       enqueuedAt: now(),
       attempts: 0,
@@ -841,7 +948,12 @@ export function createTracker(config, environment = {}) {
           continue;
         }
         if (now() - confirmedAt > LIMITS.refreshMs) {
-          if (!(await refresh())) await sleep(1_000);
+          // Wait for a current state, but never past this event's lifetime: a stalled read
+          // releases the queue, and its late answer is ignored once newer state exists.
+          const left = () => Math.max(0, item.enqueuedAt + LIMITS.eventTtlMs - now());
+          const confirmed = await Promise.race([refresh(), sleep(left()).then(() => null)]);
+          if (wake) wake();
+          if (confirmed === false) await sleep(Math.min(1_000, left()));
           continue;
         }
         if (item.notBefore > now()) {
@@ -916,8 +1028,9 @@ export function createTracker(config, environment = {}) {
   }
   if (win) {
     // A page restored from the back/forward cache must confirm consent again before sending.
+    // Without current host permission nothing is read: the token then serves erase() only.
     listen(win, "pageshow", (event) => {
-      if (!event.persisted || token === null || expireIfNeeded()) return;
+      if (!event.persisted || token === null || host.size === 0 || expireIfNeeded()) return;
       stateEpoch += 1;
       confirmedAt = 0;
       refresh().then((ok) => ok && pump()).catch(() => {});

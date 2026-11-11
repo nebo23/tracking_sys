@@ -2,7 +2,8 @@
 //
 // Starts two loopback HTTP servers on different origins: a static customer site that self-hosts
 // the tracker module, and a scripted collector that imitates the public collection routes
-// (CORS for the site origin only, Retry-After exposure, per-token consent). Every request the
+// (CORS for the site origin only, Retry-After exposure, per-token consent with per-purpose
+// expiry and server time, as the real API reports them). Every request the
 // collector receives is recorded with its raw body. An init script instruments storage,
 // cookies, form-value getters, randomness and network APIs in the page. Synthetic values only;
 // nothing leaves 127.0.0.1.
@@ -34,10 +35,11 @@ function readBody(request) {
 }
 
 let tokens = 0;
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 export async function startServers() {
   const site = { pages: new Map() };
-  const collector = { requests: [], plans: new Map(), consent: new Map(), held: [] };
+  const collector = { requests: [], plans: new Map(), consent: new Map(), expiries: new Map(), held: [] };
   const siteServer = createServer(async (request, response) => {
     const url = new URL(request.url, "http://127.0.0.1");
     // The shipped installation example, exactly as committed: its page and module from
@@ -85,6 +87,18 @@ export async function startServers() {
       ? { "Access-Control-Allow-Origin": origin, "Access-Control-Expose-Headers": "Retry-After", Vary: "Origin" }
       : { Vary: "Origin" };
 
+  // The collector's view of one subject: states, the expiry of each granted purpose and the
+  // server time.
+  function view(token) {
+    const states = { ...(collector.consent.get(token) ?? {}) };
+    const expiries = collector.expiries.get(token) ?? {};
+    const expires_at = {};
+    for (const [purpose, state] of Object.entries(states)) {
+      if (state === "granted") expires_at[purpose] = new Date(expiries[purpose]).toISOString();
+    }
+    return { states, expires_at, server_time: new Date().toISOString() };
+  }
+
   function defaultResponse(route, body) {
     if (route === "consent") {
       let token = body.subject_token;
@@ -92,29 +106,36 @@ export async function startServers() {
       let created = null;
       if (!token) {
         if (!Object.values(body.choices).includes("granted")) {
-          return [200, { subject_token: null, receipts: [], states: {} }];
+          return [
+            200,
+            { subject_token: null, receipts: [], states: {}, expires_at: {}, server_time: new Date().toISOString() },
+          ];
         }
         tokens += 1;
         token = `sbj_${String(tokens).padStart(43, "t")}`;
         created = token;
         collector.consent.set(token, {});
+        collector.expiries.set(token, {});
       }
       Object.assign(collector.consent.get(token), body.choices);
-      return [200, { subject_token: created, receipts: [], states: { ...collector.consent.get(token) } }];
+      for (const [purpose, state] of Object.entries(body.choices)) {
+        if (state === "granted") collector.expiries.get(token)[purpose] = Date.now() + YEAR_MS;
+      }
+      return [200, { subject_token: created, receipts: [], ...view(token) }];
     }
     if (route === "consent-state") {
-      const states = collector.consent.get(body.subject_token);
+      const active = collector.consent.has(body.subject_token);
       return [
         200,
-        {
-          status: states ? "active" : "unknown",
-          states: states ?? {},
-          expires_at: {},
-          server_time: new Date().toISOString(),
-        },
+        active
+          ? { status: "active", ...view(body.subject_token) }
+          : { status: "unknown", states: {}, expires_at: {}, server_time: new Date().toISOString() },
       ];
     }
-    if (route === "erasure") collector.consent.delete(body.subject_token);
+    if (route === "erasure") {
+      collector.consent.delete(body.subject_token);
+      collector.expiries.delete(body.subject_token);
+    }
     return [202, { status: "received" }];
   }
 
@@ -230,6 +251,15 @@ export const GPC = `Object.defineProperty(Navigator.prototype, "globalPrivacyCon
 export const NO_SESSION_STORAGE = `Object.defineProperty(window, "sessionStorage", {
   get() { throw new DOMException("Blocked for this test", "SecurityError"); },
 });`;
+
+// Storage that can be read but whose writes and removals fail (a full or locked store).
+export const FAILING_STORAGE_WRITES = `(() => {
+  for (const name of ["setItem", "removeItem"]) {
+    Storage.prototype[name] = function () {
+      throw new DOMException("Synthetic storage write failure", "QuotaExceededError");
+    };
+  }
+})();`;
 
 export const FORM_CONFIG = {
   lead: {

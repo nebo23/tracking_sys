@@ -318,6 +318,76 @@ for (const name of ["chromium", "firefox"]) {
       await Promise.all([one.context.close(), two.context.close()]);
     });
 
+    test("review sequences R005-12 and R005-14 hold at the real transport", async () => {
+      collector.reset();
+      const { context, page, errors } = await openPage(browser, shop());
+      await grant(page);
+      const token = JSON.parse(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).token;
+      const view = () => page.evaluate(() => window.tracker.trackPageView().status);
+      // R005-12: a state read that started before the withdrawal answers with the old grant.
+      let releaseStale;
+      collector.plan("consent-state", {
+        hold: new Promise((resolve) => { releaseStale = resolve; }),
+        status: 200,
+        body: {
+          status: "active",
+          states: { [ANALYTICS]: "granted" },
+          expires_at: { [ANALYTICS]: new Date(Date.now() + 86_400_000).toISOString() },
+          server_time: new Date().toISOString(),
+        },
+      });
+      await page.evaluate(() => { window.__stale = window.tracker.refresh(); });
+      await until(() => collector.of("consent-state").length === 1);
+      const withdrawn = await page.evaluate(() => window.tracker.withdraw(["analytics.first_party"]));
+      assert.equal(withdrawn.confirmed, true);
+      assert.equal(collector.consent.get(token)[ANALYTICS], "withdrawn");
+      // The host widens again while its state read is pending, then the read fails.
+      let releasePending;
+      collector.plan("consent-state", {
+        hold: new Promise((resolve) => { releasePending = resolve; }),
+        status: 503,
+        body: { error: "temporarily_unavailable" },
+      });
+      await page.evaluate(() => {
+        window.__resume = window.tracker.resume({ "analytics.first_party": "granted" });
+      });
+      await until(() => collector.of("consent-state").length === 2);
+      assert.equal(await view(), "blocked", "pending read");
+      releasePending();
+      assert.equal((await page.evaluate(() => window.__resume)).status, "unavailable");
+      assert.equal(await view(), "blocked", "failed read");
+      releaseStale();
+      assert.equal(await page.evaluate(() => window.__stale), false);
+      assert.equal(await view(), "blocked", "stale read");
+      await page.waitForTimeout(300);
+      assert.equal(collector.of("events").length, 0);
+      assert.equal(collector.consent.get(token)[ANALYTICS], "withdrawn");
+      // A renewed grant that the collector confirms enables a fresh event.
+      const renewed = await page.evaluate(() => window.tracker.grant({ "analytics.first_party": "granted" }));
+      assert.equal(renewed.status, "granted");
+      assert.equal(await view(), "queued");
+      await until(() => collector.of("events").length === 1);
+      assert.equal(JSON.parse(collector.of("events")[0].raw).subject_token, token);
+      // R005-14: after a full withdrawal, restoration and visibility changes send nothing.
+      assert.equal((await page.evaluate(() => window.tracker.withdraw())).confirmed, true);
+      const before = collector.requests.length;
+      await page.evaluate(() => {
+        window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      assert.equal(await page.evaluate(() => window.tracker.refresh()), false);
+      await page.waitForTimeout(500);
+      assert.deepEqual(collector.requests.slice(before), [], "no background request");
+      // An explicit erasure still reaches the same subject.
+      assert.deepEqual(await page.evaluate(() => window.tracker.erase()), { status: "erased", confirmed: true });
+      const erasures = collector.of("erasure");
+      assert.equal(erasures.length, 1);
+      assert.deepEqual(JSON.parse(erasures[0].raw), { subject_token: token });
+      assert.equal(collector.consent.has(token), false);
+      assert.deepEqual(errors, []);
+      await context.close();
+    });
+
     test("the browser engine minimizes the shared fixtures exactly like Python", async () => {
       const { context, page } = await openPage(browser, shop());
       const mismatches = await page.evaluate(async () => {
