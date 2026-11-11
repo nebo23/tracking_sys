@@ -1,9 +1,9 @@
 # Delivery roadmap
-Updated: 2026-11-10. Proposed sequence; no delivery dates or cost estimates have been approved.
+Updated: 2026-11-11. Proposed sequence; no delivery dates or cost estimates have been approved.
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 
-Current progress: 001/002 are merged in PR 1 (`98747a2`), 003 in PR 2 (`bab3a33`), and 004 with its corrections in PR 3 (`e8ef587`). The latest independent verification passed 481 suite tests and two reproduction checks. Specification 005 is implemented locally under D-033 on `codex/spec-005-links-tracker` and awaits independent review; see its [evidence](../../specs/005-links-tracker/evidence.md). Native tracking_sys was last documented at 0004_identity; rollout of 0005 to 0008 and the lifecycle role still needs separate approval. Live custom domains need an authorized DNS/TLS smoke test. Real customer intake waits for Q-002/Q-004/Q-012. The commercial release still includes both social analytics and attribution for multiple agencies.
+Current progress: 001/002 are merged in PR 1 (`98747a2`), 003 in PR 2 (`bab3a33`), and 004 with its corrections in PR 3 (`e8ef587`). The latest independent verification passed 481 suite tests and two reproduction checks. Specification 005 is merged in PR 4 (`c251e20`, 2026-11-11); see its [evidence](../../specs/005-links-tracker/evidence.md). Specification 006 is in preparation for owner approval under D-039; see its [decision packet](../../specs/006-identity-journey/decision-packet.md). Native tracking_sys was last documented at 0004_identity; rollout of 0005 to 0008 and the lifecycle role still needs separate approval. Live custom domains need an authorized DNS/TLS smoke test. Real customer intake waits for Q-002/Q-004/Q-012. The commercial release still includes both social analytics and attribution for multiple agencies.
 
 | Level | Specifications | Reviewable outcome | Exit gate |
 |---|---|---|---|
