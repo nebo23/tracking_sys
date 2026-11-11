@@ -1,5 +1,5 @@
 # Plan: 006-identity-journey
-Status: Draft prepared for owner approval under D-039 (2026-11-11). This plan does not authorize implementation, schema, migrations or dependency selection. Read the [entry review](entry-review.md), [design revision 3](design.md), [decision packet](decision-packet.md), [verification matrix](verification-matrix.md) and [review register](preparation-review.md).
+Status: Draft prepared for owner approval under D-039 (2026-11-11). This plan does not authorize implementation, schema, migrations or dependency selection. Read the [entry review](entry-review.md), [design revision 4](design.md), [decision packet](decision-packet.md), [verification matrix](verification-matrix.md) and [review register](preparation-review.md).
 
 ## Expected outcome
 Represent anonymous visitors, leads, and customers; support deterministic identity linking, sourced event timelines, and auditable merge/unmerge actions. An authorized agency user can see, for one client, which interactions are reliably associated with a person, in what order, and on what evidence.

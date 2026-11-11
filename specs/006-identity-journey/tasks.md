@@ -6,6 +6,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [x] Define independently reviewable local changes for the approved specification (slices 006-A to 006-E, [plan](plan.md)).
 - [x] Prepare the [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
 - [x] Correct review findings R006-01 to R006-14 in design revision 3 and map each to its sections and acceptance cases (D-041; see the [review register](preparation-review.md#finding-coverage)).
+- [x] Present revision 4, record the outstanding findings, and obtain owner authorization to merge the preparation and proceed to 007 (D-042).
 - [ ] Approve the scope and sources for lead identity and customer journey.
 - [ ] Record the owner's choices on D1–D13 for the applicable slices. Q-002 and production Q-012 remain open for real intake. Q-008 has no dependency in 006.
 - [ ] Implement the first approved slice.
