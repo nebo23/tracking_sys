@@ -1,9 +1,9 @@
 # Product brief
-Updated: 2026-10-29. Product direction is confirmed; implementation details remain drafts.
+Updated: 2026-11-14. Product direction is confirmed; implementation details remain drafts.
 
 ## Confirmed owner decisions
 - Serve multiple agencies and their clients from the first commercial release.
-- Include both social account analytics and attribution connecting sources and content to leads and sales.
+- Position the product as a content marketing SaaS. Its first commercial release gives agencies both content performance analytics and financial transaction tracking (D-004, D-045). Agencies can evaluate posts, videos, and campaigns using the metrics available from each platform, including for content whose goal is audience awareness. Where evidence links a journey to a transaction, agencies can also trace leads, verified payments, refunds, and net revenue to the relevant content.
 - The named platforms are Instagram, YouTube, LinkedIn, and X/Twitter. Launch priority, mandatory connectors, account types, and exact metrics remain unresolved.
 - Support a broad customer market. No industry, country, CRM, or payment provider has been selected.
 - Implement the backend first using FastAPI and PostgreSQL, followed by React, with Docker.
