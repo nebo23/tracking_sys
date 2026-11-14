@@ -4,20 +4,29 @@ calculate() takes every Evidence record received for any number of tenants and r
 views of the same ledger:
 
 - The provisional calculation (transactions, entries, adjustments, reconciliation items and
-  totals) is derived from all evidence received so far. It depends only on the set of records,
-  not on the order they are supplied or arrived in, with one documented exception: when two
-  records disagree about one business operation, or reuse one delivery ID with different
-  content, the record received first keeps its effect and the disagreement is routed to
-  reconciliation. Later evidence can change the provisional calculation; for example, a
-  late-arriving refund with an earlier effective time can leave a later refund without balance.
+  totals) is derived from all evidence received so far. Which adjustments fit a balance is
+  decided in effective order, so the economic result depends only on the set of records, with
+  one documented exception: when two records disagree about one business operation, or reuse
+  one delivery ID with different content, the record received first keeps its effect and the
+  disagreement is routed to reconciliation. Later evidence can change the provisional
+  calculation; for example, a late-arriving refund with an earlier effective time can leave a
+  later refund without balance.
 - The movement journal (movements) is append-only. Records are taken in receipt order and every
   change in the provisional postings becomes a movement: a posting when an operation takes
   effect, a release when an operation that took effect no longer does. A movement is never
   rewritten or removed, so a committed effect can change only through an explicit later
-  movement. When each new record is received later than the records before it, the journal of
-  a call is a prefix of the journal of the next call with more evidence. The movements of every
-  transaction sum to its provisional net. Callers that persist effects should commit movements,
-  not the provisional entries.
+  movement. The movements of every transaction sum to its provisional net. Callers that persist
+  effects should commit movements, not the provisional entries.
+
+Receipt order is the receipt instant (received_at as an absolute instant); records received at
+the same instant keep the order in which they are supplied. Neither delivery IDs nor content
+decide a tie, because they do not show which record arrived first. The supplied sequence is
+therefore the receipt log: to replay a journal, store the records in the order they were
+received and pass that same sequence, appending each new record at its end. While each new
+record is received at or after the instants already received, every journal returned earlier
+is an exact prefix, with the same sequence numbers and content, of the journal returned with
+more evidence, and a consumer that applies only the movements after its last sequence reaches
+the recalculated balance.
 
 Rules (entry review decisions A1-A3):
 - Qualifying sale evidence is synthetic confirmed capture or settlement evidence. Both stages of
@@ -487,8 +496,12 @@ def _economic_terms(item: Evidence) -> tuple:
     return terms
 
 
+def _receipt_instant(item: Evidence) -> datetime:
+    return utc_instant(item.received_at)
+
+
 def _arrival_key(item: Evidence) -> tuple:
-    """Receipt order by absolute instant, with a total, content-based tie-break."""
+    """A total, content-based order for presenting evidence; it never decides receipt order."""
     return (
         utc_instant(item.received_at),
         item.delivery_id,
@@ -521,15 +534,17 @@ def _arrival_key_by_delivery(record: Evidence) -> tuple:
 def calculate(records: Iterable[Evidence]) -> LedgerCalculation:
     """Derive the provisional calculation and the movement journal from received evidence.
 
-    Malformed records are refused when an Evidence is constructed. calculate() itself refuses
-    only objects that are not Evidence; disagreements between valid records never abort the
-    calculation and are confined to the affected scope.
+    records is the receipt log: records are ordered by receipt instant, and records received at
+    the same instant keep the order in which they are supplied (see the module documentation
+    for replaying a journal). Malformed records are refused when an Evidence is constructed.
+    calculate() itself refuses only objects that are not Evidence; disagreements between valid
+    records never abort the calculation and are confined to the affected scope.
     """
     items = list(records)
     for item in items:
         if not isinstance(item, Evidence):
             raise LedgerInputError("invalid_evidence")
-    arrival = sorted(items, key=_arrival_key)
+    arrival = sorted(items, key=_receipt_instant)  # stable: ties keep the supplied order
 
     movements: list[Movement] = []
     committed: dict[_Key, RevenueEntry] = {}

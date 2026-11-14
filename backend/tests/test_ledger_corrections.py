@@ -609,3 +609,91 @@ def test_r007_11_snapshots_differing_only_in_source_give_the_same_record_in_both
     assert forward == backward
     assert forward.components[0].snapshot == first
     assert forward.amount == Money(200, BBB)
+
+
+# R007-02 follow-up: records received at the same instant keep the journal append-only.
+
+RECEIVED = at(10_000)
+
+
+def _tie_case():
+    capture = replace(sale(), received_at=at(9_000))
+    small = replace(
+        refund("refund-200", "200.00", delivery="dlv-b", effective=20), received_at=RECEIVED
+    )
+    large = replace(
+        refund("refund-900", "900.00", delivery="dlv-a", effective=10), received_at=RECEIVED
+    )
+    return capture, small, large
+
+
+def assert_log_extends(log) -> None:
+    """After each appended record the earlier journal is an exact prefix of the new one, and a
+    consumer that reads only movements after its last sequence reaches the recalculated net."""
+    previous = ()
+    consumer_balance = 0
+    for count in range(1, len(log) + 1):
+        result = calculate(log[:count])
+        assert result.movements[: len(previous)] == previous
+        last = previous[-1].sequence if previous else 0
+        consumer_balance += sum(m.amount.minor for m in result.movements if m.sequence > last)
+        assert consumer_balance == sum(t.net.minor for t in result.transactions)
+        previous = result.movements
+
+
+def test_r007_02_equal_receipt_instants_keep_returned_movements():
+    capture, small, large = _tie_case()
+
+    first = calculate([capture, small])
+    read = first.movements
+    assert net(first) == 80_000
+    assert journal(first) == [
+        (1, "sale-1", "posting", 100_000, "dlv-sale-1", None),
+        (2, "refund-200", "posting", -20_000, "dlv-b", None),
+    ]
+
+    second = calculate([capture, small, large])
+    assert second.movements[: len(read)] == read
+    assert journal(second)[len(read) :] == [
+        (3, "refund-200", "release", 20_000, "dlv-a", "exceeds_outstanding"),
+        (4, "refund-900", "posting", -90_000, "dlv-a", None),
+    ]
+    consumer = net(first) + sum(
+        m.amount.minor for m in second.movements if m.sequence > read[-1].sequence
+    )
+    assert consumer == net(second) == 10_000
+    assert_log_extends([capture, small, large])
+
+
+def test_r007_02_equal_receipt_instants_in_the_other_order():
+    capture, small, large = _tie_case()
+    forward = calculate([capture, small, large])
+    backward = calculate([capture, large, small])
+
+    assert net(backward) == net(forward) == 10_000
+    assert postings(backward) == postings(forward)
+    assert states(backward) == states(forward)
+    assert journal(backward) == [
+        (1, "sale-1", "posting", 100_000, "dlv-sale-1", None),
+        (2, "refund-900", "posting", -90_000, "dlv-a", None),
+    ]
+    assert_log_extends([capture, large, small])
+
+
+def test_r007_02_identical_resend_and_microsecond_receipts():
+    capture, small, large = _tie_case()
+    resent = replace(small, received_at=RECEIVED)
+    with_resend = calculate([capture, small, resent, large])
+    assert journal(with_resend) == journal(calculate([capture, small, large]))
+    assert with_resend.outcomes[2].disposition is Disposition.DUPLICATE
+    assert_log_extends([capture, small, resent, large, replace(large, received_at=at(10_001))])
+
+    later = replace(large, received_at=RECEIVED + timedelta(microseconds=1))
+    assert journal(calculate([capture, small, later])) == journal(
+        calculate([capture, small, large])
+    )
+    earlier = replace(large, received_at=RECEIVED - timedelta(microseconds=1))
+    assert journal(calculate([capture, small, earlier])) == journal(
+        calculate([capture, large, small])
+    )
+    assert_log_extends([capture, small, later])

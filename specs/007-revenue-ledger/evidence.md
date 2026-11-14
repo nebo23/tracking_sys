@@ -138,7 +138,7 @@ The implemented option is recommended. The owner should confirm it before 007-B 
 ### Limitations added by the corrections
 
 - `calculate()` recomputes the provisional calculation after each arrival, so cost grows quadratically. Measured locally: 100 records 0.09 s, 200 records 0.35 s, 400 records 1.51 s. 007-B should persist the journal and recompute only the affected transaction.
-- The journal of one call extends the journal of the previous call only when each new record has a later receipt instant than the records already received.
+- The journal of one call extends the journal of the previous call when the same receipt log is supplied with each new record appended and received at or after the instants already received; see [Equal receipt instants](#equal-receipt-instants-r007-02-follow-up). A record supplied with an earlier receipt instant than records already processed is inserted into the receipt order and can change later movements.
 - A posting can later be released. Downstream consumers must follow movements or re-read totals rather than cache provisional entries.
 
 ### Readiness for Spec 008
@@ -146,3 +146,40 @@ The implemented option is recommended. The owner should confirm it before 007-B 
 - **Usable now for synthetic attribution examples:** per-client, per-currency verified net in minor units; signed entries with operation, transaction and effective instant; the append-only movement journal, which gives refunds and late events an explicit, timestamped change to allocate; unverified and excluded records kept apart from eligible revenue.
 - **Still needed:** implemented 006 identity and journey contracts to link a sale to touchpoints (the ledger deliberately carries no person reference); persisted movements, concurrency and finance-read permissions from 007-B; identity association and attribution handoffs from 007-C; a reporting currency and rate source (Q-006) before allocations combine currencies.
 - **Q-007 choices for the owner:** lookback window length and whether it is measured from the sale's effective instant; how direct or unknown traffic receives credit; the attribution timezone and the tie rule for equal timestamps; whether a refund or chargeback reduces credit proportionally or by touchpoint; and how late events and released postings re-run allocations under a versioned model.
+
+## Equal receipt instants (R007-02 follow-up)
+
+Date: 2026-11-14. Authority: the owner's request to correct the remaining R007-02 case, starting from the local corrections at `0db5742`. Local commit only; PR 6 was not updated.
+
+**Defect at `0db5742`.** The arrival order used to build the movement journal broke ties between equal `received_at` values by delivery ID and content. Delivery IDs do not show which record arrived first. A sale of 1,000.00 was followed by refund `refund-200` (200.00, delivery `dlv-b`, effective at minute 20), so a consumer had read movements 1 and 2 at a net of 800.00. Refund `refund-900` (900.00, delivery `dlv-a`, effective at minute 10) then arrived at exactly the same receipt instant. The next call sorted `dlv-a` first and returned a journal whose movement 2 was `refund-900` −90,000 instead of `refund-200` −20,000. A consumer that read only the movements after sequence 2 stayed at 80,000, while the full recalculation gave 10,000.
+
+**Correction.** Receipt order and effective order are now separate. The journal follows receipt order: records sorted by receipt instant only, with records received at the same instant kept in the order in which they are supplied. Which refund fits the balance is still decided in effective order (effective instant, then operation ID). The supplied sequence is the receipt log, which can be stored and replayed: a consumer passes the same records in the same order and appends each new record at the end. The content-based key remains only for presenting evidence and reconciliation items in a stable order. Existing calls are unchanged: records with distinct receipt instants are ordered exactly as before.
+
+**Journal for the example after the correction** (actual output of `calculate()`):
+
+| Sequence | Operation | Movement | Amount (minor units) | Trigger | Reason |
+|---|---|---|---|---|---|
+| 1 | `sale-1` | posting | +100,000 | `dlv-sale-1` | — |
+| 2 | `refund-200` | posting | −20,000 | `dlv-b` | — |
+| 3 | `refund-200` | release | +20,000 | `dlv-a` | `exceeds_outstanding` |
+| 4 | `refund-900` | posting | −90,000 | `dlv-a` | — |
+
+Movements 1 and 2 are identical, with the same sequence numbers and content, to those returned before `refund-900` arrived. A consumer at sequence 2 with 80,000 applies movements 3 and 4 and reaches 10,000 (100.00), equal to the full recalculation.
+
+| Regression in `backend/tests/test_ledger_corrections.py` | At `0db5742` | After the correction |
+|---|---|---|
+| `test_r007_02_equal_receipt_instants_keep_returned_movements` | Fail: the earlier movements were not a prefix of the new journal; movement 2 had become `refund-900` −90,000. | Pass: movements 1 and 2 are unchanged; movements 3 and 4 are the release of +20,000 and the posting of −90,000; the consumer reaches 10,000; the journal is a prefix after each appended record. |
+| `test_r007_02_equal_receipt_instants_in_the_other_order` | Pass (control): the old tie-break happened to place `dlv-a` first. | Pass: with `refund-900` received first, the journal is two postings (sale, then −90,000) and `refund-200` never posts; postings, states and the net of 10,000 equal those of the other order. |
+| `test_r007_02_identical_resend_and_microsecond_receipts` | Fail: the tie-break moved `refund-900` ahead of the earlier-supplied `refund-200`, so the third received record was reported as `refund-200` in reconciliation instead of the resent duplicate. | Pass: an identical resend is a duplicate and adds no movement; refunds received one microsecond apart in either direction give the journals of the corresponding receipt orders; each log extends after every record. |
+
+**Commands and results** (from `backend/`):
+
+| Check | Result |
+|---|---|
+| The three new regressions at `0db5742` | 2 failed, 1 passed (the control). |
+| `python -m pytest tests/test_revenue_ledger.py tests/test_ledger_money.py tests/test_ledger_corrections.py -q` | **111 passed** (46, 46 and 19). |
+| `python -m pytest -m "not integration" -q` | **448 passed**, 279 deselected, no failures, errors or skips. |
+| `python -m ruff check` on the changed Python files and `python -m ruff check .`; `python -m ruff format --check` | Clean; 6 files already formatted. |
+| `git diff --check` | Clean. |
+
+The 007-B persistence design must store the receipt position assigned on arrival with each record, so that the same log, and therefore the same journal, can be replayed after a restart.

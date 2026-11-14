@@ -23,6 +23,7 @@ Each regression failed against `0e4fca1` and passes after the correction; see th
 
 - [x] R007-01: an adjustment re-notified with another effective time is conflicting evidence; net stays 800.00 and the 200.00 posting is unchanged; capture and settlement keep their own times (`test_r007_01_*`).
 - [x] R007-02: the append-only movement journal records a release when an earlier-effective refund displaces a posted one; final results are identical across delivery orders (`test_r007_02_*`).
+- [x] R007-02 follow-up: records received at the same instant keep their supplied receipt order, so every returned movement keeps its sequence and content; a consumer reading after its last sequence reaches the recalculated balance (`test_r007_02_equal_receipt_*`, `test_r007_02_identical_resend_and_microsecond_receipts`).
 - [x] R007-03: chargebacks are normalized with their reversals; a full reversal with a full refund leaves net zero in all orders (`test_r007_03_*`).
 - [x] R007-04: other agencies' subscriptions and other clients' exponent conflicts cannot interrupt a valid client; the conflict is refused only in the affected client's totals (`test_r007_04_*`).
 - [x] R007-05: a purchase signal and a capture sharing a delivery ID post exactly one sale in either order, with a `delivery_id_shared` diagnostic (`test_r007_05_*`).
