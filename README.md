@@ -1,5 +1,5 @@
 # Tracking System
-Status: specifications 001/002 are merged in PR 1, 003 in PR 2, and 004 with its reviewed corrections in PR 3 (`e8ef587`, 2026-11-10). Specification 005 (managed links, safe redirects, consent-state, the website tracker and custom-domain verification) is merged in PR 4 (`c251e20`, 2026-11-11); see its [evidence](specs/005-links-tracker/evidence.md). Spec 006 design revision 4 merged through [PR 5](https://github.com/nebo23/tracking_sys/pull/5) (`ec9a09b`). Spec 007-A, the client revenue calculation contract, is implemented locally under D-043 and awaits owner review; see its [evidence](specs/007-revenue-ledger/evidence.md). Native rollout, live custom domains and production deployment remain separate.
+Status: specifications 001/002 are merged in PR 1, 003 in PR 2, and 004 with its reviewed corrections in PR 3 (`e8ef587`, 2026-11-10). Specification 005 (managed links, safe redirects, consent-state, the website tracker and custom-domain verification) is merged in PR 4 (`c251e20`, 2026-11-11); see its [evidence](specs/005-links-tracker/evidence.md). Spec 006 design revision 4 merged through [PR 5](https://github.com/nebo23/tracking_sys/pull/5) (`ec9a09b`). Spec 007-A, the client revenue calculation contract, is in review in [PR 6](https://github.com/nebo23/tracking_sys/pull/6) under D-043, with local corrections of review findings R007-01 to R007-11 awaiting owner review; see its [evidence](specs/007-revenue-ledger/evidence.md). Native rollout, live custom domains and production deployment remain separate.
 
 A multi-agency SaaS platform combining social account analytics with lead and revenue attribution in its first commercial release. The confirmed technology stack is FastAPI, PostgreSQL, React, and Docker.
 
@@ -35,7 +35,7 @@ All maintained project content and filenames must use formal English. Product lo
 | `infra/docker/` | Local API, PostgreSQL, role initialization, migration, and optional mail-worker containers. |
 | `infra/operations/` | Future deployment, monitoring, backup, restore, and incident runbooks. |
 | `docs/` | Maintained product, architecture, planning, decision, and engineering documentation. |
-| `specs/` | 22 specifications, numbered 000 through 021. 001 to 005 are merged; the 006 design is merged and the 007-A ledger calculation contract awaits owner review; later specifications retain their decision gates. |
+| `specs/` | 22 specifications, numbered 000 through 021. 001 to 005 are merged; the 006 design is merged and the 007-A ledger calculation contract is in review in PR 6; later specifications retain their decision gates. |
 | `research_notes/` | Detailed evidence, source links, limitations, and research observations. |
 | `reports/` | Synthesized research and decision reports; not an automatic report after every task. |
 

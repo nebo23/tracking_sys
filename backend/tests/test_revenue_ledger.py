@@ -803,6 +803,8 @@ def test_calculation_rejects_foreign_records_and_inconsistent_exponents():
     with pytest.raises(LedgerInputError) as raised:
         calculate([object()])
     assert raised.value.code == "invalid_evidence"
+    # Since R007-04 the conflict is confined to the affected client's totals.
+    result = calculate([sale(), sale("sale-2", "1.000", currency=Currency("AAA", 3))])
     with pytest.raises(LedgerInputError) as raised:
-        calculate([sale(), sale("sale-2", "1.000", currency=Currency("AAA", 3))])
+        result.totals(AGENCY, CLIENT)
     assert raised.value.code == "currency_exponent_conflict"

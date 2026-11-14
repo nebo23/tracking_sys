@@ -8,7 +8,7 @@
 - privacy/: specification 003 contract libraries (consent, collection minimization, deletion and tombstones, token envelope encryption, provider rules, restore journal); stateless. Specification 004 consumes consent, collection, deletion, and token envelope encryption.
 - links/: specification 005 managed-link rules (destination, origin, hostname, slug, UTM precedence; policy.py) and custom-domain verification with injected DNS/TLS adapters (verification.py).
 - collection/: specification 004 pure rules (EventEnvelope v1, minimization by purpose, form classes, fingerprints, traffic labels, webhook signatures) and the tombstone keyring.
-- ledger/: specification 007-A revenue calculation contract (D-043): integer minor-unit money, exchange-rate snapshots and explicit conversion (money.py), and evidence matching, signed postings, pending adjustments, reconciliation and per-currency client totals (calculation.py); pure and in memory.
+- ledger/: specification 007-A revenue calculation contract (D-043): integer minor-unit money, exchange-rate snapshots and explicit conversion (money.py), and evidence matching, signed provisional postings, pending adjustments, reconciliation, per-currency client totals and the append-only movement journal (calculation.py); pure and in memory.
 - api/: identity-derived authorization, schemas, auth/tenant/collection routes, and request controls.
 - models/: approved tenancy/auth/access entities, the D-027 collection, consent, and erasure tables, and the D-033 managed-link tables.
 - services/: current membership/grant policy, audit, sessions, tokens, invitations, keys, mail, event admission/consent/erasure (collection.py), and managed-link administration, verification phases, and redirect resolution (links.py).

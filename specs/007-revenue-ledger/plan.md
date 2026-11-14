@@ -1,5 +1,5 @@
 # Plan: 007-revenue-ledger
-Status: 007-A is implemented locally under D-043 and awaits owner review before publication. The [implementation prompt](implementation-prompt.md) defined the calculation contract and the five synthetic acceptance cases from the [entry review](entry-review.md); the [evidence](evidence.md) records the delivered contract, commands and results. Planning for 007-B and 007-C remains provisional.
+Status: 007-A is published in PR 6 under D-043. The corrections of the independent review findings R007-01 to R007-11 are verified locally and await owner review before PR 6 is updated. The [implementation prompt](implementation-prompt.md) defined the calculation contract and the five synthetic acceptance cases from the [entry review](entry-review.md); the [evidence](evidence.md) records the delivered contract, commands and results. Planning for 007-B and 007-C remains provisional.
 
 ## Expected outcome
 Maintain transactions and their evidence, audited manual revenue, payments, refunds, chargebacks, gross/net amounts, and original/reporting currencies.

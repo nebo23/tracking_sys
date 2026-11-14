@@ -7,12 +7,16 @@ computed exactly and rounded once to the target currency with the half-even rule
 or conflicting conversion evidence makes the combined figure unavailable, while the original
 amounts remain available. Failures raise LedgerInputError with a closed reason code and never
 echo the rejected value.
+
+Times are compared, ordered and subtracted as absolute UTC instants (utc_instant). Python
+compares two aware datetimes that share one tzinfo object by wall-clock time and ignores fold,
+which would misorder the two occurrences of a repeated local hour.
 """
 
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import (
     ROUND_HALF_EVEN,
     Context,
@@ -67,8 +71,13 @@ def require_aware(value: object, code: str) -> datetime:
     return value
 
 
+def utc_instant(value: datetime) -> datetime:
+    """The absolute instant of an aware datetime, safe to compare whatever its tzinfo or fold."""
+    return value.astimezone(UTC)
+
+
 def register_currency(known: dict[str, int], currency: "Currency") -> None:
-    """Refuse two exponents for one currency code within one calculation."""
+    """Refuse two exponents for one currency code within one conversion request."""
     if known.setdefault(currency.code, currency.exponent) != currency.exponent:
         raise LedgerInputError("currency_exponent_conflict")
 
@@ -229,6 +238,12 @@ def convert(
     be no older than max_age. Every component is computed exactly and the sum is rounded once,
     half-even, to the target exponent. If any component lacks usable evidence, amount is None
     and each component reports its status.
+
+    Amounts in one currency are added exactly before any bound applies, so input order cannot
+    change the result; only the combined original amount must be representable as Money.
+    Snapshots at the same latest instant conflict when they quote different rates or when one
+    snapshot ID names different sources. Otherwise the snapshot with the smallest (snapshot ID,
+    source) supplies the recorded provenance, whatever the input order.
     """
     if not isinstance(target, Currency):
         raise LedgerInputError("invalid_currency")
@@ -237,13 +252,16 @@ def convert(
         raise LedgerInputError("invalid_max_age")
     known: dict[str, int] = {}
     register_currency(known, target)
-    by_code: dict[str, Money] = {}
+    sums: dict[str, int] = {}
+    currencies: dict[str, Currency] = {}
     for amount in amounts:
         if not isinstance(amount, Money):
             raise LedgerInputError("invalid_amount")
         register_currency(known, amount.currency)
-        prior = by_code.get(amount.currency.code)
-        by_code[amount.currency.code] = amount if prior is None else prior + amount
+        sums[amount.currency.code] = sums.get(amount.currency.code, 0) + amount.minor
+        currencies[amount.currency.code] = amount.currency
+    by_code = {code: Money(total, currencies[code]) for code, total in sums.items()}
+    as_of_instant = utc_instant(as_of)
     quotes: dict[tuple[str, str], list[FxRateSnapshot]] = {}
     for snapshot in snapshots:
         if not isinstance(snapshot, FxRateSnapshot):
@@ -262,19 +280,23 @@ def convert(
                 )
             )
             continue
-        usable = [s for s in quotes.get((code, target.code), ()) if s.effective_at <= as_of]
+        usable = [
+            snapshot
+            for snapshot in quotes.get((code, target.code), ())
+            if utc_instant(snapshot.effective_at) <= as_of_instant
+        ]
         if not usable:
             components.append(ConversionComponent(original, ConversionStatus.MISSING, None, None))
             continue
-        latest = max(snapshot.effective_at for snapshot in usable)
-        current = [snapshot for snapshot in usable if snapshot.effective_at == latest]
-        if len({snapshot.rate for snapshot in current}) > 1:
+        latest = max(utc_instant(snapshot.effective_at) for snapshot in usable)
+        current = [s for s in usable if utc_instant(s.effective_at) == latest]
+        if _conflicting(current):
             components.append(
                 ConversionComponent(original, ConversionStatus.CONFLICTING, None, None)
             )
             continue
-        snapshot = min(current, key=lambda candidate: candidate.snapshot_id)
-        if as_of - snapshot.effective_at > max_age:
+        snapshot = min(current, key=lambda candidate: (candidate.snapshot_id, candidate.source))
+        if as_of_instant - latest > max_age:
             components.append(ConversionComponent(original, ConversionStatus.STALE, snapshot, None))
             continue
         exact = _EXACT.multiply(Decimal(original.minor), snapshot.rate).scaleb(
@@ -292,3 +314,12 @@ def convert(
         rounded = total.quantize(Decimal(1), rounding=ROUND_HALF_EVEN, context=_ROUNDING)
         amount = Money(int(rounded), target)
     return Conversion(target, as_of, max_age, tuple(components), amount)
+
+
+def _conflicting(current: list[FxRateSnapshot]) -> bool:
+    if len({snapshot.rate for snapshot in current}) > 1:
+        return True
+    sources: dict[str, set[str]] = {}
+    for snapshot in current:
+        sources.setdefault(snapshot.snapshot_id, set()).add(snapshot.source)
+    return any(len(names) > 1 for names in sources.values())
