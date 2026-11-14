@@ -1,5 +1,5 @@
 # Plan: 007-revenue-ledger
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: 007-A is published in PR 6 under D-043. The corrections of the independent review findings R007-01 to R007-11 are verified locally and await owner review before PR 6 is updated. The [implementation prompt](implementation-prompt.md) defined the calculation contract and the five synthetic acceptance cases from the [entry review](entry-review.md); the [evidence](evidence.md) records the delivered contract, commands and results. Planning for 007-B and 007-C remains provisional.
 
 ## Expected outcome
 Maintain transactions and their evidence, audited manual revenue, payments, refunds, chargebacks, gross/net amounts, and original/reporting currencies.
@@ -12,18 +12,20 @@ Maintain transactions and their evidence, audited manual revenue, payments, refu
 - Distinguish confirmed decisions from proposals and resolve: Q-002, Q-006, Q-007.
 
 ## Proposed review slices
-1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
-2. Implement the smallest approved end-to-end slice with appropriate observability.
-3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
+1. 007-A: review A1–A3, then implement the approved provider-independent financial contract and its synthetic unit cases. Implemented in `backend/app/ledger/` with AC1–AC5 in `backend/tests/test_revenue_ledger.py` and `backend/tests/test_ledger_money.py`.
+2. 007-B: review persistence, concurrency, scope, audit, privacy and migration design before database or API work.
+3. 007-C: verify downstream identity and attribution handoffs with their implemented dependencies.
 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
-- [ ] Duplicate payment/refund webhooks do not multiply amounts, regardless of delivery order.
-- [ ] A sale of 1,000 followed by a partial refund of 200 produces net revenue of 800 in the same currency; a full refund produces zero.
-- [ ] Refunds arriving before sales, chargeback reversals, and manual adjustments follow documented states and preserve history.
-- [ ] Different currencies are not summed directly; exchange rates, sources, timestamps, and rounding policies are explicit and reproducible.
-- [ ] Client revenue remains separate from agency subscription billing for the SaaS product.
+Each criterion below is met for the 007-A in-memory contract with synthetic evidence (see the [evidence](evidence.md)). Persisted postings, concurrent deliveries and live sources must repeat them in 007-B and 007-C before the criteria are closed for the specification.
+- [x] Duplicate payment/refund webhooks do not multiply amounts, regardless of delivery order. (007-A: AC1, AC2, AC3)
+- [x] A sale of 1,000 followed by a partial refund of 200 produces net revenue of 800 in the same currency; a full refund produces zero. (007-A: AC2)
+- [x] Refunds arriving before sales, chargeback reversals, and manual adjustments follow documented states and preserve history. (007-A: AC3)
+- [x] Different currencies are not summed directly; exchange rates, sources, timestamps, and rounding policies are explicit and reproducible. (007-A: AC4, AC5)
+- [x] Client revenue remains separate from agency subscription billing for the SaaS product. (007-A: AC5)
+- [ ] Repeat the five criteria against persisted postings and concurrent deliveries (007-B).
 
 ## Rollout and recovery
 Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.

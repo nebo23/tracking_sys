@@ -1,5 +1,5 @@
 # 007-revenue-ledger — Revenue, refunds, and currencies
-Status: Draft; implementation is not approved. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: 007-A is published in PR 6 under D-043; the corrections of review findings R007-01 to R007-11 are verified locally and await owner review; see the [evidence](evidence.md#review-corrections-2026-11-14). Slices 007-B and 007-C await review. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29. Entry review opened under D-042 from the PR 5 merge at `ec9a09b` on 2026-11-11.
 
 ## Sources
 PDF-042,052,053,054,056. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -21,9 +21,9 @@ Selecting a payment or FX provider without approval, or treating OCR results or 
 RevenueEntry, Transaction, Adjustment, and FxRateSnapshot; choose integer minor units or exact decimals explicitly, never floating point for money.
 
 ## Dependencies and open decisions
-Dependencies: [006-identity-journey](../006-identity-journey/spec.md)
+Dependencies: [006-identity-journey](../006-identity-journey/spec.md) The dependency is a merged design. The proposed financial calculation slice is independently reviewable, and the person association requires implemented 006 behavior. See the [entry review and first decision packet](entry-review.md).
 
 Open decisions: Q-002, Q-006, Q-007. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-043 records the owner's 2026-11-14 decision to start 007-A with the recommended A1–A3 options. The [implementation prompt](implementation-prompt.md) defines the local deliverable and its verification.

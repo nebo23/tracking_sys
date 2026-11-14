@@ -1,0 +1,31 @@
+# Correct Spec 007-A and report readiness for Spec 008
+
+Work in `C:\Code\Tracking-system\.worktrees\spec-007-revenue-ledger` on `codex/spec-007-revenue-ledger`. The owner requests corrections for R007-01 through R007-11 from the independent review of [PR 6](https://github.com/nebo23/tracking_sys/pull/6). The reviewed application commit is `0e4fca161687d45217b3baf12b25b9c2a21d037a`. Inspect the current diff and preserve subsequent work. Read `AGENTS.md`, `README.md`, D-043 in `docs/planning/decisions.md`, the [007 specification](spec.md), [entry review](entry-review.md), [original evidence](evidence.md) and [independent review](pull-request-review-2026-11-14.md). Deliver the corrected in-memory calculation contract, regression tests and local verification evidence for owner review.
+
+## Required regressions
+
+Use the public `calculate()` and `convert()` entry points with synthetic evidence. Add a regression for every ID. Demonstrate each failure against the reviewed implementation, then run the same checks against the correction. Check individual postings, referenced evidence, reconciliation reasons and tenant balances wherever relevant.
+
+| ID | Behavior the corrected contract must demonstrate |
+|---|---|
+| R007-01 | Capture 1,000 and post a refund of 200. A competing refund of 900 enters reconciliation. Re-notifying that operation with an earlier effective time preserves the 800 balance and the 200 posting. Surface the disagreement. Preserve legitimate differences between capture and settlement times. |
+| R007-02 | Calculate successive prefixes of the evidence stream. After a refund of 200 posts, arrival of a distinct earlier-effective refund of 900 retains the original posting in the audit history. Any change to a committed effect is traceable to an explicit movement. Also exercise AC3 permutations with the complete evidence set and preserve deterministic final economic results. Document the distinction between a provisional calculation and a posted movement wherever it affects callers. |
+| R007-03 | Capture 1,000, charge back 1,000, refund 1,000 and reverse the entire chargeback. Final net is zero across delivery permutations. Test a partial reversal and a refund that still exceeds the available balance. Restore at most the outstanding amount of the referenced chargeback. |
+| R007-04 | An excluded agency subscription or a currency exponent disagreement in a different client cannot interrupt the calculation for a valid client. Exercise mixed agencies, clients and source accounts. Keep incompatible exponents visible within the affected client's totals. |
+| R007-05 | A purchase signal and a confirmed capture sharing a delivery ID yield exactly one verified sale in either arrival order. Preserve diagnostics for the collision and independent traceability of the signal. |
+| R007-06 | Compare aware timestamps by absolute instant for quote eligibility, age, receipt precedence and effective ordering. Across both folds of a repeated hour, local and UTC inputs give identical results. A 06:10 UTC quote is unavailable as of 05:30 UTC. Include a stale quote and a ledger ordering case. |
+| R007-07 | A capture and settlement for the same economic operation with different source document references produce one sale carrying both references. Genuine amount conflicts remain visible and audited corrections retain their actor, reason and source. |
+| R007-08 | Three identical retries of one conflicting payload under a reused delivery ID produce one reconciliation discrepancy. Keep the outcome of each delivery and distinguish materially different conflicts. |
+| R007-09 | Route a correction cycle and a known invalid parent kind to reconciliation, including when that parent is pending. A genuinely absent parent remains pending and a later valid parent resolves it. |
+| R007-10 | For inputs in one currency of `MAX_MINOR - 1`, `+1` and `-1`, every ordering produces the representable final amount of `MAX_MINOR - 1`. Preserve the documented output bounds and exact arithmetic. |
+| R007-11 | Snapshots sharing ID, currency pair, effective instant and rate but disagreeing on source give the same explicit conflict or the same documented provenance in both input orders. Compare the complete conversion record. |
+
+For R007-01 through R007-03 test both successive deliveries and full replay. Retain the approved AC1–AC5 financial outcomes, the public contract used by existing callers, original-currency totals, half-even rounding and agency/client isolation. If a genuine conflict between append-only commitments and deterministic recomputation requires a new financial policy, demonstrate the smallest conflicting case, present the options to the owner, and continue the independent corrections. Record any unresolved finding as open.
+
+## Verification and handoff
+
+Use the existing project virtual environment. From `backend`, run the focused ledger suite (`python -m pytest tests/test_revenue_ledger.py tests/test_ledger_money.py` plus any new regression files), the unit suite (`python -m pytest -m "not integration"`), and Ruff lint and format checks on the changed Python files. Run `git diff --check` on the correction diff. Record the actual commands, passing and failing counts, and exclusions. The earlier 92 focused and 429 total unit tests are historical baselines. Keep integration checks away from the owner's native `tracking_sys` database.
+
+Update the 007 evidence and tasks with one row per finding linking its test and result. Commit the verified changes locally on the same branch. Report to the owner in Arabic with the commit SHA, remaining findings and the exact scope verified. Publication of the corrections to the existing PR follows owner review under D-012. Merge remains the owner's decision.
+
+End with a short readiness assessment against the [008 draft](../008-attribution-engine/spec.md). Identify which corrected 007-A outputs can support synthetic attribution examples, where implemented identity and persisted financial inputs are still needed, and the Q-007 choices for the owner (lookback, direct or unknown traffic, timezone and ties, refunds and late events). Scope this handoff to the 007-A corrections and assessment. The 007-B persistence and permissions design, 007-C integration and 008 implementation remain open.
