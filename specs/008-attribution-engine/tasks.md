@@ -3,7 +3,7 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 
 - [ ] Approve the scope and sources for lead and revenue attribution engine.
 - [ ] Resolve Q-007 and record the owner decision.
-- [ ] Verify dependencies: 007-revenue-ledger.
+- [x] Verify the merged 007-A calculation contract and identify the 006, 007-B and 007-C dependencies for live attribution in the [entry review](entry-review.md).
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
 - [ ] Define independently reviewable local changes for the approved specification.
 - [ ] Implement the first approved slice.

@@ -1,5 +1,5 @@
 # 008-attribution-engine — Lead and revenue attribution engine
-Status: Draft; implementation is not approved. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Design review opened from merged 007-A at `bc0ff40`. The [entry review](entry-review.md) proposes the first synthetic slice and Q-007 options for owner approval. Level: L3.
 
 ## Sources
 PDF-032,034,035(partial),041,042,069. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
