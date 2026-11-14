@@ -1,5 +1,5 @@
 # 008-attribution-engine — Lead and revenue attribution engine
-Status: Design review opened from merged 007-A at `bc0ff40`. The [entry review](entry-review.md) proposes the first synthetic slice and Q-007 options for owner approval. Level: L3.
+Status: 008-A, the synthetic calculation slice, is implemented locally under D-046 with the Q-007 choices of the [entry review](entry-review.md); see the [evidence](evidence.md). Production defaults, persistence and identity integration remain open. Level: L3.
 
 ## Sources
 PDF-032,034,035(partial),041,042,069. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -25,4 +25,4 @@ Dependencies: [007-revenue-ledger](../007-revenue-ledger/spec.md)
 Open decisions: Q-007. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-046 (2026-11-15) approves the 008-A synthetic slice and its Q-007 rules. Production defaults, persistence, identity integration, publication and later slices need their own decisions.

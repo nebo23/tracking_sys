@@ -1,6 +1,6 @@
 # Spec 008 entry review
 
-**Owner decision pending.** The proposed first slice calculates lead and revenue credit from synthetic touchpoints. The inputs to the examples below are available after [PR 6](https://github.com/nebo23/tracking_sys/pull/6) merged 007-A into `main` at `bc0ff40`. These are expected outcomes for review. Implementation and test execution follow approval of the relevant Q-007 rules.
+**Approved by D-046 (2026-11-15) for the local synthetic slice; implemented in 008-A, see the [evidence](evidence.md).** The first slice calculates lead and revenue credit from synthetic touchpoints. The inputs to the examples below are available after [PR 6](https://github.com/nebo23/tracking_sys/pull/6) merged 007-A into `main` at `bc0ff40`. These are expected outcomes for review. Implementation and test execution follow approval of the relevant Q-007 rules.
 
 ## Inputs and boundaries
 

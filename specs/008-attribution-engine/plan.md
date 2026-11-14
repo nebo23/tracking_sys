@@ -1,5 +1,5 @@
 # Plan: 008-attribution-engine
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Slice 008-A implemented locally under D-046 with no new dependencies; see the [evidence](evidence.md). Later slices remain draft.
 
 ## Expected outcome
 Propose First Click, Last Click, and Linear models with configurable lookback windows, direct/unknown rules, model versions, reprocessing, and refund handling.
@@ -19,10 +19,10 @@ Propose First Click, Last Click, and Linear models with configurable lookback wi
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
-- [ ] For touchpoints A then B and revenue of 100, the approved models produce First: A=100; Last: B=100; Linear: A=50 and B=50.
-- [ ] With no eligible touchpoint, unknown receives 100; total allocated credit equals eligible net revenue exactly after rounding.
-- [ ] Fixtures define expected results for window boundaries, timezones, timestamp ties, refunds, and late events.
-- [ ] Recalculating identical inputs with the same model version produces identical results; model changes preserve history.
+- [x] For touchpoints A then B and revenue of 100, the approved models produce First: A=100; Last: B=100; Linear: A=50 and B=50.
+- [x] With no eligible touchpoint, unknown receives 100; total allocated credit equals eligible net revenue exactly after rounding.
+- [x] Fixtures define expected results for window boundaries, timezones, timestamp ties, refunds, and late events.
+- [x] Recalculating identical inputs with the same model version produces identical results; model changes preserve history.
 
 ## Rollout and recovery
 Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.
