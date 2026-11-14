@@ -1,5 +1,5 @@
 # Plan: 007-revenue-ledger
-Status: Draft. This plan does not authorize implementation or dependency selection. The [entry review](entry-review.md) defines the proposed 007-A contract, alternatives and synthetic acceptance cases.
+Status: D-043 approves local implementation of 007-A. The [implementation prompt](implementation-prompt.md) covers the calculation contract and the five synthetic acceptance cases from the [entry review](entry-review.md). Planning for 007-B and 007-C remains provisional.
 
 ## Expected outcome
 Maintain transactions and their evidence, audited manual revenue, payments, refunds, chargebacks, gross/net amounts, and original/reporting currencies.

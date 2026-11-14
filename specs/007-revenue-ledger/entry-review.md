@@ -51,4 +51,4 @@ All figures are synthetic. Rows with different currencies have separate totals.
 - **007-B — Persistence, audit and permissions.** Present the schema, uniqueness keys, atomic posting and retry rules, finance-write permissions, erasure/retention and migration plan for approval. Include concurrent duplicate notifications, conflicting evidence and cross-tenant access tests.
 - **007-C — Downstream use.** Exercise identity association against an implemented 006 contract, including R006-24, R006-25 and R006-28 where they affect anonymous events, ownership and stale checkpoints. Preserve transaction amounts and reconcile attribution inputs after association changes. Choose live sources and reporting currencies only after their owner decisions.
 
-The immediate decision is whether to implement 007-A with A1–A3 as proposed. The five acceptance cases above are planned; 007 has no implementation or executed ledger suite yet.
+D-043 records the owner's 2026-11-14 decision to start 007-A with A1–A3 as proposed. AC1–AC5 are the acceptance cases for the [implementation handoff](implementation-prompt.md).

@@ -1,7 +1,8 @@
 # Tasks: 007-revenue-ledger
-Status: Not completed; this is a review checklist, not an implementation instruction.
+Status: D-043 approves the first calculation slice. Its [implementation handoff](implementation-prompt.md) is ready for execution.
 
-- [ ] Approve the scope and sources for revenue, refunds, and currencies.
+- [x] Record approval of A1–A3 for the synthetic calculation slice under D-043.
+- [ ] Approve production sources for revenue, refunds, and exchange rates.
 - [ ] Resolve Q-002, Q-006, Q-007 and record the owner decision.
 - [x] Inspect the merged Spec 006 design at `ec9a09b` and record its outstanding runtime dependencies in the [entry review](entry-review.md).
 - [x] Prepare the proposed contracts, financial access boundaries and synthetic acceptance cases for owner review.
