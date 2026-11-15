@@ -1,0 +1,1157 @@
+"""Connector connection lifecycle (specification 009-A, D-048).
+
+An Owner or Admin starts a connect or reconnect authorization for one client. The provider
+redirects to one fixed callback, which recovers the agency, client, initiator, and, for a
+reconnect, the connection and expected generation from the single-use state. The callback
+consumes the state and commits before any provider call, exchanges the code with the derived
+PKCE verifier while holding no lock, and then installs the grant in a second transaction that
+rechecks the session, the manager role, the client, and the connection. When that
+installation fails for any reason, including a lost race or a failed commit, the newly issued
+grant is revoked at the provider: a provider grant survives a local rollback, and the cleanup
+targets only that new grant.
+
+Workers carry agency, client, connection, and generation in each run and recheck them when
+they claim work and before they persist results. Every result write locks the agency and
+client rows (FOR SHARE) and then the connection, and requires an active agency and client, an
+active connection, and the run's generation. Disconnect takes the agency write lock and then
+the connection, so a write either commits first and is purged, or sees the new generation and
+is discarded. Teardown revokes each outstanding token at the provider, then destroys the
+sealed material and purges provider data in one transaction; it finishes regardless of a
+later archive or suspension, and after the deadline it finishes with the revocation reported
+as failed. Every step can be repeated: a revocation that succeeded before a crash is
+confirmed again on the next run.
+"""
+
+import base64
+import hashlib
+import hmac
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Literal
+from uuid import UUID, uuid4
+
+from sqlalchemy import Engine, delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.config import Settings
+from app.connectors.contracts import ConnectorProvider, ErrorKind, ProviderError, TokenGrant
+from app.connectors.synthetic import SyntheticProvider
+from app.models import (
+    Agency,
+    ClientWorkspace,
+    ConnectorConnection,
+    ConnectorOAuthTransaction,
+    ConnectorRecord,
+    ConnectorSyncRun,
+    ConnectorTokenSecret,
+)
+from app.privacy.token_secrets import (
+    AAD_VERSION,
+    ALGORITHM,
+    LocalKeyring,
+    SealedSecret,
+    SecretContext,
+    open_secret,
+    seal,
+)
+from app.security import AuthError, digest, keyed_digest, new_token, now_utc
+from app.services.access import ScopedAccess
+from app.services.auth import AuthService
+from app.services.tenancy import MANAGERS, AccessDenied, TenancyService
+
+TRANSACTION_SECONDS = 600
+RUN_LEASE = timedelta(minutes=5)
+TEARDOWN_LEASE = timedelta(minutes=2)
+LIVE = ("active", "reconnect_required")
+OPEN_RUNS = ("queued", "running")
+SettledRevocation = ("done", "unsupported")
+Purpose = Literal["connect", "reconnect"]
+logger = logging.getLogger("tracking")
+
+
+# A connector failure with a fixed public code and HTTP status.
+class ConnectorError(Exception):
+    def __init__(self, code: str, status: int) -> None:
+        self.code, self.status = code, status
+        super().__init__(code)
+
+
+# Fixed codes the callback may append to the completion URL; anything else is connection_failed.
+CALLBACK_ERRORS = frozenset(
+    {
+        "connection_failed",
+        "connection_cancelled",
+        "connection_denied",
+        "connection_changed",
+        "account_mismatch",
+        "account_already_connected",
+        "provider_unavailable",
+        "connector_not_configured",
+    }
+)
+
+
+def build_providers(settings: Settings) -> dict[str, ConnectorProvider]:
+    if settings.connector_synthetic_state is None:
+        return {}
+    return {"synthetic": SyntheticProvider(settings.connector_synthetic_state)}
+
+
+def provider_for(registry: Mapping[str, ConnectorProvider], name: str) -> ConnectorProvider:
+    provider = registry.get(name)
+    if provider is None:
+        raise ConnectorError("provider_unavailable", 404)
+    return provider
+
+
+def require_keys(settings: Settings) -> LocalKeyring:
+    keys = settings.token_keys()
+    if keys is None:
+        raise ConnectorError("connector_not_configured", 503)
+    return keys
+
+
+# PKCE verifier derived from the raw state with a purpose-separated keyed HMAC, so the
+# transaction stores neither; 64 hexadecimal characters.
+def pkce_verifier(settings: Settings, raw_state: str) -> str:
+    return keyed_digest(settings, "connector-pkce", raw_state)
+
+
+def pkce_challenge(verifier: str) -> str:
+    return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+
+
+def binding_digest(settings: Settings, binding: str, session_token: str) -> str:
+    return keyed_digest(settings, "connector-oauth-binding", binding + "\0" + digest(session_token))
+
+
+def _context(row: ConnectorTokenSecret) -> SecretContext:
+    return SecretContext(
+        row.agency_id, row.client_id, row.connection_id, row.id, row.kind, row.version
+    )  # type: ignore[arg-type]
+
+
+def _sealed(row: ConnectorTokenSecret) -> SealedSecret:
+    assert row.kek_id and row.wrap_nonce and row.wrapped_dek and row.nonce and row.ciphertext
+    return SealedSecret(
+        row.kek_id, row.wrap_nonce, row.wrapped_dek, row.nonce, row.ciphertext, row.alg
+    )
+
+
+def _open(keyring: LocalKeyring, row: ConnectorTokenSecret) -> str:
+    return open_secret(keyring, _sealed(row), _context(row))
+
+
+def _new_secret(
+    keyring: LocalKeyring,
+    connection: ConnectorConnection,
+    kind: Literal["access_token", "refresh_token"],
+    version: int,
+    token: str,
+    expires_at: datetime | None,
+    now: datetime,
+) -> ConnectorTokenSecret:
+    row = ConnectorTokenSecret(
+        id=uuid4(),
+        agency_id=connection.agency_id,
+        client_id=connection.client_id,
+        connection_id=connection.id,
+        kind=kind,
+        version=version,
+        alg=ALGORITHM,
+        aad_version=AAD_VERSION,
+        status="active",
+        provider_expires_at=expires_at,
+        last_refreshed_at=now,
+    )
+    sealed = seal(keyring, token, _context(row))
+    row.kek_id, row.wrap_nonce, row.wrapped_dek = (
+        sealed.kek_id,
+        sealed.wrap_nonce,
+        sealed.wrapped_dek,
+    )
+    row.nonce, row.ciphertext = sealed.nonce, sealed.ciphertext
+    return row
+
+
+# Destroy one version's sealed material (D-048 decision D8): the row stays as evidence.
+def _destroy(row: ConnectorTokenSecret, now: datetime, revocation: str | None = None) -> None:
+    row.kek_id = row.wrap_nonce = row.wrapped_dek = row.nonce = row.ciphertext = None
+    row.status, row.destroyed_at = "destroyed", now
+    if revocation is not None:
+        row.revocation = revocation
+
+
+def _live_secrets(session: Session, connection_id: UUID) -> list[ConnectorTokenSecret]:
+    return list(
+        session.scalars(
+            select(ConnectorTokenSecret)
+            .where(
+                ConnectorTokenSecret.connection_id == connection_id,
+                ConnectorTokenSecret.status != "destroyed",
+            )
+            .order_by(ConnectorTokenSecret.kind.desc(), ConnectorTokenSecret.version)
+            .execution_options(populate_existing=True)
+        )
+    )
+
+
+def _next_version(session: Session, connection_id: UUID, kind: str) -> int:
+    current = session.scalar(
+        select(func.max(ConnectorTokenSecret.version)).where(
+            ConnectorTokenSecret.connection_id == connection_id, ConnectorTokenSecret.kind == kind
+        )
+    )
+    return (current or 0) + 1
+
+
+def _cancel_open_runs(session: Session, connection_id: UUID, now: datetime, kind: str) -> None:
+    session.execute(
+        update(ConnectorSyncRun)
+        .where(
+            ConnectorSyncRun.connection_id == connection_id,
+            ConnectorSyncRun.status.in_(OPEN_RUNS),
+        )
+        .values(status="canceled", error_kind=kind, finished_at=now, lease_expires_at=None)
+    )
+
+
+def _enqueue(session: Session, connection: ConnectorConnection) -> ConnectorSyncRun:
+    run = ConnectorSyncRun(
+        id=uuid4(),
+        agency_id=connection.agency_id,
+        client_id=connection.client_id,
+        connection_id=connection.id,
+        connection_generation=connection.generation,
+        status="queued",
+    )
+    session.add(run)
+    return run
+
+
+# Revoke both tokens of a grant that was issued but not kept. Failures are logged by event
+# name only; no row exists to record them on.
+def dispose_grant(provider: ConnectorProvider, grant: TokenGrant) -> bool:
+    disposed = True
+    for token, kind in (
+        (grant.refresh_token, "refresh_token"),
+        (grant.access_token, "access_token"),
+    ):
+        if token is None:
+            continue
+        try:
+            provider.revoke(token, kind)
+        except ProviderError:
+            disposed = False
+    if not disposed:
+        logger.warning("connector_grant_disposal_failed")
+    return disposed
+
+
+# Owner/Admin administration: connect, reconnect, disconnect, and sync requests; audited.
+class ConnectorAdmin(TenancyService):
+    def __init__(
+        self,
+        session: Session,
+        actor_user_id: UUID,
+        settings: Settings,
+        registry: Mapping[str, ConnectorProvider],
+    ) -> None:
+        super().__init__(session, actor_user_id)
+        self.settings, self.registry = settings, registry
+
+    def _connection(
+        self, agency_id: UUID, client_id: UUID, connection_id: UUID
+    ) -> ConnectorConnection:
+        item = self.session.scalar(
+            select(ConnectorConnection)
+            .where(
+                ConnectorConnection.agency_id == agency_id,
+                ConnectorConnection.client_id == client_id,
+                ConnectorConnection.id == connection_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if item is None:
+            raise AccessDenied()
+        return item
+
+    def _client(self, agency_id: UUID, client_id: UUID, *, active: bool) -> ClientWorkspace:
+        query = select(ClientWorkspace).where(
+            ClientWorkspace.agency_id == agency_id, ClientWorkspace.id == client_id
+        )
+        client = self.session.scalar(query.execution_options(populate_existing=True))
+        if client is None or (active and client.status != "active"):
+            raise AccessDenied()
+        return client
+
+    # Start a connect (connection_id None) or reconnect authorization. Returns the provider
+    # authorization URL and the raw browser-binding value for the HttpOnly cookie.
+    def begin(
+        self,
+        agency_id: UUID,
+        client_id: UUID,
+        provider_name: str,
+        session_token: str,
+        connection_id: UUID | None = None,
+    ) -> tuple[str, str]:
+        actor = self._manager(agency_id, write=True)
+        self._client(agency_id, client_id, active=True)
+        expected: int | None = None
+        if connection_id is not None:
+            connection = self._connection(agency_id, client_id, connection_id)
+            if connection.status != "reconnect_required":
+                raise ConnectorError("reconnect_not_available", 409)
+            provider_name, expected = connection.provider, connection.generation
+        provider = provider_for(self.registry, provider_name)
+        require_keys(self.settings)
+        raw_state, binding = new_token(), new_token()
+        self.session.add(
+            ConnectorOAuthTransaction(
+                agency_id=agency_id,
+                client_id=client_id,
+                connection_id=connection_id,
+                expected_generation=expected,
+                initiator_membership_id=actor.id,
+                provider=provider_name,
+                purpose="connect" if connection_id is None else "reconnect",
+                state_digest=digest(raw_state),
+                binding_digest=binding_digest(self.settings, binding, session_token),
+                expires_at=now_utc() + timedelta(seconds=TRANSACTION_SECONDS),
+            )
+        )
+        self.session.flush()
+        url = provider.authorization_url(
+            state=raw_state,
+            code_challenge=pkce_challenge(pkce_verifier(self.settings, raw_state)),
+            redirect_uri=self.settings.connector_redirect_uri,
+            scopes=provider.capability.scopes,
+        )
+        return url, binding
+
+    # Request disconnection. The first request stops the connection, cancels its runs, and
+    # fixes the teardown deadline; repeated requests return the same state and deadline.
+    def disconnect(
+        self, agency_id: UUID, client_id: UUID, connection_id: UUID, now: datetime | None = None
+    ) -> ConnectorConnection:
+        self._manager(agency_id, write=True)
+        connection = self._connection(agency_id, client_id, connection_id)
+        if connection.status not in LIVE:
+            return connection
+        now = now or now_utc()
+        connection.status, connection.status_reason = "disconnecting", "user_requested"
+        connection.generation += 1
+        connection.disconnect_requested_at = now
+        connection.purge_due_at = now + timedelta(hours=self.settings.connector_teardown_hours)
+        connection.revocation_status = "pending"
+        connection.destruction_status = connection.purge_status = "pending"
+        connection.updated_at = now
+        _cancel_open_runs(self.session, connection.id, now, "connection_inactive")
+        self._audit(
+            agency_id, "connector.disconnect_requested", "connection", connection.id, client_id
+        )
+        return connection
+
+    # Queue one synchronization of an active connection; an open run is returned unchanged.
+    def request_sync(
+        self, agency_id: UUID, client_id: UUID, connection_id: UUID
+    ) -> ConnectorSyncRun:
+        self._manager(agency_id, write=True)
+        self._client(agency_id, client_id, active=True)
+        connection = self._connection(agency_id, client_id, connection_id)
+        if connection.status != "active":
+            raise ConnectorError("connection_not_active", 409)
+        existing = self.session.scalar(
+            select(ConnectorSyncRun).where(
+                ConnectorSyncRun.connection_id == connection.id,
+                ConnectorSyncRun.status.in_(OPEN_RUNS),
+            )
+        )
+        if existing is not None:
+            return existing
+        run = _enqueue(self.session, connection)
+        self.session.flush()
+        return run
+
+
+@dataclass(frozen=True)
+class CallbackResult:
+    purpose: Purpose
+    connection_id: UUID
+
+
+@dataclass(frozen=True)
+class _Authorization:
+    agency_id: UUID
+    client_id: UUID
+    connection_id: UUID | None
+    expected_generation: int | None
+    membership_id: UUID
+    provider: str
+    purpose: Purpose
+
+
+# Lock the transaction by state digest, require the matching session-bound binding, no prior
+# use, and no expiry, and consume it. Commits before the provider is contacted.
+def _consume(
+    engine: Engine,
+    settings: Settings,
+    raw_state: str,
+    binding: str | None,
+    session_token: str | None,
+) -> _Authorization:
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        item = session.scalar(
+            select(ConnectorOAuthTransaction)
+            .where(ConnectorOAuthTransaction.state_digest == digest(raw_state))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if (
+            item is None
+            or item.consumed_at is not None
+            or item.expires_at <= now_utc()
+            or not binding
+            or not session_token
+            or not hmac.compare_digest(
+                item.binding_digest, binding_digest(settings, binding, session_token)
+            )
+        ):
+            raise ConnectorError("connection_failed", 400)
+        item.consumed_at = now_utc()
+        return _Authorization(
+            item.agency_id,
+            item.client_id,
+            item.connection_id,
+            item.expected_generation,
+            item.initiator_membership_id,
+            item.provider,
+            "connect" if item.purpose == "connect" else "reconnect",
+        )
+
+
+# Install a newly exchanged grant after rechecking the initiator, client, and connection.
+# Returns the connection and the replaced tokens of a reconnect, which the caller revokes.
+def _install(
+    session: Session,
+    settings: Settings,
+    keyring: LocalKeyring,
+    authorization: _Authorization,
+    grant: TokenGrant,
+    session_token: str,
+) -> tuple[ConnectorConnection, list[tuple[UUID, str, str]]]:
+    user, _ = AuthService(session, settings).authenticate(session_token)
+    tenancy = TenancyService(session, user.id)
+    member = tenancy._membership(authorization.agency_id, write=True)
+    if member.id != authorization.membership_id or member.role not in MANAGERS:
+        raise AccessDenied()
+    client = session.scalar(
+        select(ClientWorkspace).where(
+            ClientWorkspace.agency_id == authorization.agency_id,
+            ClientWorkspace.id == authorization.client_id,
+            ClientWorkspace.status == "active",
+        )
+    )
+    if client is None:
+        raise AccessDenied()
+    now = now_utc()
+    replaced: list[tuple[UUID, str, str]] = []
+    if authorization.purpose == "connect":
+        connection = ConnectorConnection(
+            id=uuid4(),
+            agency_id=authorization.agency_id,
+            client_id=authorization.client_id,
+            provider=authorization.provider,
+            external_account_id=grant.external_account_id,
+            account_label=grant.account_label,
+            status="active",
+            generation=1,
+            granted_scopes=list(grant.scopes),
+            created_by_membership_id=member.id,
+            connected_at=now,
+        )
+        session.add(connection)
+        session.flush()
+        action = "connector.connected"
+    else:
+        connection = session.scalar(
+            select(ConnectorConnection)
+            .where(
+                ConnectorConnection.agency_id == authorization.agency_id,
+                ConnectorConnection.client_id == authorization.client_id,
+                ConnectorConnection.id == authorization.connection_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if (
+            connection is None
+            or connection.status != "reconnect_required"
+            or connection.generation != authorization.expected_generation
+        ):
+            raise ConnectorError("connection_changed", 409)
+        if grant.external_account_id != connection.external_account_id:
+            raise ConnectorError("account_mismatch", 409)
+        for row in _live_secrets(session, connection.id):
+            replaced.append((row.id, row.kind, _open(keyring, row)))
+            _destroy(row, now)
+        session.flush()
+        connection.status, connection.status_reason = "active", None
+        connection.generation += 1
+        connection.account_label = grant.account_label
+        connection.granted_scopes = list(grant.scopes)
+        connection.connected_at = connection.updated_at = now
+        action = "connector.reconnected"
+    session.add(
+        _new_secret(
+            keyring,
+            connection,
+            "access_token",
+            _next_version(session, connection.id, "access_token"),
+            grant.access_token,
+            grant.access_expires_at,
+            now,
+        )
+    )
+    if grant.refresh_token is not None:
+        session.add(
+            _new_secret(
+                keyring,
+                connection,
+                "refresh_token",
+                _next_version(session, connection.id, "refresh_token"),
+                grant.refresh_token,
+                None,
+                now,
+            )
+        )
+    _enqueue(session, connection)
+    tenancy._audit(
+        authorization.agency_id, action, "connection", connection.id, authorization.client_id
+    )
+    return connection, replaced
+
+
+# Complete a provider callback. Raises ConnectorError with a callback code on any refusal.
+def complete_authorization(
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    raw_state: str,
+    binding: str | None,
+    code: str,
+    session_token: str | None,
+) -> CallbackResult:
+    authorization = _consume(engine, settings, raw_state, binding, session_token)
+    provider = provider_for(registry, authorization.provider)
+    keyring = require_keys(settings)
+    try:
+        grant = provider.exchange(
+            code=code,
+            code_verifier=pkce_verifier(settings, raw_state),
+            redirect_uri=settings.connector_redirect_uri,
+        )
+    except ProviderError as error:
+        unavailable = error.kind in {ErrorKind.RETRYABLE, ErrorKind.RATE_LIMITED}
+        raise ConnectorError(
+            "provider_unavailable" if unavailable else "connection_failed", 400
+        ) from None
+    try:
+        with Session(engine, expire_on_commit=False) as session, session.begin():
+            connection, replaced = _install(
+                session, settings, keyring, authorization, grant, session_token or ""
+            )
+            result = CallbackResult(authorization.purpose, connection.id)
+    except Exception as error:
+        dispose_grant(provider, grant)
+        if isinstance(error, ConnectorError):
+            raise
+        if isinstance(error, IntegrityError):
+            raise ConnectorError("account_already_connected", 409) from None
+        if isinstance(error, (AccessDenied, AuthError)):
+            raise ConnectorError("connection_denied", 403) from None
+        raise
+    if replaced:
+        _revoke_replaced(engine, provider, replaced)
+    return result
+
+
+# Revoke the tokens a successful reconnect replaced (already destroyed locally) and record
+# each provider outcome on its destroyed row.
+def _revoke_replaced(
+    engine: Engine, provider: ConnectorProvider, replaced: list[tuple[UUID, str, str]]
+) -> None:
+    outcomes: dict[UUID, str] = {}
+    for secret_id, kind, token in replaced:
+        try:
+            outcomes[secret_id] = provider.revoke(token, kind)
+        except ProviderError:
+            outcomes[secret_id] = "failed"
+    with Session(engine) as session, session.begin():
+        for secret_id, outcome in outcomes.items():
+            session.execute(
+                update(ConnectorTokenSecret)
+                .where(ConnectorTokenSecret.id == secret_id)
+                .values(revocation=outcome)
+            )
+
+
+# Reader-visible view of a connection; worker-only state is never included.
+@dataclass(frozen=True)
+class ConnectionView:
+    id: UUID
+    provider: str
+    account: dict[str, str | None] | None
+    status: str
+    status_reason: str | None
+    granted_scopes: list[str]
+    connected_at: datetime
+    last_successful_sync_at: datetime | None
+    actions: dict[str, bool]
+    disconnect: dict[str, object] | None = field(default=None)
+
+
+def connection_view(row: ConnectorConnection) -> ConnectionView:
+    disconnect = None
+    if row.disconnect_requested_at is not None:
+        disconnect = {
+            "requested_at": row.disconnect_requested_at,
+            "completed_at": row.disconnected_at,
+            "revocation": row.revocation_status,
+            "secret_destruction": row.destruction_status,
+            "data_purge": row.purge_status,
+            "purge_due_at": row.purge_due_at,
+            "deadline_met": (
+                None
+                if row.disconnected_at is None or row.purge_due_at is None
+                else row.disconnected_at <= row.purge_due_at
+            ),
+        }
+    account = (
+        None
+        if row.external_account_id is None
+        else {"external_account_id": row.external_account_id, "label": row.account_label}
+    )
+    return ConnectionView(
+        id=row.id,
+        provider=row.provider,
+        account=account,
+        status=row.status,
+        status_reason=row.status_reason,
+        granted_scopes=list(row.granted_scopes),
+        connected_at=row.connected_at,
+        last_successful_sync_at=row.last_successful_sync_at,
+        actions={
+            "reconnect": row.status == "reconnect_required",
+            "disconnect": row.status in LIVE,
+        },
+        disconnect=disconnect,
+    )
+
+
+def list_connections(session: Session, access: ScopedAccess) -> list[ConnectorConnection]:
+    return list(
+        session.scalars(
+            select(ConnectorConnection)
+            .where(
+                ConnectorConnection.agency_id == access.agency_id,
+                ConnectorConnection.client_id == access.client_id,
+            )
+            .order_by(ConnectorConnection.created_at, ConnectorConnection.id)
+            .limit(100)
+        )
+    )
+
+
+def get_connection(
+    session: Session, access: ScopedAccess, connection_id: UUID
+) -> ConnectorConnection:
+    item = session.scalar(
+        select(ConnectorConnection).where(
+            ConnectorConnection.agency_id == access.agency_id,
+            ConnectorConnection.client_id == access.client_id,
+            ConnectorConnection.id == connection_id,
+        )
+    )
+    if item is None:
+        raise AccessDenied()
+    return item
+
+
+# --- Worker -----------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Claim:
+    run_id: UUID
+    agency_id: UUID
+    client_id: UUID
+    connection_id: UUID
+    generation: int
+    provider: str
+    access_id: UUID
+    access_version: int
+    access_token: str = field(repr=False)
+    access_expires_at: datetime | None
+    refresh_token: str | None = field(repr=False)
+
+
+# Lock the agency and client (FOR SHARE) and then the connection, in that order, and report
+# whether results of the given generation may still be persisted.
+def _fence(
+    session: Session, agency_id: UUID, client_id: UUID, connection_id: UUID, generation: int
+) -> tuple[ConnectorConnection | None, str | None]:
+    agency = session.scalar(
+        select(Agency.status)
+        .where(Agency.id == agency_id)
+        .with_for_update(read=True)
+        .execution_options(populate_existing=True)
+    )
+    client = session.scalar(
+        select(ClientWorkspace.status)
+        .where(ClientWorkspace.agency_id == agency_id, ClientWorkspace.id == client_id)
+        .with_for_update(read=True)
+        .execution_options(populate_existing=True)
+    )
+    connection = session.scalar(
+        select(ConnectorConnection)
+        .where(ConnectorConnection.id == connection_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if agency != "active" or client != "active":
+        return connection, "client_inactive"
+    if connection is None or connection.status != "active" or connection.generation != generation:
+        return connection, "fenced"
+    return connection, None
+
+
+def _finish(
+    session: Session, run_id: UUID, status: str, now: datetime, error_kind: str | None = None
+) -> None:
+    session.execute(
+        update(ConnectorSyncRun)
+        .where(ConnectorSyncRun.id == run_id, ConnectorSyncRun.status == "running")
+        .values(status=status, error_kind=error_kind, finished_at=now, lease_expires_at=None)
+    )
+
+
+# Claim the oldest queued run, or a running run whose lease expired, and open its tokens.
+# A run whose agency, client, or connection is no longer eligible is canceled instead.
+def _claim(engine: Engine, keyring: LocalKeyring, now: datetime) -> tuple[_Claim | None, bool]:
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        run = session.scalar(
+            select(ConnectorSyncRun)
+            .where(
+                (ConnectorSyncRun.status == "queued")
+                | (
+                    (ConnectorSyncRun.status == "running")
+                    & (ConnectorSyncRun.lease_expires_at < now)
+                )
+            )
+            .order_by(ConnectorSyncRun.created_at, ConnectorSyncRun.id)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        if run is None:
+            return None, False
+        agency = session.scalar(select(Agency.status).where(Agency.id == run.agency_id))
+        client = session.scalar(
+            select(ClientWorkspace.status).where(
+                ClientWorkspace.agency_id == run.agency_id, ClientWorkspace.id == run.client_id
+            )
+        )
+        connection = session.get(ConnectorConnection, run.connection_id)
+        reason = None
+        if agency != "active" or client != "active":
+            reason = "client_inactive"
+        elif (
+            connection is None
+            or connection.status != "active"
+            or connection.generation != run.connection_generation
+        ):
+            reason = "connection_inactive"
+        secrets = {row.kind: row for row in _live_secrets(session, run.connection_id)}
+        access = secrets.get("access_token")
+        if reason is None and access is None:
+            reason = "connection_inactive"
+        if reason is not None:
+            run.status, run.error_kind, run.finished_at = "canceled", reason, now
+            run.lease_expires_at = None
+            return None, True
+        assert connection is not None and access is not None
+        run.status, run.attempt, run.started_at = "running", run.attempt + 1, now
+        run.lease_expires_at = now + RUN_LEASE
+        refresh = secrets.get("refresh_token")
+        return (
+            _Claim(
+                run.id,
+                run.agency_id,
+                run.client_id,
+                run.connection_id,
+                run.connection_generation,
+                connection.provider,
+                access.id,
+                access.version,
+                _open(keyring, access),
+                access.provider_expires_at,
+                _open(keyring, refresh) if refresh is not None else None,
+            ),
+            False,
+        )
+
+
+# Terminal credential failure: only this connection, and only if it is still the claimed
+# generation, becomes reconnect_required; data is kept without further writes (D-048 D7).
+def _require_reconnect(engine: Engine, claim: _Claim, reason: str, now: datetime) -> None:
+    with Session(engine) as session, session.begin():
+        connection = session.scalar(
+            select(ConnectorConnection)
+            .where(ConnectorConnection.id == claim.connection_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        _finish(session, claim.run_id, "failed", now, "unauthorized")
+        if (
+            connection is None
+            or connection.status != "active"
+            or connection.generation != claim.generation
+        ):
+            return
+        connection.status, connection.status_reason = "reconnect_required", reason
+        connection.generation += 1
+        connection.updated_at = now
+        for row in _live_secrets(session, connection.id):
+            row.status = "revoked"
+        _cancel_open_runs(session, connection.id, now, "connection_inactive")
+
+
+# Refresh the access token and install it only if the connection is still active under the
+# claimed generation and its agency and client are active. A connection that moved on gets
+# the new token revoked (it belongs to the grant being torn down or replaced); when only the
+# client or agency became inactive, the token is dropped unsaved and expires at the provider.
+def _refresh(
+    engine: Engine,
+    keyring: LocalKeyring,
+    provider: ConnectorProvider,
+    claim: _Claim,
+    now: datetime,
+) -> str | None:
+    assert claim.refresh_token is not None
+    try:
+        grant = provider.refresh(claim.refresh_token)
+    except ProviderError as error:
+        if error.kind is ErrorKind.UNAUTHORIZED:
+            _require_reconnect(engine, claim, "credential_expired", now)
+        else:
+            with Session(engine) as session, session.begin():
+                _finish(session, claim.run_id, "failed", now, error.kind.value)
+        return None
+    moved_on = False
+    try:
+        with Session(engine) as session, session.begin():
+            connection, reason = _fence(
+                session, claim.agency_id, claim.client_id, claim.connection_id, claim.generation
+            )
+            if reason is not None or connection is None:
+                moved_on = reason == "fenced"
+                _finish(session, claim.run_id, "canceled", now, reason or "fenced")
+                return None
+            previous = session.get(ConnectorTokenSecret, claim.access_id)
+            if previous is None or previous.status == "destroyed":
+                moved_on = True
+                _finish(session, claim.run_id, "canceled", now, "fenced")
+                return None
+            _destroy(previous, now, "not_required")
+            session.flush()
+            session.add(
+                _new_secret(
+                    keyring,
+                    connection,
+                    "access_token",
+                    _next_version(session, connection.id, "access_token"),
+                    grant.access_token,
+                    grant.access_expires_at,
+                    now,
+                )
+            )
+            if grant.refresh_token is not None and grant.refresh_token != claim.refresh_token:
+                for row in _live_secrets(session, connection.id):
+                    if row.kind == "refresh_token":
+                        _destroy(row, now, "not_required")
+                session.flush()
+                session.add(
+                    _new_secret(
+                        keyring,
+                        connection,
+                        "refresh_token",
+                        _next_version(session, connection.id, "refresh_token"),
+                        grant.refresh_token,
+                        None,
+                        now,
+                    )
+                )
+    finally:
+        if moved_on:
+            dispose_grant(
+                provider,
+                TokenGrant(
+                    grant.access_token,
+                    grant.refresh_token if grant.refresh_token != claim.refresh_token else None,
+                    grant.access_expires_at,
+                    grant.scopes,
+                    grant.external_account_id,
+                ),
+            )
+    return grant.access_token
+
+
+def _execute(
+    engine: Engine,
+    keyring: LocalKeyring,
+    registry: Mapping[str, ConnectorProvider],
+    claim: _Claim,
+    now: datetime,
+) -> str:
+    provider = registry.get(claim.provider)
+    if provider is None:
+        with Session(engine) as session, session.begin():
+            _finish(session, claim.run_id, "failed", now, "permanent")
+        return "failed"
+    access: str | None = claim.access_token
+    refreshed = False
+    expired = claim.access_expires_at is not None and claim.access_expires_at <= now
+    if expired and claim.refresh_token is not None:
+        access, refreshed = _refresh(engine, keyring, provider, claim, now), True
+        if access is None:
+            return "stopped"
+    while True:
+        try:
+            records = provider.fetch_page(access or "")
+            break
+        except ProviderError as error:
+            if error.kind is ErrorKind.UNAUTHORIZED and claim.refresh_token and not refreshed:
+                access, refreshed = _refresh(engine, keyring, provider, claim, now), True
+                if access is None:
+                    return "stopped"
+                continue
+            if error.kind is ErrorKind.UNAUTHORIZED:
+                _require_reconnect(engine, claim, "provider_revoked", now)
+                return "stopped"
+            with Session(engine) as session, session.begin():
+                _finish(session, claim.run_id, "failed", now, error.kind.value)
+            return "failed"
+    with Session(engine) as session, session.begin():
+        connection, reason = _fence(
+            session, claim.agency_id, claim.client_id, claim.connection_id, claim.generation
+        )
+        if reason is not None or connection is None:
+            _finish(session, claim.run_id, "canceled", now, reason or "fenced")
+            return "discarded"
+        for record in records:
+            values = {
+                "id": uuid4(),
+                "agency_id": claim.agency_id,
+                "client_id": claim.client_id,
+                "connection_id": claim.connection_id,
+                "connection_generation": claim.generation,
+                "provider_object_id": record.provider_object_id,
+                "observed_at": record.observed_at,
+                "metrics": dict(record.metrics),
+                "fetched_at": now,
+            }
+            statement = insert(ConnectorRecord).values(**values)
+            session.execute(
+                statement.on_conflict_do_update(
+                    constraint="uq_connector_records_object",
+                    set_={
+                        "connection_generation": statement.excluded.connection_generation,
+                        "observed_at": statement.excluded.observed_at,
+                        "metrics": statement.excluded.metrics,
+                        "fetched_at": statement.excluded.fetched_at,
+                    },
+                )
+            )
+        connection.last_successful_sync_at = connection.updated_at = now
+        _finish(session, claim.run_id, "succeeded", now)
+    return "succeeded"
+
+
+# Process at most `limit` sync runs, each claimed, fetched, and persisted separately.
+def run_syncs(
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    *,
+    limit: int = 10,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    keyring = require_keys(settings)
+    counts: dict[str, int] = {}
+    for _ in range(limit):
+        moment = now or now_utc()
+        claim, canceled = _claim(engine, keyring, moment)
+        if claim is None:
+            if not canceled:
+                break
+            counts["canceled"] = counts.get("canceled", 0) + 1
+            continue
+        outcome = _execute(engine, keyring, registry, claim, moment)
+        counts[outcome] = counts.get(outcome, 0) + 1
+    return counts
+
+
+@dataclass(frozen=True)
+class _Outstanding:
+    secret_id: UUID
+    kind: str
+    token: str = field(repr=False)
+
+
+# Claim disconnecting connections whose teardown lease is free and open their outstanding
+# tokens (not destroyed and not yet confirmed revoked or unsupported), refresh tokens first.
+def _claim_teardowns(
+    engine: Engine, keyring: LocalKeyring, now: datetime, limit: int
+) -> list[tuple[UUID, str, list[_Outstanding]]]:
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        rows = list(
+            session.scalars(
+                select(ConnectorConnection)
+                .where(
+                    ConnectorConnection.status == "disconnecting",
+                    (ConnectorConnection.teardown_lease_until.is_(None))
+                    | (ConnectorConnection.teardown_lease_until < now),
+                )
+                .order_by(ConnectorConnection.purge_due_at, ConnectorConnection.id)
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+        )
+        claimed = []
+        for connection in rows:
+            connection.teardown_lease_until = now + TEARDOWN_LEASE
+            connection.teardown_attempts += 1
+            outstanding = [
+                _Outstanding(row.id, row.kind, _open(keyring, row))
+                for row in _live_secrets(session, connection.id)
+                if row.revocation not in SettledRevocation
+            ]
+            claimed.append((connection.id, connection.provider, outstanding))
+        return claimed
+
+
+def _record_revocation(engine: Engine, secret_id: UUID, outcome: str) -> None:
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(ConnectorTokenSecret)
+            .where(ConnectorTokenSecret.id == secret_id, ConnectorTokenSecret.status != "destroyed")
+            .values(revocation=outcome)
+        )
+
+
+# Finish a teardown when every outstanding token is settled, or at the deadline: destroy all
+# sealed material, purge provider records, clear the account reference, and report the
+# revocation outcome. Before the deadline an unsettled teardown releases its lease for retry.
+def _finalize(engine: Engine, connection_id: UUID, now: datetime) -> str:
+    with Session(engine) as session, session.begin():
+        connection = session.scalar(
+            select(ConnectorConnection)
+            .where(ConnectorConnection.id == connection_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if connection is None or connection.status != "disconnecting":
+            return "skipped"
+        secrets = _live_secrets(session, connection.id)
+        unsettled = [row for row in secrets if row.revocation not in SettledRevocation]
+        assert connection.purge_due_at is not None
+        if unsettled and now < connection.purge_due_at:
+            connection.teardown_lease_until = None
+            return "pending"
+        for row in unsettled:
+            row.revocation = "failed"
+        outcomes = {row.revocation for row in secrets}
+        for row in secrets:
+            _destroy(row, now)
+        session.execute(
+            delete(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
+        )
+        _cancel_open_runs(session, connection.id, now, "connection_inactive")
+        connection.revocation_status = (
+            "failed"
+            if "failed" in outcomes
+            else "unsupported"
+            if "unsupported" in outcomes
+            else "done"
+        )
+        connection.destruction_status = connection.purge_status = "done"
+        connection.external_account_id = connection.account_label = None
+        connection.status, connection.disconnected_at = "disconnected", now
+        connection.teardown_lease_until, connection.updated_at = None, now
+        return "disconnected"
+
+
+def run_teardowns(
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    *,
+    limit: int = 10,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    keyring = require_keys(settings)
+    moment = now or now_utc()
+    counts: dict[str, int] = {}
+    for connection_id, provider_name, outstanding in _claim_teardowns(
+        engine, keyring, moment, limit
+    ):
+        provider = registry.get(provider_name)
+        for item in outstanding:
+            if provider is None:
+                continue
+            try:
+                outcome = provider.revoke(item.token, item.kind)
+            except ProviderError:
+                continue
+            _record_revocation(engine, item.secret_id, outcome)
+        result = _finalize(engine, connection_id, moment)
+        counts[result] = counts.get(result, 0) + 1
+    return counts
+
+
+# One bounded worker pass: teardowns first, then sync runs.
+def process_connectors(
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    *,
+    limit: int = 10,
+    now: datetime | None = None,
+) -> dict[str, dict[str, int]]:
+    return {
+        "teardown": run_teardowns(engine, settings, registry, limit=limit, now=now),
+        "sync": run_syncs(engine, settings, registry, limit=limit, now=now),
+    }
+
+
+__all__ = [
+    "CALLBACK_ERRORS",
+    "CallbackResult",
+    "ConnectionView",
+    "ConnectorAdmin",
+    "ConnectorError",
+    "build_providers",
+    "complete_authorization",
+    "connection_view",
+    "dispose_grant",
+    "get_connection",
+    "list_connections",
+    "process_connectors",
+    "run_syncs",
+    "run_teardowns",
+]

@@ -1,6 +1,6 @@
 # Spec 009 entry review
 
-Status: proposal for owner review, prepared 2026-11-15. No decision below is approved. Implementation of 009-A, migration 0009, runtime privileges and every other choice in this document wait for an explicit owner decision recorded for a stated scope.
+Status: **D1-D10 approved by D-048 (2026-11-15)** with the clarifications of the [follow-up](entry-review-follow-up.md) at `54f733c`, for local implementation of 009-A against the synthetic provider. Section 9 records how each clarification was implemented and where this proposal changed during implementation. Prepared 2026-11-15 as a proposal; sections 1-8 keep the reviewed text except where section 9 says otherwise. See the [009-A evidence](evidence.md). 009-B to 009-D, live provider policies, native rollout, publication and deployment are not approved.
 
 ## 1. Verified baseline
 
@@ -193,3 +193,52 @@ Note for 010-013: some providers may revoke the whole application grant of an ac
 - Q-004: 009-A uses synthetic call limits for tests only. Commercial budgets, account counts and history depth remain open and are first needed for 009-B budget stops and 013 pricing.
 - Q-009: 009-A needs no scheduler. 009-B needs leases, checkpoints and usage accounting; periodic scheduling and queue selection are needed before a real provider syncs on a schedule.
 - Launch scope remains both social analytics and attribution (D-004, D-045). Aggregate social metrics cannot identify a buyer or establish revenue; attribution continues to rely on 005 links, 006 identity and 007 ledger evidence.
+
+## 9. Implementation reconciliation (D-048)
+
+### 9.1 Follow-up clarifications as implemented
+
+| Follow-up item | Implemented behavior | Evidence (integration tests in `backend/tests/integration/test_connectors.py`) |
+|---|---|---|
+| D2, D3, D5, D7: reconnect binding, refresh install check, disposal of discarded grants | A reconnect transaction stores the connection and `expected_generation`. Installation locks the connection and requires `reconnect_required` at that generation; otherwise it fails with `connection_changed`. A refresh is installed only while the connection is active at the claimed generation and its agency and client are active. Any failure after a successful code exchange (lost race, duplicate account, denied recheck, failed commit) revokes both tokens of the new grant and nothing else. A fenced refresh revokes its new access token when the connection moved on. When only the client or agency became inactive, the token is dropped unsaved, because it belongs to the grant the connection still holds. | `test_two_codes_for_one_client_account_keep_one_grant`, `test_refresh_install_is_fenced_and_terminal_failure_requires_reconnect`, `test_reconnect_binding_mismatch_and_race_with_disconnect` (including a stale reconnect refused only by its generation) |
+| D3: protocol values only at protocol steps | `state` appears only in the authorization URL, and `code` and `state` only in the callback query. The completion redirect carries `result` and `connection_id`, or one fixed `error`. The binding cookie is cleared at the callback. Tokens never appear in responses, URLs, logs, audit rows or worker output. Single use, S256 PKCE and the session-bound binding are kept. | `test_connect_status_isolation_and_sync`, `test_callback_replay_expiry_binding_and_concurrent_submission`, and the token search in `test_disconnect_through_worker_command_isolates_other_clients` |
+| D4, D7, D9: a worker outlives the enqueue check | A claim cancels a run whose agency or client is inactive (`client_inactive`) or whose connection moved on. Every result write locks the agency and client `FOR SHARE`, then the connection, and requires an active agency and client. Teardown never checks agency or client status, so an archive or suspension after the request does not block it. A late callback is denied when the initiating membership has lost its manager role. | `test_disconnect_during_fetch_discards_results_and_archive_stops_writes`, `test_late_callback_after_role_loss_is_denied` |
+| D6, D8, D9: outcomes per token and version, separate revocation, one deadline, resumable teardown | Each outstanding version (refresh token first, then access token) gets its own `revocation` outcome: `done`, `unsupported` or `failed`; superseded versions are `not_required`. The connection reports `revocation_status` separately from `destruction_status` and `purge_status`. The first request fixes `purge_due_at`; repeated requests, retries and restarts keep it. A two-minute teardown lease prevents parallel passes. A pass that stops after a provider revocation but before recording it is repeated after the lease, and the provider confirms the already revoked token. The worker is a bounded command, so the 72-hour target holds only if it is invoked within that time. A late completion is recorded with its actual time and `deadline_met: false`. | `test_teardown_outcomes_with_controlled_clock`, `test_teardown_resumes_after_crash_and_records_late_completion` |
+| D1, D5, D9: provider state across processes | The synthetic provider keeps codes, grants, token digests, injected behaviors and a call log in one SQLite file (standard library), opened per operation in an immediate transaction. The API process and `python -m app.connector_worker` observe the same grants. Its per-grant revocation proves isolation only for this adapter; each live provider's scope is a 010-013 decision. | `test_disconnect_through_worker_command_isolates_other_clients` runs the worker as a subprocess, then shows that the K1 tokens fail at the provider while new requests with the K2 and K3 tokens succeed |
+| D2, D10: writable columns, account purge, scoped reconnect key, registry | Section 9.2 lists the columns each transition writes; they are exactly the `tracking_app` grants of migration 0009. The purge clears `external_account_id` and `account_label`, both granted. `connector_oauth_transactions` has a composite `(agency_id, client_id, connection_id)` foreign key to the connection. The five tables are classified in `app.data_policy` (registry version `009-A`). | `test_runtime_privileges_scoped_references_and_lifecycle`, `test_migration_matches_model_metadata`, `test_migrated_schema_matches_registry`, `test_postgresql_migration_cycle_and_runtime_permissions` |
+
+### 9.2 Writable columns per transition (`tracking_app`)
+
+| Transition | Table: columns written |
+|---|---|
+| Start connect or reconnect | `connector_oauth_transactions`: INSERT |
+| Callback consumption | `connector_oauth_transactions`: `consumed_at` |
+| Connect | `connector_connections`, `connector_token_secrets`, `connector_sync_runs`: INSERT; `audit_events`: INSERT |
+| Reconnect | `connector_connections`: `status`, `status_reason`, `generation`, `account_label`, `granted_scopes`, `connected_at`, `updated_at`; `connector_token_secrets`: material columns, `status`, `destroyed_at` of replaced versions, then their `revocation`; INSERT of new versions and one run; audit INSERT |
+| Sync claim and finish | `connector_sync_runs`: `status`, `attempt`, `started_at`, `lease_expires_at`, `error_kind`, `finished_at` |
+| Sync result | `connector_records`: INSERT, or `connection_generation`, `observed_at`, `metrics`, `fetched_at`; `connector_connections`: `last_successful_sync_at`, `updated_at` |
+| Refresh | `connector_token_secrets`: INSERT of the new version; material columns, `status`, `destroyed_at`, `revocation` of the superseded version |
+| Terminal credential failure | `connector_connections`: `status`, `status_reason`, `generation`, `updated_at`; `connector_token_secrets`: `status`; `connector_sync_runs`: run state |
+| Disconnect request | `connector_connections`: `status`, `status_reason`, `generation`, `disconnect_requested_at`, `purge_due_at`, `revocation_status`, `destruction_status`, `purge_status`, `updated_at`; open runs canceled; audit INSERT |
+| Teardown claim and outcome | `connector_connections`: `teardown_lease_until`, `teardown_attempts`; `connector_token_secrets`: `revocation` |
+| Teardown completion | `connector_token_secrets`: material columns, `status`, `destroyed_at`, `revocation`; `connector_records`: DELETE; `connector_connections`: `external_account_id`, `account_label`, `status`, `disconnected_at`, `revocation_status`, `destruction_status`, `purge_status`, `teardown_lease_until`, `updated_at` |
+| Lifecycle (`tracking_lifecycle`) | `connector_oauth_transactions`: DELETE one day after consumption or expiry |
+
+`tracking_app` has no DELETE on transactions, connections, secrets or runs. It cannot update keys, scope columns, provider, kind, version or digests.
+
+### 9.3 Changes from sections 3-7
+
+- Callback (section 3.2, step 3): the code exchange does not run under the transaction lock. The state is consumed and committed first, the exchange runs with no database lock held, and installation runs in a second transaction. This keeps locks short and lets a failed installation, including a failed commit, dispose of the grant.
+- A callback from another browser session, or one without the binding cookie, is refused without consuming the state, so it cannot spend a legitimate user's authorization. An expired, consumed or replayed state is refused with `connection_failed`.
+- An unknown connection, or one outside the reader's scope, returns `403 access_denied`, the platform's uniform denial, rather than 404 (sections 3.3 and 3.4).
+- Before the deadline, a teardown with an unsettled revocation keeps the provider records and sealed material and retries. Destruction and purge run together at completion or at the deadline (section 3.4, step 3).
+- Added `POST .../connections/{id}/sync` (Owner/Admin) to queue a single-page sync of an active connection; the connect callback also queues one. The status response adds `disconnect.deadline_met`.
+- Added columns `connector_token_secrets.revocation` and `connector_connections.teardown_lease_until` and `teardown_attempts`. `connector_records.metrics` is bounded to 4 KiB.
+- The synthetic refresh does not rotate the refresh token. A provider that rotates refresh tokens, or whose revocation scope is a single token, needs its own handling of superseded versions in 010-013.
+- Settings: `TRACKING_CONNECTOR_SYNTHETIC_STATE` (development only; production is refused), `TRACKING_CONNECTOR_REDIRECT_URI` (must be this API's `/connectors/oauth/callback`), `TRACKING_CONNECTOR_COMPLETE_URL` and `TRACKING_CONNECTOR_TEARDOWN_HOURS` (at most 72).
+
+### 9.4 Known limits
+
+- If both the installation and the disposal of a new grant fail, the grant stays live at the provider. Only the event name `connector_grant_disposal_failed` is logged, because no row exists to record it on. If a commit reports failure after it actually succeeded, the disposal revokes the grant of a connection that exists; its next sync gets `401`, and the connection shows `reconnect_required`.
+- If the process stops between a reconnect's commit and the revocation of the replaced tokens, those destroyed rows keep `revocation` NULL (unknown).
+- The bounded worker has no scheduler (Q-009). Nothing invokes it automatically, so the 72-hour target depends on an operator or a test running it.

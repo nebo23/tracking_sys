@@ -22,6 +22,9 @@ EVENTS: dict[str, frozenset[str]] = {
     "application_stopped": frozenset(),
     "database_operation_failed": frozenset(),
     "readiness_failed": frozenset({"reason"}),
+    # A newly issued connector grant that could not be saved and whose provider revocation
+    # also failed (specification 009-A); no identifier or provider detail is logged.
+    "connector_grant_disposal_failed": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

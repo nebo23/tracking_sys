@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "005-B"
+POLICY_VERSION = "009-A"
 
 
 class Sensitivity(StrEnum):
@@ -304,6 +304,56 @@ CLASSES: dict[str, DataClass] = {
             Provenance.SYSTEM,
             "Replaced on each challenge or check; kept with the domain (D-033).",
             "005",
+        ),
+        DataClass(
+            "connector.sealed_token",
+            "AES-GCM sealed OAuth access and refresh tokens of a client connection with their "
+            "wrapped data keys, nonces, and key ID.",
+            Sensitivity.HIGH,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Revoke at the provider, then destroy the material on disconnect, replacement, or "
+            "reconnect (D-048).",
+            "009",
+        ),
+        DataClass(
+            "connector.token_state",
+            "Kind, version, status, provider revocation outcome, expiry, refresh, and "
+            "destruction times of a sealed token version.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with the connection as evidence of destruction (D-048).",
+            "009",
+        ),
+        DataClass(
+            "connector.account_reference",
+            "Provider external account identifier and display label of a connection; may "
+            "identify a person.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Cleared by the disconnect purge (D-048).",
+            "009",
+        ),
+        DataClass(
+            "connector.lifecycle",
+            "Connection provider, status, reason, generation, scopes, outcome, deadline, and "
+            "timing state, and sync-run state; no provider data.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept for the workspace lifetime; offboarding is 017. Run retention is Q-012.",
+            "009, 017",
+        ),
+        DataClass(
+            "connector.provider_data",
+            "Provider object identifiers and observed metrics fetched through a connection.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Purged on disconnect (D-048); per-provider retention is 010-013.",
+            "009, 010-013",
         ),
         DataClass(
             "system.schema_version",
@@ -985,6 +1035,149 @@ TABLES: dict[str, TablePolicy] = {
                 "017; D-033",
                 "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
                 "and hostnames are not recycled. Offboarding is 017.",
+            ),
+        ),
+    ),
+    "connector_connections": TablePolicy(
+        {
+            **_same("connector.account_reference", "external_account_id", "account_label"),
+            **_same(
+                "tenancy.configuration", "id", "agency_id", "client_id", "created_by_membership_id"
+            ),
+            **_same(
+                "connector.lifecycle",
+                "provider",
+                "status",
+                "status_reason",
+                "generation",
+                "granted_scopes",
+                "created_at",
+                "updated_at",
+                "connected_at",
+                "last_successful_sync_at",
+                "disconnect_requested_at",
+                "purge_due_at",
+                "disconnected_at",
+                "revocation_status",
+                "destruction_status",
+                "purge_status",
+                "teardown_attempts",
+                "teardown_lease_until",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-048",
+                "Kept for the workspace lifetime with its outcome; the disconnect purge clears "
+                "the account reference. Offboarding is 017.",
+            ),
+            EndOfLifeRule(
+                "external_account_id",
+                APPROVED,
+                "D-048",
+                "Cleared with the account label when a disconnect completes.",
+            ),
+        ),
+    ),
+    "connector_oauth_transactions": TablePolicy(
+        {
+            **_same("credential.token_digest", "state_digest", "binding_digest"),
+            **_same(
+                "tenancy.configuration",
+                "agency_id",
+                "client_id",
+                "connection_id",
+                "initiator_membership_id",
+            ),
+            **_same(
+                "credential.lifecycle",
+                "id",
+                "expected_generation",
+                "provider",
+                "purpose",
+                "created_at",
+                "expires_at",
+                "consumed_at",
+            ),
+        },
+        (_row(APPROVED, "D-048", "Deleted 1 day after consumption or expiry."),),
+    ),
+    "connector_token_secrets": TablePolicy(
+        {
+            **_same(
+                "connector.sealed_token",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "connector.token_state",
+                "kind",
+                "version",
+                "alg",
+                "aad_version",
+                "status",
+                "revocation",
+                "provider_expires_at",
+                "last_refreshed_at",
+                "created_at",
+                "destroyed_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-048",
+                "The row is kept as destruction evidence with its connection; offboarding is 017.",
+            ),
+            EndOfLifeRule(
+                "ciphertext",
+                APPROVED,
+                "D-048",
+                "Material destroyed after provider revocation, or at the teardown deadline, and "
+                "when a version is replaced.",
+            ),
+        ),
+    ),
+    "connector_sync_runs": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "connector.lifecycle",
+                "connection_generation",
+                "status",
+                "attempt",
+                "error_kind",
+                "lease_expires_at",
+                "created_at",
+                "started_at",
+                "finished_at",
+            ),
+        },
+        (_row(PENDING, RETENTION, "Run history retention awaits Q-012."),),
+    ),
+    "connector_records": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "connector.provider_data",
+                "connection_generation",
+                "provider_object_id",
+                "observed_at",
+                "metrics",
+                "fetched_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-048",
+                "Purged when a disconnect completes; retention while connected follows each "
+                "provider rule (010-013).",
             ),
         ),
     ),

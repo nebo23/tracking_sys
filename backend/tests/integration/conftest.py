@@ -29,6 +29,11 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "connector_records",
+    "connector_sync_runs",
+    "connector_token_secrets",
+    "connector_oauth_transactions",
+    "connector_connections",
     "deletion_tombstones",
     "deletion_requests",
     "event_diagnostics",

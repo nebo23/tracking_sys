@@ -1,5 +1,5 @@
 # 009-connector-runtime — Connector runtime and OAuth
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; slice 009-A is approved by D-048 and implemented locally, and later slices are not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 Foundation for USER social; PDF-058,059,090,100. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -24,7 +24,7 @@ Dependencies: [003-privacy-data-policy](../003-privacy-data-policy/spec.md), [00
 
 Specification 003 obligations (D-025): store connector tokens through `app.privacy.token_secrets` with a TokenSecretReference table and the local keyring until 020, keep provider rows in `app.privacy.providers` blocking until re-verified, and verify 003 case D3 (disconnect revokes at the provider, destroys ciphertext, and purges provider data).
 
-Open decisions: Q-001, Q-004, Q-009, Q-010. See the [decision register](../../docs/planning/decisions.md). The [entry review](entry-review.md) places each by slice and proposes decisions D1-D10 for the first slice, 009-A; none is approved.
+Open decisions: Q-001, Q-004, Q-009, Q-010. See the [decision register](../../docs/planning/decisions.md). The [entry review](entry-review.md) places each by slice and proposes decisions D1-D10 for the first slice, 009-A, which D-048 approves; the four open questions stay open.
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-048 (2026-11-15) approves slice 009-A: entry-review decisions D1-D10 with the follow-up clarifications at `54f733c`, against the synthetic provider, with migration 0009 tested on disposable PostgreSQL and a local commit for independent review. The 72-hour teardown target applies to the local synthetic slice only. Approval of 009-B to 009-D, live provider policies, native rollout, publication and deployment is pending.

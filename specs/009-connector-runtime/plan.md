@@ -1,5 +1,5 @@
 # Plan: 009-connector-runtime
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Draft. D-048 authorizes slice 009-A only; this plan authorizes no other implementation or dependency selection.
 
 ## Expected outcome
 Manage OAuth connection lifecycles, encrypted credentials, synchronization scheduling/workers, cursors/checkpoints, quotas and cost budgets, backfill, retries, and webhook verification.
@@ -12,8 +12,8 @@ Manage OAuth connection lifecycles, encrypted credentials, synchronization sched
 - Distinguish confirmed decisions from proposals and resolve: Q-001, Q-004, Q-009, Q-010.
 
 ## Proposed review slices
-The [entry review](entry-review.md) (2026-11-15, awaiting owner decisions D1-D10) proposes this split. No slice is approved.
-1. 009-A, connection lifecycle: OAuth connect with single-use state and PKCE, safe status, one single-page synthetic sync, `401` to `reconnect_required`, reconnect, and disconnect with provider revocation, secret destruction and scoped purge (003 case D3). Migration 0009 and disposable PostgreSQL concurrency checks. Acceptance criteria 1 and 2, the `401` part of 3.
+The [entry review](entry-review.md) (2026-11-15) proposes this split. D-048 approves 009-A with decisions D1-D10 and the [follow-up](entry-review-follow-up.md) clarifications; it is implemented locally ([evidence](evidence.md)). 009-B to 009-D are not approved.
+1. 009-A, connection lifecycle (implemented locally under D-048): OAuth connect with single-use state and PKCE, safe status, one single-page synthetic sync, `401` to `reconnect_required`, reconnect, and disconnect with provider revocation, secret destruction and scoped purge (003 case D3). Migration 0009 and disposable PostgreSQL concurrency checks. Acceptance criteria 1 and 2, the `401` part of 3.
 2. 009-B, synchronization: pagination, checkpoints, backfill, overlapping runs, `403`, `429` with `Retry-After`, retryable `5xx`, crash recovery at the page/checkpoint boundary, UsageRecord and synthetic budget stops. Acceptance criterion 3. Needs the Q-009 worker and scheduling decision.
 3. 009-C, coverage and provenance: Capability catalog, metric availability, last successful sync, complete-through, historical coverage and cost state. Acceptance criterion 4.
 4. 009-D, provider webhooks: adapter-specific signature and replay verification with scoped deduplication before data enters the runtime.

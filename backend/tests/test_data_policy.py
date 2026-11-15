@@ -29,7 +29,7 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    assert len(SCHEMA) == 35  # 34 application tables at 0008_links_tracker plus alembic_version
+    assert len(SCHEMA) == 40  # 39 application tables at 0009_connector_runtime plus alembic_version
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -100,7 +100,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         if rule.status is RuleStatus.APPROVED
     }
     # D-017/D-019/D-022 behavior from specification 002, the D-024 retention periods for ended
-    # credential state, D-024 account closure, and the D-027 collection periods; security,
+    # credential state, D-024 account closure, the D-027 collection periods, and the D-048
+    # connector purge; security,
     # audit, and invitation rules stay unapproved.
     assert approved == {
         ("client_grants", "row", "D-017"),
@@ -121,6 +122,12 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("event_diagnostics", "row", "D-027"),
         ("deletion_requests", "row", "D-027"),
         ("deletion_tombstones", "row", "D-025; D-027"),
+        # D-048 (009-A): the connector transaction period mirrors the D-024 OAuth rule, and the
+        # disconnect purge clears account references, sealed material, and provider records.
+        ("connector_oauth_transactions", "row", "D-048"),
+        ("connector_connections", "external_account_id", "D-048"),
+        ("connector_token_secrets", "ciphertext", "D-048"),
+        ("connector_records", "row", "D-048"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

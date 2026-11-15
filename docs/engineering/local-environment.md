@@ -1,7 +1,7 @@
 # Local backend and database setup
 Updated: 2026-10-30. Scope: foundation and approved specification 002, authorized by D-013 through D-019.
 
-Current target schema on this branch: revision 0008_links_tracker (34 application tables, including the D-027 collection and D-033 managed-link tables). Native tracking_sys received the owner-approved additive 0004 rollout on 2026-11-04; migrations 0005 to 0008 and the lifecycle role need separate approval before any native rollout. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
+Current target schema on this branch: revision 0009_connector_runtime (39 application tables, including the D-027 collection, D-033 managed-link and D-048 connector tables). Native tracking_sys received the owner-approved additive 0004 rollout on 2026-11-04; migrations 0005 to 0009 and the lifecycle role need separate approval before any native rollout. See [current verification evidence](../../specs/002-tenancy-access/auth-evidence.md) for the observed native state and [authentication guide](authentication.md) for registration, sessions, local mail, invitations, and service keys. Existing health endpoints are unchanged.
 
 ## Requirements
 Use Python 3.12 and the owner's existing PostgreSQL 18 installation. The selected development database is tracking_sys on 127.0.0.1:5432. pgAdmin manages this PostgreSQL server; the application connects directly to PostgreSQL. Docker Desktop and Compose are required only for the optional container stack.
