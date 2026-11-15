@@ -24,7 +24,7 @@ Dependencies: [003-privacy-data-policy](../003-privacy-data-policy/spec.md), [00
 
 Specification 003 obligations (D-025): store connector tokens through `app.privacy.token_secrets` with a TokenSecretReference table and the local keyring until 020, keep provider rows in `app.privacy.providers` blocking until re-verified, and verify 003 case D3 (disconnect revokes at the provider, destroys ciphertext, and purges provider data).
 
-Open decisions: Q-001, Q-004, Q-009, Q-010. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: Q-001, Q-004, Q-009, Q-010. See the [decision register](../../docs/planning/decisions.md). The [entry review](entry-review.md) places each by slice and proposes decisions D1-D10 for the first slice, 009-A; none is approved.
 
 ## Owner approval
 Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.

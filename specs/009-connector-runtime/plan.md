@@ -12,9 +12,11 @@ Manage OAuth connection lifecycles, encrypted credentials, synchronization sched
 - Distinguish confirmed decisions from proposals and resolve: Q-001, Q-004, Q-009, Q-010.
 
 ## Proposed review slices
-1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
-2. Implement the smallest approved end-to-end slice with appropriate observability.
-3. Verify failure, permission, and recovery behavior; update documentation and review evidence.
+The [entry review](entry-review.md) (2026-11-15, awaiting owner decisions D1-D10) proposes this split. No slice is approved.
+1. 009-A, connection lifecycle: OAuth connect with single-use state and PKCE, safe status, one single-page synthetic sync, `401` to `reconnect_required`, reconnect, and disconnect with provider revocation, secret destruction and scoped purge (003 case D3). Migration 0009 and disposable PostgreSQL concurrency checks. Acceptance criteria 1 and 2, the `401` part of 3.
+2. 009-B, synchronization: pagination, checkpoints, backfill, overlapping runs, `403`, `429` with `Retry-After`, retryable `5xx`, crash recovery at the page/checkpoint boundary, UsageRecord and synthetic budget stops. Acceptance criterion 3. Needs the Q-009 worker and scheduling decision.
+3. 009-C, coverage and provenance: Capability catalog, metric availability, last successful sync, complete-through, historical coverage and cost state. Acceptance criterion 4.
+4. 009-D, provider webhooks: adapter-specific signature and replay verification with scoped deduplication before data enters the runtime.
 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
