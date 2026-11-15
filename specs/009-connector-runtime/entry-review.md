@@ -240,5 +240,21 @@ Note for 010-013: some providers may revoke the whole application grant of an ac
 ### 9.4 Known limits
 
 - If both the installation and the disposal of a new grant fail, the grant stays live at the provider. Only the event name `connector_grant_disposal_failed` is logged, because no row exists to record it on. If a commit reports failure after it actually succeeded, the disposal revokes the grant of a connection that exists; its next sync gets `401`, and the connection shows `reconnect_required`.
-- If the process stops between a reconnect's commit and the revocation of the replaced tokens, those destroyed rows keep `revocation` NULL (unknown).
+- (Superseded by R009-01, section 9.5.) If the process stopped between a reconnect's commit and the revocation of the replaced tokens, those destroyed rows kept `revocation` NULL.
 - The bounded worker has no scheduler (Q-009). Nothing invokes it automatically, so the 72-hour target depends on an operator or a test running it.
+
+### 9.5 Pre-publication corrections (R009-01 to R009-07)
+
+The [independent review](pre-pr-review-2026-11-15.md) of `b21219f` recorded seven findings. All were corrected within D-048 without a schema or privilege change: the fixes use the existing `attempt`, `revocation` and `teardown_attempts` columns and the existing grants.
+
+| Finding | Correction |
+|---|---|
+| R009-01 Reconnect loses the previous grant's revocation outcome | After the code exchange, a reconnect first revokes every outstanding version of the previous grant and records each outcome on its row. It replaces the previous versions only when every outcome is settled (`done` or `unsupported`). Otherwise the reconnect is refused with `provider_unavailable`, the new grant is disposed, and the previous versions stay outstanding. A later reconnect or disconnect retries them, including after a restart. The connection-level revocation result covers every version with a provider obligation, including versions replaced earlier. |
+| R009-02 A superseded sync attempt can overwrite a successful attempt | Each claim carries its attempt number. Every write (records, last successful sync, run completion, `reconnect_required`, token installation) locks the run after the connection. The write proceeds only while the run is running under the same attempt. A delayed attempt returns `superseded` and changes nothing. |
+| R009-03 A stale refresh can revoke the winning worker's grant | A refresh starts only while the attempt owns the run, and installation rechecks ownership. A refreshed token is revoked only when the connection's generation changed, because only then is its grant being torn down or replaced. A superseded attempt or an inactive client leaves the token unsaved without revoking the grant that the connection and the winning attempt still hold. |
+| R009-04 The purge clock records the start of a batch | Teardown reads the clock when it finalizes each connection, so a batch that starts on time but finishes late reports `deadline_met: false`. `purge_due_at` is unchanged. |
+| R009-05 Status offers mutations to a read-only caller | The action flags combine the connection state with the caller's authority. Only an active Owner or Admin membership is offered `reconnect` or `disconnect`; analysts, client viewers and read service keys receive `false` in list and detail responses. |
+| R009-06 Unsupported grant disposal is treated as success | Disposal counts only a confirmed `done`. An `unsupported` outcome or a provider error is reported with `connector_grant_disposal_failed` and the sanitized code `outcome` (`unsupported` or `failed`). |
+| R009-07 One tenant's retrying revocation can delay another tenant's purge | Teardown claims are ordered by overdue deadline first, then fewest teardown attempts, then deadline. A connection never attempted is therefore served before a retrying one, and an overdue connection is finalized at its own deadline. |
+
+With R009-01 corrected, the second limit of section 9.4 no longer applies: each outcome is recorded before the previous versions are destroyed. If a reconnect stops after recording outcomes but before installing, the previous versions remain outstanding, and their recorded outcomes are reused.

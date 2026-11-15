@@ -52,6 +52,35 @@ The 3 skipped cases are the Spec 005 Playwright journeys, which need `TRACKING_R
 
 - Still planned: AC3 backoff (`429` with `Retry-After`), `403`, retryable `5xx`, pagination, backfill, overlapping runs, and crash recovery at the page/checkpoint boundary (009-B). AC4 coverage and provenance states (009-C). Provider webhook verification (009-D). Q-001, Q-004, Q-009 and Q-010 remain open.
 - The synthetic provider's per-grant revocation proves isolation only for that adapter. A live provider whose revocation invalidates a grant shared by several connections, rotates refresh tokens, or revokes single tokens needs its own handling, decided from dated evidence in 010-013.
-- Known limits are recorded in [entry review section 9.4](entry-review.md#94-known-limits): an undisposable grant is only logged by event name; replaced reconnect tokens can keep an unknown revocation outcome if the process stops; nothing runs the worker automatically.
+- Known limits are recorded in [entry review section 9.4](entry-review.md#94-known-limits): an undisposable grant is only logged with its outcome code, and nothing runs the worker automatically. The reconnect limit was corrected by R009-01.
 - An intermittent warning was seen once in three full integration runs and not identified.
 - Not done, and needing separate approval: push, pull request, native `tracking_sys` migration and role rollout, live providers and deployment.
+
+## Pre-publication corrections (2026-11-15)
+
+Scope: the [independent review](pre-pr-review-2026-11-15.md) of `b21219f`, recorded at `d5bef79`, findings R009-01 to R009-07, corrected within D-048. No schema, migration, privilege or dependency changed. The corrections are described in [entry review section 9.5](entry-review.md#95-pre-publication-corrections-r009-01-to-r009-07).
+
+| Finding | Regression test (`backend/tests/integration/test_connectors.py`) | Result on `b21219f` service code | After correction |
+|---|---|---|---|
+| R009-01 | `test_r009_01_reconnect_keeps_the_previous_grant_revocation_obligation` | Failed: the reconnect succeeded while the previous grant could not be revoked | Passed |
+| R009-02 | `test_r009_02_superseded_sync_attempt_cannot_overwrite_its_replacement` | Failed: the delayed attempt reported `succeeded` and overwrote the replacement's result | Passed |
+| R009-03 | `test_r009_03_stale_refresh_never_revokes_the_winning_grant` | Failed: the winning tokens were unusable at the provider | Passed |
+| R009-04 | `test_r009_04_deadline_is_judged_at_completion_time` | Failed: completion recorded at the batch start, `deadline_met` true | Passed |
+| R009-05 | `test_r009_05_actions_reflect_the_requesting_principal` | Failed: the analyst was offered `disconnect` | Passed |
+| R009-06 | `test_r009_06_unresolved_grant_disposal_is_reported` | Failed: no disposal event for `unsupported` | Passed |
+| R009-07 | `test_r009_07_a_retrying_teardown_does_not_starve_other_tenants` | Failed: the healthy connection stayed `disconnecting` after four passes | Passed |
+
+Method: with the regression tests in place, the three corrected modules (`app/services/connectors.py`, `app/api/connectors.py`, `app/logging_config.py`) were temporarily checked out at `b21219f`. The seven regressions all failed, and the corrected files were then restored. The R009-02 test failed at its first scenario. Its later scenario, a stale attempt that has already refreshed and then receives `401`, is shown by the mutation check below.
+
+| Command (from `backend/`, project `.venv`, disposable PostgreSQL 18.6 recreated empty at `127.0.0.1:55433`) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 120 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 298 deselected |
+| `python -m pytest -m integration -q -rw`, two runs | **295 passed, 3 skipped** each time, no warnings. The 7 new cases are the regressions; the 3 skips are the opt-in Spec 005 browser journeys. |
+| `python -m pytest -m integration -q tests/integration/test_connectors.py` | 19 passed |
+| Mutation check: each new safeguard disabled in turn, connector tests rerun, source restored | All nine caught: settling the previous grant (R009-01), aggregating replaced versions (R009-01), attempt ownership (R009-02), the stale attempt's `reconnect_required` path (R009-02, after adding its scenario), disposal only on a generation change (R009-03, also the existing disconnect-race test), completion-time clock (R009-04), principal-aware actions (R009-05), unsupported disposal (R009-06) and fair teardown order (R009-07). |
+| `git diff --check` | No whitespace errors |
+
+Behavior change for review: a reconnect is now refused with `provider_unavailable` while the provider cannot confirm revocation of the previous grant. It succeeds once revocation is confirmed or reported unsupported. The alternative, keeping a separate outstanding obligation so the reconnect could proceed, would need a schema change and was not taken.
+
+Still open: the items listed above for 009-B to 009-D, the live-provider revocation scope, and publication, native rollout and deployment.

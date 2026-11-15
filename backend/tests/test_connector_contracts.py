@@ -159,7 +159,7 @@ def test_connection_view_hides_worker_state():
         purge_status="done",
         teardown_attempts=3,
     )
-    view = connection_view(row)
+    view = connection_view(row, manage=True)
     assert view.account is None
     assert view.disconnect["revocation"] == "failed" and view.disconnect["deadline_met"] is True
     assert view.actions == {"reconnect": False, "disconnect": False}

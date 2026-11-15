@@ -18,13 +18,14 @@ from fastapi.responses import RedirectResponse
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import AuthorizationURL, Input, Output
 from app.config import Settings
-from app.services.access import resolve_scope
+from app.services.access import Principal, resolve_scope
 from app.services.auth import enforce_rate_limit
 from app.services.connectors import (
     CALLBACK_ERRORS,
     TRANSACTION_SECONDS,
     ConnectorAdmin,
     ConnectorError,
+    can_manage,
     complete_authorization,
     connection_view,
     get_connection,
@@ -86,8 +87,9 @@ def _admin(request: Request, session: SessionDep, browser: BrowserDep) -> Connec
     )
 
 
-def _response(row) -> ConnectionResponse:
-    return ConnectionResponse.model_validate(connection_view(row))
+# The action flags depend on the caller: only Owner/Admin sessions are offered mutations.
+def _response(row, manage: bool) -> ConnectionResponse:
+    return ConnectionResponse.model_validate(connection_view(row, manage=manage))
 
 
 # Bind the authorization to this browser with a short-lived HttpOnly cookie limited to the
@@ -167,7 +169,8 @@ def list_client_connections(
     agency_id: UUID, client_id: UUID, session: SessionDep, principal: ReaderDep
 ) -> list[ConnectionResponse]:
     access = resolve_scope(session, principal, agency_id, client_id)
-    return [_response(row) for row in list_connections(session, access)]
+    manage = can_manage(session, principal, agency_id)
+    return [_response(row, manage) for row in list_connections(session, access)]
 
 
 @router.get(
@@ -182,7 +185,8 @@ def read_connection(
     principal: ReaderDep,
 ) -> ConnectionResponse:
     access = resolve_scope(session, principal, agency_id, client_id)
-    return _response(get_connection(session, access, connection_id))
+    manage = can_manage(session, principal, agency_id)
+    return _response(get_connection(session, access, connection_id), manage)
 
 
 # Queue one synchronization of an active connection (Owner/Admin).
@@ -220,7 +224,7 @@ def disconnect(
 ) -> ConnectionResponse:
     row = _admin(request, session, browser).disconnect(agency_id, client_id, connection_id)
     session.flush()
-    return _response(row)
+    return _response(row, can_manage(session, Principal("user", browser.user.id), agency_id))
 
 
 # The provider redirects here. The single-use state, the session-bound binding cookie, and

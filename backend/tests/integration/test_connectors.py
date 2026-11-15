@@ -23,7 +23,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
-from app.connectors.contracts import ProviderError
+from app.connectors.contracts import ErrorKind, ProviderError, ProviderRecord
 from app.connectors.synthetic import SyntheticProvider
 from app.models import (
     AuditEvent,
@@ -35,6 +35,7 @@ from app.models import (
 )
 from app.privacy.token_secrets import SealedSecret, SecretContext, open_secret
 from app.security import now_utc
+from app.services.access import AccessService, ClientPermission
 from app.services.connectors import (
     ConnectorError,
     complete_authorization,
@@ -89,9 +90,9 @@ def lab(authenticated_world, api, tmp_path):
         assert result["result"] == "connected", result
         return UUID(result["connection_id"])
 
-    def worker(now=None, registry=None):
+    def worker(now=None, registry=None, limit=10):
         return process_connectors(
-            w.db.runtime, config, registry or {"synthetic": provider}, now=now
+            w.db.runtime, config, registry or {"synthetic": provider}, now=now, limit=limit
         )
 
     def row(connection_id):
@@ -149,13 +150,13 @@ def lab(authenticated_world, api, tmp_path):
     def binding(name):
         return browser(name).cookies.get("tracking_connector_oauth", path="/connectors/oauth")
 
-    def complete(name, url, cookie, account=ACCOUNT):
+    def complete(name, url, cookie, account=ACCOUNT, registry=None):
         code = provider.approve(url, account)
         try:
             outcome = complete_authorization(
                 w.db.runtime,
                 config,
-                {"synthetic": provider},
+                registry or {"synthetic": provider},
                 parse_qs(urlsplit(url).query)["state"][0],
                 cookie,
                 code,
@@ -853,3 +854,274 @@ def test_disconnect_and_status_fail_closed_without_configuration(lab, api):
     assert response.status_code == 404 and response.json() == {"error": "provider_unavailable"}
     with pytest.raises(ProviderError):
         lab.provider.fetch_page("syn_at_unknown")
+
+
+# --- Pre-publication review regressions (pre-pr-review-2026-11-15.md, R009-01 to R009-07) ---
+
+
+class _Scripted(SyntheticProvider):
+    """Synthetic provider with per-token revocation failures and one-shot hooks."""
+
+    def __init__(self, path, *, fail_revoke=(), on_fetch=None, fetch_error=None, on_refresh=None):
+        super().__init__(path)
+        self.fail_revoke = set(fail_revoke)
+        self.on_fetch, self.fetch_error, self.on_refresh = on_fetch, fetch_error, on_refresh
+
+    def revoke(self, token, kind):
+        if token in self.fail_revoke:
+            raise ProviderError(ErrorKind.RETRYABLE, "unavailable")
+        return super().revoke(token, kind)
+
+    def fetch_page(self, access_token):
+        records = super().fetch_page(access_token)
+        if self.on_fetch is not None:
+            hook, self.on_fetch = self.on_fetch, None
+            hook()
+            if self.fetch_error is not None:
+                raise self.fetch_error
+            # Distinguishable stale page data.
+            return [
+                ProviderRecord(r.provider_object_id, r.observed_at, {"stale": 1}) for r in records
+            ]
+        return records
+
+    def refresh(self, refresh_token):
+        grant = super().refresh(refresh_token)
+        if self.on_refresh is not None:
+            hook, self.on_refresh = self.on_refresh, None
+            hook()
+        return grant
+
+
+def _disposal_events(captured: str) -> list[dict]:
+    events = []
+    for line in captured.splitlines():
+        if line.startswith("{"):
+            entry = json.loads(line)
+            if entry.get("event") == "connector_grant_disposal_failed":
+                events.append(entry)
+    return events
+
+
+def _fail_k(lab, agency, client_id, connection_id, owner="owner_a"):
+    lab.provider.set_behavior("fetch", "unauthorized")
+    lab.provider.set_behavior("refresh", "invalid_grant")
+    lab.sync(owner, agency, client_id, connection_id)
+    assert lab.worker()["sync"] == {"stopped": 1}
+    lab.provider.set_behavior("fetch", "ok")
+    lab.provider.set_behavior("refresh", "ok")
+
+
+def test_r009_01_reconnect_keeps_the_previous_grant_revocation_obligation(lab):
+    w = lab.w
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    k2 = lab.connect("owner_a", w.a, w.a2)
+    lab.worker()
+    _fail_k(lab, w.a, w.a1, k1)
+    old = lab.tokens(k1)
+    k2_tokens = lab.tokens(k2)
+    # The provider temporarily cannot revoke the previous grant: the reconnect does not
+    # replace it, the new grant is disposed, and the old versions stay outstanding.
+    failing = _Scripted(lab.state, fail_revoke=old.values())
+    url = lab.start("owner_a", w.a, w.a1, k1)
+    grants = len(lab.provider.grants())
+    outcome = lab.complete("owner_a", url, lab.binding("owner_a"), registry={"synthetic": failing})
+    assert outcome == "provider_unavailable"
+    assert lab.provider.grants()[grants:] == [(ACCOUNT, True)]
+    assert lab.row(k1).status == "reconnect_required"
+    assert lab.tokens(k1) == old and lab.provider.token_usable(old["refresh_token"])
+    # A later disconnect includes those versions: the result is done only once they are
+    # revoked at the provider, and the other client's grant is untouched.
+    lab.disconnect("owner_a", w.a, w.a1, k1)
+    assert lab.worker(registry={"synthetic": failing})["teardown"] == {"pending": 1}
+    assert lab.worker(now=now_utc() + timedelta(minutes=3))["teardown"] == {"disconnected": 1}
+    assert lab.view("owner_a", w.a, w.a1, k1).json()["disconnect"]["revocation"] == "done"
+    assert not any(lab.provider.token_usable(t) for t in old.values())
+    assert all(lab.provider.token_usable(t) for t in k2_tokens.values())
+
+    # An unsupported revocation of a replaced grant is kept in the connection-level result.
+    _fail_k(lab, w.a, w.a2, k2)
+    previous = lab.tokens(k2)
+    lab.provider.set_behavior("revoke", "unsupported")
+    result, _ = lab.finish("owner_a", lab.start("owner_a", w.a, w.a2, k2))
+    assert result["result"] == "reconnected"
+    lab.provider.set_behavior("revoke", "ok")
+    lab.disconnect("owner_a", w.a, w.a2, k2)
+    assert lab.worker()["teardown"] == {"disconnected": 1}
+    body = lab.view("owner_a", w.a, w.a2, k2).json()
+    assert body["disconnect"]["revocation"] == "unsupported"
+    assert lab.provider.token_usable(previous["refresh_token"])
+
+
+def test_r009_02_superseded_sync_attempt_cannot_overwrite_its_replacement(lab):
+    w = lab.w
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    start = now_utc()
+    replacement = start + timedelta(minutes=6)
+
+    # The first attempt's lease expires while its page is in flight; a replacement claims the
+    # run and completes it before the first attempt returns with different data.
+    stale = _Scripted(lab.state, on_fetch=lambda: lab.worker(now=replacement))
+    assert lab.worker(now=start, registry={"synthetic": stale})["sync"] == {"superseded": 1}
+    connection = lab.row(k1)
+    assert connection.last_successful_sync_at == replacement
+    with Session(w.db.migration) as session:
+        rows = session.scalars(
+            select(ConnectorRecord).where(ConnectorRecord.connection_id == k1)
+        ).all()
+        run = session.scalars(
+            select(ConnectorSyncRun).where(ConnectorSyncRun.connection_id == k1)
+        ).one()
+    assert {r.fetched_at for r in rows} == {replacement}
+    assert all("stale" not in r.metrics for r in rows)
+    assert (run.status, run.attempt, run.finished_at) == ("succeeded", 2, replacement)
+
+    # An error result of the superseded attempt changes neither the connection nor tokens.
+    lab.sync("owner_a", w.a, w.a1, k1)
+    lab.provider.set_behavior("refresh", "invalid_grant")
+    later = replacement + timedelta(minutes=1)
+    stale = _Scripted(
+        lab.state,
+        on_fetch=lambda: lab.worker(now=later + timedelta(minutes=6)),
+        fetch_error=ProviderError(ErrorKind.UNAUTHORIZED, "invalid_token"),
+    )
+    lab.worker(now=later, registry={"synthetic": stale})
+    lab.provider.set_behavior("refresh", "ok")
+    connection = lab.row(k1)
+    assert connection.status == "active"
+    assert connection.last_successful_sync_at == later + timedelta(minutes=6)
+    assert [s.version for s in lab.secrets(k1) if s.kind == "access_token"] == [1]
+
+    # A stale attempt that already refreshed and then gets 401 cannot require reconnection.
+    lab.provider.set_behavior("access_ttl", "0")
+    k2 = lab.connect("owner_a", w.a, w.a2)
+    lab.provider.set_behavior("access_ttl", "3600")
+    third = later + timedelta(minutes=20)
+    stale = _Scripted(
+        lab.state,
+        on_fetch=lambda: lab.worker(now=third + timedelta(minutes=6)),
+        fetch_error=ProviderError(ErrorKind.UNAUTHORIZED, "invalid_token"),
+    )
+    assert lab.worker(now=third, registry={"synthetic": stale})["sync"] == {"superseded": 1}
+    connection = lab.row(k2)
+    assert connection.status == "active"
+    assert connection.last_successful_sync_at == third + timedelta(minutes=6)
+
+
+def test_r009_03_stale_refresh_never_revokes_the_winning_grant(lab):
+    w = lab.w
+    lab.provider.set_behavior("access_ttl", "0")
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    lab.provider.set_behavior("access_ttl", "3600")
+    start = now_utc()
+    # The first attempt's refresh call is in flight when its lease expires; the replacement
+    # refreshes, installs its token and succeeds before the first attempt returns.
+    stale = _Scripted(lab.state, on_refresh=lambda: lab.worker(now=start + timedelta(minutes=6)))
+    lab.worker(now=start, registry={"synthetic": stale})
+    winner = lab.tokens(k1)
+    assert [s.version for s in lab.secrets(k1) if s.kind == "access_token"] == [1, 2]
+    assert all(lab.provider.token_usable(t) for t in winner.values())
+    assert len(lab.provider.fetch_page(winner["access_token"])) == 3
+    assert lab.row(k1).status == "active"
+
+
+def test_r009_04_deadline_is_judged_at_completion_time(lab, monkeypatch):
+    import app.services.connectors as service
+
+    w = lab.w
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    lab.disconnect("owner_a", w.a, w.a1, k1)
+    due = lab.row(k1).purge_due_at
+    clock = [due - timedelta(seconds=1)]
+
+    class Slow(SyntheticProvider):
+        def revoke(self, token, kind):
+            clock[0] = due + timedelta(seconds=1)
+            return super().revoke(token, kind)
+
+    monkeypatch.setattr(service, "now_utc", lambda: clock[0])
+    assert lab.worker(registry={"synthetic": Slow(lab.state)})["teardown"] == {"disconnected": 1}
+    monkeypatch.undo()
+    connection = lab.row(k1)
+    assert connection.disconnected_at == due + timedelta(seconds=1)
+    assert connection.purge_due_at == due
+    body = lab.view("owner_a", w.a, w.a1, k1).json()
+    assert body["disconnect"]["deadline_met"] is False
+
+
+def test_r009_05_actions_reflect_the_requesting_principal(lab, api):
+    w = lab.w
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    base = f"/agencies/{w.a}/clients/{w.a1}/connections"
+    with Session(w.db.runtime, expire_on_commit=False) as session, session.begin():
+        _, raw = AccessService(session, w.users.owner_a, lab.config).issue_service_key(
+            w.a, "Synthetic reader", [ClientPermission(w.a1)]
+        )
+    reader = api.new_client(lab.config)
+    reader.headers["Authorization"] = f"Bearer {raw}"
+    expected = {
+        "owner_a": {"reconnect": False, "disconnect": True},
+        "admin": {"reconnect": False, "disconnect": True},
+        "analyst": {"reconnect": False, "disconnect": False},
+        "viewer": {"reconnect": False, "disconnect": False},
+    }
+    for name, actions in expected.items():
+        client = lab.browser(name)
+        assert client.get(f"{base}/{k1}").json()["actions"] == actions, name
+        assert [item["actions"] for item in client.get(base).json()] == [actions], name
+    readonly = {"reconnect": False, "disconnect": False}
+    assert reader.get(f"{base}/{k1}").json()["actions"] == readonly
+    assert [item["actions"] for item in reader.get(base).json()] == [readonly]
+    _fail_k(lab, w.a, w.a1, k1)
+    assert lab.view("admin", w.a, w.a1, k1).json()["actions"] == {
+        "reconnect": True,
+        "disconnect": True,
+    }
+    assert lab.view("analyst", w.a, w.a1, k1).json()["actions"] == readonly
+
+
+def test_r009_06_unresolved_grant_disposal_is_reported(lab, capfd):
+    w = lab.w
+    for client_id, behavior, outcome in (
+        (w.a1, "unsupported", "unsupported"),
+        (w.a2, "retryable", "failed"),
+    ):
+        first = lab.start("owner_a", w.a, client_id)
+        first_cookie = lab.binding("owner_a")
+        second = lab.start("owner_a", w.a, client_id)
+        winner = lab.complete("owner_a", second, lab.binding("owner_a"))
+        assert isinstance(winner, UUID)
+        capfd.readouterr()
+        lab.provider.set_behavior("revoke", behavior)
+        assert lab.complete("owner_a", first, first_cookie) == "account_already_connected"
+        lab.provider.set_behavior("revoke", "ok")
+        events = _disposal_events(capfd.readouterr().err)
+        assert [event.get("outcome") for event in events] == [outcome], client_id
+        # The discarded grant is still live at the provider; the winning grant is unaffected.
+        assert lab.provider.grants()[-1] == (ACCOUNT, False)
+        assert all(lab.provider.token_usable(t) for t in lab.tokens(winner).values())
+
+
+def test_r009_07_a_retrying_teardown_does_not_starve_other_tenants(lab):
+    w = lab.w
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    k3 = lab.connect("owner_b", w.b, w.b1)
+    k1_tokens = lab.tokens(k1)
+    lab.disconnect("owner_a", w.a, w.a1, k1)
+    lab.disconnect("owner_b", w.b, w.b1, k3)
+    failing = _Scripted(lab.state, fail_revoke=k1_tokens.values())
+    start = now_utc()
+    for index in range(4):
+        lab.worker(
+            now=start + timedelta(minutes=5 * index), registry={"synthetic": failing}, limit=1
+        )
+    assert lab.row(k3).status == "disconnected"
+    assert lab.view("owner_b", w.b, w.b1, k3).json()["disconnect"]["revocation"] == "done"
+    assert lab.row(k1).status == "disconnecting"
+    # The earlier request still completes at its own deadline, reporting the failure.
+    due = lab.row(k1).purge_due_at
+    assert lab.worker(now=due, registry={"synthetic": failing}, limit=1)["teardown"] == {
+        "disconnected": 1
+    }
+    assert lab.view("owner_a", w.a, w.a1, k1).json()["disconnect"]["revocation"] == "failed"
+    assert lab.records(k1) == 0
