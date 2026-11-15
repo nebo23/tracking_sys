@@ -3,8 +3,8 @@
 One run answers how much credit each eligible content interaction receives for one conversion,
 under one version of one model. Everything is in memory: the journey is a synthetic, authorized
 snapshot of touchpoints (the 006 identity and journey contracts are not implemented yet), and
-the revenue of a sale is the verified net of one 007-A ledger transaction, read from a
-LedgerCalculation or accumulated from its movement journal.
+the revenue of a sale is the authoritative state of one 007-A ledger transaction after a known
+receipt, read from a LedgerCalculation (sale_state) or from the receipt journal (ledger_feed).
 
 Rules (D-046, the Q-007 choices for this local synthetic slice):
 - First Click, Last Click and Linear are calculated independently; results of different models
@@ -13,8 +13,10 @@ Rules (D-046, the Q-007 choices for this local synthetic slice):
   its original currency and integer minor units. A purchase signal or a manual declaration
   never posts in the ledger, so it supplies no verified revenue.
 - The lookback window is configurable per model version (30 days by default) and inclusive at
-  both ends: [conversion instant - window, conversion instant]. Instants are compared in UTC.
-  Eligible touches are ordered by occurrence instant, then by touchpoint ID.
+  both ends: [conversion instant - window, conversion instant]. A sale's conversion instant is
+  the authoritative effective instant of its sale in the ledger. Every instant is stored and
+  compared in UTC. A window reaching before the earliest representable instant starts there;
+  no instant can precede it, so the inclusive window keeps its meaning.
 - A touch is eligible only when it is assigned to the converting person (006 owned segment),
   its attribution consent is currently granted, it is person-level evidence (aggregate platform
   metrics never are) and it lies in the window. Retries of one touchpoint ID with identical
@@ -25,36 +27,54 @@ Rules (D-046, the Q-007 choices for this local synthetic slice):
   receives the credit; without either, unknown receives all of it.
 - Linear revenue is split by largest remainder; equal remainders go to the earlier touch in the
   stable order, so splitting one minor unit across two touches gives it to the first.
-- A revision is recorded when the outcome changes: a refund, chargeback, correction or release
-  changes the transaction net (the conversion stays anchored to the original sale instant), or
-  the journey changes (a late eligible touch, a consent withdrawal or an ownership correction).
-  Each revision keeps its model version and lists the signed difference from the previous one.
-  Recalculating identical inputs under the same version returns the existing revision.
+- A revision is recorded whenever the current view changes: the revenue state, the sale
+  instant, the eligible and excluded touches, the evidence of a touch, or the allocations.
+  Differences are signed and keyed by recipient, touchpoint and campaign, content and link
+  provenance, so a report that applies them reaches the fresh calculation. Recalculating
+  identical inputs under the same version returns the existing revision.
 
-IncrementalAttribution consumes the ledger movement journal: each movement is applied once,
-in sequence order, and the checkpoint advances only after the resulting runs are committed.
-Durable positions, atomic storage and permissions belong to 007-B; identity association of
-sales belongs to 007-C and 006.
+AttributionHistory keeps every revision and enforces the registry: one conversion per scoped
+sale, one identity per conversion ID, one definition per model version ID (global to the
+history), one currency per sale and non-decreasing ledger positions.
+
+IncrementalAttribution consumes the receipt journal of ledger_feed(). A ledger receipt is the
+atomic unit: its movements may arrive across transport pages, and only the item that closes a
+receipt (index == count) carries the authoritative sale state after it. Identical items are
+coalesced, a different item at a known position is a journal mismatch, and a missing position
+is a journal gap. Each completed receipt yields its own revisions, the runs of one call are
+committed together, and the checkpoint advances only after the commit. Durable positions,
+atomic storage and permissions belong to 007-B; identity association of sales belongs to 007-C
+and 006.
 """
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from fractions import Fraction
 from math import floor
 from uuid import UUID
 
-from app.ledger import LedgerCalculation, LedgerScope, Money, Movement, Transaction
-from app.ledger.money import require_aware, require_text, utc_instant
+from app.ledger import (
+    Currency,
+    Evidence,
+    LedgerCalculation,
+    LedgerScope,
+    Money,
+    Movement,
+    Transaction,
+    calculate,
+)
+from app.ledger.money import MAX_MINOR, require_aware, require_text, utc_instant
 from app.privacy.consent import ConsentState
 
 RULES = "008-A.1"
 DEFAULT_WINDOW = timedelta(days=30)
+EARLIEST_INSTANT = datetime.min.replace(tzinfo=UTC)
 
 
 class AttributionInputError(ValueError):
-    """A malformed attribution input; code is a closed reason, never the rejected value."""
+    """A malformed or inconsistent input; code is a closed reason, never the rejected value."""
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -114,12 +134,15 @@ class ExclusionReason(StrEnum):
 class RunStatus(StrEnum):
     COMPLETE = "complete"
     NO_VERIFIED_REVENUE = "no_verified_revenue"  # a sale without a posted ledger transaction
+    NET_OUT_OF_RANGE = "net_out_of_range"  # the receipt's exact net exceeds the Money bound
 
 
 class RevisionCause(StrEnum):
     INITIAL = "initial"
-    REVENUE_CHANGED = "revenue_changed"
-    TOUCHES_CHANGED = "touches_changed"
+    REVENUE_CHANGED = "revenue_changed"  # the status or the net of the sale
+    SALE_TIME_CHANGED = "sale_time_changed"  # the authoritative sale instant, hence the window
+    TOUCHES_CHANGED = "touches_changed"  # the basis, or which touches are eligible or excluded
+    EVIDENCE_CHANGED = "evidence_changed"  # the content or provenance of an eligible touch
 
 
 _RECIPIENT = {
@@ -131,6 +154,11 @@ _RECIPIENT = {
 
 def _require_uuid(value: object, code: str) -> None:
     if not isinstance(value, UUID):
+        raise AttributionInputError(code)
+
+
+def _require_int(value: object, code: str, minimum: int) -> None:
+    if type(value) is not int or value < minimum:
         raise AttributionInputError(code)
 
 
@@ -146,11 +174,17 @@ def _text(value: object, code: str) -> None:
         raise AttributionInputError(code) from error
 
 
-def _aware(value: object, code: str) -> None:
+def _utc(value: object, code: str) -> datetime:
+    """The UTC instant of an aware datetime; one that cannot be expressed in UTC is refused."""
     try:
         require_aware(value, code)
-    except ValueError as error:
+        return utc_instant(value)
+    except (ValueError, OverflowError) as error:
         raise AttributionInputError(code) from error
+
+
+def _normalize(instance: object, name: str, code: str) -> None:
+    object.__setattr__(instance, name, _utc(getattr(instance, name), code))
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,14 +205,22 @@ class ModelVersion:
         if self.rules != RULES:
             raise AttributionInputError("unsupported_rules")
 
+    def window_start(self, end: datetime) -> datetime:
+        """The inclusive start of the window ending at end, clamped to the earliest instant."""
+        try:
+            return end - self.window
+        except OverflowError:
+            return EARLIEST_INSTANT
+
 
 @dataclass(frozen=True, slots=True)
 class Touchpoint:
     """One interaction in a synthetic, authorized journey, with its current eligibility state.
 
-    consent is the current state of the attribution purpose for the touch's collection subject
-    (003-B); association is the current 006 ownership decision. Both are re-read for every
-    revision, so a withdrawal or a corrected ownership decision removes the touch.
+    occurred_at is stored as its UTC instant. consent is the current state of the attribution
+    purpose for the touch's collection subject (003-B); association is the current 006
+    ownership decision. Both are re-read for every revision, so a withdrawal or a corrected
+    ownership decision removes the touch.
     """
 
     touchpoint_id: str
@@ -201,7 +243,7 @@ class Touchpoint:
         _text(self.person_id, "invalid_person")
         if not isinstance(self.evidence_class, EvidenceClass):
             raise AttributionInputError("invalid_evidence_class")
-        _aware(self.occurred_at, "invalid_occurred_at")
+        _normalize(self, "occurred_at", "invalid_occurred_at")
         if not isinstance(self.association, Association):
             raise AttributionInputError("invalid_association")
         if not isinstance(self.consent, ConsentState):
@@ -221,23 +263,11 @@ class Touchpoint:
 
     @property
     def instant(self) -> datetime:
-        return utc_instant(self.occurred_at)
+        return self.occurred_at
 
-    def _facts(self) -> tuple:
-        """Content compared between retries; the occurrence time is compared as an instant."""
-        return (
-            self.agency_id,
-            self.client_id,
-            self.person_id,
-            self.evidence_class,
-            self.instant,
-            self.association,
-            self.consent,
-            self.source,
-            self.campaign_ref,
-            self.content_ref,
-            self.link_ref,
-        )
+    @property
+    def provenance(self) -> tuple[str | None, str | None, str | None, str | None]:
+        return self.source, self.campaign_ref, self.content_ref, self.link_ref
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,8 +275,9 @@ class Conversion:
     """A lead or a verified sale of one person in one agency and client.
 
     A sale references one ledger transaction by its source account and the business operation
-    ID of the sale; effective_at is the sale's original effective instant, which stays the anchor
-    of the window when refunds or releases change the net later.
+    ID of the sale. Its effective_at is the anchor used until the ledger supplies the
+    authoritative sale instant; a run with a SaleState is anchored to that state instead.
+    effective_at is stored as its UTC instant.
     """
 
     conversion_id: str
@@ -265,7 +296,7 @@ class Conversion:
         _text(self.person_id, "invalid_person")
         if not isinstance(self.kind, ConversionKind):
             raise AttributionInputError("invalid_conversion_kind")
-        _aware(self.effective_at, "invalid_effective_at")
+        _normalize(self, "effective_at", "invalid_effective_at")
         if self.kind is ConversionKind.SALE:
             _text(self.source_account_id, "invalid_source_account")
             _text(self.transaction_id, "invalid_transaction")
@@ -274,7 +305,11 @@ class Conversion:
 
     @property
     def instant(self) -> datetime:
-        return utc_instant(self.effective_at)
+        return self.effective_at
+
+    @property
+    def key(self) -> tuple[UUID, UUID, str]:
+        return self.agency_id, self.client_id, self.conversion_id
 
     @property
     def ledger_key(self) -> tuple[LedgerScope, str]:
@@ -282,6 +317,52 @@ class Conversion:
             raise AttributionInputError("lead_has_transaction")
         scope = LedgerScope(self.agency_id, self.client_id, self.source_account_id)
         return scope, self.transaction_id
+
+    @property
+    def identity(self) -> tuple:
+        """What a conversion ID always means; a sale's anchor may later be corrected."""
+        anchor = self.effective_at if self.kind is ConversionKind.LEAD else None
+        return (
+            self.key,
+            self.person_id,
+            self.kind,
+            self.source_account_id,
+            self.transaction_id,
+            anchor,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SaleState:
+    """The authoritative 007-A state of one sale transaction after a known receipt.
+
+    net_minor is exact and may transiently exceed the Money bound; such a state yields a
+    net_out_of_range run instead of an allocation. effective_at is the sale's authoritative
+    effective instant, stored in UTC.
+    """
+
+    scope: LedgerScope
+    transaction_id: str
+    currency: Currency
+    effective_at: datetime
+    net_minor: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, LedgerScope):
+            raise AttributionInputError("invalid_sale_state")
+        _text(self.transaction_id, "invalid_transaction")
+        if not isinstance(self.currency, Currency):
+            raise AttributionInputError("invalid_currency")
+        _normalize(self, "effective_at", "invalid_effective_at")
+        _require_int(self.net_minor, "invalid_net", 0)
+
+    @property
+    def key(self) -> tuple[LedgerScope, str]:
+        return self.scope, self.transaction_id
+
+    @property
+    def net(self) -> Money | None:
+        return Money(self.net_minor, self.currency) if self.net_minor < MAX_MINOR else None
 
 
 def sale_conversion(transaction: Transaction, *, conversion_id: str, person_id: str) -> Conversion:
@@ -301,15 +382,111 @@ def sale_conversion(transaction: Transaction, *, conversion_id: str, person_id: 
     )
 
 
-def verified_net(ledger: LedgerCalculation, conversion: Conversion) -> Money | None:
-    """The verified net of the conversion's own transaction, or None when nothing posted."""
+def _state(transaction: Transaction) -> SaleState:
+    return SaleState(
+        transaction.scope,
+        transaction.operation_id,
+        transaction.currency,
+        transaction.sale.effective_at,
+        transaction.totals.net,
+    )
+
+
+def sale_state(ledger: LedgerCalculation, conversion: Conversion) -> SaleState | None:
+    """The authoritative state of the conversion's own transaction, or None if nothing posted."""
     if not isinstance(ledger, LedgerCalculation):
         raise AttributionInputError("invalid_ledger")
+    if not isinstance(conversion, Conversion):
+        raise AttributionInputError("invalid_conversion")
     scope, transaction_id = conversion.ledger_key
     for transaction in ledger.transactions:
         if transaction.scope == scope and transaction.operation_id == transaction_id:
-            return transaction.net
+            return _state(transaction)
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class JournalItem:
+    """One transport unit of the receipt journal.
+
+    receipt is the 1-based position of the received record in the 007-A receipt log; index and
+    count place the item within that receipt, which has one item per movement, or a single item
+    without a movement. The closing item (index == count) carries the authoritative state,
+    after the receipt, of every sale transaction the receipt moved or changed.
+    """
+
+    receipt: int
+    index: int
+    count: int
+    movement: Movement | None
+    sales: tuple[SaleState, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_int(self.receipt, "invalid_journal_item", 1)
+        _require_int(self.index, "invalid_journal_item", 1)
+        _require_int(self.count, "invalid_journal_item", 1)
+        if self.index > self.count:
+            raise AttributionInputError("invalid_journal_item")
+        if self.movement is None:
+            if self.count != 1:
+                raise AttributionInputError("invalid_journal_item")
+        elif not isinstance(self.movement, Movement):
+            raise AttributionInputError("invalid_journal_item")
+        if not isinstance(self.sales, tuple) or not all(
+            isinstance(state, SaleState) for state in self.sales
+        ):
+            raise AttributionInputError("invalid_journal_item")
+        if self.sales and self.index != self.count:
+            raise AttributionInputError("invalid_journal_item")
+        if len({state.key for state in self.sales}) != len(self.sales):
+            raise AttributionInputError("invalid_journal_item")
+
+    @property
+    def position(self) -> tuple[int, int]:
+        return self.receipt, self.index
+
+    @property
+    def closes_receipt(self) -> bool:
+        return self.index == self.count
+
+
+def ledger_feed(records: Iterable[Evidence]) -> tuple[JournalItem, ...]:
+    """The receipt journal of a 007-A receipt log, one receipt per supplied record.
+
+    records is the receipt log in receipt order (non-decreasing receipt instants, as 007-A
+    requires for replay). Each receipt's movements and closing sale states are taken from
+    app.ledger.calculate() over the log up to and including that receipt.
+    """
+    log = list(records)
+    if not all(isinstance(record, Evidence) for record in log):
+        raise AttributionInputError("invalid_evidence")
+    instants = [utc_instant(record.received_at) for record in log]
+    if any(later < earlier for earlier, later in zip(instants, instants[1:], strict=False)):
+        raise AttributionInputError("receipt_log_out_of_order")
+    items: list[JournalItem] = []
+    movements: tuple[Movement, ...] = ()
+    states: dict[tuple[LedgerScope, str], SaleState] = {}
+    for receipt in range(1, len(log) + 1):
+        ledger = calculate(log[:receipt])
+        if ledger.movements[: len(movements)] != movements:
+            raise AttributionInputError("journal_not_append_only")
+        new = ledger.movements[len(movements) :]
+        current = {(t.scope, t.operation_id): _state(t) for t in ledger.transactions}
+        if not states.keys() <= current.keys():
+            raise AttributionInputError("journal_not_append_only")
+        moved = {(m.scope, m.transaction_id) for m in new}
+        closing = tuple(
+            current[key]
+            for key in sorted(current)
+            if key in moved or states.get(key) != current[key]
+        )
+        if not new:
+            items.append(JournalItem(receipt, 1, 1, None, closing))
+        for index, movement in enumerate(new, start=1):
+            sales = closing if index == len(new) else ()
+            items.append(JournalItem(receipt, index, len(new), movement, sales))
+        movements, states = ledger.movements, current
+    return tuple(items)
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,8 +506,11 @@ class CreditAllocation:
     touch: Touchpoint | None
 
     @property
-    def key(self) -> tuple[Recipient, str | None]:
-        return self.recipient, self.touch.touchpoint_id if self.touch else None
+    def key(self) -> tuple:
+        """Recipient, touchpoint and provenance: a reassigned touch is a different key."""
+        if self.touch is None:
+            return self.recipient, None, None, None, None, None
+        return self.recipient, self.touch.touchpoint_id, *self.touch.provenance
 
     @property
     def rule(self) -> str:
@@ -345,10 +525,18 @@ class ExcludedTouch:
 
 @dataclass(frozen=True, slots=True)
 class CreditDifference:
-    """The signed change of one recipient's credit from the previous revision."""
+    """The signed change of one recipient's credit, with the provenance it is booked under.
+
+    A report that adds delta_share and delta_minor to the key (recipient, touchpoint and
+    source, campaign, content and link references) reaches the allocations of the revision.
+    """
 
     recipient: Recipient
     touchpoint_id: str | None
+    source: str | None
+    campaign_ref: str | None
+    content_ref: str | None
+    link_ref: str | None
     previous_share: Fraction
     share: Fraction
     previous_amount: Money | None
@@ -368,25 +556,39 @@ class CreditDifference:
 class AttributionRun:
     """One revision of one conversion under one model version."""
 
-    conversion: Conversion
+    conversion: Conversion  # for a sale with a state, anchored to the authoritative sale instant
     model_version: ModelVersion
     revision: int
     status: RunStatus
     basis: CreditBasis
-    eligible: tuple[str, ...]  # touchpoint IDs of the basis, in the stable order
-    verified_net: Money | None  # None for a lead and for a sale without verified revenue
+    eligible: tuple[Touchpoint, ...]  # the touches of the basis, in the stable order
+    sale: SaleState | None
+    verified_net: Money | None  # None for a lead and for a sale without allocatable revenue
     allocations: tuple[CreditAllocation, ...]
     excluded: tuple[ExcludedTouch, ...]
     window_start: datetime
     window_end: datetime
-    ledger_position: int | None  # the last movement sequence reflected, when known
+    ledger_position: int | None  # the last receipt reflected, when known
     causes: tuple[RevisionCause, ...]
     differences: tuple[CreditDifference, ...]
 
     @property
+    def eligible_ids(self) -> tuple[str, ...]:
+        return tuple(touch.touchpoint_id for touch in self.eligible)
+
+    @property
     def outcome(self) -> tuple:
-        """What a revision decides; a change in it, and only that, records a new revision."""
-        return self.status, self.basis, self.verified_net, self.allocations
+        """The current view; a change in it, and only that, records a new revision."""
+        return (
+            self.status,
+            self.basis,
+            self.sale,
+            self.verified_net,
+            self.window_end,
+            self.eligible,
+            self.allocations,
+            self.excluded,
+        )
 
     @property
     def credited_minor(self) -> int:
@@ -402,15 +604,18 @@ def attribute(
     touchpoints: Iterable[Touchpoint],
     model_version: ModelVersion,
     *,
-    verified_net: Money | None = None,
+    sale: SaleState | None = None,
     ledger_position: int | None = None,
     previous: AttributionRun | None = None,
 ) -> AttributionRun:
     """Calculate one conversion under one model version.
 
-    previous is the latest revision for the same conversion and version, if any. When the new
-    outcome equals it, previous is returned unchanged; otherwise the next revision is returned
-    with the signed differences.
+    sale is the authoritative state of a sale's transaction after receipt ledger_position, or
+    None while nothing has posted. previous is the latest revision for the same conversion and
+    version, if any. When the new outcome equals it, previous is returned unchanged; otherwise
+    the next revision is returned with its causes and signed differences. An older ledger
+    position than previous, a different state at the same position, or a change of currency is
+    refused.
     """
     if not isinstance(conversion, Conversion):
         raise AttributionInputError("invalid_conversion")
@@ -419,19 +624,23 @@ def attribute(
     touches = list(touchpoints)
     if not all(isinstance(touch, Touchpoint) for touch in touches):
         raise AttributionInputError("invalid_touchpoint")
-    if conversion.kind is ConversionKind.LEAD and verified_net is not None:
-        raise AttributionInputError("lead_has_revenue")
-    if verified_net is not None and (not isinstance(verified_net, Money) or verified_net.minor < 0):
-        raise AttributionInputError("invalid_net")
-    if previous is not None and (
-        not isinstance(previous, AttributionRun)
-        or previous.conversion != conversion
-        or previous.model_version != model_version
-    ):
-        raise AttributionInputError("revision_mismatch")
+    if ledger_position is not None:
+        _require_int(ledger_position, "invalid_ledger_position", 0)
+    if conversion.kind is ConversionKind.LEAD:
+        if sale is not None:
+            raise AttributionInputError("lead_has_revenue")
+    elif sale is not None:
+        if not isinstance(sale, SaleState):
+            raise AttributionInputError("invalid_sale_state")
+        if sale.key != conversion.ledger_key:
+            raise AttributionInputError("sale_mismatch")
+        if sale.effective_at != conversion.effective_at:
+            conversion = replace(conversion, effective_at=sale.effective_at)
+    if previous is not None:
+        _check_previous(previous, conversion, model_version, sale, ledger_position)
 
-    end = conversion.instant
-    start = end - model_version.window
+    end = conversion.effective_at
+    start = model_version.window_start(end)
     eligible, excluded = _eligible(conversion, touches, start, end)
     campaign = [t for t in eligible if t.evidence_class is EvidenceClass.CAMPAIGN_INTERACTION]
     direct = [t for t in eligible if t.evidence_class is EvidenceClass.DIRECT_VISIT]
@@ -445,12 +654,18 @@ def attribute(
     else:
         basis, ordered = CreditBasis.UNKNOWN_FALLBACK, []
 
-    status = RunStatus.COMPLETE
-    if conversion.kind is ConversionKind.SALE and verified_net is None:
+    net = sale.net if sale is not None else None
+    allocations: tuple[CreditAllocation, ...] = ()
+    if conversion.kind is ConversionKind.LEAD:
+        status = RunStatus.COMPLETE
+        allocations = _allocate(model_version.model, basis, ordered, None)
+    elif sale is None:
         status = RunStatus.NO_VERIFIED_REVENUE
-        allocations: tuple[CreditAllocation, ...] = ()
+    elif net is None:
+        status = RunStatus.NET_OUT_OF_RANGE
     else:
-        allocations = _allocate(model_version.model, basis, ordered, verified_net)
+        status = RunStatus.COMPLETE
+        allocations = _allocate(model_version.model, basis, ordered, net)
 
     run = AttributionRun(
         conversion=conversion,
@@ -458,8 +673,9 @@ def attribute(
         revision=1,
         status=status,
         basis=basis,
-        eligible=tuple(t.touchpoint_id for t in ordered),
-        verified_net=verified_net,
+        eligible=tuple(ordered),
+        sale=sale,
+        verified_net=net,
         allocations=allocations,
         excluded=tuple(sorted(excluded, key=lambda e: (e.touchpoint_id, e.reason.value))),
         window_start=start,
@@ -472,17 +688,60 @@ def attribute(
         return run
     if previous.outcome == run.outcome:
         return previous
-    causes = []
-    if previous.verified_net != run.verified_net:
-        causes.append(RevisionCause.REVENUE_CHANGED)
-    if (previous.basis, previous.eligible) != (run.basis, run.eligible):
-        causes.append(RevisionCause.TOUCHES_CHANGED)
     return replace(
         run,
         revision=previous.revision + 1,
-        causes=tuple(causes),
+        causes=_causes(previous, run),
         differences=_differences(previous, run),
     )
+
+
+def _check_previous(
+    previous: AttributionRun,
+    conversion: Conversion,
+    model_version: ModelVersion,
+    sale: SaleState | None,
+    ledger_position: int | None,
+) -> None:
+    if (
+        not isinstance(previous, AttributionRun)
+        or previous.conversion.identity != conversion.identity
+        or previous.model_version != model_version
+    ):
+        raise AttributionInputError("revision_mismatch")
+    if previous.sale is not None and sale is not None and previous.sale.currency != sale.currency:
+        raise AttributionInputError("currency_changed")
+    if conversion.kind is ConversionKind.SALE and previous.ledger_position is not None:
+        if ledger_position is None:
+            raise AttributionInputError("ledger_position_required")
+        if ledger_position < previous.ledger_position:
+            raise AttributionInputError("stale_ledger_position")
+        if ledger_position == previous.ledger_position and sale != previous.sale:
+            raise AttributionInputError("ledger_position_conflict")
+
+
+def _causes(previous: AttributionRun, run: AttributionRun) -> tuple[RevisionCause, ...]:
+    causes = []
+    before_net = previous.sale.net_minor if previous.sale else None
+    after_net = run.sale.net_minor if run.sale else None
+    if (previous.status, before_net) != (run.status, after_net):
+        causes.append(RevisionCause.REVENUE_CHANGED)
+    if previous.window_end != run.window_end:
+        causes.append(RevisionCause.SALE_TIME_CHANGED)
+    if (previous.basis, previous.eligible_ids, previous.excluded) != (
+        run.basis,
+        run.eligible_ids,
+        run.excluded,
+    ):
+        causes.append(RevisionCause.TOUCHES_CHANGED)
+    before = {touch.touchpoint_id: touch for touch in previous.eligible}
+    if any(
+        touch != before[touch.touchpoint_id]
+        for touch in run.eligible
+        if touch.touchpoint_id in before
+    ):
+        causes.append(RevisionCause.EVIDENCE_CHANGED)
+    return tuple(causes)
 
 
 def _eligible(
@@ -496,9 +755,8 @@ def _eligible(
     eligible: list[Touchpoint] = []
     excluded: list[ExcludedTouch] = []
     for touchpoint_id, records in groups.items():
-        facts = {record._facts() for record in records}
         touch = records[0]
-        if len(facts) > 1:
+        if any(record != touch for record in records):
             reason = ExclusionReason.CONFLICTING_RECORDS
         elif touch.evidence_class is EvidenceClass.AGGREGATE_METRIC:
             reason = ExclusionReason.AGGREGATE_EVIDENCE
@@ -569,8 +827,7 @@ def _differences(previous: AttributionRun, run: AttributionRun) -> tuple[CreditD
     for key in keys:
         old, new = before.get(key), after.get(key)
         difference = CreditDifference(
-            key[0],
-            key[1],
+            *key,
             old.share if old else Fraction(0),
             new.share if new else Fraction(0),
             old.amount if old else None,
@@ -582,35 +839,97 @@ def _differences(previous: AttributionRun, run: AttributionRun) -> tuple[CreditD
 
 
 _RunKey = tuple[UUID, UUID, str, str]
+_LedgerKey = tuple[LedgerScope, str]
+_ConversionKey = tuple[UUID, UUID, str]
 
 
 def _run_key(conversion: Conversion, version: ModelVersion) -> _RunKey:
-    return conversion.agency_id, conversion.client_id, conversion.conversion_id, version.version_id
+    return *conversion.key, version.version_id
 
 
 class AttributionHistory:
-    """Every revision of every run, kept per conversion and model version; nothing is replaced."""
+    """Every revision of every run, kept per conversion and model version; nothing is replaced.
+
+    The history is also the registry the revisions are checked against. A conversion ID keeps
+    one identity (person, kind, ledger transaction and, for a lead, its instant). A scoped sale
+    (agency, client, source account and sale operation ID) belongs to one conversion, so it is
+    credited once per model. A model version ID means one definition across the whole history.
+    A sale keeps its currency, and its ledger position never moves backwards. Reads and writes
+    with a conflicting conversion or model definition are refused.
+    """
 
     def __init__(self) -> None:
         self._runs: dict[_RunKey, list[AttributionRun]] = {}
+        self._conversions: dict[_ConversionKey, Conversion] = {}
+        self._sales: dict[_LedgerKey, _ConversionKey] = {}
+        self._models: dict[str, ModelVersion] = {}
+
+    def check_conversion(self, conversion: Conversion) -> None:
+        if not isinstance(conversion, Conversion):
+            raise AttributionInputError("invalid_conversion")
+        known = self._conversions.get(conversion.key)
+        if known is not None and known.identity != conversion.identity:
+            raise AttributionInputError("conversion_mismatch")
+        if conversion.kind is ConversionKind.SALE:
+            owner = self._sales.get(conversion.ledger_key)
+            if owner is not None and owner != conversion.key:
+                if self._conversions[owner].person_id != conversion.person_id:
+                    raise AttributionInputError("sale_association_conflict")
+                raise AttributionInputError("sale_already_registered")
+
+    def check_model(self, version: ModelVersion) -> None:
+        if not isinstance(version, ModelVersion):
+            raise AttributionInputError("invalid_model_version")
+        known = self._models.get(version.version_id)
+        if known is not None and known != version:
+            raise AttributionInputError("model_version_conflict")
+
+    def register(self, conversion: Conversion) -> None:
+        """Register a conversion; an identical or re-anchored registration changes nothing else."""
+        self.check_conversion(conversion)
+        self._conversions[conversion.key] = conversion
+        if conversion.kind is ConversionKind.SALE:
+            self._sales[conversion.ledger_key] = conversion.key
+
+    def conversion(self, key: _ConversionKey) -> Conversion | None:
+        return self._conversions.get(key)
 
     def latest(self, conversion: Conversion, version: ModelVersion) -> AttributionRun | None:
+        self.check_conversion(conversion)
+        self.check_model(version)
         runs = self._runs.get(_run_key(conversion, version))
         return runs[-1] if runs else None
 
     def revisions(
         self, conversion: Conversion, version: ModelVersion
     ) -> tuple[AttributionRun, ...]:
+        self.check_conversion(conversion)
+        self.check_model(version)
         return tuple(self._runs.get(_run_key(conversion, version), ()))
+
+    def check_record(self, run: AttributionRun) -> None:
+        if not isinstance(run, AttributionRun):
+            raise AttributionInputError("invalid_run")
+        self.check_conversion(run.conversion)
+        self.check_model(run.model_version)
+        runs = self._runs.get(_run_key(run.conversion, run.model_version), [])
+        if runs and runs[-1] is run:
+            return
+        if run.revision != len(runs) + 1:
+            raise AttributionInputError("revision_out_of_order")
+        if runs:
+            _check_previous(
+                runs[-1], run.conversion, run.model_version, run.sale, run.ledger_position
+            )
 
     def record(self, run: AttributionRun) -> AttributionRun:
         """Append the next revision; recording the latest revision again changes nothing."""
+        self.check_record(run)
         runs = self._runs.setdefault(_run_key(run.conversion, run.model_version), [])
-        if runs and runs[-1] is run:
-            return run
-        if run.revision != len(runs) + 1 or (runs and runs[-1].conversion != run.conversion):
-            raise AttributionInputError("revision_out_of_order")
-        runs.append(run)
+        self.register(run.conversion)
+        self._models[run.model_version.version_id] = run.model_version
+        if not runs or runs[-1] is not run:
+            runs.append(run)
         return run
 
     def calculate(
@@ -619,31 +938,35 @@ class AttributionHistory:
         touchpoints: Iterable[Touchpoint],
         model_version: ModelVersion,
         *,
-        verified_net: Money | None = None,
+        sale: SaleState | None = None,
         ledger_position: int | None = None,
     ) -> AttributionRun:
         run = attribute(
             conversion,
             touchpoints,
             model_version,
-            verified_net=verified_net,
+            sale=sale,
             ledger_position=ledger_position,
             previous=self.latest(conversion, model_version),
         )
         return self.record(run)
 
 
-_LedgerKey = tuple[LedgerScope, str]
 _JourneyKey = tuple[UUID, UUID, str]
+_Position = tuple[int, int]
 
 
 class IncrementalAttribution:
-    """Keeps attribution current from the 007-A movement journal and journey updates.
+    """Keeps attribution current from the receipt journal and journey updates.
 
     Each call is one atomic step: new runs are calculated first, then handed to commit (the
     in-memory stand-in for a 007-B transactional write); only when commit returns are the
-    history, transaction nets, journeys and the receipt checkpoint updated. A failed commit
-    leaves everything as it was, so the same movements can be applied again.
+    history, sale states, journeys, buffered items and the receipt checkpoint updated. A failed
+    commit leaves everything as it was, so the same items can be applied again.
+
+    A consumer attached to a populated history publishes nothing for a sale whose recorded
+    ledger position it has not yet reached; replaying to that position reproduces the recorded
+    revision instead of adding one.
     """
 
     def __init__(
@@ -659,14 +982,28 @@ class IncrementalAttribution:
         if len({v.version_id for v in self.versions}) != len(self.versions):
             raise AttributionInputError("duplicate_model_version")
         self.history = history if history is not None else AttributionHistory()
+        for version in self.versions:
+            self.history.check_model(version)
         self._commit = commit
-        self.checkpoint = 0
-        self._nets: dict[_LedgerKey, Money] = {}
-        self._conversions: dict[tuple[UUID, UUID, str], Conversion] = {}
+        self.checkpoint = 0  # the last completed receipt
+        self._applied: dict[_Position, JournalItem] = {}
+        self._buffer: dict[_Position, JournalItem] = {}
+        self._nets: dict[_LedgerKey, int] = {}
+        self._sales: dict[_LedgerKey, SaleState] = {}
+        self._conversions: dict[_ConversionKey, Conversion] = {}
         self._journeys: dict[_JourneyKey, tuple[Touchpoint, ...]] = {}
 
+    @property
+    def buffered(self) -> int:
+        """Items of the incomplete receipt received so far; they are not yet applied."""
+        return len(self._buffer)
+
+    def sale(self, conversion: Conversion) -> SaleState | None:
+        return self._sales.get(conversion.ledger_key)
+
     def net(self, conversion: Conversion) -> Money | None:
-        return self._nets.get(conversion.ledger_key)
+        state = self.sale(conversion)
+        return state.net if state is not None else None
 
     def runs(self, conversion: Conversion) -> dict[str, AttributionRun]:
         return {
@@ -676,15 +1013,13 @@ class IncrementalAttribution:
         }
 
     def register(self, conversion: Conversion) -> tuple[AttributionRun, ...]:
-        if not isinstance(conversion, Conversion):
-            raise AttributionInputError("invalid_conversion")
-        key = (conversion.agency_id, conversion.client_id, conversion.conversion_id)
-        known = self._conversions.get(key)
-        if known is not None and known != conversion:
-            raise AttributionInputError("conversion_conflict")
-        runs = self._calculate([conversion], self._nets, self._journeys)
-        self._finish(runs)
-        self._conversions[key] = conversion
+        """Register a conversion; a retry is idempotent and a sale may be re-anchored."""
+        self.history.check_conversion(conversion)
+        runs = tuple(
+            self._calculate([conversion], self._sales, self._journeys, self.checkpoint, {})
+        )
+        self._finish(runs, [conversion])
+        self._conversions[conversion.key] = conversion
         return runs
 
     def set_journey(
@@ -699,76 +1034,157 @@ class IncrementalAttribution:
             raise AttributionInputError("journey_scope_mismatch")
         journeys = {**self._journeys, journey: touches}
         affected = [c for c in self._conversions.values() if _journey_key(c) == journey]
-        runs = self._calculate(affected, self._nets, journeys)
-        self._finish(runs)
+        runs = tuple(self._calculate(affected, self._sales, journeys, self.checkpoint, {}))
+        self._finish(runs, [])
         self._journeys = journeys
         return runs
 
-    def apply(self, movements: Iterable[Movement]) -> tuple[AttributionRun, ...]:
-        """Apply the journal movements after the checkpoint, in sequence, as one step.
+    def apply(self, items: Iterable[JournalItem]) -> tuple[AttributionRun, ...]:
+        """Apply one page of the receipt journal.
 
-        Movements at or before the checkpoint were already applied and are skipped, so a retry
-        of the same journal or an overlapping suffix changes nothing. The remaining movements
-        must continue the checkpoint without a gap.
+        Items already applied or buffered are skipped when identical and refused as
+        journal_mismatch otherwise; identical copies within the page are coalesced. The new
+        items must continue the journal without a hole (journal_gap). Every receipt the page
+        completes is applied in order and yields its own revisions; the items of an incomplete
+        receipt are buffered. Nothing changes when the page is refused or commit fails.
         """
-        pending = []
-        for movement in movements:
-            if not isinstance(movement, Movement):
-                raise AttributionInputError("invalid_movement")
-            if movement.sequence > self.checkpoint:
-                pending.append(movement)
-        pending.sort(key=lambda m: m.sequence)
-        for expected, movement in enumerate(pending, start=self.checkpoint + 1):
-            if movement.sequence != expected:
-                raise AttributionInputError("movement_gap")
-        if not pending:
-            return ()
-        nets = dict(self._nets)
-        changed: set[_LedgerKey] = set()
-        for movement in pending:
-            key = (movement.scope, movement.transaction_id)
-            prior = nets.get(key)
-            nets[key] = movement.amount if prior is None else prior + movement.amount
-            changed.add(key)
-        affected = [
-            c
-            for c in self._conversions.values()
-            if c.kind is ConversionKind.SALE and c.ledger_key in changed
-        ]
-        position = pending[-1].sequence
-        runs = self._calculate(affected, nets, self._journeys, position)
-        self._finish(runs)
-        self._nets = nets
-        self.checkpoint = position
-        return runs
+        page = list(items)
+        if not all(isinstance(item, JournalItem) for item in page):
+            raise AttributionInputError("invalid_journal_item")
+        new: dict[_Position, JournalItem] = {}
+        for item in page:
+            known = (
+                self._applied.get(item.position)
+                or self._buffer.get(item.position)
+                or new.get(item.position)
+            )
+            if known is None:
+                new[item.position] = item
+            elif known != item:
+                raise AttributionInputError("journal_mismatch")
+        buffer = dict(self._buffer)
+        position, sequence, count = self._cursor()
+        for key in sorted(new):
+            item = new[key]
+            if key < position:
+                raise AttributionInputError("journal_mismatch")
+            if key != position:
+                raise AttributionInputError("journal_gap")
+            if item.index > 1 and item.count != count:
+                raise AttributionInputError("journal_mismatch")
+            if item.movement is not None:
+                if item.movement.sequence != sequence + 1:
+                    raise AttributionInputError("journal_mismatch")
+                sequence += 1
+            count = item.count
+            position = (
+                (item.receipt, item.index + 1) if item.index < count else (item.receipt + 1, 1)
+            )
+            buffer[key] = item
+
+        nets, sales, staged = dict(self._nets), dict(self._sales), {}
+        applied: dict[_Position, JournalItem] = {}
+        checkpoint, runs = self.checkpoint, []
+        while (first := buffer.get((checkpoint + 1, 1))) is not None:
+            receipt = checkpoint + 1
+            parts = [buffer.get((receipt, index)) for index in range(1, first.count + 1)]
+            if None in parts:
+                break
+            changed = self._apply_receipt(parts, nets, sales)
+            affected = [
+                c
+                for c in self._conversions.values()
+                if c.kind is ConversionKind.SALE and c.ledger_key in changed
+            ]
+            runs += self._calculate(affected, sales, self._journeys, receipt, staged)
+            for part in parts:
+                applied[part.position] = buffer.pop(part.position)
+            checkpoint = receipt
+        result = tuple(runs)
+        self._finish(result, [])
+        self._applied.update(applied)
+        self._buffer, self._nets, self._sales = buffer, nets, sales
+        self.checkpoint = checkpoint
+        return result
+
+    def _cursor(self) -> tuple[_Position, int, int]:
+        """The next expected position, the last movement sequence and the open receipt's count."""
+        items = list(self._applied.values()) + list(self._buffer.values())
+        if not items:
+            return (1, 1), 0, 0
+        last = max(items, key=lambda item: item.position)
+        sequence = max((i.movement.sequence for i in items if i.movement is not None), default=0)
+        if last.index < last.count:
+            return (last.receipt, last.index + 1), sequence, last.count
+        return (last.receipt + 1, 1), sequence, last.count
+
+    @staticmethod
+    def _apply_receipt(
+        parts: list[JournalItem],
+        nets: dict[_LedgerKey, int],
+        sales: dict[_LedgerKey, SaleState],
+    ) -> set[_LedgerKey]:
+        """Accumulate one receipt exactly and check it against its closing sale states."""
+        closing = {state.key: state for state in parts[-1].sales}
+        moved = set()
+        for part in parts:
+            if part.movement is None:
+                continue
+            key = (part.movement.scope, part.movement.transaction_id)
+            state = closing.get(key)
+            if state is None or part.movement.amount.currency != state.currency:
+                raise AttributionInputError("journal_mismatch")
+            nets[key] = nets.get(key, 0) + part.movement.amount.minor
+            moved.add(key)
+        for key, state in closing.items():
+            prior = sales.get(key)
+            if prior is not None and prior.currency != state.currency:
+                raise AttributionInputError("currency_changed")
+            if nets.get(key, 0) != state.net_minor:
+                raise AttributionInputError("journal_mismatch")
+            sales[key] = state
+        return set(closing)
 
     def _calculate(
         self,
         conversions: list[Conversion],
-        nets: dict[_LedgerKey, Money],
+        sales: dict[_LedgerKey, SaleState],
         journeys: dict[_JourneyKey, tuple[Touchpoint, ...]],
-        position: int | None = None,
-    ) -> tuple[AttributionRun, ...]:
+        position: int,
+        staged: dict[_RunKey, AttributionRun],
+    ) -> list[AttributionRun]:
         runs = []
         for conversion in sorted(conversions, key=_conversion_order):
-            sale = conversion.kind is ConversionKind.SALE
+            is_sale = conversion.kind is ConversionKind.SALE
             for version in self.versions:
-                previous = self.history.latest(conversion, version)
+                key = _run_key(conversion, version)
+                previous = staged.get(key) or self.history.latest(conversion, version)
+                if (
+                    is_sale
+                    and previous is not None
+                    and previous.ledger_position is not None
+                    and position < previous.ledger_position
+                ):
+                    continue  # still replaying towards the position the history records
                 run = attribute(
                     conversion,
                     journeys.get(_journey_key(conversion), ()),
                     version,
-                    verified_net=nets.get(conversion.ledger_key) if sale else None,
-                    ledger_position=(position or self.checkpoint) if sale else None,
+                    sale=sales.get(conversion.ledger_key) if is_sale else None,
+                    ledger_position=position if is_sale else None,
                     previous=previous,
                 )
                 if run is not previous:
                     runs.append(run)
-        return tuple(runs)
+                    staged[key] = run
+        return runs
 
-    def _finish(self, runs: tuple[AttributionRun, ...]) -> None:
+    def _finish(self, runs: Iterable[AttributionRun], conversions: list[Conversion]) -> None:
+        runs = tuple(runs)
         if self._commit is not None and runs:
-            self._commit(runs)  # may raise: nothing below runs, and no state has changed yet
+            self._commit(runs)  # may raise: nothing below runs, no state has changed
+        for conversion in conversions:
+            self.history.register(conversion)
         for run in runs:
             self.history.record(run)
 

@@ -29,10 +29,12 @@ from app.attribution import (
     Recipient,
     RevisionCause,
     RunStatus,
+    SaleState,
     Touchpoint,
     attribute,
+    ledger_feed,
     sale_conversion,
-    verified_net,
+    sale_state,
 )
 from app.ledger import Currency, Evidence, LedgerScope, Money, OperationKind, calculate
 from app.ledger import EvidenceClass as LedgerClass
@@ -162,7 +164,11 @@ def sale_from(log, *, account: str = ACCOUNT, client: UUID = CLIENT, agency: UUI
 
 def run_sale(log, touches, version, **extra):
     conversion, ledger = sale_from(log, **extra)
-    return attribute(conversion, touches, version, verified_net=verified_net(ledger, conversion))
+    return attribute(conversion, touches, version, sale=sale_state(ledger, conversion))
+
+
+def state(minor: int, currency: Currency = AAA) -> SaleState:
+    return SaleState(LedgerScope(AGENCY, CLIENT, ACCOUNT), "sale-1", currency, T0, minor)
 
 
 def credit(run) -> list[tuple]:
@@ -206,7 +212,7 @@ def test_lead_credit_is_one_unit_split_into_exact_shares():
         assert run.status is RunStatus.COMPLETE and run.verified_net is None
         assert_balanced(run)
     with pytest.raises(AttributionInputError) as error:
-        attribute(conversion, [A], LINEAR, verified_net=Money(100, AAA))
+        attribute(conversion, [A], LINEAR, sale=state(100))
     assert error.value.code == "lead_has_revenue"
 
 
@@ -239,9 +245,9 @@ def test_unverified_purchase_evidence_supplies_no_revenue(classification):
     conversion = Conversion(
         "conv-signal", AGENCY, CLIENT, PERSON, ConversionKind.SALE, T0, ACCOUNT, "sale-1"
     )
-    assert verified_net(ledger, conversion) is None
+    assert sale_state(ledger, conversion) is None
     for version in MODELS:
-        run = attribute(conversion, [A, B], version, verified_net=verified_net(ledger, conversion))
+        run = attribute(conversion, [A, B], version, sale=sale_state(ledger, conversion))
         assert run.status is RunStatus.NO_VERIFIED_REVENUE
         assert (run.verified_net, run.allocations, run.credited_minor) == (None, (), 0)
 
@@ -393,7 +399,7 @@ def test_equal_instants_break_ties_by_touchpoint_id():
         assert credit(attribute(lead(), order, FIRST)) == [("tp-ab", 1, None)]
         assert credit(attribute(lead(), order, LAST)) == [("tp-ba", 1, None)]
         assert [k for k, _, _ in credit(attribute(lead(), order, LINEAR))] == ["tp-ab", "tp-ba"]
-        split = attribute(lead(), order, LINEAR, verified_net=None)
+        split = attribute(lead(), order, LINEAR)
         assert [a.position for a in split.allocations] == [1, 2]
 
 
@@ -423,11 +429,11 @@ def test_allocations_always_sum_to_the_net_and_ignore_input_order():
             "conv-random", AGENCY, CLIENT, PERSON, ConversionKind.SALE, T0, ACCOUNT, "sale-1"
         )
         for version in MODELS:
-            run = attribute(conversion, touches, version, verified_net=Money(minor, AAA))
+            run = attribute(conversion, touches, version, sale=state(minor))
             assert_balanced(run)
             shuffled = touches[:]
             generator.shuffle(shuffled)
-            again = attribute(conversion, shuffled, version, verified_net=Money(minor, AAA))
+            again = attribute(conversion, shuffled, version, sale=state(minor))
             assert again == run
 
 
@@ -454,21 +460,23 @@ def _tie_log():
 
 def _fresh(log, conversion, touches, version):
     ledger = calculate(log)
-    return attribute(conversion, touches, version, verified_net=verified_net(ledger, conversion))
+    sale = sale_state(ledger, conversion)
+    return attribute(conversion, touches, version, sale=sale, ledger_position=len(log))
 
 
-def test_resuming_from_movement_two_equals_full_replay():
+def test_resuming_from_receipt_two_equals_full_replay():
     log = _tie_log()
     conversion, _ = sale_from(log)
     consumer = IncrementalAttribution(MODELS)
     consumer.set_journey(AGENCY, CLIENT, PERSON, [A, B])
     consumer.register(conversion)
 
-    read = calculate(log[:2]).movements
-    assert [(m.sequence, m.operation_id, m.amount.minor) for m in read] == [
-        (1, "sale-1", 100_000),
-        (2, "refund-200", -20_000),
+    read = ledger_feed(log[:2])
+    assert [(i.receipt, i.movement.sequence, i.movement.operation_id) for i in read] == [
+        (1, 1, "sale-1"),
+        (2, 2, "refund-200"),
     ]
+    assert [i.movement.amount.minor for i in read] == [100_000, -20_000]
     consumer.apply(read)
     assert consumer.checkpoint == 2
     assert credit(consumer.runs(conversion)[LINEAR.version_id]) == [
@@ -476,14 +484,18 @@ def test_resuming_from_movement_two_equals_full_replay():
         ("tp-b", Fraction(1, 2), 40_000),
     ]
 
-    journal = calculate(log).movements
+    journal = ledger_feed(log)
     assert journal[:2] == read
-    assert [(m.sequence, m.movement.value, m.amount.minor) for m in journal[2:]] == [
-        (3, "release", 20_000),
-        (4, "posting", -90_000),
+    assert [(i.receipt, i.index, i.count, i.movement.sequence) for i in journal[2:]] == [
+        (3, 1, 2, 3),
+        (3, 2, 2, 4),
     ]
-    changed = consumer.apply(journal)  # the full journal: movements 1 and 2 are skipped
-    assert consumer.checkpoint == 4
+    assert [(i.movement.movement.value, i.movement.amount.minor) for i in journal[2:]] == [
+        ("release", 20_000),
+        ("posting", -90_000),
+    ]
+    changed = consumer.apply(journal)  # the full journal: receipts 1 and 2 are skipped
+    assert consumer.checkpoint == 3
     assert {run.model_version.version_id for run in changed} == {v.version_id for v in MODELS}
     runs = consumer.runs(conversion)
     assert credit(runs[LINEAR.version_id]) == [
@@ -492,9 +504,9 @@ def test_resuming_from_movement_two_equals_full_replay():
     ]
     for version in MODELS:
         assert runs[version.version_id].outcome == _fresh(log, conversion, [A, B], version).outcome
-        assert runs[version.version_id].ledger_position == 4
+        assert runs[version.version_id].ledger_position == 3
 
-    # Retrying the same movements, or the whole journal, leaves every allocation unchanged.
+    # Retrying the same receipts, or the whole journal, leaves every allocation unchanged.
     assert consumer.apply(journal) == ()
     assert consumer.apply(journal[2:]) == ()
     assert consumer.runs(conversion) == runs
@@ -515,7 +527,7 @@ def test_incremental_consumer_matches_fresh_calculation_after_every_record():
     consumer.register(conversion)
     nets = []
     for count in range(1, len(log) + 1):
-        journal = calculate(log[:count]).movements
+        journal = ledger_feed(log[:count])
         consumer.apply(journal)
         consumer.apply(journal)  # a repeated notification
         for version in MODELS:
@@ -545,7 +557,7 @@ def test_checkpoint_advances_only_after_the_allocation_commit():
     consumer.register(conversion)
     assert consumer.runs(conversion)[LINEAR.version_id].status is RunStatus.NO_VERIFIED_REVENUE
 
-    journal = calculate(log).movements
+    journal = ledger_feed(log)
     consumer.apply(journal[:2])
     failures = iter([True])
     with pytest.raises(RuntimeError):
@@ -554,29 +566,76 @@ def test_checkpoint_advances_only_after_the_allocation_commit():
     assert consumer.net(conversion) == Money(80_000, AAA)
     assert credit(consumer.runs(conversion)[LINEAR.version_id])[0][2] == 40_000
 
-    consumer.apply(journal)  # the retry applies movements 3 and 4 once
-    assert consumer.checkpoint == 4
+    consumer.apply(journal)  # the retry applies receipt 3 (movements 3 and 4) once
+    assert consumer.checkpoint == 3
     assert consumer.net(conversion) == Money(10_000, AAA)
     revisions = consumer.history.revisions(conversion, LINEAR)
-    assert [r.revision for r in revisions] == [1, 2, 3]
-    assert [r.verified_net and r.verified_net.minor for r in revisions] == [None, 80_000, 10_000]
+    # Receipts 1 and 2 arrived in one page and still keep a revision each (R008-04).
+    assert [r.revision for r in revisions] == [1, 2, 3, 4]
+    assert [r.verified_net and r.verified_net.minor for r in revisions] == [
+        None,
+        100_000,
+        80_000,
+        10_000,
+    ]
+    assert [r.ledger_position for r in revisions] == [0, 1, 2, 3]
     assert [r.causes for r in revisions] == [
         (RevisionCause.INITIAL,),
         (RevisionCause.REVENUE_CHANGED,),
         (RevisionCause.REVENUE_CHANGED,),
+        (RevisionCause.REVENUE_CHANGED,),
     ]
-    assert revisions[0].eligible == revisions[2].eligible == ("tp-a", "tp-b")
+    assert revisions[0].eligible_ids == revisions[3].eligible_ids == ("tp-a", "tp-b")
     assert len(committed) == 3
 
 
 def test_a_journal_gap_is_refused_without_any_change():
-    journal = calculate(_tie_log()).movements
+    journal = ledger_feed(_tie_log())
     consumer = IncrementalAttribution([LINEAR])
-    consumer.apply(journal[:2])
+    consumer.apply(journal[:1])
     with pytest.raises(AttributionInputError) as error:
-        consumer.apply(journal[3:])
-    assert error.value.code == "movement_gap"
-    assert consumer.checkpoint == 2
+        consumer.apply(journal[2:])
+    assert error.value.code == "journal_gap"
+    assert consumer.checkpoint == 1
+
+
+def test_a_closing_state_that_disagrees_with_its_movements_is_refused():
+    log = _tie_log()
+    conversion, _ = sale_from(log)
+    journal = ledger_feed(log)
+    closing = journal[1]
+    assert closing.sales[0].net_minor == 80_000
+    forged = replace(closing, sales=(replace(closing.sales[0], net_minor=90_000),))
+    consumer = IncrementalAttribution([LINEAR])
+    consumer.set_journey(AGENCY, CLIENT, PERSON, [A, B])
+    consumer.register(conversion)
+    consumer.apply(journal[:1])
+    with pytest.raises(AttributionInputError) as error:
+        consumer.apply([forged])
+    assert error.value.code == "journal_mismatch"
+    assert (consumer.checkpoint, consumer.net(conversion)) == (1, Money(100_000, AAA))
+    unmoved = replace(closing, sales=())  # the moved transaction has no closing state
+    with pytest.raises(AttributionInputError) as error:
+        consumer.apply([unmoved])
+    assert error.value.code == "journal_mismatch"
+    consumer.apply(journal)
+    assert consumer.net(conversion) == Money(10_000, AAA)
+
+
+def test_journal_items_and_feeds_are_validated():
+    journal = ledger_feed(_tie_log())
+    for change in (
+        {"index": 3},
+        {"receipt": 0},
+        {"sales": journal[1].sales, "index": 1, "count": 2},
+    ):
+        with pytest.raises(AttributionInputError) as error:
+            replace(journal[1], **change)
+        assert error.value.code == "invalid_journal_item"
+    late_first = [replace(_tie_log()[0], received_at=T0 + 11 * DAY), *_tie_log()[1:]]
+    with pytest.raises(AttributionInputError) as error:
+        ledger_feed(late_first)
+    assert error.value.code == "receipt_log_out_of_order"
 
 
 # Revisions and evidence.
@@ -585,42 +644,54 @@ def test_a_journal_gap_is_refused_without_any_change():
 def test_late_touch_creates_a_revision_that_explains_the_difference():
     history = AttributionHistory()
     conversion, ledger = sale_from([capture("100.00")])
-    net = verified_net(ledger, conversion)
-    first = history.calculate(conversion, [A], LAST, verified_net=net)
+    sale = sale_state(ledger, conversion)
+    first = history.calculate(conversion, [A], LAST, sale=sale)
     assert (first.revision, first.causes) == (1, (RevisionCause.INITIAL,))
     assert credit(first) == [("tp-a", 1, 10_000)]
-    assert history.calculate(conversion, [A], LAST, verified_net=net) is first
+    assert history.calculate(conversion, [A], LAST, sale=sale) is first
 
-    second = history.calculate(conversion, [A, B], LAST, verified_net=net)
+    second = history.calculate(conversion, [A, B], LAST, sale=sale)
     assert (second.revision, second.causes) == (2, (RevisionCause.TOUCHES_CHANGED,))
     assert credit(second) == [("tp-b", 1, 10_000)]
     assert [(d.touchpoint_id, d.delta_share, d.delta_minor) for d in second.differences] == [
         ("tp-b", 1, 10_000),
         ("tp-a", -1, -10_000),
     ]
-    assert history.calculate(conversion, [B, A, A], LAST, verified_net=net) is second
+    assert history.calculate(conversion, [B, A, A], LAST, sale=sale) is second
     assert history.revisions(conversion, LAST) == (first, second)
 
-    # A touch received late but outside the window, or after the sale, changes nothing.
+    # A touch received late but outside the window, or after the sale, changes no credit. The
+    # current view lists it as excluded (R008-06): a revision with a cause and no differences.
     late = [A, B, touch("tp-old", T0 - 31 * DAY), touch("tp-after", T0 + DAY)]
-    assert history.calculate(conversion, late, LAST, verified_net=net) is second
+    third = history.calculate(conversion, late, LAST, sale=sale)
+    assert (third.revision, third.causes, third.differences) == (
+        3,
+        (RevisionCause.TOUCHES_CHANGED,),
+        (),
+    )
+    assert credit(third) == credit(second)
+    assert excluded(third) == {
+        "tp-old": ExclusionReason.BEFORE_WINDOW,
+        "tp-after": ExclusionReason.AFTER_CONVERSION,
+    }
+    assert history.calculate(conversion, late, LAST, sale=sale) is third
 
 
 def test_a_changed_model_version_keeps_the_earlier_history():
     history = AttributionHistory()
     conversion, ledger = sale_from([capture("100.00")])
-    net = verified_net(ledger, conversion)
+    sale = sale_state(ledger, conversion)
     touches = [touch("tp-old", T0 - 10 * DAY), B]
-    v1 = history.calculate(conversion, touches, FIRST, verified_net=net)
+    v1 = history.calculate(conversion, touches, FIRST, sale=sale)
     week = ModelVersion("first-click.v2", AttributionModel.FIRST_CLICK, window=7 * DAY)
-    v2 = history.calculate(conversion, touches, week, verified_net=net)
+    v2 = history.calculate(conversion, touches, week, sale=sale)
     assert credit(v1) == [("tp-old", 1, 10_000)]
     assert credit(v2) == [("tp-b", 1, 10_000)]
     assert (v1.revision, v2.revision) == (1, 1)
     assert history.revisions(conversion, FIRST) == (v1,)
     assert history.revisions(conversion, week) == (v2,)
     with pytest.raises(AttributionInputError) as error:
-        attribute(conversion, touches, week, verified_net=net, previous=v1)
+        attribute(conversion, touches, week, sale=sale, previous=v1)
     assert error.value.code == "revision_mismatch"
 
 
@@ -630,9 +701,9 @@ def test_full_refund_revises_every_allocation_to_zero():
     conversion, _ = sale_from(log)
     consumer.set_journey(AGENCY, CLIENT, PERSON, [A, B])
     consumer.register(conversion)
-    consumer.apply(calculate(log).movements)
+    consumer.apply(ledger_feed(log))
     log.append(refund("refund-all", "1000.00", effective=DAY))
-    consumer.apply(calculate(log).movements)
+    consumer.apply(ledger_feed(log))
     linear = consumer.runs(conversion)[LINEAR.version_id]
     assert credit(linear) == [("tp-a", Fraction(1, 2), 0), ("tp-b", Fraction(1, 2), 0)]
     assert linear.causes == (RevisionCause.REVENUE_CHANGED,)
@@ -646,7 +717,7 @@ def test_withdrawal_and_ownership_correction_remove_matched_touches():
     conversion, _ = sale_from(log)
     consumer.set_journey(AGENCY, CLIENT, PERSON, [A, B])
     consumer.register(conversion)
-    consumer.apply(calculate(log).movements)
+    consumer.apply(ledger_feed(log))
     assert [m for _, _, m in credit(consumer.runs(conversion)[LINEAR.version_id])] == [5_000] * 2
 
     consumer.set_journey(AGENCY, CLIENT, PERSON, [A, replace(B, consent=ConsentState.WITHDRAWN)])

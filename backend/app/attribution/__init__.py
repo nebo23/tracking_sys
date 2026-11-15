@@ -1,14 +1,16 @@
 """Specification 008-A lead and revenue attribution calculation (D-046).
 
-engine holds the contracts (ModelVersion, Touchpoint, Conversion, AttributionRun,
+engine holds the contracts (ModelVersion, Touchpoint, Conversion, SaleState, AttributionRun,
 CreditAllocation and the attribution EvidenceClass), attribute() for one conversion under one
-model version, AttributionHistory for revisions, and IncrementalAttribution, which consumes the
-007-A movement journal. Everything is pure and in memory: no table, HTTP route, identity
-matching or live provider exists yet.
+model version, AttributionHistory for revisions and their registry, ledger_feed() for the
+receipt journal of a 007-A receipt log, and IncrementalAttribution, which consumes it.
+Everything is pure and in memory: no table, HTTP route, identity matching or live provider
+exists yet.
 """
 
 from app.attribution.engine import (
     DEFAULT_WINDOW,
+    EARLIEST_INSTANT,
     RULES,
     Association,
     AttributionHistory,
@@ -24,18 +26,22 @@ from app.attribution.engine import (
     ExcludedTouch,
     ExclusionReason,
     IncrementalAttribution,
+    JournalItem,
     ModelVersion,
     Recipient,
     RevisionCause,
     RunStatus,
+    SaleState,
     Touchpoint,
     attribute,
+    ledger_feed,
     sale_conversion,
-    verified_net,
+    sale_state,
 )
 
 __all__ = [
     "DEFAULT_WINDOW",
+    "EARLIEST_INSTANT",
     "RULES",
     "Association",
     "AttributionHistory",
@@ -51,12 +57,15 @@ __all__ = [
     "ExcludedTouch",
     "ExclusionReason",
     "IncrementalAttribution",
+    "JournalItem",
     "ModelVersion",
     "Recipient",
     "RevisionCause",
     "RunStatus",
+    "SaleState",
     "Touchpoint",
     "attribute",
+    "ledger_feed",
     "sale_conversion",
-    "verified_net",
+    "sale_state",
 ]
