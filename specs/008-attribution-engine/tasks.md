@@ -34,3 +34,5 @@ Reviewed commit `3d772d1`; regressions in `backend/tests/test_attribution_correc
 - [x] R008-12: a currency or exponent change is refused (`test_r008_12_currency_change_is_refused_before_a_revision`).
 - [x] Window boundary: `timedelta.max` and the earliest dates give a documented outcome (`test_window_boundary_at_the_earliest_representable_instant`).
 - [ ] Owner review of the open items in the evidence: the sale association conflict policy, model version ID scope, 007-B persistence of receipt items, and `net_out_of_range` reporting.
+
+- [x] Verify the six follow-up findings on snapshot order, pending receipts, repeated local times, journey recovery, sale currency across models, and financial reads. The [follow-up results](evidence.md#follow-up-verification-against-9892556) cover replay, rejection, and retries.

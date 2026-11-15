@@ -697,3 +697,150 @@ def test_window_boundary_at_the_earliest_representable_instant():
     assert credit(bounded) == [("tp-edge", 1, None)]
     assert bounded.window_start == T0 - 30 * DAY
     assert Fraction(run.credited_share) == 1
+
+
+def test_followup_unchanged_net_advances_the_sale_position_without_a_revision():
+    log = [
+        capture(),
+        adjustment(OperationKind.REFUND, "refund", "20.00", effective=DAY),
+        adjustment(OperationKind.CORRECTION, "correction", "20.00", effective=2 * DAY),
+    ]
+    conversion = sale_of(log)
+    history = AttributionHistory()
+    first = history.calculate(conversion, [A], FIRST, **snapshot(log[:1], conversion))
+    current = history.calculate(conversion, [A], FIRST, **snapshot(log, conversion))
+    assert current.revision == first.revision
+    assert history.revisions(conversion, FIRST) == (first,)
+    older = snapshot(log[:2], conversion)
+    for version in (FIRST, LAST):
+        with pytest.raises(AttributionInputError, match="stale_ledger_position"):
+            history.calculate(conversion, [A], version, **older)
+    with pytest.raises(AttributionInputError, match="stale_ledger_position"):
+        attribute(conversion, [A], FIRST, previous=current, **older)
+    with pytest.raises(AttributionInputError, match="ledger_position_conflict"):
+        history.calculate(conversion, [A], LAST, sale=older["sale"], ledger_position=3)
+    assert history.latest(conversion, FIRST).credited_minor == 10_000
+    assert history.latest(conversion, LAST) is None
+    assert (
+        history.calculate(conversion, [B], LAST, **snapshot(log, conversion)).credited_minor
+        == 10_000
+    )
+
+
+@pytest.mark.parametrize("suffix_only", [False, True])
+def test_followup_unposted_refund_is_part_of_receipt_identity(suffix_only):
+    pending = adjustment(OperationKind.REFUND, "pending", "20.00", effective=-DAY)
+    original = [pending, capture()]
+    other = [replace(pending, amount=Money.parse("50.00", AAA)), original[1]]
+    conversion = sale_of(original)
+    consumer = consumer_for({PERSON: [A]}, LAST)
+    consumer.register(conversion)
+    consumer.apply(units(original[:1]))
+    previous = consumer.history.revisions(conversion, LAST)
+    with pytest.raises(AttributionInputError, match="journal_mismatch"):
+        consumer.apply(units(other)[int(suffix_only) :])
+    assert consumer.checkpoint == 1 and consumer.buffered == 0
+    assert consumer.history.revisions(conversion, LAST) == previous
+    consumer.apply(units(original)[1:])
+    assert consumer.net(conversion) == Money(8_000, AAA)
+
+
+def test_followup_refund_replay_uses_absolute_instants_in_the_receipt():
+    first = datetime(2026, 11, 1, 1, 30, tzinfo=ZoneInfo("America/New_York"))
+    refund = replace(
+        adjustment(OperationKind.REFUND, "r1", "80.00", effective=DAY), effective_at=first
+    )
+    competing = replace(
+        adjustment(OperationKind.REFUND, "r2", "60.00", effective=2 * DAY),
+        effective_at=datetime(2026, 11, 1, 6, 0, tzinfo=UTC),
+    )
+    original = [capture(effective=-2 * DAY), refund, competing]
+    alternate = [original[0], replace(refund, effective_at=first.replace(fold=1)), competing]
+    conversion = sale_of(original)
+    assert fresh(alternate, conversion, [A], FIRST).credited_minor == 4_000
+    consumer = consumer_for({PERSON: [A]}, FIRST)
+    consumer.register(conversion)
+    consumer.apply(units(original[:2]))
+    with pytest.raises(AttributionInputError, match="journal_mismatch"):
+        consumer.apply(units(alternate))
+    assert consumer.checkpoint == 2
+    equivalent = [original[0], replace(refund, effective_at=first.astimezone(UTC)), competing]
+    consumer.apply(units(equivalent))
+    assert consumer.net(conversion) == Money(2_000, AAA)
+    assert consumer.apply(units(original)) == ()
+
+
+def test_followup_restart_before_loading_journey_preserves_campaign_history():
+    log = [capture(), adjustment(OperationKind.REFUND, "r", "20.00", effective=DAY)]
+    conversion = sale_of(log)
+    history = AttributionHistory()
+    original = consumer_for({PERSON: [A]}, FIRST, history=history)
+    original.register(conversion)
+    deliver(original, log[:1])
+    previous = history.revisions(conversion, FIRST)
+    restarted = IncrementalAttribution([FIRST], history=history)
+    assert restarted.register(conversion) == ()
+    assert restarted.apply(units(log[:1])) == ()
+    assert history.revisions(conversion, FIRST) == previous
+    (refund,) = restarted.apply(units(log)[1:])
+    assert credit(refund) == [("tp-a", 1, 8_000)]
+    assert restarted.set_journey(AGENCY, CLIENT, PERSON, [A]) == ()
+    (withdrawn,) = restarted.set_journey(AGENCY, CLIENT, PERSON, [])
+    assert credit(withdrawn) == [("unknown", 1, 8_000)]
+
+
+@pytest.mark.parametrize("currency", [BBB, Currency("AAA", 3)])
+def test_followup_one_currency_across_models_and_publication(currency):
+    log = [capture()]
+    conversion = sale_of(log)
+    history = AttributionHistory()
+    first = history.calculate(conversion, [A], FIRST, **snapshot(log, conversion))
+    alternate = [capture(Money(10_000, currency))]
+    with pytest.raises(AttributionInputError, match="currency_changed"):
+        history.calculate(conversion, [A], LAST, **snapshot(alternate, conversion))
+    with pytest.raises(AttributionInputError, match="currency_changed"):
+        history.record(fresh(alternate, conversion, [A], LAST))
+    published = []
+    consumer = consumer_for({PERSON: [A]}, LAST, commit=published.extend, history=history)
+    consumer.register(conversion)
+    with pytest.raises(AttributionInputError, match="currency_changed"):
+        consumer.apply(units(alternate))
+    assert published == [] and consumer.checkpoint == 0
+    assert history.latest(conversion, FIRST) is first
+    assert history.latest(conversion, LAST) is None
+    deliver(consumer, log)
+    assert len(published) == 1 and published[0].verified_net == Money(10_000, AAA)
+
+
+def test_followup_financial_reads_require_the_registered_sale_identity():
+    log = [capture()]
+    conversion = sale_of(log)
+    consumer = consumer_for({PERSON: [A]}, FIRST)
+    assert consumer.net(conversion) is None
+    deliver(consumer, log)
+    with pytest.raises(AttributionInputError, match="conversion_not_registered"):
+        consumer.net(conversion)
+    consumer.register(conversion)
+    for read in (consumer.sale, consumer.net):
+        with pytest.raises(AttributionInputError, match="conversion_mismatch"):
+            read(replace(conversion, person_id=PERSON_2))
+        with pytest.raises(AttributionInputError, match="sale_association_conflict"):
+            read(replace(conversion, conversion_id="other-id", person_id=PERSON_2))
+    assert consumer.net(conversion) == Money(10_000, AAA)
+
+
+def test_followup_recover_snapshot_without_position_or_journey():
+    log = [capture(), adjustment(OperationKind.REFUND, "r", "20.00", effective=DAY)]
+    conversion = sale_of(log)
+    history = AttributionHistory()
+    # A caller may record a standalone run without its original touchpoint snapshot.
+    history.record(attribute(conversion, [A], LAST, sale=snapshot(log[:1], conversion)["sale"]))
+    consumer = IncrementalAttribution([LAST], history=history)
+    assert consumer.register(conversion) == ()
+    assert consumer.apply(units(log[:1])) == ()
+    with pytest.raises(AttributionInputError, match="journey_required"):
+        consumer.apply(units(log)[1:])
+    assert consumer.checkpoint == 1 and len(history.revisions(conversion, LAST)) == 1
+    assert consumer.set_journey(AGENCY, CLIENT, PERSON, [A]) == ()
+    (revised,) = consumer.apply(units(log)[1:])
+    assert credit(revised) == [("tp-a", 1, 8_000)]

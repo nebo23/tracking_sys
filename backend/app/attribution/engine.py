@@ -47,11 +47,13 @@ atomic storage and permissions belong to 007-B; identity association of sales be
 and 006.
 """
 
+import json
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from fractions import Fraction
+from hashlib import sha256
 from math import floor
 from uuid import UUID
 
@@ -71,6 +73,7 @@ from app.privacy.consent import ConsentState
 RULES = "008-A.1"
 DEFAULT_WINDOW = timedelta(days=30)
 EARLIEST_INSTANT = datetime.min.replace(tzinfo=UTC)
+_JOURNAL_START = bytes(sha256().digest_size)
 
 
 class AttributionInputError(ValueError):
@@ -413,6 +416,7 @@ class JournalItem:
     count place the item within that receipt, which has one item per movement, or a single item
     without a movement. The closing item (index == count) carries the authoritative state,
     after the receipt, of every sale transaction the receipt moved or changed.
+    All parts share the same two digests, binding the receipt to its original log prefix.
     """
 
     receipt: int
@@ -420,11 +424,16 @@ class JournalItem:
     count: int
     movement: Movement | None
     sales: tuple[SaleState, ...] = ()
+    previous_digest: bytes = field(kw_only=True)
+    receipt_digest: bytes = field(kw_only=True)
 
     def __post_init__(self) -> None:
         _require_int(self.receipt, "invalid_journal_item", 1)
         _require_int(self.index, "invalid_journal_item", 1)
         _require_int(self.count, "invalid_journal_item", 1)
+        for digest in (self.previous_digest, self.receipt_digest):
+            if not isinstance(digest, bytes) or len(digest) != len(_JOURNAL_START):
+                raise AttributionInputError("invalid_journal_item")
         if self.index > self.count:
             raise AttributionInputError("invalid_journal_item")
         if self.movement is None:
@@ -460,13 +469,25 @@ def ledger_feed(records: Iterable[Evidence]) -> tuple[JournalItem, ...]:
     log = list(records)
     if not all(isinstance(record, Evidence) for record in log):
         raise AttributionInputError("invalid_evidence")
-    instants = [utc_instant(record.received_at) for record in log]
+    log = [
+        replace(
+            record,
+            effective_at=_utc(record.effective_at, "invalid_effective_at"),
+            received_at=_utc(record.received_at, "invalid_received_at"),
+        )
+        for record in log
+    ]
+    instants = [record.received_at for record in log]
     if any(later < earlier for earlier, later in zip(instants, instants[1:], strict=False)):
         raise AttributionInputError("receipt_log_out_of_order")
     items: list[JournalItem] = []
     movements: tuple[Movement, ...] = ()
     states: dict[tuple[LedgerScope, str], SaleState] = {}
-    for receipt in range(1, len(log) + 1):
+    previous_digest = _JOURNAL_START
+    for receipt, record in enumerate(log, start=1):
+        # Bind the full input, including a pending receipt, to its ordered prefix.
+        payload = json.dumps(asdict(record), sort_keys=True, separators=(",", ":"), default=str)
+        digest = sha256(previous_digest + payload.encode("utf-8")).digest()
         ledger = calculate(log[:receipt])
         if ledger.movements[: len(movements)] != movements:
             raise AttributionInputError("journal_not_append_only")
@@ -480,11 +501,21 @@ def ledger_feed(records: Iterable[Evidence]) -> tuple[JournalItem, ...]:
             for key in sorted(current)
             if key in moved or states.get(key) != current[key]
         )
-        if not new:
-            items.append(JournalItem(receipt, 1, 1, None, closing))
-        for index, movement in enumerate(new, start=1):
-            sales = closing if index == len(new) else ()
-            items.append(JournalItem(receipt, index, len(new), movement, sales))
+        parts = new or (None,)
+        for index, movement in enumerate(parts, start=1):
+            sales = closing if index == len(parts) else ()
+            items.append(
+                JournalItem(
+                    receipt,
+                    index,
+                    len(parts),
+                    movement,
+                    sales,
+                    previous_digest=previous_digest,
+                    receipt_digest=digest,
+                )
+            )
+        previous_digest = digest
         movements, states = ledger.movements, current
     return tuple(items)
 
@@ -612,8 +643,9 @@ def attribute(
 
     sale is the authoritative state of a sale's transaction after receipt ledger_position, or
     None while nothing has posted. previous is the latest revision for the same conversion and
-    version, if any. When the new outcome equals it, previous is returned unchanged; otherwise
-    the next revision is returned with its causes and signed differences. An older ledger
+    version, if any. A changed outcome returns the next revision with its causes and signed
+    differences. For an unchanged outcome, a later receipt advances the position on the returned
+    view while preserving the revision number and the original historical record. An older ledger
     position than previous, a different state at the same position, or a change of currency is
     refused.
     """
@@ -687,6 +719,8 @@ def attribute(
     if previous is None:
         return run
     if previous.outcome == run.outcome:
+        if conversion.kind is ConversionKind.SALE and ledger_position != previous.ledger_position:
+            return replace(previous, ledger_position=ledger_position)
         return previous
     return replace(
         run,
@@ -709,15 +743,27 @@ def _check_previous(
         or previous.model_version != model_version
     ):
         raise AttributionInputError("revision_mismatch")
-    if previous.sale is not None and sale is not None and previous.sale.currency != sale.currency:
+    if conversion.kind is ConversionKind.SALE:
+        _check_sale_observation(previous.sale, previous.ledger_position, sale, ledger_position)
+
+
+def _check_sale_observation(
+    prior: SaleState | None,
+    prior_position: int | None,
+    sale: SaleState | None,
+    ledger_position: int | None,
+) -> None:
+    if prior is not None and sale is not None and prior.currency != sale.currency:
         raise AttributionInputError("currency_changed")
-    if conversion.kind is ConversionKind.SALE and previous.ledger_position is not None:
+    if prior_position is not None:
         if ledger_position is None:
             raise AttributionInputError("ledger_position_required")
-        if ledger_position < previous.ledger_position:
+        if ledger_position < prior_position:
             raise AttributionInputError("stale_ledger_position")
-        if ledger_position == previous.ledger_position and sale != previous.sale:
+        if ledger_position == prior_position and sale != prior:
             raise AttributionInputError("ledger_position_conflict")
+    if prior is not None and sale is None:
+        raise AttributionInputError("sale_state_missing")
 
 
 def _causes(previous: AttributionRun, run: AttributionRun) -> tuple[RevisionCause, ...]:
@@ -841,6 +887,7 @@ def _differences(previous: AttributionRun, run: AttributionRun) -> tuple[CreditD
 _RunKey = tuple[UUID, UUID, str, str]
 _LedgerKey = tuple[LedgerScope, str]
 _ConversionKey = tuple[UUID, UUID, str]
+_JourneyKey = tuple[UUID, UUID, str]
 
 
 def _run_key(conversion: Conversion, version: ModelVersion) -> _RunKey:
@@ -859,10 +906,46 @@ class AttributionHistory:
     """
 
     def __init__(self) -> None:
-        self._runs: dict[_RunKey, list[AttributionRun]] = {}
+        self._runs: dict[_RunKey, tuple[AttributionRun, ...]] = {}
         self._conversions: dict[_ConversionKey, Conversion] = {}
         self._sales: dict[_LedgerKey, _ConversionKey] = {}
         self._models: dict[str, ModelVersion] = {}
+        self._observations: dict[_LedgerKey, tuple[SaleState | None, int | None]] = {}
+        self._journeys: dict[_JourneyKey, tuple[Touchpoint, ...]] = {}
+
+    def _stage(self) -> "AttributionHistory":
+        """Isolate a consumer call until its commit succeeds. All mapping values are immutable."""
+        staged = AttributionHistory()
+        staged._runs = self._runs.copy()
+        staged._conversions = self._conversions.copy()
+        staged._sales = self._sales.copy()
+        staged._models = self._models.copy()
+        staged._observations = self._observations.copy()
+        staged._journeys = self._journeys.copy()
+        return staged
+
+    def _publish(self, staged: "AttributionHistory") -> None:
+        self._runs = staged._runs
+        self._conversions = staged._conversions
+        self._sales = staged._sales
+        self._models = staged._models
+        self._observations = staged._observations
+        self._journeys = staged._journeys
+
+    def _check_observation(
+        self, conversion: Conversion, sale: SaleState | None, position: int | None
+    ) -> None:
+        if conversion.kind is ConversionKind.SALE and conversion.ledger_key in self._observations:
+            _check_sale_observation(*self._observations[conversion.ledger_key], sale, position)
+
+    def _caught_up(self, key: _LedgerKey, sale: SaleState | None, position: int) -> bool:
+        prior, known_position = self._observations.get(key, (None, None))
+        if known_position is not None:
+            return position >= known_position
+        # A snapshot supplied without a position can anchor replay at its matching state.
+        if prior is not None and sale is not None and prior.currency != sale.currency:
+            raise AttributionInputError("currency_changed")
+        return prior is None or prior == sale
 
     def check_conversion(self, conversion: Conversion) -> None:
         if not isinstance(conversion, Conversion):
@@ -898,7 +981,14 @@ class AttributionHistory:
         self.check_conversion(conversion)
         self.check_model(version)
         runs = self._runs.get(_run_key(conversion, version))
-        return runs[-1] if runs else None
+        if not runs:
+            return None
+        run = runs[-1]
+        if conversion.kind is ConversionKind.SALE:
+            sale, position = self._observations[conversion.ledger_key]
+            if sale == run.sale and position != run.ledger_position:
+                return replace(run, ledger_position=position)
+        return run
 
     def revisions(
         self, conversion: Conversion, version: ModelVersion
@@ -912,9 +1002,11 @@ class AttributionHistory:
             raise AttributionInputError("invalid_run")
         self.check_conversion(run.conversion)
         self.check_model(run.model_version)
-        runs = self._runs.get(_run_key(run.conversion, run.model_version), [])
-        if runs and runs[-1] is run:
-            return
+        self._check_observation(run.conversion, run.sale, run.ledger_position)
+        runs = self._runs.get(_run_key(run.conversion, run.model_version), ())
+        if runs and run.revision == runs[-1].revision:
+            if run == replace(runs[-1], ledger_position=run.ledger_position):
+                return
         if run.revision != len(runs) + 1:
             raise AttributionInputError("revision_out_of_order")
         if runs:
@@ -925,11 +1017,14 @@ class AttributionHistory:
     def record(self, run: AttributionRun) -> AttributionRun:
         """Append the next revision; recording the latest revision again changes nothing."""
         self.check_record(run)
-        runs = self._runs.setdefault(_run_key(run.conversion, run.model_version), [])
+        key = _run_key(run.conversion, run.model_version)
+        runs = self._runs.get(key, ())
         self.register(run.conversion)
         self._models[run.model_version.version_id] = run.model_version
-        if not runs or runs[-1] is not run:
-            runs.append(run)
+        if run.conversion.kind is ConversionKind.SALE:
+            self._observations[run.conversion.ledger_key] = (run.sale, run.ledger_position)
+        if not runs or run.revision != runs[-1].revision:
+            self._runs[key] = (*runs, run)
         return run
 
     def calculate(
@@ -941,18 +1036,24 @@ class AttributionHistory:
         sale: SaleState | None = None,
         ledger_position: int | None = None,
     ) -> AttributionRun:
+        previous = self.latest(conversion, model_version)
+        touches = tuple(touchpoints)
         run = attribute(
             conversion,
-            touchpoints,
+            touches,
             model_version,
             sale=sale,
             ledger_position=ledger_position,
-            previous=self.latest(conversion, model_version),
+            previous=previous,
         )
-        return self.record(run)
+        self.record(run)
+        journey = _journey_key(conversion)
+        self._journeys[journey] = tuple(
+            t for t in touches if (t.agency_id, t.client_id, t.person_id) == journey
+        )
+        return run
 
 
-_JourneyKey = tuple[UUID, UUID, str]
 _Position = tuple[int, int]
 
 
@@ -964,9 +1065,8 @@ class IncrementalAttribution:
     history, sale states, journeys, buffered items and the receipt checkpoint updated. A failed
     commit leaves everything as it was, so the same items can be applied again.
 
-    A consumer attached to a populated history publishes nothing for a sale whose recorded
-    ledger position it has not yet reached; replaying to that position reproduces the recorded
-    revision instead of adding one.
+    A consumer attached to a populated history restores its scoped journeys and waits until
+    replay reaches each sale's recorded position. An unchanged outcome preserves its revision.
     """
 
     def __init__(
@@ -991,7 +1091,6 @@ class IncrementalAttribution:
         self._nets: dict[_LedgerKey, int] = {}
         self._sales: dict[_LedgerKey, SaleState] = {}
         self._conversions: dict[_ConversionKey, Conversion] = {}
-        self._journeys: dict[_JourneyKey, tuple[Touchpoint, ...]] = {}
 
     @property
     def buffered(self) -> int:
@@ -999,7 +1098,11 @@ class IncrementalAttribution:
         return len(self._buffer)
 
     def sale(self, conversion: Conversion) -> SaleState | None:
-        return self._sales.get(conversion.ledger_key)
+        self.history.check_conversion(conversion)
+        state = self._sales.get(conversion.ledger_key)
+        if state is not None and self.history.conversion(conversion.key) is None:
+            raise AttributionInputError("conversion_not_registered")
+        return state
 
     def net(self, conversion: Conversion) -> Money | None:
         state = self.sale(conversion)
@@ -1014,11 +1117,13 @@ class IncrementalAttribution:
 
     def register(self, conversion: Conversion) -> tuple[AttributionRun, ...]:
         """Register a conversion; a retry is idempotent and a sale may be re-anchored."""
-        self.history.check_conversion(conversion)
-        runs = tuple(
-            self._calculate([conversion], self._sales, self._journeys, self.checkpoint, {})
-        )
-        self._finish(runs, [conversion])
+        staged = self.history._stage()
+        staged.check_conversion(conversion)
+        if staged.conversion(conversion.key) is None:
+            staged._journeys.setdefault(_journey_key(conversion), ())
+        staged.register(conversion)
+        runs = tuple(self._calculate([conversion], self._sales, self.checkpoint, staged))
+        self._finish(runs, staged)
         self._conversions[conversion.key] = conversion
         return runs
 
@@ -1032,11 +1137,11 @@ class IncrementalAttribution:
         journey = (agency_id, client_id, person_id)
         if any((t.agency_id, t.client_id, t.person_id) != journey for t in touches):
             raise AttributionInputError("journey_scope_mismatch")
-        journeys = {**self._journeys, journey: touches}
+        staged = self.history._stage()
+        staged._journeys[journey] = touches
         affected = [c for c in self._conversions.values() if _journey_key(c) == journey]
-        runs = tuple(self._calculate(affected, self._sales, journeys, self.checkpoint, {}))
-        self._finish(runs, [])
-        self._journeys = journeys
+        runs = tuple(self._calculate(affected, self._sales, self.checkpoint, staged))
+        self._finish(runs, staged)
         return runs
 
     def apply(self, items: Iterable[JournalItem]) -> tuple[AttributionRun, ...]:
@@ -1063,26 +1168,34 @@ class IncrementalAttribution:
             elif known != item:
                 raise AttributionInputError("journal_mismatch")
         buffer = dict(self._buffer)
-        position, sequence, count = self._cursor()
+        position, sequence, last = self._cursor()
         for key in sorted(new):
             item = new[key]
             if key < position:
                 raise AttributionInputError("journal_mismatch")
             if key != position:
                 raise AttributionInputError("journal_gap")
-            if item.index > 1 and item.count != count:
+            if item.index == 1:
+                expected = last.receipt_digest if last else _JOURNAL_START
+                if item.previous_digest != expected:
+                    raise AttributionInputError("journal_mismatch")
+            elif (item.count, item.previous_digest, item.receipt_digest) != (
+                last.count,
+                last.previous_digest,
+                last.receipt_digest,
+            ):
                 raise AttributionInputError("journal_mismatch")
             if item.movement is not None:
                 if item.movement.sequence != sequence + 1:
                     raise AttributionInputError("journal_mismatch")
                 sequence += 1
-            count = item.count
+            last = item
             position = (
-                (item.receipt, item.index + 1) if item.index < count else (item.receipt + 1, 1)
+                (item.receipt, item.index + 1) if item.index < item.count else (item.receipt + 1, 1)
             )
             buffer[key] = item
 
-        nets, sales, staged = dict(self._nets), dict(self._sales), {}
+        nets, sales, staged = dict(self._nets), dict(self._sales), self.history._stage()
         applied: dict[_Position, JournalItem] = {}
         checkpoint, runs = self.checkpoint, []
         while (first := buffer.get((checkpoint + 1, 1))) is not None:
@@ -1094,29 +1207,40 @@ class IncrementalAttribution:
             affected = [
                 c
                 for c in self._conversions.values()
-                if c.kind is ConversionKind.SALE and c.ledger_key in changed
+                if c.kind is ConversionKind.SALE
+                and (
+                    c.ledger_key in changed
+                    or staged._observations.get(c.ledger_key, (None, None))[1] == receipt
+                )
             ]
-            runs += self._calculate(affected, sales, self._journeys, receipt, staged)
+            runs += self._calculate(affected, sales, receipt, staged)
             for part in parts:
                 applied[part.position] = buffer.pop(part.position)
             checkpoint = receipt
         result = tuple(runs)
-        self._finish(result, [])
+        if checkpoint > self.checkpoint:
+            for conversion in self._conversions.values():
+                if conversion.kind is ConversionKind.SALE:
+                    key = conversion.ledger_key
+                    if staged._caught_up(key, sales.get(key), checkpoint):
+                        staged._check_observation(conversion, sales.get(key), checkpoint)
+                        staged._observations[key] = (sales.get(key), checkpoint)
+        self._finish(result, staged)
         self._applied.update(applied)
         self._buffer, self._nets, self._sales = buffer, nets, sales
         self.checkpoint = checkpoint
         return result
 
-    def _cursor(self) -> tuple[_Position, int, int]:
-        """The next expected position, the last movement sequence and the open receipt's count."""
+    def _cursor(self) -> tuple[_Position, int, JournalItem | None]:
+        """The next expected position, last movement sequence and preceding item."""
         items = list(self._applied.values()) + list(self._buffer.values())
         if not items:
-            return (1, 1), 0, 0
+            return (1, 1), 0, None
         last = max(items, key=lambda item: item.position)
         sequence = max((i.movement.sequence for i in items if i.movement is not None), default=0)
         if last.index < last.count:
-            return (last.receipt, last.index + 1), sequence, last.count
-        return (last.receipt + 1, 1), sequence, last.count
+            return (last.receipt, last.index + 1), sequence, last
+        return (last.receipt + 1, 1), sequence, last
 
     @staticmethod
     def _apply_receipt(
@@ -1126,7 +1250,6 @@ class IncrementalAttribution:
     ) -> set[_LedgerKey]:
         """Accumulate one receipt exactly and check it against its closing sale states."""
         closing = {state.key: state for state in parts[-1].sales}
-        moved = set()
         for part in parts:
             if part.movement is None:
                 continue
@@ -1135,7 +1258,6 @@ class IncrementalAttribution:
             if state is None or part.movement.amount.currency != state.currency:
                 raise AttributionInputError("journal_mismatch")
             nets[key] = nets.get(key, 0) + part.movement.amount.minor
-            moved.add(key)
         for key, state in closing.items():
             prior = sales.get(key)
             if prior is not None and prior.currency != state.currency:
@@ -1149,44 +1271,46 @@ class IncrementalAttribution:
         self,
         conversions: list[Conversion],
         sales: dict[_LedgerKey, SaleState],
-        journeys: dict[_JourneyKey, tuple[Touchpoint, ...]],
         position: int,
-        staged: dict[_RunKey, AttributionRun],
+        staged: AttributionHistory,
     ) -> list[AttributionRun]:
         runs = []
         for conversion in sorted(conversions, key=_conversion_order):
             is_sale = conversion.kind is ConversionKind.SALE
-            for version in self.versions:
-                key = _run_key(conversion, version)
-                previous = staged.get(key) or self.history.latest(conversion, version)
+            sale = sales.get(conversion.ledger_key) if is_sale else None
+            if is_sale:
+                if not staged._caught_up(conversion.ledger_key, sale, position):
+                    continue
+                staged._check_observation(conversion, sale, position)
+            journey = _journey_key(conversion)
+            if journey not in staged._journeys:
+                # A standalone recorded run does not contain the original journey.
+                # Refuse a changed sale until the caller supplies the journey and retries.
                 if (
                     is_sale
-                    and previous is not None
-                    and previous.ledger_position is not None
-                    and position < previous.ledger_position
+                    and sale != staged._observations.get(conversion.ledger_key, (None, None))[0]
                 ):
-                    continue  # still replaying towards the position the history records
+                    raise AttributionInputError("journey_required")
+                continue
+            for version in self.versions:
+                previous = staged.latest(conversion, version)
                 run = attribute(
                     conversion,
-                    journeys.get(_journey_key(conversion), ()),
+                    staged._journeys[journey],
                     version,
-                    sale=sales.get(conversion.ledger_key) if is_sale else None,
+                    sale=sale,
                     ledger_position=position if is_sale else None,
                     previous=previous,
                 )
-                if run is not previous:
+                staged.record(run)
+                if previous is None or run.revision != previous.revision:
                     runs.append(run)
-                    staged[key] = run
         return runs
 
-    def _finish(self, runs: Iterable[AttributionRun], conversions: list[Conversion]) -> None:
-        runs = tuple(runs)
+    def _finish(self, runs: tuple[AttributionRun, ...], staged: AttributionHistory) -> None:
         if self._commit is not None and runs:
             self._commit(runs)  # may raise: nothing below runs, no state has changed
-        for conversion in conversions:
-            self.history.register(conversion)
-        for run in runs:
-            self.history.record(run)
+        self.history._publish(staged)
 
 
 def _journey_key(conversion: Conversion) -> _JourneyKey:

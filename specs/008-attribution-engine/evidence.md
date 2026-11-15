@@ -172,3 +172,20 @@ Run from `backend/` with the project virtual environment. The owner's native dat
 - `ledger_feed()` recalculates every receipt prefix, so it is a reference adapter. 007-B must persist the receipt position, item count and closing sale states, as well as the buffered and applied items, which are in memory here.
 - A `net_out_of_range` revision has no allocations. A reporting policy for that transient state is not yet defined.
 - The earlier open decisions remain: production defaults, a report freeze cutoff, chargeback weighting and publication under D-012.
+
+## Follow-up verification against 9892556
+
+The second review used the public attribution entry points, synthetic scoped journeys, and receipt logs from the 007-A ledger. The nine `test_followup_` cases failed against the attribution implementation at `9892556` and passed with these changes.
+
+| Case | Observed after the correction |
+|---|---|
+| No change in net at a later receipt | Reading positions 1 and 3 records one revision at 100.00. A later read of position 2 at 80.00 is refused even for a new model. A different financial state at position 3 is also refused. |
+| Pending refund replay | A pending refund of 20.00 followed by a capture of 100.00 yields 80.00. Substituting a pending refund of 50.00 is refused whether the delivery includes the old prefix or only the new suffix. The genuine suffix still applies. |
+| Two occurrences of the same local hour | Moving a refund between the two New York 01:30 instants would change the result from 20.00 to 40.00. The alternate receipt is refused. Expressing the original instant in UTC replays successfully. |
+| Restart before resupplying the journey | A sale credited to campaign A retains its 100.00 attribution through restart. A refund reduces it to 80.00. Supplying the same journey adds no revision. Explicitly withdrawing all touches moves the 80.00 to unknown. |
+| Currency across models | Every model of the scoped sale shares one currency and exponent. Conflicting calculations, direct history writes and consumer deliveries are refused before the commit callback. The original receipt can then be applied. |
+| Scoped financial reads | An empty consumer returns no balance. After a receipt arrives, a financial read requires a registered sale association. A conflicting person or conversion alias is refused. |
+
+`ledger_feed()` emits a SHA-256 chain over each complete, UTC-normalized evidence record. Every item of a receipt carries its previous and current digest, including receipts that produce no movement. A sale observation records the most recent accepted ledger position separately from the immutable attribution revisions. In-memory history retains the scoped journey for recovery. When a caller supplies only a standalone run, a changed receipt requires the caller to supply its journey before retrying.
+
+Verification from the backend directory passed 163 focused attribution and ledger tests and 500 backend unit tests. The unit selection excluded 279 integration cases. Ruff lint, formatting of the changed Python files, and Git whitespace checks passed.
