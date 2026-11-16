@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from datetime import timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
@@ -18,7 +19,7 @@ from uuid import UUID
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import func, select, text, update
+from sqlalchemy import event, func, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -1125,3 +1126,240 @@ def test_r009_07_a_retrying_teardown_does_not_starve_other_tenants(lab):
     }
     assert lab.view("owner_a", w.a, w.a1, k1).json()["disconnect"]["revocation"] == "failed"
     assert lab.records(k1) == 0
+
+
+# --- Correction review regressions (corrections-review-2026-11-15.md, R009-08 to R009-10) ---
+
+
+def _lock_waits(db) -> int:
+    with db.migration.connect() as connection:
+        return connection.execute(text("SELECT count(*) FROM pg_locks WHERE NOT granted")).scalar()
+
+
+# Wait for a condition another thread establishes; correctness never depends on the delay.
+def _wait_until(predicate, message, timeout=30.0):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() > deadline:
+            raise AssertionError(message)
+        time.sleep(0.02)
+
+
+# The same Owner initiating both reconnects, as reviewed, and two different managers, whose
+# sessions share no user row lock, so only the connection lock orders the two callbacks.
+@pytest.mark.parametrize("initiators", [("owner_a", "owner_a"), ("owner_a", "admin")])
+def test_r009_08_concurrent_reconnects_keep_the_winning_grant_usable(lab, monkeypatch, initiators):
+    import app.services.connectors as service
+
+    w = lab.w
+    k1, k2, k3 = lab.fixtures()
+    assert lab.worker()["sync"] == {"succeeded": 3}
+    _fail_k(lab, w.a, w.a1, k1)
+    previous = lab.tokens(k1)
+    others = {k: lab.tokens(k) for k in (k2, k3)}
+    # Two reconnects for the same connection generation.
+    names = dict(zip(("delayed", "other"), initiators, strict=True))
+    delayed_url = lab.start(names["delayed"], w.a, w.a1, k1)
+    delayed_cookie = lab.binding(names["delayed"])
+    other_url = lab.start(names["other"], w.a, w.a1, k1)
+    other_cookie = lab.binding(names["other"])
+
+    # The delayed callback stops after it has checked the connection generation and before it
+    # reads the versions of the previous grant; the other callback then runs.
+    paused, release = threading.Event(), threading.Event()
+    live_secrets = service._live_secrets
+
+    def gated(session, connection_id):
+        if threading.current_thread().name == "delayed" and not paused.is_set():
+            paused.set()
+            assert release.wait(60)
+        return live_secrets(session, connection_id)
+
+    monkeypatch.setattr(service, "_live_secrets", gated)
+    outcomes = {}
+
+    def callback(name, url, cookie):
+        outcomes[name] = lab.complete(names[name], url, cookie)
+
+    delayed = threading.Thread(
+        target=callback, args=("delayed", delayed_url, delayed_cookie), name="delayed"
+    )
+    other = threading.Thread(target=callback, args=("other", other_url, other_cookie), name="other")
+    delayed.start()
+    assert paused.wait(60)
+    other.start()
+    # The other callback either completes or waits for the delayed callback's consistent view.
+    _wait_until(
+        lambda: not other.is_alive() or _lock_waits(w.db) > 0,
+        "The second callback neither completed nor waited.",
+    )
+    release.set()
+    delayed.join(60)
+    other.join(60)
+    monkeypatch.undo()
+    assert not delayed.is_alive() and not other.is_alive()
+
+    # Exactly one callback installs its grant; the superseded one disposed of its own grant.
+    assert sorted(outcomes.values(), key=str) == sorted([k1, "connection_changed"], key=str)
+    delayed_grant, other_grant = lab.provider.grants()[-2:]
+    assert delayed_grant == (ACCOUNT, outcomes["delayed"] == "connection_changed")
+    assert other_grant == (ACCOUNT, outcomes["other"] == "connection_changed")
+    body = lab.view("owner_a", w.a, w.a1, k1).json()
+    assert body["status"] == "active" and body["actions"]["reconnect"] is False
+    installed = lab.tokens(k1)
+    assert set(installed) == {"access_token", "refresh_token"}
+    assert all(lab.provider.token_usable(t) for t in installed.values())
+    assert len(lab.provider.fetch_page(installed["access_token"])) == 3
+    assert lab.worker()["sync"] == {"succeeded": 1}
+    assert not any(lab.provider.token_usable(t) for t in previous.values())
+    # The client sharing the account and the client in another agency are unaffected.
+    for k, tokens in others.items():
+        assert lab.tokens(k) == tokens
+        assert all(lab.provider.token_usable(t) for t in tokens.values())
+    assert lab.sync("owner_a", w.a, w.a2, k2).status_code == 202
+    assert lab.sync("owner_b", w.b, w.b1, k3).status_code == 202
+    assert lab.worker()["sync"] == {"succeeded": 2}
+
+
+def test_r009_09_a_rejected_reconnect_keeps_the_original_grant(lab, api, capfd):
+    w = lab.w
+    k1, k2, k3 = lab.fixtures()
+    assert lab.worker()["sync"] == {"succeeded": 3}
+    _fail_k(lab, w.a, w.a1, k1)
+    original = lab.tokens(k1)
+    recorded = [(s.id, s.kind, s.version, s.status, s.revocation) for s in lab.secrets(k1)]
+    others = {k: lab.tokens(k) for k in (k2, k3)}
+    generation = lab.row(k1).generation
+
+    def rejected(outcome, account=ACCOUNT, attempt=None):
+        grants = len(lab.provider.grants())
+        capfd.readouterr()
+        result = (
+            attempt()
+            if attempt
+            else lab.finish("owner_a", lab.start("owner_a", w.a, w.a1, k1), account)[0]
+        )
+        assert result == {"error": outcome}
+        # The rejected grant is disposed at the provider without a disposal failure.
+        assert lab.provider.grants()[grants:] == [(account, True)]
+        assert _disposal_events(capfd.readouterr().err) == []
+        # The original grant still works and its recorded outcome is unchanged.
+        connection = lab.row(k1)
+        assert (connection.status, connection.generation) == ("reconnect_required", generation)
+        assert [
+            (s.id, s.kind, s.version, s.status, s.revocation) for s in lab.secrets(k1)
+        ] == recorded
+        assert lab.tokens(k1) == original
+        assert all(lab.provider.token_usable(t) for t in original.values())
+        assert len(lab.provider.fetch_page(original["access_token"])) == 3
+
+    # A different external account.
+    rejected("account_mismatch", account="syn-other")
+
+    # Loss of authority: the initiating Admin becomes an Analyst before the callback.
+    url = lab.start("admin", w.a, w.a1, k1)
+    with tenancy_transaction(w.db.runtime, w.users.owner_a) as tenancy:
+        tenancy.update_member(w.a, w.admin, role=Role.ANALYST)
+    rejected("connection_denied", attempt=lambda: lab.finish("admin", url)[0])
+
+    # An ineligible client: archived between initiation and callback.
+    url = lab.start("owner_a", w.a, w.a1, k1)
+    _archive(w, w.a1)
+    rejected("connection_denied", attempt=lambda: lab.finish("owner_a", url)[0])
+    with tenancy_transaction(w.db.runtime, w.users.owner_a) as tenancy:
+        tenancy.update_client(w.a, w.a1, status="active")
+
+    # A session that ended before the callback.
+    browser = api.new_client(lab.config)
+    api.login(browser, "owner_a@example.test")
+    response = browser.post(f"/agencies/{w.a}/clients/{w.a1}/connections/{k1}/reconnect")
+    url = response.json()["authorization_url"]
+    cookie = browser.cookies.get("tracking_connector_oauth", path="/connectors/oauth")
+    session_token = browser.cookies.get("tracking_session")
+    assert browser.post("/auth/logout").status_code == 204
+
+    def ended_session():
+        code = lab.provider.approve(url, ACCOUNT)
+        try:
+            complete_authorization(
+                w.db.runtime,
+                lab.config,
+                {"synthetic": lab.provider},
+                parse_qs(urlsplit(url).query)["state"][0],
+                cookie,
+                code,
+                session_token,
+            )
+        except ConnectorError as error:
+            return {"error": error.code}
+        return {"result": "unexpected"}
+
+    rejected("connection_denied", attempt=ended_session)
+
+    # A valid reconnect still succeeds and only then revokes the original grant.
+    result, _ = lab.finish("owner_a", lab.start("owner_a", w.a, w.a1, k1))
+    assert result["result"] == "reconnected"
+    assert not any(lab.provider.token_usable(t) for t in original.values())
+    assert all(lab.provider.token_usable(t) for t in lab.tokens(k1).values())
+    for k, tokens in others.items():
+        assert lab.tokens(k) == tokens
+        assert all(lab.provider.token_usable(t) for t in tokens.values())
+
+
+def test_r009_10_completion_is_timed_after_the_purge(lab, monkeypatch):
+    import app.services.connectors as service
+
+    w = lab.w
+    k1, k2, k3 = lab.fixtures()
+    assert lab.worker()["sync"] == {"succeeded": 3}
+    clock = [now_utc()]
+
+    class SlowRevoke(SyntheticProvider):
+        def revoke(self, token, kind):
+            clock[0] = due + timedelta(seconds=1)
+            return super().revoke(token, kind)
+
+    def advance_on_purge(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("DELETE FROM CONNECTOR_RECORDS"):
+            clock[0] = due + timedelta(seconds=1)
+
+    def teardown(connection_id, agency, client_id, owner, registry=None):
+        nonlocal due
+        assert lab.disconnect(owner, agency, client_id, connection_id).status_code == 202
+        due = lab.row(connection_id).purge_due_at
+        clock[0] = due - timedelta(seconds=1)
+        monkeypatch.setattr(service, "now_utc", lambda: clock[0])
+        try:
+            counts = lab.worker(registry=registry)
+        finally:
+            monkeypatch.undo()
+        assert counts["teardown"] == {"disconnected": 1}
+        assert lab.records(connection_id) == 0
+        assert all(s.status == "destroyed" for s in lab.secrets(connection_id))
+        connection = lab.row(connection_id)
+        assert connection.purge_due_at == due
+        body = lab.view(owner, agency, client_id, connection_id).json()
+        return connection.disconnected_at, body["disconnect"]
+
+    due = None
+    # On time: purge and completion both before the deadline.
+    completed, outcome = teardown(k1, w.a, w.a1, "owner_a")
+    assert completed == due - timedelta(seconds=1)
+    assert outcome["deadline_met"] is True and outcome["revocation"] == "done"
+
+    # Late provider revocation: the deadline passes while the provider is called.
+    completed, outcome = teardown(
+        k2, w.a, w.a2, "owner_a", registry={"synthetic": SlowRevoke(lab.state)}
+    )
+    assert completed == due + timedelta(seconds=1)
+    assert outcome["deadline_met"] is False and outcome["revocation"] == "done"
+
+    # Late database cleanup: the deadline passes while provider records are deleted.
+    event.listen(w.db.runtime, "after_cursor_execute", advance_on_purge)
+    try:
+        completed, outcome = teardown(k3, w.b, w.b1, "owner_b")
+    finally:
+        event.remove(w.db.runtime, "after_cursor_execute", advance_on_purge)
+    assert completed == due + timedelta(seconds=1)
+    assert outcome["deadline_met"] is False and outcome["revocation"] == "done"
+    assert outcome["completed_at"] is not None

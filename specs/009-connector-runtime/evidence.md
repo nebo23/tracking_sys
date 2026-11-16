@@ -84,3 +84,28 @@ Method: with the regression tests in place, the three corrected modules (`app/se
 Behavior change for review: a reconnect is now refused with `provider_unavailable` while the provider cannot confirm revocation of the previous grant. It succeeds once revocation is confirmed or reported unsupported. The alternative, keeping a separate outstanding obligation so the reconnect could proceed, would need a schema change and was not taken.
 
 Still open: the items listed above for 009-B to 009-D, the live-provider revocation scope, and publication, native rollout and deployment.
+
+## Correction review corrections (2026-11-17)
+
+Scope: the [correction review](corrections-review-2026-11-15.md) of `2d0ac21`, recorded at `817a582`, findings R009-08 to R009-10, corrected within D-048. The application code at `817a582` is identical to `2d0ac21` (`git diff --quiet 2d0ac21 817a582 -- backend/app`). No schema, migration, privilege, dependency or public contract changed; the OpenAPI snapshot is unchanged. The corrections are described in [entry review section 9.6](entry-review.md#96-correction-review-corrections-r009-08-to-r009-10).
+
+| Finding | Regression test (`backend/tests/integration/test_connectors.py`) | Result with the service code of `2d0ac21` | After correction |
+|---|---|---|---|
+| R009-08 | `test_r009_08_concurrent_reconnects_keep_the_winning_grant_usable`, two cases: the same Owner initiates both reconnects, and an Owner and an Admin initiate one each, so only the connection lock orders them | Both failed: the winning callback returned `reconnected` and the connection reported `active`, but the delayed callback had revoked the winning grant at the provider | Both passed: one callback installs, the other returns `connection_changed` and disposes only of its own grant; the installed tokens read a fresh page at the provider and the next worker sync succeeds |
+| R009-09 | `test_r009_09_a_rejected_reconnect_keeps_the_original_grant`: account mismatch, an initiating Admin demoted to Analyst, an archived client, and a session that logged out before the callback | Failed at the first case: the original versions recorded `revocation = done` and the original grant was revoked | Passed: each rejection disposes of its new grant with no `connector_grant_disposal_failed` event, while the original grant still reads a page at the provider and its rows, statuses and recorded outcomes are unchanged; a valid reconnect then succeeds and only then revokes the original grant |
+| R009-10 | `test_r009_10_completion_is_timed_after_the_purge`: on-time completion, late provider revocation, and late database cleanup with a controlled clock advanced when `DELETE FROM connector_records` executes | Failed at the late-cleanup case: `disconnected_at` was one second before the deadline and `deadline_met` true | Passed: records deleted, secrets destroyed, `purge_due_at` unchanged, `disconnected_at` equal to the clock reading after the purge, and `deadline_met` true, false and false respectively |
+
+Each regression also checks that K2 (another client of the same agency sharing `syn-acct-777`) and K3 (a client of another agency with the same account) keep their tokens, remain usable at the provider and, where applicable, still synchronize. The regressions use independent database sessions and events or a controlled clock for ordering; the only polling waits for another thread to finish or to wait on a lock (`pg_locks ... NOT granted`), so no outcome depends on a delay.
+
+Method: with the regression tests in place, `app/services/connectors.py` was temporarily replaced by its `2d0ac21` version, the four new cases were run and all failed as listed, and the corrected file was restored.
+
+| Command (from `backend/`, project `.venv`, fresh disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 120 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 302 deselected |
+| `python -m pytest -m integration -q -rw` | **299 passed, 3 skipped**, 1 warning. The 3 skips are the opt-in Spec 005 browser journeys. The warning is Pydantic's `UnsupportedFieldAttributeWarning` for the `X-CSRF-Token` header alias of `browser_identity` in `app/api/dependencies.py` (Spec 002 code), emitted once per process; this identifies the intermittent warning noted for 009-A. |
+| `python -m pytest -m integration -q tests/integration/test_connectors.py` | 23 passed |
+| Mutation check: each new safeguard disabled in turn, the matching regression rerun, source restored | All three caught: no shared connection lock while settling (the Owner/Admin case of R009-08 failed; the same-Owner case is also ordered by the session's user lock), no authority and account check before revocation (R009-09), completion timed before the purge (R009-10) |
+| `git diff --check` | No whitespace errors |
+
+Remaining limits are unchanged from section 9.4 of the entry review. 009-B to 009-D remain subject to their own decisions.

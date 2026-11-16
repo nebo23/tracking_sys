@@ -26,7 +26,7 @@ import base64
 import hashlib
 import hmac
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
@@ -42,6 +42,7 @@ from app.connectors.contracts import ConnectorProvider, ErrorKind, ProviderError
 from app.connectors.synthetic import SyntheticProvider
 from app.models import (
     Agency,
+    AgencyMembership,
     ClientWorkspace,
     ConnectorConnection,
     ConnectorOAuthTransaction,
@@ -440,6 +441,65 @@ def _consume(
         )
 
 
+# Recheck that the authorization may still act: the browser session is current, its user
+# still holds the initiating Owner or Admin membership of an active agency, and the client is
+# active. With write=True the agency write lock is taken, as for every administration change.
+def _initiator(
+    session: Session,
+    settings: Settings,
+    authorization: _Authorization,
+    session_token: str,
+    *,
+    write: bool,
+) -> tuple[TenancyService, AgencyMembership]:
+    user, _ = AuthService(session, settings).authenticate(session_token)
+    tenancy = TenancyService(session, user.id)
+    member = tenancy._membership(authorization.agency_id, write=write)
+    if member.id != authorization.membership_id or member.role not in MANAGERS:
+        raise AccessDenied()
+    client = session.scalar(
+        select(ClientWorkspace)
+        .where(
+            ClientWorkspace.agency_id == authorization.agency_id,
+            ClientWorkspace.id == authorization.client_id,
+            ClientWorkspace.status == "active",
+        )
+        .execution_options(populate_existing=True)
+    )
+    if client is None:
+        raise AccessDenied()
+    return tenancy, member
+
+
+# Lock the reconnect target and require what the authorization expects: the connection still
+# requires reconnection at the generation recorded when the authorization began, and the new
+# grant is for the same external account. The callback that settles the previous grant takes
+# a shared lock and the installation an exclusive one, so neither can observe the other half
+# done (R009-08).
+def _reconnect_target(
+    session: Session, authorization: _Authorization, grant: TokenGrant, *, write: bool
+) -> ConnectorConnection:
+    connection = session.scalar(
+        select(ConnectorConnection)
+        .where(
+            ConnectorConnection.agency_id == authorization.agency_id,
+            ConnectorConnection.client_id == authorization.client_id,
+            ConnectorConnection.id == authorization.connection_id,
+        )
+        .with_for_update(read=not write)
+        .execution_options(populate_existing=True)
+    )
+    if (
+        connection is None
+        or connection.status != "reconnect_required"
+        or connection.generation != authorization.expected_generation
+    ):
+        raise ConnectorError("connection_changed", 409)
+    if grant.external_account_id != connection.external_account_id:
+        raise ConnectorError("account_mismatch", 409)
+    return connection
+
+
 # Install a newly exchanged grant after rechecking the initiator, client, and connection.
 # A reconnect destroys the previous versions only when each has a settled revocation outcome
 # (recorded by _settle_previous), so the outcome stays on the destroyed rows (R009-01).
@@ -451,20 +511,7 @@ def _install(
     grant: TokenGrant,
     session_token: str,
 ) -> ConnectorConnection:
-    user, _ = AuthService(session, settings).authenticate(session_token)
-    tenancy = TenancyService(session, user.id)
-    member = tenancy._membership(authorization.agency_id, write=True)
-    if member.id != authorization.membership_id or member.role not in MANAGERS:
-        raise AccessDenied()
-    client = session.scalar(
-        select(ClientWorkspace).where(
-            ClientWorkspace.agency_id == authorization.agency_id,
-            ClientWorkspace.id == authorization.client_id,
-            ClientWorkspace.status == "active",
-        )
-    )
-    if client is None:
-        raise AccessDenied()
+    tenancy, member = _initiator(session, settings, authorization, session_token, write=True)
     now = now_utc()
     if authorization.purpose == "connect":
         connection = ConnectorConnection(
@@ -484,24 +531,7 @@ def _install(
         session.flush()
         action = "connector.connected"
     else:
-        connection = session.scalar(
-            select(ConnectorConnection)
-            .where(
-                ConnectorConnection.agency_id == authorization.agency_id,
-                ConnectorConnection.client_id == authorization.client_id,
-                ConnectorConnection.id == authorization.connection_id,
-            )
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if (
-            connection is None
-            or connection.status != "reconnect_required"
-            or connection.generation != authorization.expected_generation
-        ):
-            raise ConnectorError("connection_changed", 409)
-        if grant.external_account_id != connection.external_account_id:
-            raise ConnectorError("account_mismatch", 409)
+        connection = _reconnect_target(session, authorization, grant, write=True)
         for row in _live_secrets(session, connection.id):
             if row.revocation not in SettledRevocation:
                 raise ConnectorError("provider_unavailable", 503)
@@ -544,30 +574,29 @@ def _install(
 
 
 # Before a reconnect replaces the previous grant, revoke each of its outstanding versions at
-# the provider and record every outcome on its row. The connection must still require
-# reconnection at the expected generation. When any revocation is not settled the reconnect
-# is refused and the previous versions stay outstanding, so a later reconnect or disconnect
-# retries them and the connection-level result includes them, including after a restart.
+# the provider and record every outcome on its row. Nothing is revoked unless the reconnect
+# could be installed now: the session, the initiator's Owner or Admin membership, the agency
+# and client, the expected generation, and the external account are all checked first, so a
+# rejected reconnect leaves the previous grant and its recorded outcome intact (R009-09). The
+# generation check and the selection of the versions to revoke happen under one shared lock
+# on the connection, so a concurrent reconnect cannot install its grant in between and have
+# it revoked here; a callback that loses that race revokes only versions of the grant it was
+# meant to replace and then disposes of its own grant (R009-08). When any revocation is not
+# settled the reconnect is refused and the previous versions stay outstanding, so a later
+# reconnect or disconnect retries them and the connection-level result includes them,
+# including after a restart. Installation repeats every check under the exclusive lock.
 def _settle_previous(
     engine: Engine,
+    settings: Settings,
     keyring: LocalKeyring,
     provider: ConnectorProvider,
     authorization: _Authorization,
+    grant: TokenGrant,
+    session_token: str,
 ) -> None:
     with Session(engine, expire_on_commit=False) as session, session.begin():
-        connection = session.scalar(
-            select(ConnectorConnection).where(
-                ConnectorConnection.agency_id == authorization.agency_id,
-                ConnectorConnection.client_id == authorization.client_id,
-                ConnectorConnection.id == authorization.connection_id,
-            )
-        )
-        if (
-            connection is None
-            or connection.status != "reconnect_required"
-            or connection.generation != authorization.expected_generation
-        ):
-            raise ConnectorError("connection_changed", 409)
+        _initiator(session, settings, authorization, session_token, write=False)
+        connection = _reconnect_target(session, authorization, grant, write=False)
         outstanding = [
             _Outstanding(row.id, row.kind, _open(keyring, row))
             for row in _live_secrets(session, connection.id)
@@ -609,7 +638,9 @@ def complete_authorization(
         ) from None
     try:
         if authorization.purpose == "reconnect":
-            _settle_previous(engine, keyring, provider, authorization)
+            _settle_previous(
+                engine, settings, keyring, provider, authorization, grant, session_token or ""
+            )
         with Session(engine, expire_on_commit=False) as session, session.begin():
             connection = _install(
                 session, settings, keyring, authorization, grant, session_token or ""
@@ -1149,10 +1180,12 @@ def _record_revocation(engine: Engine, secret_id: UUID, outcome: str) -> None:
 # sealed material, purge provider records, clear the account reference, and report the
 # revocation outcome. The outcome covers every version with a provider obligation, including
 # versions a reconnect replaced earlier (R009-01); superseded access versions of a kept grant
-# ("not_required") do not count. `now` is read when this connection is finalized, so a late
-# completion is reported as late (R009-04). Before the deadline an unsettled teardown releases
-# its lease for retry.
-def _finalize(engine: Engine, connection_id: UUID, now: datetime) -> str:
+# ("not_required") do not count. The clock is read once the connection is locked, to decide
+# whether the deadline forces completion (R009-04), and again after the purge has run, in the
+# transaction that records the outcome: that second reading is the completion time, so a
+# purge that ends after the deadline is reported as late (R009-10). purge_due_at never
+# changes. Before the deadline an unsettled teardown releases its lease for retry.
+def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]) -> str:
     with Session(engine) as session, session.begin():
         connection = session.scalar(
             select(ConnectorConnection)
@@ -1162,6 +1195,7 @@ def _finalize(engine: Engine, connection_id: UUID, now: datetime) -> str:
         )
         if connection is None or connection.status != "disconnecting":
             return "skipped"
+        now = clock()
         secrets = _live_secrets(session, connection.id)
         unsettled = [row for row in secrets if row.revocation not in SettledRevocation]
         assert connection.purge_due_at is not None
@@ -1185,6 +1219,8 @@ def _finalize(engine: Engine, connection_id: UUID, now: datetime) -> str:
             delete(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
         )
         _cancel_open_runs(session, connection.id, now, "connection_inactive")
+        session.flush()
+        completed = clock()
         connection.revocation_status = (
             "failed"
             if "failed" in outcomes
@@ -1194,8 +1230,8 @@ def _finalize(engine: Engine, connection_id: UUID, now: datetime) -> str:
         )
         connection.destruction_status = connection.purge_status = "done"
         connection.external_account_id = connection.account_label = None
-        connection.status, connection.disconnected_at = "disconnected", now
-        connection.teardown_lease_until, connection.updated_at = None, now
+        connection.status, connection.disconnected_at = "disconnected", completed
+        connection.teardown_lease_until, connection.updated_at = None, completed
         return "disconnected"
 
 
@@ -1225,7 +1261,7 @@ def run_teardowns(
             except ProviderError:
                 continue
             _record_revocation(engine, item.secret_id, outcome)
-        result = _finalize(engine, connection_id, clock())
+        result = _finalize(engine, connection_id, clock)
         counts[result] = counts.get(result, 0) + 1
     return counts
 

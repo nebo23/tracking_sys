@@ -258,3 +258,13 @@ The [independent review](pre-pr-review-2026-11-15.md) of `b21219f` recorded seve
 | R009-07 One tenant's retrying revocation can delay another tenant's purge | Teardown claims are ordered by overdue deadline first, then fewest teardown attempts, then deadline. A connection never attempted is therefore served before a retrying one, and an overdue connection is finalized at its own deadline. |
 
 With R009-01 corrected, the second limit of section 9.4 no longer applies: each outcome is recorded before the previous versions are destroyed. If a reconnect stops after recording outcomes but before installing, the previous versions remain outstanding, and their recorded outcomes are reused.
+
+### 9.6 Correction review corrections (R009-08 to R009-10)
+
+The [correction review](corrections-review-2026-11-15.md) of `2d0ac21` recorded three further findings. All were corrected within D-048 without a schema, privilege, dependency or public contract change. Evidence is in the [009-A evidence](evidence.md#correction-review-corrections-2026-11-17).
+
+| Finding | Correction |
+|---|---|
+| R009-08 Two valid reconnects can leave an active connection unusable | A reconnect callback checks the generation and selects the previous grant's outstanding versions in one transaction holding a shared lock on the connection. Installation takes the exclusive lock, so no other reconnect can install between that check and that selection. The callback revokes only the versions it selected. A callback that then loses the race returns `connection_changed` and disposes of its own grant only; the installed grant stays usable. |
+| R009-09 A rejected reconnect can revoke the original account's grant | Before any previous version is revoked, the callback runs the installation checks in the same order: a current session, the initiating Owner or Admin membership of an active agency, an active client, the expected generation and status, and the same external account. A rejection disposes of the new grant and leaves the previous grant, its rows and its recorded outcomes unchanged. Installation repeats every check under the agency write lock and the exclusive connection lock. |
+| R009-10 A late database purge can still report that it met its deadline | Finalization reads the clock once the connection is locked, to decide whether the deadline forces completion, and again after the secrets are destroyed and the provider records deleted, in the same transaction. The second reading is `disconnected_at`, so a purge that ends after `purge_due_at` reports `deadline_met: false`. `purge_due_at` never changes. |

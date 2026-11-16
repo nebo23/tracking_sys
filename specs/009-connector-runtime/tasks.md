@@ -1,5 +1,5 @@
 # Tasks: 009-connector-runtime
-Status: 009-A implemented locally under D-048 and awaiting independent review; 009-B to 009-D are not approved. This is a review checklist, not an implementation instruction.
+Status: 009-A implemented locally under D-048, with the findings of both reviews (R009-01 to R009-10) corrected; 009-B to 009-D are not approved. This is a review checklist, not an implementation instruction.
 
 - [x] Approve the scope and sources of the first slice: D-048 approves 009-A (2026-11-15). Later slices need their own approval.
 - [ ] Resolve Q-001, Q-004, Q-009, Q-010 and record the owner decision. 009-A needed none of them (entry review section 8).
@@ -8,6 +8,7 @@ Status: 009-A implemented locally under D-048 and awaiting independent review; 0
 - [x] Define independently reviewable local changes: slices 009-A to 009-D in the [plan](plan.md).
 - [x] Record the owner decision on entry-review decisions D1-D10 for 009-A: D-048, with the [follow-up](entry-review-follow-up.md) at `54f733c`.
 - [x] Implement 009-A: migration 0009, OAuth connect and reconnect, status, single-page synthetic sync, `401` handling, disconnect teardown, disposable PostgreSQL concurrency and isolation tests ([evidence](evidence.md)).
+- [x] Correct the pre-publication findings R009-01 to R009-07 and the correction review findings R009-08 to R009-10 with maintained regressions ([evidence](evidence.md#correction-review-corrections-2026-11-17)).
 - [x] Verify 003 case D3 for the synthetic provider: revocation at the mock provider, destroyed secret material, scoped purge before `purge_due_at`, honest `failed` or `unsupported` outcomes; the other clients keep syncing.
 - [ ] Prepare and approve 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks).
 - [x] Verify (009-A): OAuth callbacks validate state and reject replay; tokens appear in neither the browser nor logs, and PKCE applies where required by the flow.
