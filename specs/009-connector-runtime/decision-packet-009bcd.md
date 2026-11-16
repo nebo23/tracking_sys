@@ -1,6 +1,6 @@
 # Spec 009-B to 009-D decision packet
 
-Status: proposal for owner decision, prepared 2026-11-17 on `codex/spec-009-connector-runtime` after the 009-A corrections (`ade55dd`). D-048 approves 009-A only. Nothing in this packet is approved until the owner records a decision. All three slices stay synthetic: no live provider, no native `tracking_sys` migration, no new dependency.
+Status: **D11-D20 approved as recommended by D-049 (2026-11-17)**. Prepared 2026-11-17 on `codex/spec-009-connector-runtime` after the 009-A corrections (`ade55dd`) and committed at `88cef15`; the decision text below is unchanged. All three slices stay synthetic: no live provider, no native `tracking_sys` migration, no new dependency.
 
 ## 1. Contract ownership
 

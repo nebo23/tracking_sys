@@ -12,7 +12,7 @@ Each specification contains spec.md, plan.md, and tasks.md. The foundation and a
 | [006-identity-journey](006-identity-journey/spec.md) | L2 | Lead identity and customer journey (design merged in PR 5, `ec9a09b`) |
 | [007-revenue-ledger](007-revenue-ledger/spec.md) | L3 | Revenue, refunds, and currencies ([entry review](007-revenue-ledger/entry-review.md), D-042) |
 | [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine |
-| [009-connector-runtime](009-connector-runtime/spec.md) | L4 | Connector runtime and OAuth (009-A implemented locally under D-048; [evidence](009-connector-runtime/evidence.md)) |
+| [009-connector-runtime](009-connector-runtime/spec.md) | L4 | Connector runtime and OAuth (009-A under D-048, 009-B to 009-D under D-049; [evidence](009-connector-runtime/evidence.md)) |
 | [010-instagram](010-instagram/spec.md) | L4 | Instagram analytics |
 | [011-youtube](011-youtube/spec.md) | L4 | YouTube analytics |
 | [012-linkedin](012-linkedin/spec.md) | L4 | LinkedIn analytics |

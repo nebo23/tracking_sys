@@ -1,5 +1,5 @@
 # Tasks: 009-connector-runtime
-Status: 009-A implemented locally under D-048, with the findings of both reviews (R009-01 to R009-10) corrected; 009-B to 009-D are not approved. This is a review checklist, not an implementation instruction.
+Status: 009-A implemented locally under D-048, with the findings of both reviews (R009-01 to R009-10) corrected; 009-B to 009-D are approved by D-049 (decisions D11-D20). This is a review checklist, not an implementation instruction.
 
 - [x] Approve the scope and sources of the first slice: D-048 approves 009-A (2026-11-15). Later slices need their own approval.
 - [ ] Resolve Q-001, Q-004, Q-009, Q-010 and record the owner decision. 009-A needed none of them (entry review section 8).
@@ -10,7 +10,7 @@ Status: 009-A implemented locally under D-048, with the findings of both reviews
 - [x] Implement 009-A: migration 0009, OAuth connect and reconnect, status, single-page synthetic sync, `401` handling, disconnect teardown, disposable PostgreSQL concurrency and isolation tests ([evidence](evidence.md)).
 - [x] Correct the pre-publication findings R009-01 to R009-07 and the correction review findings R009-08 to R009-10 with maintained regressions ([evidence](evidence.md#correction-review-corrections-2026-11-17)).
 - [x] Verify 003 case D3 for the synthetic provider: revocation at the mock provider, destroyed secret material, scoped purge before `purge_due_at`, honest `failed` or `unsupported` outcomes; the other clients keep syncing.
-- [ ] Prepare and approve 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks).
+- [x] Prepare and approve 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks): [decision packet](decision-packet-009bcd.md), D-049 (2026-11-17).
 - [x] Verify (009-A): OAuth callbacks validate state and reject replay; tokens appear in neither the browser nor logs, and PKCE applies where required by the flow.
 - [x] Verify (009-A): Expired or revoked tokens produce an explicit disconnected state and stop affected ingestion without disrupting other clients.
 - [ ] Verify: 429 responses respect provider backoff; 401 responses trigger reconnection; crash recovery resumes without duplicate records. The `401` part is verified in 009-A; backoff and crash recovery at the page/checkpoint boundary are 009-B.
