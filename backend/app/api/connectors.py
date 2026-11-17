@@ -19,8 +19,10 @@ from pydantic import Field
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import AuthorizationURL, Input, Output
 from app.config import Settings
+from app.security import now_utc
 from app.services.access import Principal, resolve_scope
 from app.services.auth import enforce_rate_limit
+from app.services.connector_coverage import coverage, records
 from app.services.connectors import (
     CALLBACK_ERRORS,
     TRANSACTION_SECONDS,
@@ -85,6 +87,83 @@ class SyncRequestResponse(Output):
     run_id: UUID
     kind: Literal["incremental", "backfill"]
     status: Literal["queued", "running"]
+
+
+# Coverage and provenance (009-C, D-049 decisions D16 and D17). Every value is paired with an
+# explicit state; the cost block covers only the connection's own allocation.
+class ConnectionSource(Output):
+    provider: str
+    adapter_version: str
+    account_kind: str | None
+
+
+class SyncState(Output):
+    state: Literal["idle", "queued", "running", "delayed", "budget_stopped", "failed"]
+    kind: Literal["incremental", "backfill"] | None
+    reason: str | None
+    next_attempt_at: datetime | None
+
+
+class StreamCoverage(Output):
+    stream: str
+    state: Literal["not_synced", "partial", "complete"]
+    covered_from: datetime | None
+    complete_through: datetime | None
+    history_limit_days: int
+
+
+class MetricAvailability(Output):
+    name: str
+    unit: str
+    availability: Literal["available", "unsupported", "missing", "stale", "not_synced"]
+    latest_observed_at: datetime | None
+
+
+class CostState(Output):
+    unit: str
+    period_start: datetime
+    consumed: int
+    allocation: int
+    remaining: int
+    state: Literal["available", "exhausted"]
+    reason: Literal["connection_allocation", "provider_quota"] | None
+
+
+class CoverageResponse(Output):
+    connection_id: UUID
+    source: ConnectionSource
+    status: Literal["active", "reconnect_required", "disconnecting", "disconnected"]
+    last_successful_sync_at: datetime | None
+    freshness: Literal["fresh", "stale", "never_synced"]
+    freshness_hours: int
+    sync: SyncState
+    streams: list[StreamCoverage]
+    metrics: list[MetricAvailability]
+    cost: CostState
+
+
+class MetricValue(Output):
+    state: Literal["observed", "missing", "unsupported", "stale"]
+    value: int | float | None
+
+
+class RecordSource(Output):
+    provider: str
+    adapter_version: str | None
+    run_id: UUID | None
+
+
+class RecordItem(Output):
+    provider_object_id: str
+    observed_at: datetime
+    fetched_at: datetime
+    source: RecordSource
+    metrics: dict[str, MetricValue]
+
+
+class RecordPage(Output):
+    records: list[RecordItem]
+    next_after: str | None
 
 
 def _admin(request: Request, session: SessionDep, browser: BrowserDep) -> ConnectorAdmin:
@@ -196,6 +275,57 @@ def read_connection(
     access = resolve_scope(session, principal, agency_id, client_id)
     manage = can_manage(session, principal, agency_id)
     return _response(get_connection(session, access, connection_id), manage)
+
+
+# Coverage of one connection for readers with client:read (009-C).
+@router.get(
+    "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/coverage",
+    response_model=CoverageResponse,
+)
+def read_coverage(
+    agency_id: UUID,
+    client_id: UUID,
+    connection_id: UUID,
+    request: Request,
+    session: SessionDep,
+    principal: ReaderDep,
+) -> CoverageResponse:
+    access = resolve_scope(session, principal, agency_id, client_id)
+    state = request.app.state
+    return CoverageResponse.model_validate(
+        coverage(
+            session, state.settings, state.connector_providers, access, connection_id, now_utc()
+        )
+    )
+
+
+# Stored records of one connection with provenance and per-metric states, at most `limit` per
+# page ordered by provider object ID; `after` continues from the previous page's next_after.
+@router.get(
+    "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/records",
+    response_model=RecordPage,
+)
+def read_records(
+    agency_id: UUID,
+    client_id: UUID,
+    connection_id: UUID,
+    request: Request,
+    session: SessionDep,
+    principal: ReaderDep,
+    after: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> RecordPage:
+    access = resolve_scope(session, principal, agency_id, client_id)
+    items, following = records(
+        session,
+        request.app.state.connector_providers,
+        access,
+        connection_id,
+        now_utc(),
+        after=after,
+        limit=limit,
+    )
+    return RecordPage.model_validate({"records": items, "next_after": following})
 
 
 # Queue a synchronization of an active connection (Owner/Admin). An open run of the same kind

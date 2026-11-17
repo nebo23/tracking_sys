@@ -38,12 +38,23 @@ class ProviderError(Exception):
         return f"ProviderError({self.kind.value!r})"
 
 
+# One metric an adapter can report, with its unit and the account kinds that offer it (None
+# means every kind). A metric outside an account's kinds is reported as unsupported, never as
+# zero (009-C, D-049 decision D17).
+@dataclass(frozen=True)
+class MetricSpec:
+    name: str
+    unit: str
+    account_kinds: tuple[str, ...] | None = None
+
+
 # What an adapter supports. revocation_scope states what a revocation call invalidates: one
 # token, the whole provider grant behind it, or nothing ("unsupported"). Specifications 010-013
 # record each live provider's scope from dated evidence before use. 009-B adds the synchronized
 # stream, how far back the provider serves history, how many days an incremental run re-reads
 # before its watermark, the cost of each data call in the provider's unit, and the provider's
-# daily quota in that unit (D-049 decisions D13 and D15).
+# daily quota in that unit (D-049 decisions D13 and D15). 009-C adds the metric catalog and
+# the freshness window after which stored values are reported as stale (decision D17).
 @dataclass(frozen=True)
 class Capability:
     provider: str
@@ -52,7 +63,7 @@ class Capability:
     refresh: bool
     revocation_scope: Literal["token", "grant", "unsupported"]
     scopes: tuple[str, ...]
-    metrics: tuple[str, ...] = ()
+    metrics: tuple[MetricSpec, ...] = ()
     stream: str = "objects"
     history_days: int = 30
     overlap_days: int = 1
@@ -61,12 +72,14 @@ class Capability:
         default_factory=lambda: MappingProxyType({"fetch": 1, "refresh": 1})
     )
     daily_quota: int = 1000
+    freshness_hours: int = 24
 
     def cost(self, operation: str) -> int:
         return self.call_costs.get(operation, 1)
 
 
-# Tokens and account identity from a code exchange or refresh. Repr omits the tokens.
+# Tokens and account identity from a code exchange or refresh, including the provider's
+# account kind when it reports one. Repr omits the tokens.
 @dataclass(frozen=True, repr=False)
 class TokenGrant:
     access_token: str
@@ -75,6 +88,7 @@ class TokenGrant:
     scopes: tuple[str, ...]
     external_account_id: str
     account_label: str | None = None
+    account_kind: str | None = None
 
     def __repr__(self) -> str:
         return f"TokenGrant(account={self.external_account_id!r}, scopes={self.scopes!r})"

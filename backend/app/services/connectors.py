@@ -580,6 +580,7 @@ def _install(
             provider=authorization.provider,
             external_account_id=grant.external_account_id,
             account_label=grant.account_label,
+            account_kind=grant.account_kind,
             status="active",
             generation=1,
             granted_scopes=list(grant.scopes),
@@ -599,6 +600,7 @@ def _install(
         connection.status, connection.status_reason = "active", None
         connection.generation += 1
         connection.account_label = grant.account_label
+        connection.account_kind = grant.account_kind
         connection.granted_scopes = list(grant.scopes)
         connection.connected_at = connection.updated_at = now
         action = "connector.reconnected"
@@ -834,6 +836,7 @@ class _Claim:
     until: datetime | None = None
     stream: str = "objects"
     cursor: str | None = field(default=None, repr=False)
+    adapter_version: str | None = None
 
 
 # Lock the claimed run and report this attempt's ownership: "owned" while the run is running
@@ -1132,6 +1135,7 @@ def _claim(
                 until=run.window_until,
                 stream=stream,
                 cursor=resume,
+                adapter_version=provider.capability.version if provider is not None else None,
             ),
             False,
         )
@@ -1276,6 +1280,8 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
                 "observed_at": record.observed_at,
                 "metrics": dict(record.metrics),
                 "fetched_at": now,
+                "source_run_id": claim.run_id,
+                "adapter_version": claim.adapter_version,
             }
             statement = insert(ConnectorRecord).values(**values)
             session.execute(
@@ -1286,6 +1292,8 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
                         "observed_at": statement.excluded.observed_at,
                         "metrics": statement.excluded.metrics,
                         "fetched_at": statement.excluded.fetched_at,
+                        "source_run_id": statement.excluded.source_run_id,
+                        "adapter_version": statement.excluded.adapter_version,
                     },
                 )
             )
@@ -1580,6 +1588,7 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
         )
         connection.destruction_status = connection.purge_status = "done"
         connection.external_account_id = connection.account_label = None
+        connection.account_kind = None
         connection.status, connection.disconnected_at = "disconnected", completed
         connection.teardown_lease_until, connection.updated_at = None, completed
         return "disconnected"

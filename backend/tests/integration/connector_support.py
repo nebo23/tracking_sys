@@ -47,8 +47,8 @@ def make_lab(authenticated_world, api, tmp_path):
         assert response.status_code == 200, response.text
         return response.json()["authorization_url"]
 
-    def finish(name, url, account=ACCOUNT, label="Synthetic Brand", client=None):
-        code = provider.approve(url, account, label)
+    def finish(name, url, account=ACCOUNT, label="Synthetic Brand", client=None, kind="business"):
+        code = provider.approve(url, account, label, kind)
         state_value = parse_qs(urlsplit(url).query)["state"][0]
         response = (client or browser(name)).get(
             "/connectors/oauth/callback",
@@ -59,8 +59,8 @@ def make_lab(authenticated_world, api, tmp_path):
         location = response.headers["location"]
         return {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}, location
 
-    def connect(name, agency, client_id, account=ACCOUNT):
-        result, _ = finish(name, start(name, agency, client_id), account)
+    def connect(name, agency, client_id, account=ACCOUNT, kind="business"):
+        result, _ = finish(name, start(name, agency, client_id), account, kind=kind)
         assert result["result"] == "connected", result
         return UUID(result["connection_id"])
 

@@ -62,3 +62,13 @@ Implemented under D-049 with migration `0010_connector_sync`. Evidence is in the
 | D14 | Deferrals clear on success (`error_kind` is `NULL` for a succeeded run); `retries` keeps the count. A budget deferral does not count toward the five. |
 | D15 | The reservation runs only for the attempt that owns the run, under a per-provider advisory lock, and both limits are checked in that transaction. A call interrupted by a stopped worker stays `reserved` and is counted. The synthetic quota and allocation are 1,000 and 100 units; the per-call cost is 1 unit for `fetch` and `refresh`. |
 | D20 | `0010_connector_sync` adds the run columns, `connector_checkpoints` and `connector_usage_records` with column-limited `tracking_app` grants (DELETE only on checkpoints, for the purge) and a downgrade that refuses populated 009-B state. Registry version `009-B` adds the classes `connector.sync_state` and `connector.usage`. |
+
+### 6.2 009-C coverage and provenance
+
+Implemented under D-049 with migration `0011_connector_coverage`. Evidence is in the [009-C evidence](evidence.md#009-c-coverage-and-provenance-2026-11-17).
+
+| Decision | Implemented detail |
+|---|---|
+| D16 | The coverage response adds `freshness_hours` and, per stream, a `state`: `not_synced`, `partial` (a run stopped between pages, so data past the watermark may be partly stored) or `complete`. Metric availability adds `not_synced` before any record is stored. A canceled latest run reads as `idle` with its reason. The cost block names the cause of exhaustion, `connection_allocation` or `provider_quota`, without the provider-wide total. |
+| D17 | Records are paged by provider object ID with `limit` (1-100) and `after`. Only metrics declared in the adapter's catalog are returned. A metric is `unsupported` only when the adapter restricts it to account kinds that exclude the connection's known kind; an unknown kind, as after the purge, is not assumed unsupported. Record staleness uses the record's `fetched_at`; connection freshness uses the last successful sync. The synthetic adapter, now `synthetic-3`, declares `saves` for business accounts only. |
+| D20 | `0011_connector_coverage` adds `connector_connections.account_kind` (classified with the account reference and cleared by the purge), `connector_records.source_run_id` with a composite foreign key to a run of the same connection and `adapter_version` (provider data, purged with the record), and the column grants. Registry version `009-C`. |

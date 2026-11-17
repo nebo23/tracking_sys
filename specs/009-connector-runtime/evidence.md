@@ -145,3 +145,33 @@ Scope: D-049 decisions D11-D15 and D20 ([decision packet](decision-packet-009bcd
 Each 009-B test also keeps the other connections of the fixture working where it uses them: another client of the same agency and a client of another agency sharing `syn-acct-777`. The 23 connector cases of 009-A pass unchanged apart from the paged return type of the synthetic read and the `schedule` key of the worker command output.
 
 Remaining for later slices: coverage and provenance reads (009-C) and provider webhooks (009-D). Commercial budgets (Q-004) and production scheduling and supervision (020) remain open.
+
+## 009-C coverage and provenance (2026-11-17)
+
+Scope: D-049 decisions D16, D17 and D20, implemented against the synthetic provider with migration `0011_connector_coverage`. Details settled during implementation are in [packet section 6.2](decision-packet-009bcd.md#62-009-c-coverage-and-provenance). No dependency was added.
+
+| Area | Files |
+|---|---|
+| Migration (account kind, record source run and adapter version, scoped run key, grants, guarded downgrade) | `backend/migrations/versions/0011_connector_coverage.py` |
+| Contracts (metric catalog with units and account kinds, freshness window, account kind on grants) and synthetic adapter `synthetic-3` (business and creator accounts, `saves` for business only) | `backend/app/connectors/contracts.py`, `backend/app/connectors/synthetic.py` |
+| Coverage and record reads; provenance on stored records; account kind set at connect and reconnect and cleared by the purge | `backend/app/services/connector_coverage.py`, `backend/app/services/connectors.py`, `backend/app/api/connectors.py` |
+| Models, registry (`009-C`), OpenAPI snapshot (now 86 operations) | `backend/app/models/connectors.py`, `backend/app/data_policy.py`, `contracts/openapi.json` |
+| Tests | `backend/tests/integration/test_connector_coverage.py` |
+
+| Command (from `backend/`, project `.venv`, disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 126 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 311 deselected |
+| `python -m pytest -m integration -q -rw` | **308 passed, 3 skipped**, no warnings (the opt-in Spec 005 browser journeys) |
+| Connector, schema and migration agreement modules | 35 passed |
+| Mutation check: each 009-C safeguard disabled in turn, the coverage test rerun, source restored | All six caught: a zero reported as missing, account-kind support ignored, records never stale, provider-wide usage in the cost block, a waiting run reported as queued, partial coverage reported as complete |
+| `git diff --check` | No whitespace errors |
+
+| Criterion | Evidence in `test_009c_coverage_and_metric_states` |
+|---|---|
+| AC4 metric availability | Before any sync every metric is `not_synced`; after a sync an engagements value of zero is `observed` with value 0 and `available`; an omitted impressions metric is `missing`; `saves` is `unsupported` for a creator account with a null value; values fetched two days earlier are `stale` with their values kept |
+| AC4 last synchronization and historical coverage | `last_successful_sync_at`, `freshness`, and the stream's `covered_from` and `complete_through`; after a delayed backfill page the stream is `partial`, the watermarks are unchanged, and the stored first page is readable |
+| AC4 cost state | Consumed, allocation and remaining for the connection's own UTC day; after a provider-quota stop the run is `budget_stopped` with the next attempt at the next UTC day and the cost is `exhausted` with `provider_quota`, without the provider-wide total; with a smaller allocation the reason is `connection_allocation` |
+| Provenance | Each record names its provider, adapter version and source run; pages continue by provider object ID |
+| Isolation | Members with client visibility and the analyst with a grant read coverage and records; another agency's owner and an analyst without a grant are refused |
+| After disconnect | The purge leaves the account kind cleared, the stream `not_synced`, every metric `not_synced`, and no records |

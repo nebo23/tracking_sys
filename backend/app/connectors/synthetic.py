@@ -34,6 +34,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from app.connectors.contracts import (
     Capability,
     ErrorKind,
+    MetricSpec,
     ProviderError,
     ProviderPage,
     ProviderRecord,
@@ -44,18 +45,24 @@ from app.connectors.contracts import (
 AUTHORIZE_URL = "https://synthetic-provider.invalid/oauth/authorize"
 CAPABILITY = Capability(
     provider="synthetic",
-    version="synthetic-2",
+    version="synthetic-3",
     pkce="S256",
     refresh=True,
     revocation_scope="grant",
     scopes=("synthetic.metrics.read",),
-    metrics=("impressions", "engagements"),
+    metrics=(
+        MetricSpec("impressions", "count"),
+        MetricSpec("engagements", "count"),
+        MetricSpec("saves", "count", ("business",)),
+    ),
     stream="objects",
     history_days=30,
     overlap_days=1,
     cost_unit="synthetic_unit",
     daily_quota=1000,
+    freshness_hours=24,
 )
+ACCOUNT_KINDS = ("business", "creator")
 CODE_SECONDS = 60
 DEFAULT_ACCESS_SECONDS = 3600
 # The newest synthetic object is observed on this day; object i is observed i - 1 days earlier.
@@ -73,9 +80,10 @@ BEHAVIORS = {
 DEFAULTS = {"objects": 3, "page_size": 100, "recent_days": 3, "retry_after": 60}
 SCHEMA = (
     "CREATE TABLE IF NOT EXISTS codes (digest TEXT PRIMARY KEY, challenge TEXT, redirect_uri "
-    "TEXT, scopes TEXT, account TEXT, label TEXT, expires_at TEXT, used INTEGER DEFAULT 0)",
+    "TEXT, scopes TEXT, account TEXT, label TEXT, kind TEXT, expires_at TEXT, "
+    "used INTEGER DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS grants (id INTEGER PRIMARY KEY, account TEXT, label TEXT, "
-    "scopes TEXT, revoked INTEGER DEFAULT 0)",
+    "kind TEXT, scopes TEXT, revoked INTEGER DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS tokens (digest TEXT PRIMARY KEY, grant_id INTEGER, kind TEXT, "
     "expires_at TEXT)",
     "CREATE TABLE IF NOT EXISTS behaviors (name TEXT PRIMARY KEY, value TEXT)",
@@ -150,7 +158,7 @@ class SyntheticProvider:
             if int(value) < NUMBERS[name]:
                 raise ValueError("Synthetic number out of range.")
         elif name in {"zero_metric", "omit_metric"}:
-            if value and value not in self.capability.metrics:
+            if value and value not in {spec.name for spec in self.capability.metrics}:
                 raise ValueError("Unknown synthetic metric.")
         elif name == "fetch_script":
             for item in filter(None, value.split(",")):
@@ -181,8 +189,17 @@ class SyntheticProvider:
         return f"{AUTHORIZE_URL}?{urlencode(query)}"
 
     # Stand-in for the provider's consent page: approve the authorization URL for one external
-    # account and return the authorization code that the provider would send to redirect_uri.
-    def approve(self, authorization_url: str, account: str, label: str | None = None) -> str:
+    # account of the given kind and return the authorization code that the provider would send
+    # to redirect_uri.
+    def approve(
+        self,
+        authorization_url: str,
+        account: str,
+        label: str | None = None,
+        kind: str = "business",
+    ) -> str:
+        if kind not in ACCOUNT_KINDS:
+            raise ValueError("Unknown synthetic account kind.")
         parts = urlsplit(authorization_url)
         if f"{parts.scheme}://{parts.netloc}{parts.path}" != AUTHORIZE_URL:
             raise ValueError("Not a synthetic authorization URL.")
@@ -194,7 +211,7 @@ class SyntheticProvider:
         with self._transaction() as connection:
             connection.execute(
                 "INSERT INTO codes (digest, challenge, redirect_uri, scopes, account, label, "
-                "expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "kind, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     _digest(code),
                     query["code_challenge"],
@@ -202,6 +219,7 @@ class SyntheticProvider:
                     query.get("scope", ""),
                     account,
                     label,
+                    kind,
                     expires,
                 ),
             )
@@ -230,8 +248,8 @@ class SyntheticProvider:
                 error = ProviderError(ErrorKind.RETRYABLE, "unavailable")
             else:
                 row = connection.execute(
-                    "SELECT challenge, redirect_uri, scopes, account, label, expires_at, used "
-                    "FROM codes WHERE digest = ?",
+                    "SELECT challenge, redirect_uri, scopes, account, label, expires_at, used, "
+                    "kind FROM codes WHERE digest = ?",
                     (_digest(code),),
                 ).fetchone()
                 valid = (
@@ -248,8 +266,8 @@ class SyntheticProvider:
                     error = ProviderError(ErrorKind.PERMANENT, "invalid_grant")
                 else:
                     grant_id = connection.execute(
-                        "INSERT INTO grants (account, label, scopes) VALUES (?, ?, ?)",
-                        (row[3], row[4], row[2]),
+                        "INSERT INTO grants (account, label, kind, scopes) VALUES (?, ?, ?, ?)",
+                        (row[3], row[4], row[7], row[2]),
                     ).lastrowid
                     access, expires = self._issue(
                         connection, grant_id, "access_token", self._ttl(connection)
@@ -258,7 +276,7 @@ class SyntheticProvider:
                     self._call(connection, "exchange", "ok")
         if error is not None:
             raise error
-        return TokenGrant(access, refresh, expires, tuple(row[2].split()), row[3], row[4])
+        return TokenGrant(access, refresh, expires, tuple(row[2].split()), row[3], row[4], row[7])
 
     def _grant(
         self, connection: sqlite3.Connection, token: str, kind: str | None = None
@@ -285,8 +303,8 @@ class SyntheticProvider:
                 self._call(connection, "refresh", "invalid_grant")
                 error = ProviderError(ErrorKind.UNAUTHORIZED, "invalid_grant")
             else:
-                account, label, scopes = connection.execute(
-                    "SELECT account, label, scopes FROM grants WHERE id = ?", (found[0],)
+                account, label, scopes, kind = connection.execute(
+                    "SELECT account, label, scopes, kind FROM grants WHERE id = ?", (found[0],)
                 ).fetchone()
                 access, expires = self._issue(
                     connection, found[0], "access_token", self._ttl(connection)
@@ -294,7 +312,9 @@ class SyntheticProvider:
                 self._call(connection, "refresh", "ok")
         if error is not None:
             raise error
-        return TokenGrant(access, refresh_token, expires, tuple(scopes.split()), account, label)
+        return TokenGrant(
+            access, refresh_token, expires, tuple(scopes.split()), account, label, kind
+        )
 
     # The next scripted read outcome, if any, removed from the script; otherwise the behavior.
     def _read_outcome(self, connection: sqlite3.Connection) -> tuple[str, int | None]:
@@ -366,9 +386,9 @@ class SyntheticProvider:
                 self._call(connection, "fetch", "forbidden", detail)
                 error = ProviderError(ErrorKind.FORBIDDEN, "insufficient_permission")
             else:
-                account = connection.execute(
-                    "SELECT account FROM grants WHERE id = ?", (found[0],)
-                ).fetchone()[0]
+                account, kind = connection.execute(
+                    "SELECT account, kind FROM grants WHERE id = ?", (found[0],)
+                ).fetchone()
                 start, end = self._window(connection, since, until)
                 size = self._number(connection, "page_size")
                 total = self._number(connection, "objects")
@@ -386,6 +406,8 @@ class SyntheticProvider:
                 "impressions": 100 * index,
                 "engagements": 10 * index,
             }
+            if kind == "business":
+                metrics["saves"] = index
             if zero in metrics:
                 metrics[zero] = 0
             metrics.pop(omit, None)

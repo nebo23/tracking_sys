@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "009-B"
+POLICY_VERSION = "009-C"
 
 
 class Sensitivity(StrEnum):
@@ -328,8 +328,8 @@ CLASSES: dict[str, DataClass] = {
         ),
         DataClass(
             "connector.account_reference",
-            "Provider external account identifier and display label of a connection; may "
-            "identify a person.",
+            "Provider external account identifier, display label, and account kind of a "
+            "connection; may identify a person.",
             Sensitivity.MEDIUM,
             Personal.PSEUDONYMOUS,
             Provenance.OBSERVED,
@@ -348,7 +348,8 @@ CLASSES: dict[str, DataClass] = {
         ),
         DataClass(
             "connector.provider_data",
-            "Provider object identifiers and observed metrics fetched through a connection.",
+            "Provider object identifiers and observed metrics fetched through a connection, "
+            "with the run and adapter version that stored them.",
             Sensitivity.MEDIUM,
             Personal.PSEUDONYMOUS,
             Provenance.OBSERVED,
@@ -1060,7 +1061,12 @@ TABLES: dict[str, TablePolicy] = {
     ),
     "connector_connections": TablePolicy(
         {
-            **_same("connector.account_reference", "external_account_id", "account_label"),
+            **_same(
+                "connector.account_reference",
+                "external_account_id",
+                "account_label",
+                "account_kind",
+            ),
             **_same(
                 "tenancy.configuration", "id", "agency_id", "client_id", "created_by_membership_id"
             ),
@@ -1230,6 +1236,8 @@ TABLES: dict[str, TablePolicy] = {
                 "observed_at",
                 "metrics",
                 "fetched_at",
+                "source_run_id",
+                "adapter_version",
             ),
         },
         (

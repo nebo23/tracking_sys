@@ -12336,6 +12336,324 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/coverage": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "Read Coverage",
+        "operationId": "read_coverage_agencies__agency_id__clients__client_id__connections__connection_id__coverage_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/records": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "Read Records",
+        "operationId": "read_records_agencies__agency_id__clients__client_id__connections__connection_id__records_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/sync": {
       "post": {
         "tags": [
@@ -13631,6 +13949,36 @@
         ],
         "title": "ConnectionResponse"
       },
+      "ConnectionSource": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "adapter_version": {
+            "type": "string",
+            "title": "Adapter Version"
+          },
+          "account_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "adapter_version",
+          "account_kind"
+        ],
+        "title": "ConnectionSource"
+      },
       "ConsentInput": {
         "properties": {
           "subject_token": {
@@ -13917,6 +14265,146 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ContentUpdate"
+      },
+      "CostState": {
+        "properties": {
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Period Start"
+          },
+          "consumed": {
+            "type": "integer",
+            "title": "Consumed"
+          },
+          "allocation": {
+            "type": "integer",
+            "title": "Allocation"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "exhausted"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "connection_allocation",
+                  "provider_quota"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit",
+          "period_start",
+          "consumed",
+          "allocation",
+          "remaining",
+          "state",
+          "reason"
+        ],
+        "title": "CostState"
+      },
+      "CoverageResponse": {
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ConnectionSource"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "reconnect_required",
+              "disconnecting",
+              "disconnected"
+            ],
+            "title": "Status"
+          },
+          "last_successful_sync_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Sync At"
+          },
+          "freshness": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "stale",
+              "never_synced"
+            ],
+            "title": "Freshness"
+          },
+          "freshness_hours": {
+            "type": "integer",
+            "title": "Freshness Hours"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncState"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/StreamCoverage"
+            },
+            "type": "array",
+            "title": "Streams"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricAvailability"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connection_id",
+          "source",
+          "status",
+          "last_successful_sync_at",
+          "freshness",
+          "freshness_hours",
+          "sync",
+          "streams",
+          "metrics",
+          "cost"
+        ],
+        "title": "CoverageResponse"
       },
       "DiagnosticResponse": {
         "properties": {
@@ -15076,6 +15564,83 @@
         "type": "object",
         "title": "MembershipUpdate"
       },
+      "MetricAvailability": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unsupported",
+              "missing",
+              "stale",
+              "not_synced"
+            ],
+            "title": "Availability"
+          },
+          "latest_observed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Observed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "unit",
+          "availability",
+          "latest_observed_at"
+        ],
+        "title": "MetricAvailability"
+      },
+      "MetricValue": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "missing",
+              "unsupported",
+              "stale"
+            ],
+            "title": "State"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "value"
+        ],
+        "title": "MetricValue"
+      },
       "OriginInput": {
         "properties": {
           "origin": {
@@ -15273,6 +15838,109 @@
         },
         "type": "object",
         "title": "Received"
+      },
+      "RecordItem": {
+        "properties": {
+          "provider_object_id": {
+            "type": "string",
+            "title": "Provider Object Id"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fetched At"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RecordSource"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MetricValue"
+            },
+            "type": "object",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_object_id",
+          "observed_at",
+          "fetched_at",
+          "source",
+          "metrics"
+        ],
+        "title": "RecordItem"
+      },
+      "RecordPage": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/RecordItem"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "next_after"
+        ],
+        "title": "RecordPage"
+      },
+      "RecordSource": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "adapter_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Version"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "adapter_version",
+          "run_id"
+        ],
+        "title": "RecordSource"
       },
       "Registration": {
         "properties": {
@@ -15632,6 +16300,60 @@
         "type": "object",
         "title": "SourceUpdate"
       },
+      "StreamCoverage": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_synced",
+              "partial",
+              "complete"
+            ],
+            "title": "State"
+          },
+          "covered_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered From"
+          },
+          "complete_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complete Through"
+          },
+          "history_limit_days": {
+            "type": "integer",
+            "title": "History Limit Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "state",
+          "covered_from",
+          "complete_through",
+          "history_limit_days"
+        ],
+        "title": "StreamCoverage"
+      },
       "SyncInput": {
         "properties": {
           "kind": {
@@ -15692,6 +16414,68 @@
           "status"
         ],
         "title": "SyncRequestResponse"
+      },
+      "SyncState": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "queued",
+              "running",
+              "delayed",
+              "budget_stopped",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "incremental",
+                  "backfill"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "next_attempt_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Attempt At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "kind",
+          "reason",
+          "next_attempt_at"
+        ],
+        "title": "SyncState"
       },
       "TemplateInput": {
         "properties": {

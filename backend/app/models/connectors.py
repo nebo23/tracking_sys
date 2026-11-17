@@ -144,6 +144,8 @@ class ConnectorConnection(Base):
     purge_status: Mapped[str | None] = mapped_column(String(16))
     teardown_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
     teardown_lease_until: Mapped[datetime | None] = _time()
+    # Provider account kind reported at connect or reconnect (009-C); cleared by the purge.
+    account_kind: Mapped[str | None] = mapped_column(String(32))
 
 
 # Single-use connect or reconnect authorization bound to the initiating membership, client,
@@ -260,6 +262,9 @@ class ConnectorSyncRun(Base):
     __tablename__ = "connector_sync_runs"
     __table_args__ = (
         ForeignKeyConstraint(*CONNECTION_FK),
+        UniqueConstraint(
+            "agency_id", "client_id", "connection_id", "id", name="uq_connector_sync_runs_scope"
+        ),
         CheckConstraint(
             "status IN ('queued', 'running', 'succeeded', 'failed', 'canceled')",
             name="valid_status",
@@ -382,7 +387,8 @@ class ConnectorUsageRecord(Base):
 
 
 # Provider data of one connection: one row per provider object with its latest observed
-# synthetic metrics. Deleted by the disconnect purge.
+# synthetic metrics, the run that stored them, and the adapter version that read them (009-C
+# provenance). Deleted by the disconnect purge.
 # SELECT provider_object_id, observed_at, fetched_at
 # FROM public.connector_records
 # WHERE connection_id = '00000000-0000-0000-0000-000000000009'::uuid
@@ -391,6 +397,15 @@ class ConnectorRecord(Base):
     __tablename__ = "connector_records"
     __table_args__ = (
         ForeignKeyConstraint(*CONNECTION_FK),
+        ForeignKeyConstraint(
+            ["agency_id", "client_id", "connection_id", "source_run_id"],
+            [
+                "connector_sync_runs.agency_id",
+                "connector_sync_runs.client_id",
+                "connector_sync_runs.connection_id",
+                "connector_sync_runs.id",
+            ],
+        ),
         UniqueConstraint("connection_id", "provider_object_id", name="uq_connector_records_object"),
         CheckConstraint("jsonb_typeof(metrics) = 'object'", name="object_metrics"),
         CheckConstraint("length(metrics::text) <= 4096", name="bounded_metrics"),
@@ -404,3 +419,5 @@ class ConnectorRecord(Base):
     observed_at: Mapped[datetime] = _time(False)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB)
     fetched_at: Mapped[datetime] = _time(False, default=True)
+    source_run_id: Mapped[UUID | None] = mapped_column(Uuid)
+    adapter_version: Mapped[str | None] = mapped_column(String(32))
