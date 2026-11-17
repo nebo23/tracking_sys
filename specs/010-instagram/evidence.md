@@ -98,3 +98,13 @@ The owner published content on the test account and the `probe` was repeated wit
 | F7 `media_product_type` | **Returned and populated under Instagram Login**: the media list showed one item as `IMAGE` / `FEED`, despite the media reference describing the field as Facebook Login only. D7's product types stand for `FEED`; `REELS` and `STORY` are confirmed when such items appear. |
 | F8 feed metrics | For the `FEED` item, `reach`, `views`, `likes`, `comments`, `saved`, `shares`, `total_interactions`, `profile_visits` and `follows` returned lifetime integer values. `ig_reels_avg_watch_time`, `ig_reels_video_view_total_time` and `reels_skip_rate` were refused with "The Media Insights API does not support the ... metric for this media product type" (code 100), which 010-C can map to `unsupported`; `impressions` was refused the same way. |
 | F8 reels and stories | Not yet measured: the media list showed no reel and the stories edge answered with no live story. |
+
+### Third read with a reel (2026-11-17)
+
+Repeated `probe` (46 read-only calls, not throttled) after the reel finished processing.
+
+| Question | Result |
+|---|---|
+| F7 `media_product_type` | Also populated for the reel: `VIDEO` / `REELS`. D7's product types hold under Instagram Login for `FEED` and `REELS`. |
+| F8 reel metrics | `reach`, `views`, `likes`, `comments`, `saved`, `shares`, `total_interactions`, `ig_reels_avg_watch_time`, `ig_reels_video_view_total_time` and `reels_skip_rate` returned lifetime values. `follows` and `profile_visits` were refused for the reel with the same unsupported-for-product-type message, as were the reels-only metrics for the feed post. The D2 media catalog, with `profile_visits` and `follows` for `FEED` only and the three watch metrics for `REELS` only, matches the live answers exactly. |
+| F8 stories | Still not measured: the stories edge answered with no live story. |
