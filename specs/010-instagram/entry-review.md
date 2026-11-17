@@ -87,3 +87,7 @@ D-053 approves D1-D10 as recommended and authorizes 010-A: a second synthetic ad
 | D8 | `Capability.daily_quota = None` removes the provider-wide quota for this adapter; rate-limit answers defer runs under the 009 policy and the per-connection allocation remains the safety cap. Records observed within the 48-hour delay are marked `provisional`. |
 | D9 | Records remain purged on disconnect, deauthorization and deletion request; `tracking_lifecycle` also deletes records observed more than 730 days ago. No media content is stored. |
 | D10 | Not part of 010-A. The owner steps of section 6 precede 010-B. |
+
+### 8.1 Documentation finding for 010-B (2026-11-17)
+
+The Instagram media reference, read while preparing the [feasibility checklist](feasibility-checklist.md), documents the `media_product_type` field (`FEED`, `REELS`, `STORY`) as available with Facebook Login only. D7 and the synthetic adapter assume product types under Instagram Login. Question F7 of the checklist establishes what the API returns. If the field is not available, the way reels and stories are distinguished (for example `media_type` and the stories edge) needs an owner decision amending D7 before 010-C.

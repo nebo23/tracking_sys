@@ -56,3 +56,15 @@ The 009 connector cases pass unchanged apart from the expected shape of the addi
 - Facebook Login, Unified Login and the `story_insights` webhook are not modeled (D1).
 - Deletion requests and run history have no approved retention period (Q-012). Native `tracking_sys` has none of the migrations 0009 to 0013.
 - The worker remains a bounded command; production scheduling is 020.
+
+## 010-B preparation (2026-11-17)
+
+Scope: D-053 decision D10, preparation only. The [feasibility checklist](feasibility-checklist.md) lists the owner's steps and questions F1-F11. The read-only tool `backend/app/instagram_feasibility.py` (standard library and python-dotenv only) is not yet run: no Meta app exists and no live call was made.
+
+| Command (from `backend/`, project `.venv`) | Result |
+|---|---|
+| `python -m pytest -q tests/test_instagram_feasibility.py` | **9 passed**, offline with a fake transport: read-only scopes, PKCE only on request, redirect parsing with state and the `#_` suffix, configuration bounds, redaction of every token, code, secret, ID, username and metric value from the console and evidence files, the refused `media_product_type` fallback, throttling and the call budget, and storing and forgetting the token in the environment file |
+| `python -m pytest -m "not integration" -q` | **517 passed**, 325 deselected |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 135 files formatted |
+
+Documentation finding recorded in [entry review section 8.1](entry-review.md#81-documentation-finding-for-010-b-2026-11-17): `media_product_type` is documented for Facebook Login only, which question F7 settles.
