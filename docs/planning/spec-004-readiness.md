@@ -15,15 +15,15 @@ GitHub PR 1 is merged (`98747a296dd570c5f40f76c68796d3e53edb9cc4`, 2026-11-04). 
 | 002 T-01 to T-04 | [Auth evidence](../../specs/002-tenancy-access/auth-evidence.md#review-amendments-t-01-to-t-04-2026-11-04) | Lock cycle, invitation throttling, comments and SQL references implemented and merged. |
 | 002 D-022 and R-01/R-02/R-03 | [Authentication corrections](../../specs/002-tenancy-access/auth-corrections-2026-11-04.md) | Implemented and merged; controlled providers, not production sign-off. |
 | 003 R003-01 | [Correction evidence](../../specs/003-privacy-data-policy/review-corrections-evidence.md) | Closure/Google cycle corrected and merged in PR 2. |
-| 003 R003-02 | Correction evidence | Whitespace bypass corrected and merged in PR 2. A further local follow-up is not in `main` (next section). |
+| 003 R003-02 | Correction evidence | Whitespace bypass corrected and merged in PR 2. A further follow-up reached `main` on 2026-11-17 under D-051 (next section). |
 | 003 R003-03 | Correction evidence | Trusted head mandatory; incomplete/unknown restore blocked at library level; merged in PR 2. |
 | 003 transferred enforcement | D-025 and consuming specifications | Intentional transfer; ingestion/tracker/operational restore are not claimed complete. |
 
-## Bounded card-scan follow-up (not in main)
+## Bounded card-scan follow-up
 
 `groups[start:]` in `contains_card_number` copies the remaining suffix at every candidate start, although candidate growth stops at 19 digits, so long runs of overlength groups cost quadratic copying. A local follow-up indexes groups without copying suffixes and checks the combined length before concatenating; a regression passes 20,000 overlength groups and then a valid synthetic card at the end. Detection policy is unchanged.
 
-That follow-up is staged in the main working tree on `codex/spec-003-privacy-data-policy`, uncommitted, and is **not** part of `bab3a33` or of the 004 branch. It is tracked as decision packet item P1. Merged `main` therefore still contains the suffix copy.
+That follow-up stayed staged in the main working tree on `codex/spec-003-privacy-data-policy` and was not part of `bab3a33` or of the 004 branch (decision packet item P1). On 2026-11-17 it was preserved on that branch and published to `main` under D-051.
 
 ## Verification
 

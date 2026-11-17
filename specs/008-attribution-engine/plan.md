@@ -1,5 +1,5 @@
 # Plan: 008-attribution-engine
-Status: Slice 008-A implemented locally under D-046 with no new dependencies; see the [evidence](evidence.md). Later slices remain draft.
+Status: Slice 008-A implemented under D-046 with no new dependencies, corrected under D-047 and merged in PR 7 at `3f6dc06`; see the [evidence](evidence.md). Later slices remain draft.
 
 ## Expected outcome
 Propose First Click, Last Click, and Linear models with configurable lookback windows, direct/unknown rules, model versions, reprocessing, and refund handling.

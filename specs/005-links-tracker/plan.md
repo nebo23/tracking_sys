@@ -1,5 +1,5 @@
 # Plan: 005-links-tracker
-Status: Approved by D-033 and implemented locally on 2026-11-10; see the [evidence](evidence.md). Publication, merge, native rollout and deployment remain separately gated. Read [design revision 1](design.md), the [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
+Status: Approved by D-033, implemented on 2026-11-10, corrected under D-035 to D-038 and merged in PR 4 (`c251e20`, 2026-11-11); see the [evidence](evidence.md). Native rollout and deployment remain separately gated. Read [design revision 1](design.md), the [decision packet](decision-packet.md) and [verification matrix](verification-matrix.md).
 
 Entry review: [merged baseline and preparation sequence](entry-review.md), refreshed on 2026-11-10 from `main` at `e8ef587` under D-032. Prepare the detailed design and decision packet before application changes.
 

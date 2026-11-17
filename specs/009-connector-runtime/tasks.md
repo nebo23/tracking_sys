@@ -22,4 +22,4 @@ Status: 009-A to 009-D implemented against the synthetic provider (D-048, D-049)
 - [x] Present a reviewable result to the owner: [PR 8](https://github.com/nebo23/tracking_sys/pull/8), 2026-11-17.
 - [x] Obtain upload approval, then push and create the PR: D-049 authorized the push and pull request after verification; [PR 8](https://github.com/nebo23/tracking_sys/pull/8).
 - [x] Verify the complete branch before merge and correct verification finding R009-11 (each synchronization step reads the clock when it happens) with a maintained regression (D-050, [evidence](evidence.md#verification-before-merge-and-correction-r009-11-2026-11-17)).
-- [ ] Record owner acceptance before progressing to dependent work: D-050 authorizes the merge of PR 8; the merge commit is recorded when Spec 010 starts.
+- [x] Record owner acceptance before progressing to dependent work: PR 8 merged at `4abcbc6` under D-050 (2026-11-17). This is repository acceptance, not production sign-off.

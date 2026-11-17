@@ -1,6 +1,6 @@
 # Specification 002-B/C/D verification evidence
 
-Date: 2026-10-30. Status: approved local implementation verified; owner acceptance and upload approval pending. Authority: D-018/D-019 and [auth design](auth-design.md). [002-A evidence](evidence.md) remains historical evidence.
+Historical evidence beginning 2026-10-30, with dated additions below. Current status (2026-11-10): approved scope and corrections merged in PR 1 (`98747a2`). Original slice results are retained. Authority: D-018/D-019 and [auth design](auth-design.md). [002-A evidence](evidence.md) remains historical evidence.
 
 ## Delivered
 - Email/password registration, verification/resend, login, current identity, logout/logout-all, password change, and recovery/reset.

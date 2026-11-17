@@ -128,10 +128,12 @@ def contains_card_number(value: str) -> bool:
         groups = _DIGIT_GROUP.findall(run.group())
         for start in range(len(groups)):
             digits = ""
-            for group in groups[start:]:
-                digits += group
-                if len(digits) > 19:
+            # Index without copying the remaining suffix for every start position.
+            for end in range(start, len(groups)):
+                group = groups[end]
+                if len(digits) + len(group) > 19:
                     break
+                digits += group
                 if len(digits) >= 13 and _luhn_valid(digits):
                     return True
     return False

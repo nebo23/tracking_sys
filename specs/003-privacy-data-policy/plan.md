@@ -1,5 +1,5 @@
 # Plan: 003-privacy-data-policy
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Historical plan, implemented at contract level under D-023 to D-025 and corrected under D-026. Merged in [PR 2](https://github.com/nebo23/tracking_sys/pull/2) (`bab3a33`, 2026-11-10). The predecessor closure is recorded in the [readiness review](../../docs/planning/spec-004-readiness.md).
 
 ## Expected outcome
 Define consent contracts, data classes, masking before transmission, token encryption, retention, deletion, export, residency decisions, and integration authorization.
