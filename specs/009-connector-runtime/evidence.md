@@ -1,6 +1,6 @@
 # Spec 009 evidence
 
-Sections below cover 009-A (D-048), its two correction rounds, and 009-B to 009-D (D-049), followed by the [acceptance summary](#spec-009-acceptance-summary).
+Sections below cover 009-A (D-048), its two correction rounds, 009-B to 009-D (D-049), and the [verification before merge with correction R009-11](#verification-before-merge-and-correction-r009-11-2026-11-17) (D-050), followed by the [acceptance summary](#spec-009-acceptance-summary).
 
 ## 009-A (2026-11-15)
 
@@ -209,6 +209,43 @@ Scope: D-049 decisions D18-D20, implemented against the synthetic provider with 
 | Tenant isolation and behavior after disconnect: archived clients, connections that require reconnection, disconnecting and disconnected connections receive nothing; a reactivated client receives again | `test_009d_deliveries_skip_inactive_connections_and_follow_disconnect` |
 | Privileges and the 7-day lifecycle deletion | `test_009d_privileges_and_lifecycle` |
 
+## Verification before merge and correction R009-11 (2026-11-17)
+
+Scope: D-050. The owner asked for a check of every specification up to Spec 009, then the pull request and merge of Spec 009. The complete branch at `2be837e` (PR 8) was verified again on a fresh disposable database, and the 009-B to 009-D code, which had no independent review, was reviewed. One finding was corrected within the D-049 scope. No schema, migration, privilege, dependency, public contract or OpenAPI snapshot changed.
+
+| Command on `2be837e` (from `backend/`, project `.venv`, fresh disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 129 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 316 deselected |
+| `python -m pytest -m integration -q -rw` | **313 passed, 3 skipped**, no warnings; the evidence counts above are reproduced |
+
+**R009-11 (medium): a synchronization read the clock once per claim.** `run_syncs` read the time when it claimed a run and passed that value to every later step of the run. On the synthetic provider and in tests, where each worker pass uses one fixed time, this is invisible. With real time and a provider that answers slowly, three consequences follow:
+
+1. A `429` (or retryable failure) later in a run set `not_before` from the claim time. When the run had already lasted longer than `Retry-After`, the deferral was already past, and the same worker pass claimed the run again at once, calling the provider without waiting (acceptance criterion 3).
+2. Each stored page set `lease_expires_at` to the claim time plus five minutes, so the lease that D13 says each page renews never moved. A run lasting more than five minutes could be claimed by another pass while still working. The attempt fence keeps that safe, but the first attempt's in-flight call is wasted.
+3. Fetch times, usage reservation and settlement times, and the UTC usage period were those of the claim, not of the calls.
+
+A temporary reproduction run with a provider wrapper that took one second per read, with the worker using the real clock, showed the next read **1.04 s** after a `429` that asked for 2 s, in the same pass, and a lease still equal to the claim time plus 5 minutes after two stored pages.
+
+Correction: `run_syncs` gives `_execute` and `_refresh` a clock, as `run_teardowns` already does, and each step reads it when it happens: the token expiry check, every reservation and settlement, every page write and its lease renewal, and every deferral, failure or reconnect decision. A fixed `now` (tests) still applies to every step, so the existing cases are unchanged.
+
+| Regression (`backend/tests/integration/test_connector_sync.py`) | Result with the service code of `2be837e` | After correction |
+|---|---|---|
+| `test_r009_11_each_sync_step_reads_the_clock_when_it_happens`: a controlled clock advances two minutes per provider read; the third read answers `429` with `Retry-After: 300` | Failed: the pass reported `{"deferred": 1, "succeeded": 1}`, so the run was claimed again before its `Retry-After` had passed | Passed: the pass defers the run once, with `not_before` five minutes after the `429`; the lease seen before each read is the claim time plus 5 minutes, then the first and second page writes plus 5 minutes; record fetch times and usage times follow the calls; the run resumes at its cursor only at `not_before`; K2 and K3 synchronize again |
+
+| Command after the correction (same environment) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 129 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 317 deselected |
+| `python -m pytest -m integration -q -rw` | **314 passed, 3 skipped**, no warnings. The new case is the R009-11 regression; the skips are the opt-in Spec 005 browser journeys. |
+| The same browser journeys with `TRACKING_RUN_BROWSER_TESTS=1` and the tracker's installed Playwright browsers: `python -m pytest -m integration -q tests/integration/test_tracker_journey.py` | **3 passed** (Chromium and Firefox), so no case of the suite is left unexercised |
+| Mutation check: each half of the correction disabled in turn, the regression rerun, source restored | Both caught: a page write that does not renew the lease (the lease assertion failed) and a deferral counted from the time before the call (the `not_before` assertion failed) |
+| `git diff --check` | No whitespace errors |
+
+Status documents corrected in the same review: `README.md` and `docs/engineering/local-environment.md` named revision `0009_connector_runtime`, 39 tables and an 82-operation API, while the branch head is `0012_connector_webhooks` with 42 application tables and 85 operations.
+
+Observation, not corrected: the coverage `cost.reason` reports `provider_quota` for a budget stop whenever the connection has spent less than its allocation. That holds while every call costs 1 unit, as for the synthetic adapter; an adapter with larger call costs needs the stop to record which limit applied (010-013).
+
 ## Spec 009 acceptance summary
 
 Every case runs against the synthetic provider on disposable PostgreSQL. The named tests are in `backend/tests/integration/` unless stated.
@@ -218,7 +255,7 @@ Every case runs against the synthetic provider on disposable PostgreSQL. The nam
 | AC1: state validation, replay rejection, PKCE, no token exposure | 009-A | `test_connectors.py::test_callback_replay_expiry_binding_and_concurrent_submission`, `test_connect_status_isolation_and_sync`, the token search in `test_disconnect_through_worker_command_isolates_other_clients`, and `backend/tests/test_connector_contracts.py::test_exchange_requires_pkce_redirect_and_single_use` |
 | AC2: expiry or revocation stops only the affected connection | 009-A | `test_connectors.py::test_refresh_install_is_fenced_and_terminal_failure_requires_reconnect`, `test_reconnect_binding_mismatch_and_race_with_disconnect`, `test_r009_08_concurrent_reconnects_keep_the_winning_grant_usable`, `test_r009_09_a_rejected_reconnect_keeps_the_original_grant` |
 | AC3: `401` reconnection | 009-A | `test_connectors.py::test_refresh_install_is_fenced_and_terminal_failure_requires_reconnect` |
-| AC3: `429` backoff, retryable failures, `403` | 009-B | `test_connector_sync.py::test_009b_rate_limits_retries_forbidden_and_permanent_failures` |
+| AC3: `429` backoff, retryable failures, `403` | 009-B | `test_connector_sync.py::test_009b_rate_limits_retries_forbidden_and_permanent_failures`, `test_r009_11_each_sync_step_reads_the_clock_when_it_happens` (a late `429` in real time) |
 | AC3: crash recovery without skipped pages or duplicate records | 009-B | `test_connector_sync.py::test_009b_restart_at_the_page_boundary_skips_and_duplicates_nothing` (three stop points), `test_connectors.py::test_r009_02_superseded_sync_attempt_cannot_overwrite_its_replacement` |
 | AC4: metric availability, last synchronization, historical coverage and cost | 009-B, 009-C | `test_connector_coverage.py::test_009c_coverage_and_metric_states`, `test_connector_sync.py::test_009b_usage_accounting_and_budget_stops`, `test_009b_pages_checkpoints_backfill_and_overlapping_requests` |
 | Webhook delivery: one scoped effect, no effect on repeat, none for an invalid signature, isolation, after disconnect | 009-D | `test_connector_webhooks.py` (5 cases) |

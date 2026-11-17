@@ -449,3 +449,89 @@ def test_009b_privileges_scoped_references_and_disconnect_purge(lab):
     assert _checkpoint(lab, k1) is None and _objects(lab, k1) == set()
     assert _usage(lab, k1) == usage
     assert _checkpoint(lab, k2) is not None and _objects(lab, k2) == _posts(1, 2, 3)
+
+
+# R009-11: a worker pass without a fixed time reads the clock at each step, not once per claim.
+# Each read of a slow provider takes two minutes on a controlled clock. A 429 on the third
+# read waits its full Retry-After from the answer, each stored page renews the lease from its
+# own write, and fetch and usage times are those of the calls. The other connections of the
+# fixture keep synchronizing.
+def test_r009_11_each_sync_step_reads_the_clock_when_it_happens(lab, monkeypatch):
+    import app.services.connectors as service
+
+    w = lab.w
+    lab.provider.set_behavior("page_size", "1")
+    k2 = lab.connect("owner_a", w.a, w.a2)
+    k3 = lab.connect("owner_b", w.b, w.b1)
+    assert lab.worker()["sync"] == {"succeeded": 2}
+    # K1's first run reads the three-day recent window in three single-object pages.
+    k1 = lab.connect("owner_a", w.a, w.a1)
+    start = now_utc()
+    clock = [start]
+    step = timedelta(minutes=2)
+    leases = []
+
+    class SlowProvider:
+        capability = lab.provider.capability
+
+        def __getattr__(self, name):
+            return getattr(lab.provider, name)
+
+        def fetch_page(self, access_token, **kwargs):
+            leases.append(_runs(lab, k1)[-1].lease_expires_at)
+            try:
+                return lab.provider.fetch_page(access_token, **kwargs)
+            finally:
+                clock[0] += step
+
+    lab.provider.set_behavior("fetch_script", "ok,ok,rate_limited:300")
+    reads = len(lab.provider.reads())
+    monkeypatch.setattr(service, "now_utc", lambda: clock[0])
+    try:
+        # The run is deferred and not claimed again in the same pass.
+        assert lab.worker(registry={"synthetic": SlowProvider()})["sync"] == {"deferred": 1}
+    finally:
+        monkeypatch.undo()
+    assert lab.provider.reads()[reads:] == [(0, "ok"), (1, "ok"), (2, "rate_limited")]
+    minutes = [timedelta(minutes=n) for n in range(12)]
+    # The claim set the first lease; each stored page renewed it from its own write.
+    assert leases == [start + minutes[5], start + minutes[7], start + minutes[9]]
+    run = _runs(lab, k1)[-1]
+    assert (run.status, run.error_kind, run.pages, run.retries) == (
+        "queued",
+        "rate_limited",
+        2,
+        1,
+    )
+    assert run.not_before == start + minutes[6] + timedelta(seconds=300)
+    with Session(lab.w.db.migration) as session:
+        fetched = dict(
+            session.execute(
+                select(ConnectorRecord.provider_object_id, ConnectorRecord.fetched_at).where(
+                    ConnectorRecord.source_run_id == run.id
+                )
+            ).all()
+        )
+        usage = session.execute(
+            select(ConnectorUsageRecord.occurred_at, ConnectorUsageRecord.settled_at)
+            .where(ConnectorUsageRecord.run_id == run.id)
+            .order_by(ConnectorUsageRecord.occurred_at)
+        ).all()
+    assert fetched == {
+        f"{ACCOUNT}-post-1": start + minutes[2],
+        f"{ACCOUNT}-post-2": start + minutes[4],
+    }
+    assert [tuple(row) for row in usage] == [
+        (start, start + minutes[2]),
+        (start + minutes[2], start + minutes[4]),
+        (start + minutes[4], start + minutes[6]),
+    ]
+    # Retry-After counts from the 429, so the run waits until then and resumes at its cursor.
+    assert lab.worker(now=run.not_before - timedelta(seconds=1))["sync"] == {}
+    assert lab.worker(now=run.not_before)["sync"] == {"succeeded": 1}
+    assert lab.provider.reads()[-1] == (2, "ok")
+    assert _objects(lab, k1) == _posts(1, 2, 3)
+    for other, agency, client_id, owner in ((k2, w.a, w.a2, "owner_a"), (k3, w.b, w.b1, "owner_b")):
+        assert lab.sync(owner, agency, client_id, other).status_code == 202
+    assert lab.worker()["sync"] == {"succeeded": 2}
+    assert _objects(lab, k2) == _objects(lab, k3) == _posts(1, 2, 3)

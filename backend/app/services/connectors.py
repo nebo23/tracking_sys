@@ -1178,27 +1178,29 @@ def _require_reconnect(engine: Engine, claim: _Claim, reason: str, now: datetime
 # its grant is being torn down or was replaced. A superseded attempt or an inactive client
 # leaves the token unsaved without revoking it, because it belongs to the grant the connection
 # still holds and the winning attempt's tokens share that grant (R009-03); it expires at the
-# provider. Returns the access token, or the run outcome.
+# provider. Each step reads the clock when it happens (R009-11). Returns the access token, or
+# the run outcome.
 def _refresh(
     engine: Engine,
     settings: Settings,
     keyring: LocalKeyring,
     provider: ConnectorProvider,
     claim: _Claim,
-    now: datetime,
+    clock: Callable[[], datetime],
 ) -> tuple[str | None, str]:
     assert claim.refresh_token is not None
-    usage, outcome = _reserve(engine, settings, provider.capability, claim, "refresh", now)
+    usage, outcome = _reserve(engine, settings, provider.capability, claim, "refresh", clock())
     if usage is None:
         return None, outcome
     try:
         grant = provider.refresh(claim.refresh_token)
     except ProviderError as error:
-        _settle(engine, usage, error.kind.value, now)
+        _settle(engine, usage, error.kind.value, clock())
         if error.kind is ErrorKind.UNAUTHORIZED:
-            return None, _require_reconnect(engine, claim, "credential_expired", now)
-        return None, _fail_or_defer(engine, claim, error, now)
-    _settle(engine, usage, "ok", now)
+            return None, _require_reconnect(engine, claim, "credential_expired", clock())
+        return None, _fail_or_defer(engine, claim, error, clock())
+    _settle(engine, usage, "ok", clock())
+    now = clock()
     moved_on = False
     try:
         with Session(engine) as session, session.begin():
@@ -1339,33 +1341,37 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
 
 
 # Read the claimed run's window page by page from its resume cursor. Every data call, refresh
-# included, is first reserved against the usage limits and settled with its outcome.
+# included, is first reserved against the usage limits and settled with its outcome. The
+# clock is read at each step rather than once per claim (R009-11): a deferral counts from the
+# provider's answer, so a late 429 still waits its full Retry-After; each stored page renews
+# the lease from the time of its write; and fetch, usage, and usage-period times are those of
+# the call.
 def _execute(
     engine: Engine,
     settings: Settings,
     keyring: LocalKeyring,
     registry: Mapping[str, ConnectorProvider],
     claim: _Claim,
-    now: datetime,
+    clock: Callable[[], datetime],
 ) -> str:
     provider = registry.get(claim.provider)
     if provider is None:
         with Session(engine) as session, session.begin():
-            _finish(session, claim, "failed", now, "permanent")
+            _finish(session, claim, "failed", clock(), "permanent")
         return "failed"
     access: str | None = claim.access_token
     refreshed = False
-    expired = claim.access_expires_at is not None and claim.access_expires_at <= now
+    expired = claim.access_expires_at is not None and claim.access_expires_at <= clock()
     if expired and claim.refresh_token is not None:
         (access, outcome), refreshed = (
-            _refresh(engine, settings, keyring, provider, claim, now),
+            _refresh(engine, settings, keyring, provider, claim, clock),
             True,
         )
         if access is None:
             return outcome
     cursor = claim.cursor
     while True:
-        usage, outcome = _reserve(engine, settings, provider.capability, claim, "fetch", now)
+        usage, outcome = _reserve(engine, settings, provider.capability, claim, "fetch", clock())
         if usage is None:
             return outcome
         try:
@@ -1373,26 +1379,27 @@ def _execute(
                 access or "", cursor=cursor, since=claim.since, until=claim.until
             )
         except ProviderError as error:
-            _settle(engine, usage, error.kind.value, now)
+            _settle(engine, usage, error.kind.value, clock())
             if error.kind is ErrorKind.UNAUTHORIZED and claim.refresh_token and not refreshed:
                 (access, outcome), refreshed = (
-                    _refresh(engine, settings, keyring, provider, claim, now),
+                    _refresh(engine, settings, keyring, provider, claim, clock),
                     True,
                 )
                 if access is None:
                     return outcome
                 continue
             if error.kind is ErrorKind.UNAUTHORIZED:
-                return _require_reconnect(engine, claim, "provider_revoked", now)
-            return _fail_or_defer(engine, claim, error, now)
-        _settle(engine, usage, "ok", now)
-        outcome = _store_page(engine, claim, page, now)
+                return _require_reconnect(engine, claim, "provider_revoked", clock())
+            return _fail_or_defer(engine, claim, error, clock())
+        _settle(engine, usage, "ok", clock())
+        outcome = _store_page(engine, claim, page, clock())
         if outcome != "stored":
             return outcome
         cursor = page.next_cursor
 
 
-# Process at most `limit` sync runs, each claimed, fetched, and persisted separately.
+# Process at most `limit` sync runs, each claimed, fetched, and persisted separately. A fixed
+# `now` (tests) is used for every step; otherwise each step reads the current time.
 def run_syncs(
     engine: Engine,
     settings: Settings,
@@ -1402,16 +1409,19 @@ def run_syncs(
     now: datetime | None = None,
 ) -> dict[str, int]:
     keyring = require_keys(settings)
+
+    def clock() -> datetime:
+        return now if now is not None else now_utc()
+
     counts: dict[str, int] = {}
     for _ in range(limit):
-        moment = now or now_utc()
-        claim, canceled = _claim(engine, keyring, registry, moment)
+        claim, canceled = _claim(engine, keyring, registry, clock())
         if claim is None:
             if not canceled:
                 break
             counts["canceled"] = counts.get("canceled", 0) + 1
             continue
-        outcome = _execute(engine, settings, keyring, registry, claim, moment)
+        outcome = _execute(engine, settings, keyring, registry, claim, clock)
         counts[outcome] = counts.get(outcome, 0) + 1
     return counts
 
