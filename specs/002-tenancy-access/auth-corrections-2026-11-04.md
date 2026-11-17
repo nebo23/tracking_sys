@@ -1,6 +1,6 @@
 # Authentication review corrections: R-01, R-02, and R-03
 
-Date: 2026-11-04. Status: implemented, verified, and owner-approved for upload as Specification 002; merge pending.
+Date: 2026-11-04. Status reconciled 2026-11-10: implemented, verified, published, and merged in PR 1 (`98747a2`). The following results are the original correction evidence.
 
 ## Authority and scope
 

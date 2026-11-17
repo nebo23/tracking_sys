@@ -1,5 +1,5 @@
 # Plan: 003-privacy-data-policy
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Historical plan, implemented at contract level under D-023 to D-025 and corrected under D-026. PR 2 remains open pending owner merge. Current closure and next-step gates are in [readiness review](../../docs/planning/spec-004-readiness.md).
 
 ## Expected outcome
 Define consent contracts, data classes, masking before transmission, token encryption, retention, deletion, export, residency decisions, and integration authorization.

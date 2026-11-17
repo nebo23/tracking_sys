@@ -1,5 +1,5 @@
 # 001-foundation — Project foundation and environment
-Status: Implemented locally; awaiting owner review. Level: L1. Updated: 2026-10-29.
+Status: Implemented and merged in PR 1 (`98747a2`), including F-01/F-02. Level: L1. Status reconciled: 2026-11-10. Historical verification below retains its original scope.
 
 ## Sources and authorization
 The owner confirmed FastAPI, PostgreSQL, and Docker, then authorized beginning the backend/database foundation using the existing specification sequence (D-013). D-014 explicitly approves PostgreSQL 18, SQLAlchemy 2.x, Alembic, and Psycopg 3.
@@ -34,4 +34,4 @@ See [verification evidence](evidence.md), [the implementation plan](plan.md), an
 Specification 000 supplied the requirements inventory and proposed sequence. D-013 permits foundation work while unresolved product decisions remain tracked. Q-009 is resolved only for the database tools in D-014; authentication, jobs, and React tooling remain open for their relevant stages. Q-004 production capacity/budget and optional team reviewer assignments in Q-013 are not required to operate this local foundation.
 
 ## Owner review
-Implementation is available locally for review. D-012 still requires explicit owner approval before uploading or creating a PR. This specification is not owner-accepted and does not authorize advancing to specification 002.
+The completed scope was published and merged in [PR 1](https://github.com/nebo23/tracking_sys/pull/1) on 2026-11-04. D-016 separately authorized progression to 002. This records the repository merge; production readiness and later specifications retain their own gates.

@@ -1,6 +1,8 @@
 # Tasks: 004-event-collection
 Status: Not completed; this is a review checklist, not an implementation instruction.
 
+- [x] Prepare the [entry review](entry-review.md) and [predecessor closure matrix](../../docs/planning/spec-004-readiness.md), 2026-11-10. This is design preparation, not implementation approval.
+
 - [ ] Approve the scope and sources for event collection and contracts.
 - [ ] Resolve Q-002, Q-004, Q-012 and record the owner decision.
 - [ ] Verify dependencies: 003-privacy-data-policy.

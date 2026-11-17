@@ -1,11 +1,10 @@
 # Next specification review
-Review the completed local scope of specification 002 before progression or upload.
+Updated: 2026-11-10. Review [Spec 004 readiness](spec-004-readiness.md) and its [entry packet](../../specs/004-event-collection/entry-review.md). Specifications 001/002 are merged in PR 1. Specification 003 is completed at contract level with corrections in open PR 2.
 
-1. Read the approved [auth design](../../specs/002-tenancy-access/auth-design.md) and [current evidence](../../specs/002-tenancy-access/auth-evidence.md).
-2. Inspect 0003_auth and all 16 empty application tables in native tracking_sys.
-3. Review the 115 passing cases, especially isolation, revocation, invitation races, key scope, and audit atomicity.
-4. Follow the [local auth walkthrough](../engineering/authentication.md) to create synthetic review data if desired.
-5. Review [OpenAPI](../../contracts/openapi.json) and the deferrals: Google/Facebook sign-in, external email, React, and future job/export/report consumers.
-6. Record findings and owner acceptance. Push/PR requires upload approval under D-012; merge remains the owner's decision.
+1. Review corrected specification 003 in [PR 2](https://github.com/nebo23/tracking_sys/pull/2), including the bounded card-scan follow-up and verification evidence.
+2. Record the owner's PR 2 merge decision. The earlier explicit no-merge instruction remains in force; preparation does not execute a merge.
+3. After merge, create `codex/spec-004-event-collection` from updated merged main, preserving unrelated local edits. Fetch and compare the remote; the local main ref is stale.
+4. Review the 004 event, schema, trust, deduplication, consent, deletion and retention design before dependent implementation.
+5. Keep native rollout and legacy-mail policy separate from synthetic design/testing. Record transferred consumer obligations without marking them complete.
 
-Specification 003 is the next planned review, particularly retention/consent/deletion before real customer data. Do not silently choose markets, retention periods, hosting, or production providers.
+Do not run native inspection, migrations, deletion, or live provider requests as a checklist shortcut. Native revision was last verified as 0004_identity on 2026-11-04; this branch expects 0006_account_closure. Do not silently choose markets, retention, capacity, hosting, or providers.

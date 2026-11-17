@@ -29,3 +29,5 @@ Open decisions: Q-002, Q-004, Q-012. See the [decision register](../../docs/plan
 
 ## Owner approval
 Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+
+Preparation update (2026-11-10): the owner requested predecessor closure and readiness review. The [entry packet](entry-review.md) maps inherited contracts, proposed design decisions and acceptance tests. Preparation does not approve its schema/policy proposals; PR 2 merge and the concrete 004 design remain entry gates.

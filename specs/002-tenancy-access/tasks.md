@@ -1,5 +1,5 @@
 # Tasks: 002-tenancy-access
-Status: approved implementation verified and uploaded to the claude/development branch under D-020; formal acceptance and merge pending.
+Status: Approved scope, D-022 additions, and review corrections merged through PR 1 (`98747a2`, 2026-11-04). Reconciled 2026-11-10 against GitHub and dated evidence. Earlier counts below are historical slice results; local handoff checklist entries do not supersede that evidence.
 
 ## 002-A: tenancy foundation
 - [x] Record D-017 approval of schema, role matrix, and boundaries.
@@ -23,11 +23,11 @@ Status: approved implementation verified and uploaded to the claude/development 
 - [x] Update setup, walkthrough, decisions, boundaries, and [current evidence](auth-evidence.md).
 - [x] Re-verify 115 cases and Ruff on 2026-11-03 before upload; record the result in [current evidence](auth-evidence.md).
 - [x] Obtain upload approval (D-020); commit and push to the claude/development working branch.
-- [ ] Resolve any owner review findings and record formal acceptance.
-- [ ] Owner merge decision for main; preserve owner merge authority.
+- [x] Verify T-01/T-02 and T-03/T-04 documentation amendments; see [auth evidence](auth-evidence.md#review-amendments-t-01-to-t-04-2026-11-04).
+- [x] Implement D-022 Google sign-in, numeric verification OTP, and opt-in Gmail delivery; verify R-01/R-02/R-03 in the [correction evidence](auth-corrections-2026-11-04.md).
+- [x] Record the completed merge through [PR 1](https://github.com/nebo23/tracking_sys/pull/1), `98747a2`; production sign-off remains separate.
 
 ## Explicit later obligations
-- Google/Facebook login after provider configuration and reviewed implementation.
-- External email adapter and verified delivery before production.
+- Facebook sign-in remains deferred. Google sign-in and the Gmail adapter are implemented under D-022; live-provider and production delivery approval remain separate.
 - Actual job/export/report/cache consumers enforce and test the shared scope contract in their specs.
 - Privacy/retention/cleanup, production capacity, hosting, monitoring, and release validation retain their specification gates.

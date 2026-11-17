@@ -31,5 +31,6 @@ Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-priva
 - [x] Publish the specification for review: PR 2 was opened on 2026-11-04.
 - [x] Correct the PR review findings R003-01 to R003-03 with regression tests under D-026, record the [correction evidence](review-corrections-evidence.md), and publish the corrections to PR 2.
 - [ ] Owner review of the corrected PR 2 and the merge decision.
+- [x] Reconcile predecessor completion, remove card-scan suffix copying, and prepare the [004 readiness review](../../docs/planning/spec-004-readiness.md), 2026-11-10.
 - [ ] Decide the [legacy queued-mail transition](../../docs/engineering/data-lifecycle.md#legacy-queued-mail-proposal-awaiting-owner-approval); only the proposal is documented.
 - [ ] Record owner acceptance before progressing to dependent work.

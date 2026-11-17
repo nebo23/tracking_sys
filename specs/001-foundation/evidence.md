@@ -1,5 +1,5 @@
 # Foundation verification evidence
-Date: 2026-10-29. Scope: specification 001 only. Status: passed locally; owner review pending.
+Historical verification record: 2026-10-29 foundation and 2026-11-04 amendments below. Completed scope merged in PR 1 (`98747a2`); status reconciled 2026-11-10. Original results and limitations are retained.
 
 This is historical foundation evidence. The subsequent approved 002-A upgrade advances tracking_sys to 0002_tenancy and adds six empty tables; see [current verification evidence](../002-tenancy-access/evidence.md).
 
