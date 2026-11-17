@@ -1,5 +1,5 @@
 # Tasks: 010-instagram
-Status: Not completed; preparation under D-052. This is a review checklist, not an implementation instruction.
+Status: D1-D10 approved by D-053; 010-A in progress. This is a review checklist, not an implementation instruction.
 
 - [x] Prepare the [entry review](entry-review.md) from the official Meta documentation read on 2026-11-17, with the 009 contract gaps and decisions D1-D10.
 - [ ] Approve the scope and sources for instagram analytics.

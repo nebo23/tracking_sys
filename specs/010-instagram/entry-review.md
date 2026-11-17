@@ -1,6 +1,6 @@
 # Specification 010 entry review: Instagram analytics
 
-Prepared: 2026-11-17 on `codex/spec-010-instagram` from merged `main` at `4039600` (PR 9; Spec 009 merged in PR 8 at `4abcbc6`). Authority: D-052, preparation only. Status: proposals for owner decision. Nothing here approves implementation, schema, dependencies, a Meta app, live calls or customer data.
+Prepared: 2026-11-17 on `codex/spec-010-instagram` from merged `main` at `4039600` (PR 9; Spec 009 merged in PR 8 at `4abcbc6`). Authority: D-052, preparation only. Status: **D1-D10 approved as recommended by D-053 (2026-11-17)**; sections 1 to 7 are unchanged from `bf0c935`, and section 8 records how 010-A implements them.
 
 ## 1. Sources and what they establish
 
@@ -70,3 +70,20 @@ The 009 lifecycle, teardown and purge (Spec 003 case D3), attempt fencing, usage
 ## 7. Not authorized by this preparation
 
 Implementation, migrations, new dependencies, a Meta app, any live Meta call, App Review or Business Verification submissions, customer accounts, native `tracking_sys` migration, pull request, merge and deployment.
+
+## 8. 010-A implementation design (D-053)
+
+D-053 approves D1-D10 as recommended and authorizes 010-A: a second synthetic adapter, `synthetic_instagram`, shaped by the sources of section 1, and the runtime extensions it needs, with migration `0013_connector_streams` tested on disposable PostgreSQL only. No Meta app or live call is part of 010-A. The settled details:
+
+| Decision | 010-A implementation |
+|---|---|
+| D1 | The adapter models Instagram Login: business and creator accounts, scopes `instagram_business_basic` and `instagram_business_manage_insights`, no Facebook Page. |
+| D2 | Its metric catalog is the D2 list, each `MetricSpec` naming its stream and, for media, its product types (`FEED`, `REELS`, `STORY`). |
+| D3 | `Capability.pkce` may be `None`; the authorization then carries no code challenge and the exchange sends no verifier, while the single-use state, the session binding and the server-side exchange are unchanged. |
+| D4 | `Capability.refresh_mode = "self"`: the worker refreshes the access token itself once it is at least 24 hours old and within 7 days of expiry, before reading. A failed refresh leaves the connection `reconnect_required` with `credential_expired` and its history kept. |
+| D5 | Revocation is `unsupported`. Signed-request routes `POST /connectors/{provider}/deauthorize` and `POST /connectors/{provider}/data-deletion` verify Meta's `signed_request` (HMAC-SHA256 with the app secret) before reading it, then start the disconnect of every live connection of the named account in every agency and client, with reason `deauthorized` or `deletion_requested`. A deletion request answers with a confirmation code and a status URL, `GET /connectors/{provider}/data-deletion/{code}`, which reports `pending` until every connection it started is disconnected, then `completed`. No account ID is stored with the request. These provider-initiated disconnects have no human actor, so they are recorded by the connection's reason and the request row instead of an audit event. |
+| D6 | `Capability.streams` declares `account` (daily), `media` (daily, 2-day overlap) and `stories` (every 2 hours). Runs, checkpoints and records carry their stream; one open run is allowed per connection and stream. A connect, a webhook delivery and the scheduling step queue every stream; a sync request names a stream or uses the first. |
+| D7 | A record carries its product type and, per metric, the reason it is absent: `not_returned` (empty data) or `below_threshold` (fewer than 100 followers, fewer than 5 story viewers). Reads report such metrics as `missing` with that reason, and metrics not offered for the product type as `unsupported`; none is ever 0. |
+| D8 | `Capability.daily_quota = None` removes the provider-wide quota for this adapter; rate-limit answers defer runs under the 009 policy and the per-connection allocation remains the safety cap. Records observed within the 48-hour delay are marked `provisional`. |
+| D9 | Records remain purged on disconnect, deauthorization and deletion request; `tracking_lifecycle` also deletes records observed more than 730 days ago. No media content is stored. |
+| D10 | Not part of 010-A. The owner steps of section 6 precede 010-B. |
