@@ -108,3 +108,26 @@ Repeated `probe` (46 read-only calls, not throttled) after the reel finished pro
 | F7 `media_product_type` | Also populated for the reel: `VIDEO` / `REELS`. D7's product types hold under Instagram Login for `FEED` and `REELS`. |
 | F8 reel metrics | `reach`, `views`, `likes`, `comments`, `saved`, `shares`, `total_interactions`, `ig_reels_avg_watch_time`, `ig_reels_video_view_total_time` and `reels_skip_rate` returned lifetime values. `follows` and `profile_visits` were refused for the reel with the same unsupported-for-product-type message, as were the reels-only metrics for the feed post. The D2 media catalog, with `profile_visits` and `follows` for `FEED` only and the three watch metrics for `REELS` only, matches the live answers exactly. |
 | F8 stories | Still not measured: the stories edge answered with no live story. |
+
+### Fourth read with a story (2026-11-17)
+
+Repeated `probe` (56 read-only calls, not throttled) minutes after the owner published one story.
+
+| Question | Result |
+|---|---|
+| Stories edge | Available under Instagram Login: it listed the one live story. |
+| F8 story metrics | `reach`, `views`, `replies`, `navigation`, `shares`, `follows`, `profile_visits` and `total_interactions` returned lifetime integer values. `link_clicks` was refused with "The metric link_clicks is not available on this endpoint" (code 100), and `impressions` with the unsupported-for-product-type message. No "not enough viewers" error (code 10) appeared for the fresh story; because values are not recorded, whether low counts are withheld is not established. |
+
+### Consequences for 010-C
+
+| Area | Current 010-A assumption | Evidence | Proposed change |
+|---|---|---|---|
+| Story catalog (D2) | `reach`, `views`, `replies`, `navigation`, `link_clicks` | `link_clicks` refused on this endpoint; `shares`, `follows`, `profile_visits` and `total_interactions` available | Drop `link_clicks`; add the four available metrics. Needs the owner's approval as a D2 amendment. |
+| Account history | 30 days | Reads up to 365 days back answered; 730 days refused ("last 2 years") | Account stream history limit of 729 days |
+| Granted permissions | Only the requested scopes | All app permissions granted | Product app configured with read-only permissions only; record and flag extra granted permissions |
+| Exchange answer | Documented `data` array | Flat answer | Accept both shapes |
+| Thresholds | Provider reports `below_threshold` | Empty data under 100 followers | Infer `below_threshold` from the follower count |
+| Unsupported metrics | Declared per product type | Explicit code 100 "does not support ... for this media product type" | Map that refusal to `unsupported` |
+| Rate limits | Provider rate-limit answers | Only `x-app-usage` seen | Read `x-app-usage`; keep the per-connection safety cap |
+
+Remaining in 010-B: token refresh at least 24 hours after the first run (F2), the optional PKCE check (F3), the access-removal check (F11), `forget`, and rotation of the app secret shared in the conversation.
