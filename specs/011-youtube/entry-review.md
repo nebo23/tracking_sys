@@ -1,6 +1,6 @@
 # Specification 011 entry review: YouTube analytics
 
-Prepared: 2026-11-18 on `codex/spec-011-youtube` from merged `main` at `5d05153` (PR 10; Spec 010 merged). Authority: D-056, preparation only. Status: **proposal**. Decisions D1-D17 in section 5 are recommendations for the owner and none is approved. This preparation contains no application code, migration or dependency. It creates no Google Cloud project and makes no live Google call.
+Prepared: 2026-11-18 on `codex/spec-011-youtube` from merged `main` at `5d05153` (PR 10; Spec 010 merged). Authority: D-056, preparation only. Status: **proposal**. Decisions D1-D17 in section 5 are recommendations for the owner. D15 was decided on 2026-11-18 with its alternative by D-057 (section 10); the others are not approved. This preparation contains no application code, migration or dependency. It creates no Google Cloud project and makes no live Google call.
 
 ## 1. Sources and what they establish
 
@@ -309,3 +309,24 @@ This preparation does not authorize:
 - customer channels;
 - native `tracking_sys` migration;
 - push, pull request, merge or deployment.
+
+## 10. Owner decisions
+
+### D15 decided: the existing project `connectapp` (D-057, 2026-11-18)
+
+The owner chose the alternative of D15: the YouTube connector's development work uses the existing Google Cloud project `connectapp`, which also holds the Google sign-in and the Gmail sender. The owner had already enabled the YouTube Data API v3 and the YouTube Analytics API there. This decision is about the project only; D1-D14, D16 and D17 remain pending.
+
+Consequences accepted with this choice (G-1, G-6):
+
+- **Revocation.** Revoking a YouTube grant revokes every token that Google issued to the same Google account under this project. That includes a Gmail sender refresh token held by the same account.
+- **Verification.** The project's consent screen and its verification cover the sign-in, the Gmail sender and the YouTube scopes together.
+- **Quota and inactivity.** All three uses share the project's quotas and inactivity rules.
+
+Safeguards that follow from it:
+
+1. **A separate client.** The connector uses its own Web application OAuth client, never the sign-in Web client or the Gmail sender's Desktop client. The proposed 011-C settings refuse a client ID equal to either of them, as the Gmail sender settings already refuse the sign-in client's ID.
+2. **A separate test account.** The test channel belongs to a Google account other than the one that authorized the Gmail sender. If it cannot, the owner accepts that a YouTube revocation test (F12, F13) also ends the Gmail sender's refresh token, which then needs the sender helper again.
+3. **Unchanged consent screen.** The consent screen keeps its current name and user type; only the two YouTube scopes are added under Data access. The sign-in keeps requesting identity scopes only.
+4. **Production review.** The project used in production is reviewed again before verification and the quota audit (011-D), because P-1 III.D.1 binds the API client to exactly one project and the audit is tied to it.
+
+The console steps of section 8 change as follows: skip step 1, keep the existing branding, confirm in Audience that the publishing status is Testing and that the test channel's account is a test user, and create a new Web application client in step 4.
