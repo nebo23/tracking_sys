@@ -44,7 +44,7 @@ CONNECTION_FK = (
     ],
 )
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
-PROVIDERS = "provider IN ('synthetic', 'synthetic_instagram')"
+PROVIDERS = "provider IN ('synthetic', 'synthetic_instagram', 'instagram')"
 
 
 def _time(nullable: bool = True, *, default: bool = False) -> Any:

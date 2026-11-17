@@ -1,5 +1,5 @@
 # Plan: 010-instagram
-Status: Draft. This plan does not authorize implementation or dependency selection. The [entry review](entry-review.md) (D-052) proposes slices 010-A (synthetic Instagram-shaped adapter and runtime extensions), 010-B (owner-operated feasibility check), 010-C (Instagram adapter) and 010-D (access for customer accounts).
+Status: slices 010-A, 010-B and 010-C are complete under D-053 to D-055; 010-D remains. This plan does not itself authorize implementation or dependency selection. The [entry review](entry-review.md) (D-052) defines slices 010-A (synthetic Instagram-shaped adapter and runtime extensions), 010-B (owner-operated feasibility check), 010-C (Instagram adapter) and 010-D (access for customer accounts).
 
 ## Expected outcome
 Connect supported accounts and retrieve profile/content insights under verified permissions; define metric catalogs, history, freshness, and a proposed read-only launch scope.

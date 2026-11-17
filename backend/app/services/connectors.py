@@ -34,6 +34,10 @@ interval; offers no PKCE when the provider has none; refreshes a self-refreshing
 access token before it expires; stores each record's media product type and the reason for
 every metric the provider did not report; and lets a provider's signed deauthorize or data
 deletion request start the disconnect of every connection of the named account.
+
+010-C (D-055) registers the live Instagram adapter only when it is enabled and configured and
+its provider rules are current, and logs connector_extra_scopes when a kept grant carries
+permissions that were not requested.
 """
 
 import base64
@@ -43,7 +47,7 @@ import logging
 import zlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -63,6 +67,7 @@ from app.connectors.contracts import (
     ProviderPage,
     TokenGrant,
 )
+from app.connectors.instagram import InstagramProvider
 from app.connectors.synthetic import SyntheticProvider
 from app.connectors.synthetic_instagram import SyntheticInstagramProvider
 from app.models import (
@@ -78,6 +83,7 @@ from app.models import (
     ConnectorTokenSecret,
     ConnectorUsageRecord,
 )
+from app.privacy.providers import feature_allowed, rule
 from app.privacy.token_secrets import (
     AAD_VERSION,
     ALGORITHM,
@@ -131,16 +137,32 @@ CALLBACK_ERRORS = frozenset(
 )
 
 
-def build_providers(settings: Settings) -> dict[str, ConnectorProvider]:
-    if settings.connector_synthetic_state is None:
-        return {}
-    state = settings.connector_synthetic_state
-    return {
-        "synthetic": SyntheticProvider(state),
-        "synthetic_instagram": SyntheticInstagramProvider(
+# Provider rules that must be current before a live adapter is registered (003-C, D-025).
+LIVE_RULES = {"instagram": ("meta.platform_data", "instagram.login_api")}
+
+
+# Whether every provider rule a live adapter depends on allows it today.
+def rules_allow(provider: str, today: date) -> bool:
+    return all(feature_allowed(rule(name), today).allowed for name in LIVE_RULES[provider])
+
+
+# The adapters this process may use: the development synthetic providers when their state
+# file is configured, and the live Instagram adapter when it is enabled and configured and its
+# provider rules are current (010-C, D-055). A rule that becomes due for review takes effect
+# when the registry is next built, at the API's or worker's next start.
+def build_providers(settings: Settings, today: date | None = None) -> dict[str, ConnectorProvider]:
+    registry: dict[str, ConnectorProvider] = {}
+    if settings.connector_synthetic_state is not None:
+        state = settings.connector_synthetic_state
+        registry["synthetic"] = SyntheticProvider(state)
+        registry["synthetic_instagram"] = SyntheticInstagramProvider(
             state.with_name(state.stem + "-instagram" + state.suffix)
-        ),
-    }
+        )
+    if settings.connector_instagram_enabled and rules_allow("instagram", today or now_utc().date()):
+        registry["instagram"] = InstagramProvider(
+            settings.instagram_app_id, settings.instagram_app_secret.get_secret_value()
+        )
+    return registry
 
 
 # The stream names a provider synchronizes, in declaration order.
@@ -777,6 +799,11 @@ def complete_authorization(
         if isinstance(error, (AccessDenied, AuthError)):
             raise ConnectorError("connection_denied", 403) from None
         raise
+    # A grant may carry permissions that were not requested (010-B evidence: Instagram grants
+    # every permission configured on the app). They are recorded in granted_scopes and flagged,
+    # because the product's app must be configured with the read-only permissions only.
+    if set(grant.scopes) - set(provider.capability.scopes):
+        logger.warning("connector_extra_scopes")
     return result
 
 

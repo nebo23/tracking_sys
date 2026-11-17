@@ -118,10 +118,25 @@ def test_connector_rules_block_their_features_until_reverified():
     today = date(2026, 11, 4)
     connector_rules = [rule for rule in providers.RULES if rule.provider != "google"]
     assert len(connector_rules) == 11
+    # Specification 010-C (D-055) re-verified the Meta platform data and Instagram Login rows;
+    # every other connector row stays stale and blocking until its own specification.
+    reverified = {"meta.platform_data", "instagram.login_api"}
+    assert {rule.rule_id for rule in connector_rules if rule.rule_id not in reverified} == {
+        rule.rule_id for rule in connector_rules if rule.status is providers.RuleStatus.STALE
+    }
     assert all(
         providers.feature_allowed(rule, today) == Decision(False, "rule_stale")
         for rule in connector_rules
+        if rule.rule_id not in reverified
     )
+    for rule_id in sorted(reverified):
+        item = providers.rule(rule_id)
+        assert item.verified_at == date(2026, 11, 17)
+        assert item.review_due_at == date(2027, 11, 17)
+        assert providers.feature_allowed(item, date(2027, 11, 17)) == Decision(True, "rule_current")
+        assert providers.feature_allowed(item, date(2027, 11, 18)) == Decision(
+            False, "rule_review_overdue"
+        )
     current = providers.rule("google.sign_in")
     assert providers.feature_allowed(current, today) == Decision(True, "rule_current")
     overdue = replace(current, review_due_at=date(2026, 11, 3))

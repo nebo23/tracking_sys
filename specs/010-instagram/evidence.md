@@ -135,3 +135,44 @@ Remaining in 010-B: token refresh at least 24 hours after the first run (F2), th
 ### D-054 applied (2026-11-17)
 
 The owner approved the story-catalog amendment as D-054. The synthetic adapter (`synthetic-instagram-2`) now declares `shares`, `total_interactions`, `profile_visits` and `follows` for stories and no longer declares `link_clicks`. `python -m pytest -m "not integration" -q`: 519 passed; `tests/integration/test_connector_instagram.py` with the registry schema check on a fresh disposable PostgreSQL: 9 passed.
+
+## 010-C: live Instagram Login adapter (2026-11-17)
+
+Scope: D-055. The live adapter `app.connectors.instagram.InstagramProvider` (version `instagram-login-v27.0`) implements the approved decisions with the [010-B consequences](#consequences-for-010-c), and migration `0014_instagram_provider` admits the provider. It is registered only when `TRACKING_CONNECTOR_INSTAGRAM_ENABLED` is true with the app ID and secret and the re-verified `meta.platform_data` and `instagram.login_api` rules are current.
+
+### What changed
+
+- Adapter: authorization without PKCE; a code exchange that accepts the flat and the `data`-array answer; the long-lived exchange; `GET /me` with the app-scoped `id` as the account reference, because Meta's signed requests name it, and `user_id` for data reads; self refresh through `ig_refresh_token`; no revocation. Account insights are read one complete UTC day per page, up to 729 days back; feed posts and reels ten per page with lifetime insights requested by product type, up to 730 days back; and every live story on each run. `below_threshold` is inferred under 100 followers; any other empty or refused metric is `not_returned`; a refused combined read is repeated metric by metric, and an item without any readable insight is left out. Graph error codes map to runtime kinds; throttling codes and an `x-app-usage` figure of 90% or more defer the run by 15 minutes. Meta signed requests are verified with the app secret and accepted for 24 hours.
+- Runtime: `build_providers` registers `instagram` only with the setting, the configuration and current rules (`rules_allow`). A kept grant with permissions that were not requested logs `connector_extra_scopes` without fields, and the permissions stay in `granted_scopes`. `ConnectInput` accepts `instagram`; the OpenAPI contract changes only in that enum (88 operations).
+- Policy rows: `meta.platform_data` and `instagram.login_api` were re-verified on 2026-11-17 against the Platform Terms and Developer Policies of 2026-02-03 and Meta's data deletion callback documentation, and are current until 2027-11-17. The derived and aggregated data clause was not re-read verbatim and no longer appears in the row.
+- Settings: `TRACKING_CONNECTOR_INSTAGRAM_ENABLED` (default false), `TRACKING_INSTAGRAM_APP_ID` and `TRACKING_INSTAGRAM_APP_SECRET`, validated when enabled.
+- Migration 0014: the provider checks of connections, webhook deliveries and deletion requests include `instagram`; no table, column, index or privilege change; the downgrade refuses any live Instagram state.
+
+### Commands and results
+
+| Command (from `backend/`, project `.venv`) | Result |
+|---|---|
+| `python -m pytest -q tests/test_connector_instagram_adapter.py` | **29 passed**, offline with the in-memory Graph API: the approved capability and catalog, read-only scopes without PKCE, flat and data-array exchanges with every granted permission recorded, the app-scoped account reference, self refresh, UTC-day account pages with the 729-day limit and `below_threshold`, media paging with product-type metrics, the metric-by-metric fallback and skipped items, live stories, Graph error mapping, `x-app-usage` deferral, signed-request verification, and rule-gated registration and settings |
+| `python -m pytest -q tests/integration/test_connector_instagram_login.py` on the disposable PostgreSQL 18.6 service (127.0.0.1:55433) | **3 passed**: connect through the API callback, all three streams read and exposed with states and reasons, the `connector_extra_scopes` event, Graph throttling and app-usage deferral, self refresh before expiry, a refused token requiring reconnection with its data kept, and signed data deletion and deauthorize requests naming the app-scoped account |
+| `python -m pytest -q` with the disposable database, inherited `TRACKING_`, `PG` and `PYTHON` variables removed and no `.env` in the worktree | **876 passed in 301.50 s**, the three browser journeys included (`TRACKING_RUN_BROWSER_TESTS=1`, Playwright 1.64.1), no skips |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 140 files formatted |
+
+### Read-only adapter check with the test account (2026-11-17)
+
+The real adapter, with the owner's development app, the 010-B token and Graph API v27.0, made 11 read-only calls (all HTTP 200, `x-app-usage` at 0%). A script outside the repository printed only redacted facts; no token, ID, username or value was shown or stored.
+
+| Check | Result |
+|---|---|
+| `GET /me` | `id` and `user_id` were both returned and differ: the app-scoped ID is the account reference and the professional account ID serves the reads. Account kind `business`. |
+| Account stream | Three complete UTC days (2026-11-14 to 2026-11-16), one page each, with the ten integer D2 metrics; `follows_and_unfollows` reported as `below_threshold` (under 100 followers). |
+| Media and stories streams | Empty pages with correct windows: the account had no media (`media_count` 0) and no live story at that time, because the 010-B posts had been removed. The media and story shapes rest on the 010-B reads and the fixture tests. |
+
+### Follow-ups and limits after 010-C
+
+- F2: the refresh check is due at least 24 hours after the token was issued (after 2026-11-18 16:58 UTC). F3 (PKCE) is optional. F11 (access removal), `forget`, and rotation of the app secret shared in the conversation remain with the owner.
+- The product's Meta app must request and be configured with `instagram_business_basic` and `instagram_business_manage_insights` only; the development app still grants five permissions.
+- A browser connect through `/connectors/oauth/callback` was not exercised live: Meta redirects only to an HTTPS redirect URI registered on the app, which needs the hosted API (020). The connect, read, refresh and deletion flows are covered with the in-memory Graph API.
+- Whether Meta's deauthorize callback names the same app-scoped ID is confirmed once the callback URLs are hosted and registered (020).
+- Account insights are read in UTC days; Meta accepted the one-day UTC windows, but its own day boundaries for `total_value` are not documented.
+- Lifetime media values are re-read only within the 2-day overlap; an older post keeps its last values until a backfill reads it again.
+- 010-D: App Review, Advanced Access and Business Verification are owner business actions; until then Meta's development mode limits authorization to people with a role on the app. Native `tracking_sys` has none of the migrations 0009 to 0014.

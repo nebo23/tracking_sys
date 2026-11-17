@@ -51,7 +51,7 @@ Stream = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[a-z_]+$")
 
 
 class ConnectInput(Input):
-    provider: Literal["synthetic", "synthetic_instagram"]
+    provider: Literal["synthetic", "synthetic_instagram", "instagram"]
 
 
 class AccountReference(Output):

@@ -14324,7 +14324,8 @@
             "type": "string",
             "enum": [
               "synthetic",
-              "synthetic_instagram"
+              "synthetic_instagram",
+              "instagram"
             ],
             "title": "Provider"
           }

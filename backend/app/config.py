@@ -161,6 +161,13 @@ class Settings(DatabaseSettings):
     # budgets (Q-004).
     connector_sync_interval_hours: int = Field(default=24, ge=1, le=168)
     connector_connection_daily_units: int = Field(default=100, ge=1, le=100000)
+    # Instagram API with Instagram Login (specification 010-C, D-055). The live adapter stays
+    # off unless explicitly enabled with the Meta app's ID and secret from ignored .env, and it
+    # is registered only while the Meta and Instagram provider rules are current. Until App
+    # Review (010-D), Meta lets only people with a role on the development app authorize it.
+    connector_instagram_enabled: bool = False
+    instagram_app_id: str = ""
+    instagram_app_secret: SecretStr = SecretStr("")
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -272,6 +279,18 @@ class Settings(DatabaseSettings):
                 raise ValueError("The connector completion URL must use an allowed origin.")
         if self.connector_synthetic_state is not None and self.environment != "development":
             raise ValueError("The synthetic connector provider is for development only.")
+        if self.connector_instagram_enabled:
+            app_id = self.instagram_app_id
+            secret = self.instagram_app_secret.get_secret_value()
+            if not (
+                app_id.isascii()
+                and app_id.isdigit()
+                and len(app_id) <= 32
+                and secret.isascii()
+                and secret.isalnum()
+                and 16 <= len(secret) <= 128
+            ):
+                raise ValueError("The Instagram connector requires the Meta app ID and secret.")
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.

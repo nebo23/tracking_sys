@@ -100,8 +100,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = configuration
     # Google endpoint client (network access, cached discovery and keys); tests substitute it.
     application.state.google = GoogleOIDC(configuration)
-    # Connector adapters (specification 009-A): only the development synthetic provider, when
-    # its state file is configured; tests substitute providers in code.
+    # Connector adapters (specifications 009-A and 010-C): the development synthetic providers
+    # when their state file is configured, and the live Instagram adapter only when enabled,
+    # configured, and allowed by current provider rules; tests substitute providers in code.
     application.state.connector_providers = build_providers(configuration)
     # Custom-domain verifier (specification 005-E): live DNS and TLS only when explicitly
     # enabled; otherwise verification answers 503. Tests substitute synthetic adapters in code.
