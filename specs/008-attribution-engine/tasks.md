@@ -1,5 +1,5 @@
 # Tasks: 008-attribution-engine
-Status: 008-A implemented locally under D-046; owner review and publication pending.
+Status: 008-A, the in-memory synthetic attribution slice (D-046, corrected under D-047), merged by the owner in [PR 7](https://github.com/nebo23/tracking_sys/pull/7) at `3f6dc06` (2026-11-15). Production defaults (Q-007), persistence and identity integration remain open.
 
 - [x] Approve the scope and sources for lead and revenue attribution engine.
 - [x] Resolve Q-007 for the synthetic slice and record the owner decision (D-046; production defaults remain open).
@@ -12,9 +12,9 @@ Status: 008-A implemented locally under D-046; owner review and publication pend
 - [x] Verify: Fixtures define expected results for window boundaries, timezones, timestamp ties, refunds, and late events.
 - [x] Verify: Recalculating identical inputs with the same model version produces identical results; model changes preserve history.
 - [x] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
-- [ ] Record owner acceptance before progressing to dependent work.
+- [x] Present a reviewable result to the owner: [PR 7](https://github.com/nebo23/tracking_sys/pull/7).
+- [x] Obtain owner review and upload approval, then push and create or update a PR (D-012): PR 7.
+- [x] Record owner acceptance before progressing to dependent work: the owner merged PR 7 (`3f6dc06`, 2026-11-15) and started Spec 009 (D-048). This is repository acceptance, not production sign-off.
 
 ## Pre-PR corrections (D-047)
 

@@ -1,9 +1,10 @@
 # Next specification review
-Updated: 2026-11-15. Spec 006 design revision 4 merged through [PR 5](https://github.com/nebo23/tracking_sys/pull/5) at `ec9a09b`. Spec 007-A merged through [PR 6](https://github.com/nebo23/tracking_sys/pull/6) at `bc0ff40` after independent verification.
+Updated: 2026-11-17. Specifications 001 to 008-A are merged through PRs 1 to 7. Spec 009, the connector runtime against a synthetic provider, is in [PR 8](https://github.com/nebo23/tracking_sys/pull/8), verified before merge with correction R009-11 under D-050, which authorizes the merge.
 
-1. Review the local 008-A commits, including the [pre-PR corrections](../../specs/008-attribution-engine/evidence.md#pre-pr-corrections-2026-11-15) (D-047), then decide on publication, the items left open there and the production defaults of Q-007.
+1. Start Spec 010 (Instagram analytics) on a fresh branch from the merged main and record the PR 8 merge commit. Its first owner decisions, in order, are listed in the [009 readiness section](../../specs/009-connector-runtime/evidence.md#readiness-for-spec-010-instagram): the Instagram account kinds and launch metric catalog (Q-001), an owner-authorized test account for dated feasibility evidence (no live call before that approval), and re-verification of the `meta.platform_data` and `instagram.login_api` policy rows.
 2. Decide when to open the 007-B design review. The [007 plan](../../specs/007-revenue-ledger/plan.md) places persistence, finance-write permissions, reconciliation handling and provider integration there.
-3. Carry the [six deferred 006 findings](../../specs/006-identity-journey/preparation-review.md#deferred-at-merge) into their affected implementation reviews. Person-linked revenue depends on the identity contract and privacy behavior.
-4. Customer-facing frontend work waits for the owner's brief, design and brand identity.
-5. Keep native rollout (0005 to 0008 and the lifecycle role), live custom-domain checks, production deployment and real customer intake separate. Native tracking_sys was last documented at 0004_identity and was not inspected or changed during this preparation.
-6. Keep predecessor items P1-P4 outside 006: the local 003 card-scan follow-up, remaining status/owner edits and legacy-mail policy. See the [004 decision packet](../../specs/004-event-collection/decision-packet.md).
+3. Carry the [six deferred 006 findings](../../specs/006-identity-journey/preparation-review.md#deferred-at-merge) into their affected implementation reviews. The 006 design revision 4 is merged; its decisions D1-D13 and implementation are still open, and person-linked revenue depends on them.
+4. Review the open 008-A items in its [evidence](../../specs/008-attribution-engine/evidence.md) and the production defaults of Q-007.
+5. Customer-facing frontend work waits for the owner's brief, design and brand identity.
+6. Keep native rollout (0005 to 0012 and the lifecycle role), live providers, live custom-domain checks, production deployment and real customer intake separate. Native tracking_sys was last documented at 0004_identity.
+7. Keep predecessor items P1-P4 outside the specification branches: the local 003 card-scan follow-up, remaining status/owner edits and legacy-mail policy. See the [004 decision packet](../../specs/004-event-collection/decision-packet.md).

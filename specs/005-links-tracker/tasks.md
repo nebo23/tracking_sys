@@ -1,5 +1,5 @@
 # Tasks: 005-links-tracker
-Status: Implemented and verified locally under D-033 (2026-11-10); awaiting independent review. See the [evidence](evidence.md).
+Status: Implemented under D-033 with the review corrections of D-035 to D-038, and merged by the owner in [PR 4](https://github.com/nebo23/tracking_sys/pull/4) (`c251e20`, 2026-11-11; recorded in D-039). See the [evidence](evidence.md). Native rollout, live custom-domain checks and real intake remain separately gated.
 
 - [x] Approve the scope and sources for links, utm parameters, and website tracker (D-033).
 - [x] Record owner choices for [D1-D10](decision-packet.md) (D-033: all recommended options); Q-001 to Q-004 and Q-012 stay open for real intake.
@@ -29,7 +29,7 @@ Status: Implemented and verified locally under D-033 (2026-11-10); awaiting inde
 - [x] Correct R005-19 to R005-22 of the second corrections review with regressions and update PR 4 (D-037).
 - [x] Final review of PR 4 after the third corrections (2026-11-11, one finding R005-23).
 - [x] Correct R005-23 of the final review with regressions and update PR 4 (D-038).
-- [ ] Independent review of the R005-23 correction.
+- [ ] Independent review of the R005-23 correction (none was recorded before the owner merged PR 4).
 - [x] Obtain owner upload approval, then push and create a PR (D-012): D-034 on 2026-11-11. Merge, native rollout and deployment remain separate decisions.
 - [ ] Owner-authorized live custom-domain smoke test, if wanted (separately gated).
-- [ ] Record owner acceptance before progressing to dependent work.
+- [x] Record owner acceptance before progressing to dependent work: the owner merged PR 4 (`c251e20`) and started Spec 006 preparation (D-039). This is repository acceptance, not production sign-off.

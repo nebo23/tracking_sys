@@ -1,5 +1,5 @@
 # Tasks: 009-connector-runtime
-Status: 009-A implemented locally under D-048, with the findings of both reviews (R009-01 to R009-10) corrected; 009-B to 009-D are approved by D-049 (decisions D11-D20). This is a review checklist, not an implementation instruction.
+Status: 009-A to 009-D implemented against the synthetic provider (D-048, D-049), with review findings R009-01 to R009-10 and verification finding R009-11 corrected; D-050 authorizes merging PR 8 after verification. This is a review checklist, not an implementation instruction.
 
 - [x] Approve the scope and sources of the first slice: D-048 approves 009-A (2026-11-15). Later slices need their own approval.
 - [ ] Resolve Q-001, Q-004, Q-009, Q-010 and record the owner decision. 009-A needed none of them (entry review section 8).
@@ -20,5 +20,6 @@ Status: 009-A implemented locally under D-048, with the findings of both reviews
 - [x] Implement 009-D (D-049 decisions D18-D20): migration 0012, signed provider webhooks with deduplicated, scoped effects and 7-day delivery records ([evidence](evidence.md#009-d-provider-webhooks-2026-11-17)).
 - [x] Update documentation, limitations, and untested assumptions for 009-A to 009-D (entry review section 9, [decision packet section 6](decision-packet-009bcd.md#6-implementation-reconciliation), [connector guide](../../docs/engineering/connectors.md)).
 - [x] Present a reviewable result to the owner: [PR 8](https://github.com/nebo23/tracking_sys/pull/8), 2026-11-17.
-- [x] Obtain upload approval, then push and create the PR: D-049 authorized the push and pull request after verification; [PR 8](https://github.com/nebo23/tracking_sys/pull/8) awaits owner review.
-- [ ] Record owner acceptance before progressing to dependent work.
+- [x] Obtain upload approval, then push and create the PR: D-049 authorized the push and pull request after verification; [PR 8](https://github.com/nebo23/tracking_sys/pull/8).
+- [x] Verify the complete branch before merge and correct verification finding R009-11 (each synchronization step reads the clock when it happens) with a maintained regression (D-050, [evidence](evidence.md#verification-before-merge-and-correction-r009-11-2026-11-17)).
+- [ ] Record owner acceptance before progressing to dependent work: D-050 authorizes the merge of PR 8; the merge commit is recorded when Spec 010 starts.
