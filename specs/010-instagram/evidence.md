@@ -68,3 +68,23 @@ Scope: D-053 decision D10, preparation only. The [feasibility checklist](feasibi
 | `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 135 files formatted |
 
 Documentation finding recorded in [entry review section 8.1](entry-review.md#81-documentation-finding-for-010-b-2026-11-17): `media_product_type` is documented for Facebook Login only, which question F7 settles.
+
+## 010-B first run (2026-11-17)
+
+Scope: D-053 decision D10. The owner created and configured the Meta app (development mode, Instagram API with Instagram login) and an Instagram professional test account, put the settings in the ignored `.env`, and completed the consent; the tool exchanged the code, stored the long-lived token in `.env` without showing it, and made 20 read-only calls with Graph API v27.0. The redacted evidence files stay in the ignored `local-data/instagram-feasibility/` folder. The first paste attempt failed because the terminal altered the pasted text; commit `0365b37` made the tool strip terminal escapes and allow repeated pastes, and the second attempt succeeded. No content was published and nothing on the account was changed.
+
+| Question | Result |
+|---|---|
+| F1 scopes and exchange answer | The code exchange answered **flat** (`access_token`, `user_id`, `permissions`), not the `data` array the Business Login page shows; the tool accepts both. Although only `instagram_business_basic` and `instagram_business_manage_insights` were requested, the grant listed **all five** permissions configured on this app, including `instagram_business_content_publish`, `instagram_business_manage_comments` and `instagram_business_manage_messages`. The product's own app must therefore be configured with the read-only permissions only, and 010-C must record and flag any extra granted permission. |
+| F2 token lifetime | Long-lived exchange answered `token_type` `bearer` with `expires_in` 5,183,331 seconds (about 60 days). Refresh is checked at least 24 hours later. |
+| F3 PKCE | Not yet checked (`pkce: not_sent`); optional. |
+| F4 profile fields | `user_id`, `username`, `account_type`, `media_count`, `followers_count` and `follows_count` were all returned; `account_type` was `BUSINESS`. |
+| F5 account metrics | All eleven D2 account metrics were accepted. `reach`, `views`, `accounts_engaged`, `total_interactions`, `likes`, `comments`, `shares`, `saves`, `replies` and `profile_links_taps` returned integer `total_value` data; `follows_and_unfollows` returned **empty data**. `impressions` was refused (`IGApiException`, code 100) with the list of valid metrics, which also names `follower_count`, `website_clicks`, `profile_views` and `online_followers`. |
+| F6 history | One-day `reach` reads 7, 30, 90 and 365 days back returned data; 730 days back was refused with "Metrics data is available for the last 2 years". The account stream's history limit is therefore close to 2 years, not the 30 days the 010-A synthetic adapter assumes. |
+| F7 `media_product_type` | The media list request that included the field was **accepted**, but the account has no media yet, so whether the field is populated under Instagram Login is still open. |
+| F8 media and story metrics | Not yet measurable: no media and no live story. |
+| F9 threshold | The account has fewer than 100 followers, and `follows_and_unfollows` came back as empty data, not as an error. The adapter cannot tell a threshold from other empty answers by the response alone; it must infer `below_threshold` from the follower count. |
+| F10 rate-limit signals | `x-app-usage` (`call_volume`, `cpu_time`, both 0) was returned; no `x-business-use-case-usage` header appeared on `graph.instagram.com`. |
+| F11 access removal | Not yet checked. |
+
+Next: the owner publishes at least one feed post, one reel and one story on the test account and the `probe` is repeated (F7, F8); `refresh` runs at least 24 hours after the first run (F2); then the removal check (F11), `forget`, and rotation of the app secret, which was shared in the conversation.
