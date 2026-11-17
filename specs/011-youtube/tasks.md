@@ -2,9 +2,12 @@
 Status: Not completed; this is a review checklist, not an implementation instruction. Preparation under D-056.
 
 - [x] Prepare the [entry review](entry-review.md) from the official Google documentation read on 2026-11-18, with the 009 contract gaps, the policy constraints, decisions D1-D17 and slices 011-A to 011-D.
-- [ ] Approve the scope and sources for youtube analytics: the owner's choices on D1-D17.
-- [ ] Google Cloud console steps of [entry review section 8](entry-review.md#8-owner-steps-in-the-google-cloud-console-before-011-b-after-d15-and-d16-are-approved) (owner, after D15 and D16).
-- [ ] 011-B feasibility check: answers to F1-F14 with redacted evidence.
+- [x] Approve the scope and sources for youtube analytics: D15 by D-057 (existing project `connectapp`), D1-D14, D16 and D17 as recommended by D-058, with 011-B before 011-A.
+- [x] Google Cloud console steps (owner, 2026-11-18), as adjusted for `connectapp` in [entry review section 10](entry-review.md#10-owner-decisions).
+- [x] Prepare the 011-B [feasibility checklist](feasibility-checklist.md) and the read-only tool `app.youtube_feasibility` with offline tests ([evidence](evidence.md)).
+- [ ] 011-B feasibility check: the owner's run and answers to F1-F14 with redacted evidence.
+- [ ] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015, after the 011-B evidence.
+- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels.
 - [ ] Re-verify the `youtube.authorized_analytics` and `youtube.other_data` rows and mark them current before the live adapter runs (011-C, D-025).
 - [ ] Resolve Q-001, Q-004; provider use-case and policy approval and record the owner decision.
 - [ ] Verify dependencies: 009-connector-runtime.

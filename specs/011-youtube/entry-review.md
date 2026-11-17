@@ -1,6 +1,6 @@
 # Specification 011 entry review: YouTube analytics
 
-Prepared: 2026-11-18 on `codex/spec-011-youtube` from merged `main` at `5d05153` (PR 10; Spec 010 merged). Authority: D-056, preparation only. Status: **proposal**. Decisions D1-D17 in section 5 are recommendations for the owner. D15 was decided on 2026-11-18 with its alternative by D-057 (section 10); the others are not approved. This preparation contains no application code, migration or dependency. It creates no Google Cloud project and makes no live Google call.
+Prepared: 2026-11-18 on `codex/spec-011-youtube` from merged `main` at `5d05153` (PR 10; Spec 010 merged). Authority: D-056, preparation only. Status: **proposal**. Decisions D1-D17 in section 5 are recommendations for the owner. D15 was decided on 2026-11-18 with its alternative by D-057, and D1-D14, D16 and D17 were approved as recommended by D-058, with 011-B before 011-A (section 10). This preparation contains no application code, migration or dependency. It creates no Google Cloud project and makes no live Google call.
 
 ## 1. Sources and what they establish
 
@@ -338,6 +338,10 @@ The owner's screenshots of `connectapp` show the following. No identifier or cre
 - **APIs.** The YouTube Data API v3 and the YouTube Analytics API are enabled.
 - **Audience.** The publishing status is Testing, with one test user, and Branding states that verification is not required while the app is in Testing.
 - **Scope classification.** The console lists `youtube.readonly` under sensitive scopes and `yt-analytics.readonly` under non-sensitive scopes, with no restricted scope. This answers the classification item of section 1. Production needs sensitive-scope verification for `youtube.readonly` (demo video, scope justification, privacy policy), and the CASA assessment for restricted scopes does not apply (G-6, D17).
-- **Scopes still to complete.** The latest Data access screenshot lists only `yt-analytics.readonly`, so `youtube.readonly` has to be added again and saved before 011-B.
+- **Scopes complete.** After a second save, Data access lists both scopes: `youtube.readonly` as sensitive and `yt-analytics.readonly` as non-sensitive.
 - **Client.** A separate Web application client for the connector was created with the redirect URI `http://127.0.0.1:8000/connectors/oauth/callback`.
-- **Secret rotation.** The client ID and secret were pasted into the conversation on 2026-11-18. They were not used or stored. The owner rotates the secret and keeps the new values only in the ignored `.env`; no live call uses the exposed secret.
+- **Credentials.** The client ID and secret were pasted into the conversation on 2026-11-18. At the owner's explicit instruction (D-058) they are stored in the ignored `.env` and used for the 011-B development calls. Rotating the secret is a follow-up before any use beyond owner test channels.
+
+### D1-D14, D16 and D17 approved (D-058, 2026-11-18)
+
+The owner approved every remaining recommendation of section 5 and asked to start with 011-B, before 011-A. The order is chosen so that the synthetic adapter of 011-A follows Google's real answers rather than documentation alone. 011-B follows the [feasibility checklist](feasibility-checklist.md). 011-A, including migration 0015, follows its evidence; any change to D1-D13 that the evidence requires goes to the owner first.

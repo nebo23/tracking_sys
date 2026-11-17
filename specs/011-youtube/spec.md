@@ -1,5 +1,5 @@
 # 011-youtube — YouTube analytics
-Status: Draft; implementation is not approved. The [entry review](entry-review.md) (D-056, 2026-11-18) proposes decisions D1-D17 and slices 011-A to 011-D for owner choice. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: The [entry review](entry-review.md) (D-056, 2026-11-18) is decided: D15 by D-057 and D1-D14, D16 and D17 as recommended by D-058. Slice 011-B (feasibility check) is prepared and runs before 011-A; 011-C and 011-D remain separate decisions. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 USER YouTube; PDF-024,041 context. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -29,4 +29,4 @@ The [entry review](entry-review.md#45-re-verification-of-the-policy-rows) (secti
 Open decisions: Q-001, Q-004; provider use-case and policy approval. See the [decision register](../../docs/planning/decisions.md). The entry review places each: Q-001 (YouTube part) through D1, D7 and D8, Q-004 through D10 and D17, Q-012 through D11, and the use case and policies through D5, D6 and D11 to D13.
 
 ## Owner approval
-D-056 (2026-11-18) authorizes preparation only. Detailed specification approval is pending: the owner's choices on D1-D17 of the [entry review](entry-review.md) must be recorded with date and scope boundaries before implementation.
+D-056 (2026-11-18) authorized preparation. D-057 decided D15 (the existing Google Cloud project `connectapp`), and D-058 (2026-11-18) approved D1-D14, D16 and D17 as recommended. It authorizes 011-B (the [feasibility checklist](feasibility-checklist.md), the read-only tool and owner-operated calls) and then 011-A after the 011-B evidence. 011-C, 011-D, customer channels, native migration, pull request, merge and deployment remain separate decisions.
