@@ -88,3 +88,13 @@ Scope: D-053 decision D10. The owner created and configured the Meta app (develo
 | F11 access removal | Not yet checked. |
 
 Next: the owner publishes at least one feed post, one reel and one story on the test account and the `probe` is repeated (F7, F8); `refresh` runs at least 24 hours after the first run (F2); then the removal check (F11), `forget`, and rotation of the app secret, which was shared in the conversation.
+
+### Second read with media (2026-11-17)
+
+The owner published content on the test account and the `probe` was repeated with the stored token (33 read-only calls, not throttled).
+
+| Question | Result |
+|---|---|
+| F7 `media_product_type` | **Returned and populated under Instagram Login**: the media list showed one item as `IMAGE` / `FEED`, despite the media reference describing the field as Facebook Login only. D7's product types stand for `FEED`; `REELS` and `STORY` are confirmed when such items appear. |
+| F8 feed metrics | For the `FEED` item, `reach`, `views`, `likes`, `comments`, `saved`, `shares`, `total_interactions`, `profile_visits` and `follows` returned lifetime integer values. `ig_reels_avg_watch_time`, `ig_reels_video_view_total_time` and `reels_skip_rate` were refused with "The Media Insights API does not support the ... metric for this media product type" (code 100), which 010-C can map to `unsupported`; `impressions` was refused the same way. |
+| F8 reels and stories | Not yet measured: the media list showed no reel and the stories edge answered with no live story. |
