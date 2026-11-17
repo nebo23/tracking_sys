@@ -19,6 +19,6 @@ Status: 009-A implemented locally under D-048, with the findings of both reviews
 - [x] Verify: Every connection exposes explicit metric availability, last synchronization, historical coverage, and cost states (009-C).
 - [x] Implement 009-D (D-049 decisions D18-D20): migration 0012, signed provider webhooks with deduplicated, scoped effects and 7-day delivery records ([evidence](evidence.md#009-d-provider-webhooks-2026-11-17)).
 - [x] Update documentation, limitations, and untested assumptions for 009-A to 009-D (entry review section 9, [decision packet section 6](decision-packet-009bcd.md#6-implementation-reconciliation), [connector guide](../../docs/engineering/connectors.md)).
-- [ ] Present a reviewable result to the owner.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
+- [x] Present a reviewable result to the owner: [PR 8](https://github.com/nebo23/tracking_sys/pull/8), 2026-11-17.
+- [x] Obtain upload approval, then push and create the PR: D-049 authorized the push and pull request after verification; [PR 8](https://github.com/nebo23/tracking_sys/pull/8) awaits owner review.
 - [ ] Record owner acceptance before progressing to dependent work.
