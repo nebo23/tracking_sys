@@ -1,0 +1,84 @@
+# Spec 009-B to 009-D decision packet
+
+Status: **D11-D20 approved as recommended by D-049 (2026-11-17)**. Prepared 2026-11-17 on `codex/spec-009-connector-runtime` after the 009-A corrections (`ade55dd`) and committed at `88cef15`; the decision text below is unchanged. All three slices stay synthetic: no live provider, no native `tracking_sys` migration, no new dependency.
+
+## 1. Contract ownership
+
+| Contract | Owning slice |
+|---|---|
+| Connection | 009-A; 009-C adds the account kind used for metric support |
+| SyncRun | 009-A single page; 009-B adds kind, window, page count, deferral time and retry count |
+| Checkpoint | 009-B |
+| Capability | 009-A OAuth fields; 009-B stream, page size, history limit, call costs and provider daily quota; 009-C metric catalog with units, supported account kinds and freshness window; 009-D webhook scheme |
+| ProviderError | 009-A `unauthorized`; 009-B `forbidden`, `rate_limited` with `retry_after`, `retryable`, `permanent` and the runtime's `budget_exhausted` |
+| UsageRecord | 009-B |
+
+Provider-specific access and sourcing (Q-001, Q-010) are needed by none of these slices and stay with 010-013. Commercial budgets (Q-004) stay open; 009-B uses synthetic limits only.
+
+## 2. Synthetic fixture extension
+
+The synthetic provider gains a deterministic dataset independent of the wall clock: one object per day ending at a fixed anchor date, `objects` items in total (default 3, so every 009-A test keeps its three records), served in pages of `page_size` with an opaque cursor. A page reports `complete_through`, the end of the newest day it covers. Without a lower bound the provider returns its recent window (3 days); a backfill can reach older objects down to the capability's history limit (30 days). Injected behaviors add `403`, `429` with a `Retry-After` value, `5xx`, a zero value, an omitted metric and a creator account kind. Metrics: `impressions` and `engagements` for every account kind, `saves` for business accounts only.
+
+## 3. Decisions
+
+| ID | Recommendation | Main alternative | Schema and privilege impact | Dependency or cost | Acceptance cases enabled |
+|---|---|---|---|---|---|
+| D11 Scheduling and worker (Q-009, job tooling only) | Keep PostgreSQL as the job store: `connector_sync_runs` with `SKIP LOCKED` claims, leases and a `not_before` time. Each worker pass runs teardowns, then a scheduling step that queues one incremental run for each active connection whose last run is older than the sync interval (setting, default 24 h, 1-168 h), then sync runs. The command stays bounded; an operator or OS scheduler invokes it. Production supervision and cadence move to 020. | Adopt a queue product (Celery or Dramatiq with Redis, or a PostgreSQL queue library) | Columns on `connector_sync_runs` (D12) | None | Scheduling queues due connections once and skips connections with an open run; a superseded attempt still writes nothing |
+| D12 Runs, overlap and backfill | Run kinds `incremental` and `backfill` with a window. One open run per connection (the 009-A partial unique index stays). A request of the same kind returns the open run; the other kind answers `409 sync_in_progress`. Owner/Admin may request `{"kind": "backfill", "since": "YYYY-MM-DD"}` within the capability's history limit. | One open run per kind running in parallel with separate checkpoints | `connector_sync_runs`: `kind`, `window_since`, `window_until`, `not_before`, `retries`, `pages` | None | Overlapping requests coalesce; backfill fills older history without moving the incremental watermark |
+| D13 Checkpoints and crash recovery | New `connector_checkpoints`, one row per connection and stream: the in-progress `run_id` and opaque `cursor` (at most 512 characters), plus `covered_from` and `complete_through`. Each page's records and its checkpoint advance commit in one transaction fenced by the run attempt, which also renews the lease. A reclaimed run resumes at the stored cursor. Completion moves the watermarks and finishes the run in one transaction. | Restart from the first page after a crash (re-spends quota and refetches pages) | New table; `tracking_app` SELECT, INSERT and UPDATE of cursor, run and watermark columns; purged by disconnect | None | A stop after a fetch, inside the write transaction, and after the commit each resume with every object stored once and no page skipped (AC3) |
+| D14 Provider errors | `401` as in 009-A. `403`: the run fails with `forbidden` and is not retried; the connection stays `active` and coverage shows the failure. `429`: the run returns to `queued` with `not_before` = now + `Retry-After` (default 60 s, at most 1 h). Retryable `5xx`: backoff 30 s x 2^(n-1), at most 15 min. At most 5 deferrals per run, then `failed`. `permanent`: failed. The checkpoint is kept in every case. Synthetic delays are deterministic; jitter for live providers is a 010-013 choice. | `403` makes the connection `reconnect_required` with a new reason `permission_missing` | None beyond D12 | None | `429` respected before reclaim, `5xx` retried then failed, `403` stops only that run (AC3) |
+| D15 Usage and budgets (Q-004 assumption) | New `connector_usage_records`: one row per provider data call (`fetch`, `refresh`), reserved before the call and settled with its outcome after, including failed and retried calls. Two daily (UTC) limits: the connection allocation (setting, default 100 units) and the provider quota declared by the Capability (synthetic 1,000 units). The reservation takes a per-provider advisory lock. When a call would exceed either limit, the run is deferred to the next UTC day with `budget_exhausted` and keeps its checkpoint. Usage rows follow the run-history retention that awaits Q-012. | Count usage without stopping; or agency-level budgets now | New table; `tracking_app` SELECT, INSERT and UPDATE of `outcome` | None; synthetic units only, not commercial budgets | Usage counts every call; a budget stop keeps partial pages and resumes the next day (AC3, AC4 cost state) |
+| D16 Coverage endpoint | `GET .../connections/{id}/coverage` for `client:read`: source (provider, adapter version, account kind), last successful sync, freshness, sync state (`idle`, `queued`, `running`, `delayed`, `budget_stopped`, `failed`) with reason and next attempt, per-stream `covered_from`, `complete_through` and history limit, metric availability, and the connection's own cost state. It never shows other tenants' usage or the provider-wide total. | Add these fields to the existing status response | None beyond D17 | None | AC4 per authorized connection, including after a delayed page and a budget stop |
+| D17 Metric states and provenance | `GET .../connections/{id}/records` for `client:read`, at most 100 per page: each metric as `{"state", "value"}` with `observed` (zero included), `missing` (omitted or null), `unsupported` (not available for the account kind) or `stale` (value kept, older than the 24-hour synthetic freshness window); each record carries provider, adapter version, source run, `observed_at` and `fetched_at`. | Coverage only, with no record reads; observed zero and missing would not be visible through the API | `connector_connections.account_kind`; `connector_records.source_run_id` (scoped foreign key to the run) and `adapter_version` | None | Observed zero, missing, unsupported and stale are distinct (AC4) |
+| D18 Webhook verification | `POST /connectors/webhooks/{provider}`. The adapter verifies its own scheme over the raw body before parsing. The synthetic scheme reuses the Spec 004 contract: header `t=<unix>,v1=<HMAC-SHA256>` over `<t>.<body>`, 300-second window, constant-time comparison, with the provider's application secret held in the synthetic state. Bodies above 16 KiB, invalid or expired signatures answer `401` and store nothing. Per-peer rate limit as for the OAuth callback. | Accept unsigned deliveries and verify by refetching | None | None | An invalid signature causes no ingestion |
+| D19 Webhook effect and deduplication | A delivery names a provider event ID and an external account. Its only effect is one queued incremental sync for each `active` connection of that account whose agency and client are active, coalescing with an open run; payload content is never stored. `connector_webhook_deliveries` keeps the provider, a SHA-256 digest of the event ID (unique per provider), the receipt time and the number of connections notified; a repeated delivery has no further effect. The response does not reveal whether any connection matched. Connections that require reconnection, are disconnecting or disconnected receive nothing. Delivery rows are deleted 7 days after receipt by `tracking_lifecycle`. | Per-connection webhook URLs; or writing payload data directly | New table; `tracking_app` SELECT and INSERT; `tracking_lifecycle` DELETE | None | One scoped effect per connection, none for a repeat, isolation across clients and agencies, none after disconnect |
+| D20 Migrations and registry | One migration per slice: `0010_connector_sync` (009-B), `0011_connector_coverage` (009-C), `0012_connector_webhooks` (009-D), each with column-limited grants, a guarded downgrade and registry classification, tested on disposable PostgreSQL only. Native rollout stays gated. | A single migration for all three slices | As listed above | None | Migration cycle, model and registry agreement, privilege denials |
+
+## 4. Acceptance mapping after approval
+
+| Criterion | Slice | Test plan |
+|---|---|---|
+| AC3 `429` backoff | 009-B | A run deferred by `Retry-After` is not claimed before `not_before` and completes after it |
+| AC3 crash recovery without duplicates | 009-B | Stops before the write, inside the write transaction and after the commit; final records equal the provider dataset once each, and the cursor sequence shows no skipped page |
+| AC4 availability, last sync, coverage, cost | 009-C | Coverage and records after a full sync, a delayed page, a budget stop, a creator account, a zero value, an omitted metric and a stale connection |
+| Webhook delivery | 009-D | Valid, repeated, invalid, cross-tenant and post-disconnect deliveries through the HTTP route |
+| 003 case D3 | 009-A, extended | The purge also deletes checkpoints; usage rows hold no provider data |
+
+## 5. Dependency for Spec 010
+
+Instagram analytics depends on D11-D15 for scheduled, paginated and rate-limited insight retrieval, on D16-D17 for showing unsupported Instagram metrics as unsupported rather than zero (010 acceptance criterion 2), and on D18-D19 before any Meta webhook subscription. The Meta and Instagram rows in `app.privacy.providers` remain stale and blocking until 010 re-verifies them.
+
+## 6. Implementation reconciliation
+
+### 6.1 009-B synchronization
+
+Implemented under D-049 with migration `0010_connector_sync`. Evidence is in the [009-B evidence](evidence.md#009-b-synchronization-2026-11-17). The following details were settled during implementation; none changes an approved option.
+
+| Decision | Implemented detail |
+|---|---|
+| D11 | The scheduling step is part of `python -m app.connector_worker` and `process_connectors`; it queues at most 100 connections per pass, skips connections locked by another transaction, and stamps the run with the worker's clock so the interval is judged on one clock. |
+| D12 | A backfill request names `days` instead of a calendar date: `{"kind": "backfill", "days": N}` extends the history N days back from the stream's `covered_from`, with N at most the provider's history limit. The provider applies its own limit to the window and reports what it served, which becomes `covered_from`. This keeps the bound relative to the stored coverage and the tests independent of the wall clock. A backfill before any completed synchronization answers `409 sync_required`. |
+| D13 | The checkpoint holds the cursor of the next page of the run named by `run_id`; a run resumes only its own cursor. The page write also counts the page on the run and renews its lease. The synthetic adapter's version is now `synthetic-2`. |
+| D14 | Deferrals clear on success (`error_kind` is `NULL` for a succeeded run); `retries` keeps the count. A budget deferral does not count toward the five. |
+| D15 | The reservation runs only for the attempt that owns the run, under a per-provider advisory lock, and both limits are checked in that transaction. A call interrupted by a stopped worker stays `reserved` and is counted. The synthetic quota and allocation are 1,000 and 100 units; the per-call cost is 1 unit for `fetch` and `refresh`. |
+| D20 | `0010_connector_sync` adds the run columns, `connector_checkpoints` and `connector_usage_records` with column-limited `tracking_app` grants (DELETE only on checkpoints, for the purge) and a downgrade that refuses populated 009-B state. Registry version `009-B` adds the classes `connector.sync_state` and `connector.usage`. |
+
+### 6.2 009-C coverage and provenance
+
+Implemented under D-049 with migration `0011_connector_coverage`. Evidence is in the [009-C evidence](evidence.md#009-c-coverage-and-provenance-2026-11-17).
+
+| Decision | Implemented detail |
+|---|---|
+| D16 | The coverage response adds `freshness_hours` and, per stream, a `state`: `not_synced`, `partial` (a run stopped between pages, so data past the watermark may be partly stored) or `complete`. Metric availability adds `not_synced` before any record is stored. A canceled latest run reads as `idle` with its reason. The cost block names the cause of exhaustion, `connection_allocation` or `provider_quota`, without the provider-wide total. |
+| D17 | Records are paged by provider object ID with `limit` (1-100) and `after`. Only metrics declared in the adapter's catalog are returned. A metric is `unsupported` only when the adapter restricts it to account kinds that exclude the connection's known kind; an unknown kind, as after the purge, is not assumed unsupported. Record staleness uses the record's `fetched_at`; connection freshness uses the last successful sync. The synthetic adapter, now `synthetic-3`, declares `saves` for business accounts only. |
+| D20 | `0011_connector_coverage` adds `connector_connections.account_kind` (classified with the account reference and cleared by the purge), `connector_records.source_run_id` with a composite foreign key to a run of the same connection and `adapter_version` (provider data, purged with the record), and the column grants. Registry version `009-C`. |
+
+### 6.3 009-D provider webhooks
+
+Implemented under D-049 with migration `0012_connector_webhooks`. Evidence is in the [009-D evidence](evidence.md#009-d-provider-webhooks-2026-11-17).
+
+| Decision | Implemented detail |
+|---|---|
+| D18 | Adapters declare `webhooks` in their Capability and implement `verify_webhook(headers, body, now)`, raising `WebhookRejected` with `signature_invalid`, `signature_expired` or `invalid_delivery`. The synthetic adapter verifies with the Spec 004 `verify_webhook` contract under `X-Synthetic-Signature`. Oversized bodies are refused by the existing 16 KiB request boundary with `413 request_too_large` before routing, rather than `401`. A verified body the adapter cannot read answers `400 invalid_delivery`. The rate limit is per provider and peer at the trusted intake rate. |
+| D19 | The response is `200` with `accepted` or `duplicate`, independent of matches. The delivery record and the queued runs commit in one transaction; the matched connections are locked for share, so a concurrent disconnect either commits first, leaving the connection unmatched, or cancels the queued run when it commits. Lifecycle setting `TRACKING_WEBHOOK_DELIVERY_RETENTION_DAYS` (at most 7). |
+| D20 | `0012_connector_webhooks` adds the table with `tracking_app` SELECT, INSERT and UPDATE of `notified`, and `tracking_lifecycle` SELECT and DELETE. Registry version `009-D` adds the class `connector.webhook_delivery`. |

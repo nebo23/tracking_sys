@@ -145,6 +145,22 @@ class Settings(DatabaseSettings):
     link_custom_domain_port: int = Field(default=443, ge=1, le=65535)
     link_service_target: str = ""
     link_domain_verification: Literal["disabled", "live"] = "disabled"
+    # Connector runtime (specification 009-A, D-048). The provider redirects to the fixed
+    # callback on this API; the browser then goes to the completion URL with at most a fixed
+    # result code and the connection ID. The synthetic provider is selected only by an explicit
+    # development state file shared by the API and the connector worker. The 72-hour teardown
+    # target applies to that local synthetic slice only; live provider deadlines are 010-013.
+    connector_redirect_uri: str = "http://127.0.0.1:8000/connectors/oauth/callback"
+    connector_complete_url: str = ""
+    connector_synthetic_state: Path | None = None
+    connector_teardown_hours: int = Field(default=72, ge=1, le=72)
+    # Synchronization (009-B, D-049 decisions D11 and D15). The worker queues an incremental run
+    # for an active connection whose last run is older than the interval. Each connection may
+    # spend at most the daily allocation of its provider's cost unit per UTC day, in addition to
+    # the provider's own daily quota. Both are synthetic development values, not commercial
+    # budgets (Q-004).
+    connector_sync_interval_hours: int = Field(default=24, ge=1, le=168)
+    connector_connection_daily_units: int = Field(default=100, ge=1, le=100000)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -202,6 +218,7 @@ class Settings(DatabaseSettings):
             raise ValueError("The verification key must be independent of the auth secret.")
         self.token_keys()
         self._validate_links()
+        self._validate_connectors()
         tombstones = self.tombstone_keys()
         if tombstones is not None:
             others = {
@@ -232,6 +249,29 @@ class Settings(DatabaseSettings):
             raise ValueError("The managed-link host configuration is invalid.") from error
         if self.link_domain_verification == "live" and not self.link_service_target:
             raise ValueError("Live domain verification requires the CNAME service target.")
+
+    # The connector callback must be the fixed route on this API (HTTP only on loopback), and
+    # the synthetic provider exists only in development.
+    def _validate_connectors(self) -> None:
+        callback = urlsplit(self.connector_redirect_uri)
+        loopback = callback.hostname in {"127.0.0.1", "localhost", "::1"}
+        if (
+            callback.scheme not in {"http", "https"}
+            or (callback.scheme == "http" and not loopback)
+            or callback.path != "/connectors/oauth/callback"
+            or callback.query
+            or callback.fragment
+            or callback.username
+            or callback.password
+        ):
+            raise ValueError("The connector callback must be this API's fixed callback route.")
+        if self.connector_complete_url:
+            target = urlsplit(self.connector_complete_url)
+            origin = f"{target.scheme}://{target.netloc}"
+            if origin not in self.allowed_origins or target.fragment:
+                raise ValueError("The connector completion URL must use an allowed origin.")
+        if self.connector_synthetic_state is not None and self.environment != "development":
+            raise ValueError("The synthetic connector provider is for development only.")
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.
@@ -308,6 +348,21 @@ class Settings(DatabaseSettings):
     def oauth_cookie_name(self) -> str:
         return "__Secure-tracking_oauth" if self.cookie_secure else "tracking_oauth"
 
+    # Short-lived cookie binding a connector authorization to the browser session that started
+    # it, limited to the /connectors/oauth path and separate from the Google sign-in cookie.
+    @property
+    def connector_cookie_name(self) -> str:
+        return (
+            "__Secure-tracking_connector_oauth"
+            if self.cookie_secure
+            else "tracking_connector_oauth"
+        )
+
+    # Where the browser goes after a connector callback.
+    @property
+    def connector_completion_url(self) -> str:
+        return self.connector_complete_url or f"{self.frontend_origin}/connections/complete"
+
     # Where the browser goes after the Google callback; at most a fixed error code is appended.
     @property
     def google_completion_url(self) -> str:
@@ -333,6 +388,8 @@ class LifecycleSettings(DatabaseSettings):
     token_retention_days: int = Field(default=7, ge=0, le=7)
     challenge_retention_days: int = Field(default=7, ge=0, le=7)
     oauth_transaction_retention_days: int = Field(default=1, ge=0, le=1)
+    # Connector webhook delivery records (D-049 decision D19): 7 days after receipt.
+    webhook_delivery_retention_days: int = Field(default=7, ge=0, le=7)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

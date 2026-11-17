@@ -16,12 +16,16 @@ from typing import Any, TextIO
 # Adding an event, field, or code is a reviewed code change.
 FIELD_CODES: dict[str, frozenset[str]] = {
     "reason": frozenset({"database_unavailable", "schema_unavailable", "schema_mismatch"}),
+    "outcome": frozenset({"unsupported", "failed"}),
 }
 EVENTS: dict[str, frozenset[str]] = {
     "application_started": frozenset(),
     "application_stopped": frozenset(),
     "database_operation_failed": frozenset(),
     "readiness_failed": frozenset({"reason"}),
+    # A newly issued connector grant that could not be saved and whose provider revocation
+    # was unsupported or failed (specification 009-A, R009-06); only the outcome code is logged.
+    "connector_grant_disposal_failed": frozenset({"outcome"}),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

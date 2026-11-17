@@ -14,6 +14,9 @@ from app.api.auth import router as auth_router
 from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
 from app.api.collection import webhook_router as collection_webhook_router
+from app.api.connectors import callback_router as connector_callback_router
+from app.api.connectors import router as connectors_router
+from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
 from app.api.links import redirect_router
 from app.api.links import router as links_router
@@ -27,6 +30,7 @@ from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
+from app.services.connectors import ConnectorError, build_providers
 from app.services.google import GoogleOIDC
 from app.services.links import LinkConflict
 from app.services.tenancy import AccessDenied, MembershipConflict
@@ -83,7 +87,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "public intake, generic signed webhooks, consent, erasure, and diagnostics. "
             "Managed links (specification 005): campaigns, content references, UTM templates, "
             "destination origins, custom domains, managed links, safe redirects, and a "
-            "non-mutating public consent-state read for the website tracker."
+            "non-mutating public consent-state read for the website tracker. "
+            "Connectors (specification 009-A): OAuth connection lifecycle with a synthetic "
+            "development provider, status, sync requests, and disconnection."
         ),
         lifespan=lifespan,
         responses={
@@ -93,6 +99,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = configuration
     # Google endpoint client (network access, cached discovery and keys); tests substitute it.
     application.state.google = GoogleOIDC(configuration)
+    # Connector adapters (specification 009-A): only the development synthetic provider, when
+    # its state file is configured; tests substitute providers in code.
+    application.state.connector_providers = build_providers(configuration)
     # Custom-domain verifier (specification 005-E): live DNS and TLS only when explicitly
     # enabled; otherwise verification answers 503. Tests substitute synthetic adapters in code.
     application.state.domain_verifier = (
@@ -127,6 +136,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Event collection failures carry a fixed public code; 503 responses invite a retry.
     @application.exception_handler(CollectionError)
     async def collection_error(request: Request, error: CollectionError) -> JSONResponse:
+        headers = {"Retry-After": "1"} if error.status == 503 else None
+        return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
+
+    # Connector failures (specification 009-A) carry a fixed public code.
+    @application.exception_handler(ConnectorError)
+    async def connector_error(request: Request, error: ConnectorError) -> JSONResponse:
         headers = {"Retry-After": "1"} if error.status == 503 else None
         return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
 
@@ -183,6 +198,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(collection_webhook_router)
     application.include_router(links_router)
     application.include_router(redirect_router)
+    application.include_router(connectors_router)
+    application.include_router(connector_callback_router)
+    application.include_router(connector_webhook_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

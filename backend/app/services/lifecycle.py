@@ -15,7 +15,8 @@ first and is observed, or waits for the batch (review finding R004-02). Because 
 commits and releases that lock, consent history is removed so that every committed state keeps
 each purpose's effective record: the latest record of a subject and purpose is deleted only
 once no older record of it remains, so no batch can expose an older grant (review finding
-R004-04).
+R004-04). Specification 009-A (D-048) adds connector OAuth transactions, deleted one day
+after consumption or expiry like sign-in transactions.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -49,6 +50,8 @@ from app.models import (
     AuthToken,
     CollectedEvent,
     CollectionSubject,
+    ConnectorOAuthTransaction,
+    ConnectorWebhookDelivery,
     EventDiagnostic,
     ExternalIdentity,
     IngestionSourceSecret,
@@ -125,6 +128,20 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             OAuthTransaction.consumed_at < limit,
             OAuthTransaction.expires_at < limit,
             OAuthTransaction.user_id.in_(closed),
+        )
+
+    # Connector OAuth transactions (D-048) follow the same one-day rule as sign-in transactions.
+    def connector_transactions(cutoff: datetime) -> ColumnElement[bool]:
+        limit = before(settings.oauth_transaction_retention_days, cutoff)
+        return or_(
+            ConnectorOAuthTransaction.consumed_at < limit,
+            ConnectorOAuthTransaction.expires_at < limit,
+        )
+
+    # Connector webhook delivery records (D-049) only recognize repeats; 7 days after receipt.
+    def webhook_deliveries(cutoff: datetime) -> ColumnElement[bool]:
+        return ConnectorWebhookDelivery.received_at < before(
+            settings.webhook_delivery_retention_days, cutoff
         )
 
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
@@ -212,6 +229,18 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             "verification_challenges", VerificationChallenge, VerificationChallenge.id, challenges
         ),
         Target("oauth_transactions", OAuthTransaction, OAuthTransaction.id, transactions),
+        Target(
+            "connector_oauth_transactions",
+            ConnectorOAuthTransaction,
+            ConnectorOAuthTransaction.id,
+            connector_transactions,
+        ),
+        Target(
+            "connector_webhook_deliveries",
+            ConnectorWebhookDelivery,
+            ConnectorWebhookDelivery.id,
+            webhook_deliveries,
+        ),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),
