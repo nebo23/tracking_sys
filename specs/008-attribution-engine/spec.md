@@ -1,5 +1,5 @@
 # 008-attribution-engine — Lead and revenue attribution engine
-Status: 008-A, the synthetic calculation slice, is implemented locally under D-046 with the Q-007 choices of the [entry review](entry-review.md); see the [evidence](evidence.md). Production defaults, persistence and identity integration remain open. Level: L3.
+Status: 008-A, the synthetic calculation slice, is implemented under D-046 with the Q-007 choices of the [entry review](entry-review.md), corrected under D-047 and merged in PR 7 at `3f6dc06`; see the [evidence](evidence.md). Production defaults, persistence and identity integration remain open. Level: L3.
 
 ## Sources
 PDF-032,034,035(partial),041,042,069. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

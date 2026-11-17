@@ -1,12 +1,12 @@
 # Authentication review corrections: R-01, R-02, and R-03
 
-Date: 2026-11-04. Status: implemented, verified, and owner-approved for upload as Specification 002; merge pending.
+Date: 2026-11-04. Status reconciled 2026-11-10: implemented, verified, published, and merged in PR 1 (`98747a2`). The following results are the original correction evidence.
 
 ## Authority and scope
 
 The owner explicitly requested implementation of the three confirmed findings after the independent PR review. This slice restores the approved D-022 session-linking, OTP-attempt, and expiry contracts. It introduces no schema, dependency, OTP-policy value, provider, or production configuration change. Native data and private configuration are unchanged. Upload and merge retain their separate owner review gates.
 
-The earlier local report, `pull-request-review-2026-11-04.md`, describes the defects in [PR 1](https://github.com/nebo23/tracking_sys/pull/1) at commit `8099755`. It remains historical evidence; its assessment does not describe this corrected local slice.
+The earlier report, [pull-request-review-2026-11-04.md](pull-request-review-2026-11-04.md) (published on 2026-11-17 under D-051), describes the defects in [PR 1](https://github.com/nebo23/tracking_sys/pull/1) at commit `8099755`. It remains historical evidence; its assessment does not describe this corrected local slice.
 
 ## R-01: require the initiating session throughout Google linking
 

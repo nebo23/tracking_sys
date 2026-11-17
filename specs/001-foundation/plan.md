@@ -1,5 +1,5 @@
 # Plan: 001-foundation
-Status: Implemented locally; awaiting owner review. Updated: 2026-10-29.
+Status: Implemented and merged in PR 1 (`98747a2`, 2026-11-04), including F-01/F-02. Status reconciled 2026-11-10; the original delivery plan below is historical.
 
 ## Approved foundation
 D-013 authorizes backend/database foundation work. D-014 selects PostgreSQL 18, SQLAlchemy 2.x, Alembic, and Psycopg 3. Remaining product, hosting, authentication, queue, and frontend decisions stay open.

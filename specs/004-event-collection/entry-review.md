@@ -4,7 +4,7 @@ Prepared: 2026-11-10 following the owner's request to close predecessor work bef
 
 ## Dependency and branch gate
 
-Specifications 001/002 are merged in PR 1 (`98747a2`). Specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`, content identical to `21f0233`). Branch `codex/spec-004-event-collection` was created from `bab3a33` under D-023. The local 003 card-scan follow-up is not in `main`; it is tracked separately (decision packet item P1) and is not part of 004. Do not restart 003 or treat its transferred consumers as missing predecessor implementation.
+Specifications 001/002 are merged in PR 1 (`98747a2`). Specification 003 and its D-026 corrections are merged in PR 2 (`bab3a33`, content identical to `21f0233`). Branch `codex/spec-004-event-collection` was created from `bab3a33` under D-023. The 003 card-scan follow-up was not in `main` at the time; it was tracked separately (decision packet item P1), is not part of 004, and reached `main` on 2026-11-17 under D-051. Do not restart 003 or treat its transferred consumers as missing predecessor implementation.
 
 ## Recommended first design slice
 

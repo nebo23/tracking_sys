@@ -1,5 +1,5 @@
 # 007-revenue-ledger — Revenue, refunds, and currencies
-Status: 007-A is published in PR 6 under D-043; the corrections of review findings R007-01 to R007-11 are verified locally and await owner review; see the [evidence](evidence.md#review-corrections-2026-11-14). Slices 007-B and 007-C await review. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29. Entry review opened under D-042 from the PR 5 merge at `ec9a09b` on 2026-11-11.
+Status: 007-A, with the corrections of review findings R007-01 to R007-11, merged in PR 6 at `bc0ff40` under D-044; see the [evidence](evidence.md#review-corrections-2026-11-14). Slices 007-B and 007-C await review. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29. Entry review opened under D-042 from the PR 5 merge at `ec9a09b` on 2026-11-11.
 
 ## Sources
 PDF-042,052,053,054,056. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

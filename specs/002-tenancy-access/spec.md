@@ -1,5 +1,5 @@
 # 002-tenancy-access — Agencies, clients, identity, and access
-Status: approved local 002 scope implemented and verified; owner acceptance pending. Level: L1. Updated: 2026-10-30.
+Status: Approved scope, D-022 additions, and R-01 to R-03 merged in PR 1 (`98747a2`). Level: L1. Status reconciled: 2026-11-10.
 
 ## Sources
 PDF-096,098,099(audit); USER multi-agency. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -9,12 +9,12 @@ Define agency tenants, client workspaces, membership, sign-in, invitations, role
 
 D-016 records the owner's instruction to continue backend work through the existing specification sequence. The [first-slice design](design.md) makes the proposed schema, role matrix, and acceptance tests reviewable before business tables or access policy are implemented.
 
-D-017 approved that design. Models, migration, authorization services, and 51 passing checks are documented in [002-A evidence](evidence.md). This historical first-slice evidence is superseded for current status by [002-B/C/D evidence](auth-evidence.md): 115 passing cases, authenticated HTTP, invitations, service credentials, and native revision 0003_auth. Consumer-specific job/export/cache implementations remain in their own specs.
+D-017 approved that design. Models, migration, authorization services, and 51 passing checks are documented in [002-A evidence](evidence.md). The [002-B/C/D evidence](auth-evidence.md) records subsequent slices, D-022 additions, and the [196-test correction baseline](auth-corrections-2026-11-04.md). Native revision 0004_identity was last verified on 2026-11-04; it has not been rechecked for this status reconciliation. Consumer-specific job/export/cache implementations remain in their own specs.
 
 ## Out of scope
 Advanced SSO/SAML or a default global-administrator bypass.
 
-D-018 authorizes continuing with authentication and the remaining 002 work. Google/Facebook login is explicitly deferred. The concrete [authentication and access design](auth-design.md) was explicitly approved under D-019, including schema, dependencies, registration, and local email delivery.
+D-018 authorizes continuing with authentication and the remaining 002 work. The original Google/Facebook deferral was superseded for Google by D-022; Facebook remains deferred. The concrete [authentication and access design](auth-design.md) was explicitly approved under D-019, including schema, dependencies, registration, and local email delivery.
 
 ## Acceptance criteria
 1. With two agencies and two clients per agency, every read, mutation, export, and job enforces the relevant access boundary.
@@ -31,4 +31,4 @@ Dependencies: [001-foundation](../001-foundation/spec.md)
 Open decisions: Q-008. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-D-017 and D-019 authorize the implemented local scope. Owner acceptance remains pending. Google/Facebook sign-in is deferred, external email is a production prerequisite, and real job/export/cache consumers require their later end-to-end enforcement checks. Push and PR approval remain separate under D-012.
+D-017, D-019, and D-022 authorize the implemented scope, merged in [PR 1](https://github.com/nebo23/tracking_sys/pull/1). Google sign-in, numeric verification OTP, and opt-in Gmail delivery are implemented. Facebook, production delivery approval, and real job/export/cache consumer enforcement remain deferred to their relevant decisions and specifications.

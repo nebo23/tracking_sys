@@ -143,6 +143,18 @@ def test_ordinary_free_text_with_numbers_is_kept(text):
     assert result.dropped == {}
 
 
+def test_long_numeric_text_preserves_group_boundaries_and_detects_a_card_at_the_end():
+    # No substring of an overlength group is a candidate. Scan to the very end, where
+    # a valid group-aligned card must still cause the whole field to be dropped.
+    text = "\t".join(["12345678901234567890"] * 20000)
+    result = sanitize_submission(MESSAGE, {"message": text}, MAPPING)
+    assert result.values == {"message": text}
+    assert result.dropped == {}
+    result = sanitize_submission(MESSAGE, {"message": text + "\t" + CARD}, MAPPING)
+    assert result.values == {}
+    assert result.dropped == {"payment_card_number": 1}
+
+
 def test_urls_keep_only_campaign_and_click_parameters():
     url, removed = minimize_url(
         "https://user:pass@shop.example.test:8443/landing?utm_source=ads&gclid=abc"

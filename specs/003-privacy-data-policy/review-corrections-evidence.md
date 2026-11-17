@@ -1,8 +1,10 @@
 # Specification 003: review corrections R003-01 to R003-03
 
+Follow-up 2026-11-10: [pre-004 readiness review](../../docs/planning/spec-004-readiness.md) removes quadratic suffix-copy work in R003-02's scan and records a new 381-test run. The original implementation and verification results below remain historical; the earlier linear-work claim omitted the cost of list slicing. The follow-up code and its regression reached `main` on 2026-11-17 under D-051.
+
 Date: 2026-11-09. Authority: D-026 and its [handoff](review-corrections-prompt.md). Branch: `codex/spec-003-privacy-data-policy`, [PR 2](https://github.com/nebo23/tracking_sys/pull/2). Corrected code: commit `4c3b046b4a5a6a1a5577eab5c8d9c3b44844d145` (tree `f59d1b66432af16351201672fbb5518dde01f2cb`, backend tree `54d013c819d56aab35fa808e27ec62e1cd41e5bf`). Status: implemented and verified on the disposable database, then published to PR 2 under D-026. Merge, deployment, native rollout, and the legacy queued-mail policy remain owner decisions.
 
-The findings come from the local review report `pull-request-review-2026-11-04.md`, which reviewed head `0796351` against base `98747a2` and requested changes. That report remains an uncommitted historical document; its failing diagnostics describe the code before these corrections. The backend at the reviewed head is identical to the backend at the handoff commit `b77964b` (tree `b03ccb3722db16f1b7fa82239243d11fdc480c22`).
+The findings come from the review report [pull-request-review-2026-11-04.md](pull-request-review-2026-11-04.md), which reviewed head `0796351` against base `98747a2` and requested changes. That report stayed local until it was published on 2026-11-17 under D-051; its failing diagnostics describe the code before these corrections. The backend at the reviewed head is identical to the backend at the handoff commit `b77964b` (tree `b03ccb3722db16f1b7fa82239243d11fdc480c22`).
 
 ## Summary
 

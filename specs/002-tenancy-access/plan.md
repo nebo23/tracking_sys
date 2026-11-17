@@ -1,5 +1,5 @@
 # Plan: 002-tenancy-access
-Status: approved local scope implemented and verified under D-017/D-019; owner acceptance pending. Updated: 2026-10-30.
+Status: Approved scope, D-022 additions and R-01 to R-03 merged in PR 1 (`98747a2`, 2026-11-04). Status reconciled 2026-11-10; the original delivery sequence below is historical.
 
 ## Delivered sequence
 1. 002-A: six-table tenancy model, role matrix, scoped services, atomic audit, and last-Owner protection. Historical [evidence](evidence.md).

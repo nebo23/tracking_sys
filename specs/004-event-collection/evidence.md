@@ -10,7 +10,7 @@ The sections below the review corrections describe the originally published resu
 
 ## Second correction: R004-04 (2026-11-10)
 
-Source: the correction review of local commit `c229ac7` (report `corrections-review-2026-11-10.md`, kept uncommitted in the main workspace). Authority: D-030. Before the change, the branch was still at `c229ac7`, one commit ahead of the remote `b90fa53`, and the worktree was clean.
+Source: the correction review of local commit `c229ac7` (report [corrections-review-2026-11-10.md](corrections-review-2026-11-10.md), published on 2026-11-17 under D-051). Authority: D-030. Before the change, the branch was still at `c229ac7`, one commit ahead of the remote `b90fa53`, and the worktree was clean.
 
 **Root cause.** Cleanup deleted the consent records of idle subjects in UUID order, in bounded batches, each committed separately. When a subject's history spanned batches, a batch could delete the latest withdrawal or denial while an older, still-valid grant survived. Once that batch committed and released the client lock, admission evaluated the surviving grant as current consent and accepted an event. The event refreshed the subject's activity, so resumed cleanup could no longer remove the state. The shared client lock serializes transactions but does not protect the state between committed batches.
 
@@ -60,7 +60,7 @@ The disposable Compose project and the temporary scripts were removed after use.
 
 ## Review corrections (2026-11-10)
 
-Source: the independent pre-merge review of PR 3 at head `b90fa53` against base `bab3a33`. Its report `pull-request-review-2026-11-10.md` is kept, uncommitted, in the main workspace. Authority: D-029. Before the correction, the branch and the remote head were both still `b90fa53` and PR 3 had no comments or reviews, so every finding still applied.
+Source: the independent pre-merge review of PR 3 at head `b90fa53` against base `bab3a33`. Its report, [pull-request-review-2026-11-10.md](pull-request-review-2026-11-10.md), was published on 2026-11-17 under D-051. Authority: D-029. Before the correction, the branch and the remote head were both still `b90fa53` and PR 3 had no comments or reviews, so every finding still applied.
 
 | Finding | Correction | Regression evidence |
 |---|---|---|

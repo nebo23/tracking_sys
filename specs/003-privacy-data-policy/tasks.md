@@ -1,5 +1,5 @@
 # Tasks: 003-privacy-data-policy
-Status: completed at contract level (D-025) and under owner review in [PR 2](https://github.com/nebo23/tracking_sys/pull/2); owner acceptance and merge are not complete. This is a review checklist, not an implementation instruction.
+Status: completed at contract level (D-025), corrected under D-026, and merged in [PR 2](https://github.com/nebo23/tracking_sys/pull/2) (`bab3a33`, 2026-11-10). This is a review checklist, not an implementation instruction.
 
 Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-privacy-data-policy`; use the [Claude handoff](implementation-prompt.md). The PR review corrections follow the [D-026 handoff](review-corrections-prompt.md) and are recorded in the [correction evidence](review-corrections-evidence.md). Detailed policy and schema choices remain subject to review.
 
@@ -30,6 +30,7 @@ Continuation authorized under D-023 on 2026-11-04. Work on `codex/spec-003-priva
 - [x] Present a reviewable result to the owner (contract-level completion under D-025, with the transferred obligations recorded in each consuming spec.md).
 - [x] Publish the specification for review: PR 2 was opened on 2026-11-04.
 - [x] Correct the PR review findings R003-01 to R003-03 with regression tests under D-026, record the [correction evidence](review-corrections-evidence.md), and publish the corrections to PR 2.
-- [ ] Owner review of the corrected PR 2 and the merge decision.
+- [x] Owner review of the corrected PR 2 and the merge decision: merged as `bab3a33` on 2026-11-10.
+- [x] Reconcile predecessor completion, remove card-scan suffix copying, and prepare the [004 readiness review](../../docs/planning/spec-004-readiness.md), 2026-11-10. The card-scan follow-up and this reconciliation reached `main` on 2026-11-17 under D-051.
 - [ ] Decide the [legacy queued-mail transition](../../docs/engineering/data-lifecycle.md#legacy-queued-mail-proposal-awaiting-owner-approval); only the proposal is documented.
-- [ ] Record owner acceptance before progressing to dependent work.
+- [x] Record owner acceptance before progressing to dependent work: the owner merged PR 2 and approved Spec 004 (D-027). This is repository acceptance, not production sign-off.
