@@ -71,7 +71,7 @@ The pages read do not establish the following; each goes to the feasibility chec
 
 - PKCE with a Web application client.
 - Whether revoking one token also invalidates the tokens of a separate consent by the same user, as G-1's project-wide wording suggests.
-- Whether the two scopes are classified as sensitive.
+- Whether the two scopes are classified as sensitive (answered by the console on 2026-11-18; see section 10).
 - Whether `reports.query` needs `youtube.readonly` in addition to `yt-analytics.readonly`.
 - The Analytics API quota.
 - How far back channel day reports go.
@@ -330,3 +330,14 @@ Safeguards that follow from it:
 4. **Production review.** The project used in production is reviewed again before verification and the quota audit (011-D), because P-1 III.D.1 binds the API client to exactly one project and the audit is tied to it.
 
 The console steps of section 8 change as follows: skip step 1, keep the existing branding, confirm in Audience that the publishing status is Testing and that the test channel's account is a test user, and create a new Web application client in step 4.
+
+### Console setup observed (2026-11-18)
+
+The owner's screenshots of `connectapp` show the following. No identifier or credential is recorded here.
+
+- **APIs.** The YouTube Data API v3 and the YouTube Analytics API are enabled.
+- **Audience.** The publishing status is Testing, with one test user, and Branding states that verification is not required while the app is in Testing.
+- **Scope classification.** The console lists `youtube.readonly` under sensitive scopes and `yt-analytics.readonly` under non-sensitive scopes, with no restricted scope. This answers the classification item of section 1. Production needs sensitive-scope verification for `youtube.readonly` (demo video, scope justification, privacy policy), and the CASA assessment for restricted scopes does not apply (G-6, D17).
+- **Scopes still to complete.** The latest Data access screenshot lists only `yt-analytics.readonly`, so `youtube.readonly` has to be added again and saved before 011-B.
+- **Client.** A separate Web application client for the connector was created with the redirect URI `http://127.0.0.1:8000/connectors/oauth/callback`.
+- **Secret rotation.** The client ID and secret were pasted into the conversation on 2026-11-18. They were not used or stored. The owner rotates the secret and keeps the new values only in the ignored `.env`; no live call uses the exposed secret.
