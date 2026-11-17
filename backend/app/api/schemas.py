@@ -217,3 +217,5 @@ class AuditResponse(Output):
     resource_type: str
     resource_id: UUID
     occurred_at: datetime
+
+

@@ -8,6 +8,8 @@ Specifications 001/002 are merged in PR 1. Specification 003 is completed at con
 
 ## Recommended first design slice
 
+The concrete proposal is in [design.md](design.md); numeric, permission and retention choices are collected in the [decision packet](decision-packet.md). All remain proposals.
+
 Design one versioned ingestion contract shared by limited-trust browser and authenticated server sources using synthetic fixtures. Keep FastAPI/PostgreSQL and approved dependencies. Propose transactional admission and scoped deduplication first; do not select a queue, broker, or paid provider merely to define retry/dead-letter behavior. Include webhook signature/replay contracts; a concrete adapter needs an identified source and approval.
 
 Proposed envelope fields to review: schema version, event ID, event type, occurred time, server-assigned received time, source, client scope, consent reference/version, and an allowlisted payload. Trusted scope comes from authentication and stored grants. A public client identifier is routing information, never proof of authority. A browser purchase event is never financial proof.
@@ -47,3 +49,7 @@ Resolve how consent and tombstones are loaded and enforced in the admission tran
 - Production mail, live Google/Gmail checks, Facebook, hosting, durable scheduling and production restore retain their own gates.
 
 These do not prevent synthetic design review. They are not completed and must remain visible before production.
+
+## Preparation verification (2026-11-10)
+
+All six preparation documents were checked for resolving relative links; the JSON example parses, all 12 source requirement IDs exist in the feature register, and the scoped whitespace check passes. No 004 code, migration or endpoint exists yet, so there is no claimed 004 runtime test result. The predecessor 381-test result belongs to the corrected 003 candidate recorded in the readiness review. This packet remains local and uncommitted pending completion of the interrupted publication workflow; PR 2 was not updated by this preparation.

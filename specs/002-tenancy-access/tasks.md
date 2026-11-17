@@ -25,6 +25,7 @@ Status: Approved scope, D-022 additions, and review corrections merged through P
 - [x] Obtain upload approval (D-020); commit and push to the claude/development working branch.
 - [x] Verify T-01/T-02 and T-03/T-04 documentation amendments; see [auth evidence](auth-evidence.md#review-amendments-t-01-to-t-04-2026-11-04).
 - [x] Implement D-022 Google sign-in, numeric verification OTP, and opt-in Gmail delivery; verify R-01/R-02/R-03 in the [correction evidence](auth-corrections-2026-11-04.md).
+- [ ] Complete the owner-requested [review-amendments handoff](review-amendments.md), including comment/query references and the two auth/access findings; track the Docker finding in foundation and Google/Gmail design in privacy.
 - [x] Record the completed merge through [PR 1](https://github.com/nebo23/tracking_sys/pull/1), `98747a2`; production sign-off remains separate.
 
 ## Explicit later obligations

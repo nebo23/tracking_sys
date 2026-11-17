@@ -38,6 +38,10 @@ The candidate is a `git archive` of `21f0233` with only `backend/app/privacy/col
 
 Only one new test was added to the prior 380-test suite. No dependency, migration, schema, role, infrastructure or OpenAPI change was made. Historical 196/380 results retain their original dates; the previously interrupted test run and missing failure output remain documented in the correction evidence.
 
+The staged backend was compared file by file with the tested archive, normalizing CRLF/LF only; all files matched. Backend tree: `2577fede7142bc73205ee10be6c09a60fbe733ca`. Added relative links resolved and staged `git diff --check` passed. The pre-existing unstaged blank lines in schemas.py remain untouched.
+
+Execution limitation: cleanup of disposable project `tracking-spec004-readiness-20261110` was not executed because automatic approval review hit its usage limit. Its test volume may still exist. Commit/publication of this follow-up was not completed. The current 004 design packet is local preparation; no new PR or implementation branch was created. Do not report these actions as completed. Resume scoped cleanup and reviewed staging/publication when the approval service is available; preserve owner volumes and local edits.
+
 ## Entry gates and explicit deferrals
 
 | Item | Next action | Blocks |

@@ -1,5 +1,5 @@
 # 004-event-collection — Event collection and contracts
-Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Design prepared for owner review; implementation and schema are not approved. Level: L2. Prepared: 2026-10-28; design preparation: 2026-11-10. Read the [design](design.md), [decision packet](decision-packet.md), [plan](plan.md), and [tasks](tasks.md).
 
 ## Sources
 PDF-001,002,004,005,006,007,008,009,013,014,082,084. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

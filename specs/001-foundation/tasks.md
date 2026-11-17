@@ -15,4 +15,5 @@ Status: Implemented and merged through PR 1 (`98747a2`, 2026-11-04), including F
 - [x] Document setup, recovery, known limitations, and verification evidence.
 - [x] Obtain explicit upload approval (D-020); commit and push to the claude/development working branch.
 - [x] Resolve F-01 (Docker origins) and F-02 (purpose comments); see [dated evidence](evidence.md#review-amendments-f-01-and-f-02-2026-11-04).
+- [ ] Complete and verify the owner-requested [foundation review amendments](review-amendments.md); upload approval remains separate.
 - [x] Record the completed merge: [PR 1](https://github.com/nebo23/tracking_sys/pull/1), `98747a2`. Progression to 002 was authorized by D-016. This records repository acceptance, not production sign-off.
