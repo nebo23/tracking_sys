@@ -51,6 +51,7 @@ from app.models import (
     CollectedEvent,
     CollectionSubject,
     ConnectorOAuthTransaction,
+    ConnectorWebhookDelivery,
     EventDiagnostic,
     ExternalIdentity,
     IngestionSourceSecret,
@@ -135,6 +136,12 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         return or_(
             ConnectorOAuthTransaction.consumed_at < limit,
             ConnectorOAuthTransaction.expires_at < limit,
+        )
+
+    # Connector webhook delivery records (D-049) only recognize repeats; 7 days after receipt.
+    def webhook_deliveries(cutoff: datetime) -> ColumnElement[bool]:
+        return ConnectorWebhookDelivery.received_at < before(
+            settings.webhook_delivery_retention_days, cutoff
         )
 
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
@@ -227,6 +234,12 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             ConnectorOAuthTransaction,
             ConnectorOAuthTransaction.id,
             connector_transactions,
+        ),
+        Target(
+            "connector_webhook_deliveries",
+            ConnectorWebhookDelivery,
+            ConnectorWebhookDelivery.id,
+            webhook_deliveries,
         ),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),

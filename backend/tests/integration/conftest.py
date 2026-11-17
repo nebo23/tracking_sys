@@ -29,6 +29,7 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "connector_webhook_deliveries",
     "connector_records",
     "connector_usage_records",
     "connector_checkpoints",

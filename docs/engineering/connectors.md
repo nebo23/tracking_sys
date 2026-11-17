@@ -1,5 +1,5 @@
 # Connector runtime (specification 009)
-Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization) and 009-C (coverage and provenance) under D-049, against a synthetic provider. No real provider adapter exists, and every real provider rule in `app.privacy.providers` stays blocking until its own specification (010-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 onward).
+Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. No real provider adapter exists, and every real provider rule in `app.privacy.providers` stays blocking until its own specification (010-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 onward).
 
 ## Configuration
 Connectors need the D-025 token keyring of the [event collection guide](event-collection.md) (`TRACKING_TOKEN_KEYRING`, `TRACKING_TOKEN_KEYRING_ACTIVE`). Routes answer `503 connector_not_configured` while it is blank.
@@ -51,6 +51,20 @@ Readers with `client:read` (members with client visibility and read service keys
 - `GET .../connections/{id}/records?limit=&after=`: stored records ordered by provider object ID, at most 100 per page, each with `observed_at`, `fetched_at`, its source (provider, adapter version, run) and every declared metric as `{"state", "value"}`: `observed` (zero included), `missing` (omitted or null), `unsupported` (value null) or `stale` (value kept).
 
 Neither response contains another tenant's usage, the provider-wide quota consumption, cursors, leases, tokens or raw provider errors. After a disconnect, the purge removes records and checkpoints and clears the account kind, so every metric reads `not_synced`.
+
+## Provider webhooks (009-D)
+`POST /connectors/webhooks/{provider}` is public: it needs no session, credential or Origin. The adapter verifies its own signature over the exact raw body before reading it. The synthetic adapter reuses the Spec 004 scheme in `X-Synthetic-Signature` (`t=<unix seconds>,v1=<hex HMAC-SHA256 of '<t>.<raw body>'>`, 300-second window) with an application secret generated once in its state file; `SyntheticProvider.sign_delivery` stands in for the provider's sender. Its body names an `event_id` and an `account_id`.
+
+| Delivery | Answer | Effect |
+|---|---|---|
+| Verified, first time | `200 {"result": "accepted"}` | One incremental run queued for each `active` connection of the account whose agency and client are active, coalescing with an open run; a delivery record is kept |
+| Verified, repeated event ID | `200 {"result": "duplicate"}` | None |
+| Missing, invalid or expired signature | `401 signature_invalid` or `signature_expired` | None; nothing is stored |
+| Verified but unreadable body | `400 invalid_delivery` | None |
+| Body above 16 KiB | `413 request_too_large` (request boundary) | None |
+| Provider without webhooks or not configured | `404 provider_unavailable` | None |
+
+The answer is the same whether or not any connection matched, so it reveals nothing about connected accounts. The payload is never stored: the queued sync reads the data through the authorized API under each connection's own tokens, fence and limits. Connections that require reconnection, are disconnecting or are disconnected receive nothing. `connector_webhook_deliveries` keeps only the provider, a SHA-256 digest of the event ID, the receipt time and the number of connections notified, and `python -m app.lifecycle` deletes it 7 days after receipt. Deliveries are rate-limited per provider and peer at the trusted intake rate.
 
 ## Worker
 `python -m app.connector_worker` (from `backend/`, with the project `.venv`) runs one bounded pass and prints counts, for example `{"teardown": {"disconnected": 1}, "schedule": {"queued": 2}, "sync": {"succeeded": 2}}`. It runs teardowns first, then a scheduling step that queues an incremental run for each active connection (of an active agency and client) with no open run whose last run is older than the sync interval, then sync runs. It is not a long-running scheduler: an operator or an OS scheduler invokes it, and production scheduling and supervision are decided in 020. The 72-hour target is met only if it runs within that time. Teardowns past their deadline run first, then those with the fewest attempts, so one failing provider revocation cannot hold back other connections. A sync attempt whose lease expired and was claimed again by another pass is superseded: it writes nothing.

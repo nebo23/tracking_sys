@@ -29,7 +29,8 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    assert len(SCHEMA) == 42  # 41 application tables at 0010_connector_sync plus alembic_version
+    # 42 application tables at 0012_connector_webhooks plus alembic_version.
+    assert len(SCHEMA) == 43
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -130,6 +131,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("connector_records", "row", "D-048"),
         # D-049 (009-B): the disconnect purge also deletes sync checkpoints.
         ("connector_checkpoints", "row", "D-049"),
+        # D-049 (009-D): webhook delivery records are deleted 7 days after receipt.
+        ("connector_webhook_deliveries", "row", "D-049"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

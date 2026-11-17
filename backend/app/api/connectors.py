@@ -12,17 +12,19 @@ from typing import Annotated, Literal
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, Path, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import Field
 
-from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
-from app.api.schemas import AuthorizationURL, Input, Output
+from app.api.dependencies import BrowserDep, RawBody, ReaderDep, SessionDep
+from app.api.schemas import AuthorizationURL, ErrorResponse, Input, Output
 from app.config import Settings
+from app.connectors.contracts import WebhookRejected
 from app.security import now_utc
 from app.services.access import Principal, resolve_scope
 from app.services.auth import enforce_rate_limit
 from app.services.connector_coverage import coverage, records
+from app.services.connector_webhooks import receive_delivery
 from app.services.connectors import (
     CALLBACK_ERRORS,
     TRANSACTION_SECONDS,
@@ -33,10 +35,12 @@ from app.services.connectors import (
     connection_view,
     get_connection,
     list_connections,
+    provider_for,
 )
 
 router = APIRouter(tags=["Connectors"])
 callback_router = APIRouter(prefix="/connectors/oauth", tags=["Connectors"])
+webhook_router = APIRouter(prefix="/connectors/webhooks", tags=["Connectors"])
 
 
 class ConnectInput(Input):
@@ -164,6 +168,10 @@ class RecordItem(Output):
 class RecordPage(Output):
     records: list[RecordItem]
     next_after: str | None
+
+
+class DeliveryResult(Output):
+    result: Literal["accepted", "duplicate"]
 
 
 def _admin(request: Request, session: SessionDep, browser: BrowserDep) -> ConnectorAdmin:
@@ -414,3 +422,42 @@ def callback(
     response = RedirectResponse(f"{target}{separator}{urlencode(result)}", status_code=303)
     response.delete_cookie(settings.connector_cookie_name, path="/connectors/oauth")
     return response
+
+
+# Provider webhook (009-D, D-049 decisions D18 and D19). The adapter verifies its signature over
+# the exact raw body before reading it (the synthetic adapter reuses the Spec 004 scheme in
+# X-Synthetic-Signature); a refused delivery stores and queues nothing. The only effect of a
+# verified delivery is a coalesced incremental sync for each active connection of the named
+# account; the response is the same whether or not any connection matched. Bodies above 16 KiB
+# are refused before routing (413 request_too_large).
+@webhook_router.post(
+    "/{provider}",
+    response_model=DeliveryResult,
+    responses={
+        400: {"model": ErrorResponse, "description": "A verified body the adapter cannot read."},
+        401: {"model": ErrorResponse, "description": "Missing, invalid, or expired signature."},
+    },
+)
+def provider_webhook(
+    provider: Annotated[str, Path(min_length=1, max_length=32)],
+    request: Request,
+    body: RawBody,
+) -> DeliveryResult:
+    state = request.app.state
+    adapter = provider_for(state.connector_providers, provider)
+    if not adapter.capability.webhooks:
+        raise ConnectorError("provider_unavailable", 404)
+    enforce_rate_limit(
+        state.security_engine,
+        state.settings,
+        "connector-webhook",
+        f"{provider}:{request.client.host if request.client else 'unknown'}",
+        limit=state.settings.ingest_trusted_per_minute,
+        period=60,
+    )
+    try:
+        delivery = adapter.verify_webhook(request.headers, body, now_utc())
+    except WebhookRejected as rejection:
+        status = 400 if rejection.reason == "invalid_delivery" else 401
+        raise ConnectorError(rejection.reason, status) from None
+    return DeliveryResult(result=receive_delivery(state.engine, provider, delivery, now_utc()))

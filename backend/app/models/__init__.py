@@ -41,6 +41,7 @@ from app.models.connectors import (
     ConnectorSyncRun,
     ConnectorTokenSecret,
     ConnectorUsageRecord,
+    ConnectorWebhookDelivery,
 )
 from app.models.links import (
     LinkCampaign,
@@ -101,4 +102,5 @@ __all__ = [
     "ConnectorSyncRun",
     "ConnectorTokenSecret",
     "ConnectorUsageRecord",
+    "ConnectorWebhookDelivery",
 ]

@@ -73,6 +73,7 @@ class Capability:
     )
     daily_quota: int = 1000
     freshness_hours: int = 24
+    webhooks: bool = False
 
     def cost(self, operation: str) -> int:
         return self.call_costs.get(operation, 1)
@@ -114,6 +115,23 @@ class ProviderPage:
     complete_through: datetime | None
 
 
+# A provider webhook delivery after its adapter verified the signature over the raw body: the
+# provider's event ID and the external account it concerns. The payload itself is not kept
+# (009-D, D-049 decisions D18 and D19).
+@dataclass(frozen=True)
+class WebhookDelivery:
+    event_id: str
+    external_account_id: str
+
+
+# A refused delivery with a closed reason: signature_invalid, signature_expired, or
+# invalid_delivery (a verified body the adapter cannot read).
+class WebhookRejected(Exception):
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
 RevocationOutcome = Literal["done", "unsupported"]
 
 
@@ -139,6 +157,12 @@ class ConnectorProvider(Protocol):
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> ProviderPage: ...
+
+    # Verify a webhook delivery's signature over the exact raw body before reading it; raises
+    # WebhookRejected. Only adapters whose Capability declares webhooks are called.
+    def verify_webhook(
+        self, headers: Mapping[str, str], body: bytes, now: datetime
+    ) -> WebhookDelivery: ...
 
     # Revoke one token. Returns "done" when the provider confirms the token is unusable
     # (including an already revoked token), or "unsupported"; raises ProviderError otherwise.

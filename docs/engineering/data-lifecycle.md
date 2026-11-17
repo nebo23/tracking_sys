@@ -10,6 +10,8 @@ Specification 003-A3/003-A4/003-A5 under D-024, extended for collected data by s
 | Reset and legacy verification tokens | 7 days after consumption or expiry |
 | Numeric verification challenges | 7 days after consumption, invalidation, or expiry |
 | Google OAuth transactions | 1 day after consumption or expiry |
+| Connector OAuth transactions (009-A, D-048) | 1 day after consumption or expiry |
+| Connector webhook delivery records (009-D, D-049) | 7 days after receipt (`TRACKING_WEBHOOK_DELIVERY_RETENTION_DAYS`, at most 7) |
 | Rate-limit buckets | At window expiry (an expired bucket restarts anyway) |
 | Outbox rows | 30 days after delivery or expiry |
 | Password credential, Google identity, sessions, tokens, challenges, and OAuth transactions of a closed account | On the next run after closure, without a period |

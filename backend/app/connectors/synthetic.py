@@ -15,6 +15,10 @@ lower bound a read covers the recent window; a backfill reaches older days down 
 limit. Each page reports the window it covers. A scripted sequence of outcomes can fail
 individual reads with 401, 403, 429 (with Retry-After), retryable 5xx, or permanent errors.
 
+The provider also sends signed webhook deliveries naming an event ID and an external account.
+Its application secret is generated once in the state file; deliveries are signed with the
+Spec 004 scheme (`t=<unix>,v1=<HMAC-SHA256 of '<t>.<raw body>'>`) in X-Synthetic-Signature.
+
 Settings refuse the synthetic provider outside development. The authorization URL uses the
 reserved .invalid domain and is never fetched: tests approve it through `approve`, standing
 in for the provider's consent page. Behaviors injected through `set_behavior` simulate
@@ -23,14 +27,16 @@ provider failures; they are test controls, not configuration.
 
 import base64
 import hashlib
+import json
 import secrets
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from app.collection.contract import Rejected, sign_webhook, verify_webhook
 from app.connectors.contracts import (
     Capability,
     ErrorKind,
@@ -40,6 +46,8 @@ from app.connectors.contracts import (
     ProviderRecord,
     RevocationOutcome,
     TokenGrant,
+    WebhookDelivery,
+    WebhookRejected,
 )
 
 AUTHORIZE_URL = "https://synthetic-provider.invalid/oauth/authorize"
@@ -61,7 +69,10 @@ CAPABILITY = Capability(
     cost_unit="synthetic_unit",
     daily_quota=1000,
     freshness_hours=24,
+    webhooks=True,
 )
+# The synthetic webhook reuses the Spec 004 signature contract under its own header.
+WEBHOOK_HEADER = "x-synthetic-signature"
 ACCOUNT_KINDS = ("business", "creator")
 CODE_SECONDS = 60
 DEFAULT_ACCESS_SECONDS = 3600
@@ -112,6 +123,10 @@ class SyntheticProvider:
         with self._transaction() as connection:
             for statement in SCHEMA:
                 connection.execute(statement)
+            connection.execute(
+                "INSERT OR IGNORE INTO behaviors (name, value) VALUES ('webhook_secret', ?)",
+                (secrets.token_urlsafe(32),),
+            )
 
     def __repr__(self) -> str:
         return "SyntheticProvider()"
@@ -456,6 +471,38 @@ class SyntheticProvider:
         with self._transaction() as connection:
             rows = connection.execute("SELECT account, revoked FROM grants ORDER BY id").fetchall()
         return [(row[0], bool(row[1])) for row in rows]
+
+    def _webhook_secret(self) -> str:
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT value FROM behaviors WHERE name = 'webhook_secret'"
+            ).fetchone()
+        return row[0]
+
+    # Test control standing in for the provider's sender: the signature header for a body.
+    def sign_delivery(self, body: bytes, timestamp: int) -> str:
+        return f"t={timestamp},v1={sign_webhook(self._webhook_secret(), timestamp, body)}"
+
+    # Verify the signature over the exact raw body before parsing it, then read the event ID
+    # and the external account; anything else in the body is ignored.
+    def verify_webhook(
+        self, headers: Mapping[str, str], body: bytes, now: datetime
+    ) -> WebhookDelivery:
+        try:
+            verify_webhook(headers.get(WEBHOOK_HEADER), body, [self._webhook_secret()], now)
+        except Rejected as rejection:
+            raise WebhookRejected(rejection.reason) from None
+        try:
+            data = json.loads(body)
+            event_id, account = data["event_id"], data["account_id"]
+        except (ValueError, TypeError, KeyError):
+            raise WebhookRejected("invalid_delivery") from None
+        valid = all(
+            isinstance(value, str) and 1 <= len(value) <= 128 for value in (event_id, account)
+        )
+        if not valid:
+            raise WebhookRejected("invalid_delivery")
+        return WebhookDelivery(event_id, account)
 
     # Test inspection: (offset, outcome) of each read in order, so a test can show which pages
     # were requested and that none was skipped.

@@ -16,6 +16,7 @@ from app.api.collection import router as collection_router
 from app.api.collection import webhook_router as collection_webhook_router
 from app.api.connectors import callback_router as connector_callback_router
 from app.api.connectors import router as connectors_router
+from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
 from app.api.links import redirect_router
 from app.api.links import router as links_router
@@ -199,6 +200,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(redirect_router)
     application.include_router(connectors_router)
     application.include_router(connector_callback_router)
+    application.include_router(connector_webhook_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

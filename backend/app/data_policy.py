@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "009-C"
+POLICY_VERSION = "009-D"
 
 
 class Sensitivity(StrEnum):
@@ -374,6 +374,16 @@ CLASSES: dict[str, DataClass] = {
             Personal.NONE,
             Provenance.SYSTEM,
             "Kept with run history; retention awaits Q-012 (D-049).",
+            "009",
+        ),
+        DataClass(
+            "connector.webhook_delivery",
+            "SHA-256 digest of a provider webhook event ID with its provider, receipt time, and "
+            "number of connections notified; no payload or account.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Deleted 7 days after receipt (D-049).",
             "009",
         ),
         DataClass(
@@ -1248,6 +1258,19 @@ TABLES: dict[str, TablePolicy] = {
                 "provider rule (010-013).",
             ),
         ),
+    ),
+    "connector_webhook_deliveries": TablePolicy(
+        {
+            **_same(
+                "connector.webhook_delivery",
+                "id",
+                "provider",
+                "event_digest",
+                "received_at",
+                "notified",
+            ),
+        },
+        (_row(APPROVED, "D-049", "Deleted 7 days after receipt."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

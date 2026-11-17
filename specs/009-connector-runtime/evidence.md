@@ -1,4 +1,8 @@
-# Spec 009-A evidence
+# Spec 009 evidence
+
+Sections below cover 009-A (D-048), its two correction rounds, and 009-B to 009-D (D-049), followed by the [acceptance summary](#spec-009-acceptance-summary).
+
+## 009-A (2026-11-15)
 
 Scope: D-048 (2026-11-15). Entry-review decisions D1-D10 with the [follow-up](entry-review-follow-up.md) clarifications at `54f733c`, implemented locally on `codex/spec-009-connector-runtime` against the synthetic provider. Not pushed. Native `tracking_sys` was not touched. No live provider was contacted. How each clarification was implemented is in [entry review section 9](entry-review.md#9-implementation-reconciliation-d-048).
 
@@ -155,7 +159,7 @@ Scope: D-049 decisions D16, D17 and D20, implemented against the synthetic provi
 | Migration (account kind, record source run and adapter version, scoped run key, grants, guarded downgrade) | `backend/migrations/versions/0011_connector_coverage.py` |
 | Contracts (metric catalog with units and account kinds, freshness window, account kind on grants) and synthetic adapter `synthetic-3` (business and creator accounts, `saves` for business only) | `backend/app/connectors/contracts.py`, `backend/app/connectors/synthetic.py` |
 | Coverage and record reads; provenance on stored records; account kind set at connect and reconnect and cleared by the purge | `backend/app/services/connector_coverage.py`, `backend/app/services/connectors.py`, `backend/app/api/connectors.py` |
-| Models, registry (`009-C`), OpenAPI snapshot (now 86 operations) | `backend/app/models/connectors.py`, `backend/app/data_policy.py`, `contracts/openapi.json` |
+| Models, registry (`009-C`), OpenAPI snapshot (now 84 operations) | `backend/app/models/connectors.py`, `backend/app/data_policy.py`, `contracts/openapi.json` |
 | Tests | `backend/tests/integration/test_connector_coverage.py` |
 
 | Command (from `backend/`, project `.venv`, disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
@@ -175,3 +179,64 @@ Scope: D-049 decisions D16, D17 and D20, implemented against the synthetic provi
 | Provenance | Each record names its provider, adapter version and source run; pages continue by provider object ID |
 | Isolation | Members with client visibility and the analyst with a grant read coverage and records; another agency's owner and an analyst without a grant are refused |
 | After disconnect | The purge leaves the account kind cleared, the stream `not_synced`, every metric `not_synced`, and no records |
+
+## 009-D provider webhooks (2026-11-17)
+
+Scope: D-049 decisions D18-D20, implemented against the synthetic provider with migration `0012_connector_webhooks`. Details settled during implementation are in [packet section 6.3](decision-packet-009bcd.md#63-009-d-provider-webhooks). No dependency was added; the synthetic adapter reuses `app.collection.contract.verify_webhook` and `sign_webhook` from Spec 004.
+
+| Area | Files |
+|---|---|
+| Migration (delivery records, grants, lifecycle privilege, guarded downgrade) | `backend/migrations/versions/0012_connector_webhooks.py` |
+| Contracts (`WebhookDelivery`, `WebhookRejected`, `verify_webhook`, Capability `webhooks`) and the synthetic sender and verifier | `backend/app/connectors/contracts.py`, `backend/app/connectors/synthetic.py` |
+| Delivery handling, route, lifecycle target (7 days) | `backend/app/services/connector_webhooks.py`, `backend/app/api/connectors.py`, `backend/app/main.py`, `backend/app/services/lifecycle.py`, `backend/app/config.py` |
+| Models, registry (`009-D`), OpenAPI snapshot (85 operations), lifecycle guide | `backend/app/models/connectors.py`, `backend/app/data_policy.py`, `contracts/openapi.json`, `docs/engineering/data-lifecycle.md` |
+| Tests | `backend/tests/integration/test_connector_webhooks.py` (5 cases), updated registry and table guards |
+
+| Command (from `backend/`, project `.venv`, disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 129 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 316 deselected |
+| `python -m pytest -m integration -q -rw` | **313 passed, 3 skipped**, no warnings (the opt-in Spec 005 browser journeys). This run covers the complete Spec 009 tree. |
+| Webhook, registry and migration agreement modules | 7 passed |
+| Mutation check: each 009-D safeguard disabled in turn, the webhook tests rerun, source restored | All five caught: repeats not recognized (2 failures), signature not verified, connections of any status notified, inactive clients notified, connections of any account notified |
+| `git diff --check` | No whitespace errors |
+
+| Criterion | Test (`test_connector_webhooks.py`) |
+|---|---|
+| A valid delivery has one scoped effect: one incremental run per active connection of the account, in its own agency and client; a delivery for an unconnected account gets the same answer and no effect; an open run is not duplicated | `test_009d_a_verified_delivery_has_one_scoped_effect_per_connection` |
+| A repeated delivery, freshly signed, has no further effect, also when two arrive concurrently | the same test and `test_009d_concurrent_repeats_have_one_effect` |
+| An invalid, tampered, foreign-secret, missing or expired signature, an unreadable verified body, an oversized body and an unknown provider cause no ingestion, and do not consume the event ID | `test_009d_refused_deliveries_cause_no_ingestion` |
+| Tenant isolation and behavior after disconnect: archived clients, connections that require reconnection, disconnecting and disconnected connections receive nothing; a reactivated client receives again | `test_009d_deliveries_skip_inactive_connections_and_follow_disconnect` |
+| Privileges and the 7-day lifecycle deletion | `test_009d_privileges_and_lifecycle` |
+
+## Spec 009 acceptance summary
+
+Every case runs against the synthetic provider on disposable PostgreSQL. The named tests are in `backend/tests/integration/` unless stated.
+
+| Criterion | Slice | Named tests |
+|---|---|---|
+| AC1: state validation, replay rejection, PKCE, no token exposure | 009-A | `test_connectors.py::test_callback_replay_expiry_binding_and_concurrent_submission`, `test_connect_status_isolation_and_sync`, the token search in `test_disconnect_through_worker_command_isolates_other_clients`, and `backend/tests/test_connector_contracts.py::test_exchange_requires_pkce_redirect_and_single_use` |
+| AC2: expiry or revocation stops only the affected connection | 009-A | `test_connectors.py::test_refresh_install_is_fenced_and_terminal_failure_requires_reconnect`, `test_reconnect_binding_mismatch_and_race_with_disconnect`, `test_r009_08_concurrent_reconnects_keep_the_winning_grant_usable`, `test_r009_09_a_rejected_reconnect_keeps_the_original_grant` |
+| AC3: `401` reconnection | 009-A | `test_connectors.py::test_refresh_install_is_fenced_and_terminal_failure_requires_reconnect` |
+| AC3: `429` backoff, retryable failures, `403` | 009-B | `test_connector_sync.py::test_009b_rate_limits_retries_forbidden_and_permanent_failures` |
+| AC3: crash recovery without skipped pages or duplicate records | 009-B | `test_connector_sync.py::test_009b_restart_at_the_page_boundary_skips_and_duplicates_nothing` (three stop points), `test_connectors.py::test_r009_02_superseded_sync_attempt_cannot_overwrite_its_replacement` |
+| AC4: metric availability, last synchronization, historical coverage and cost | 009-B, 009-C | `test_connector_coverage.py::test_009c_coverage_and_metric_states`, `test_connector_sync.py::test_009b_usage_accounting_and_budget_stops`, `test_009b_pages_checkpoints_backfill_and_overlapping_requests` |
+| Webhook delivery: one scoped effect, no effect on repeat, none for an invalid signature, isolation, after disconnect | 009-D | `test_connector_webhooks.py` (5 cases) |
+| 003 case D3: revocation at the provider, destroyed material, scoped purge before the deadline, honest outcomes | 009-A, extended by 009-B and 009-C | `test_connectors.py::test_disconnect_through_worker_command_isolates_other_clients`, `test_teardown_outcomes_with_controlled_clock`, `test_teardown_resumes_after_crash_and_records_late_completion`, `test_r009_10_completion_is_timed_after_the_purge`; checkpoints in `test_connector_sync.py::test_009b_privileges_scoped_references_and_disconnect_purge`; account kind and records in `test_connector_coverage.py` |
+| Isolation across clients and agencies sharing one external account | All | K1, K2 and K3 share `syn-acct-777` in every connector module |
+
+### Limits that remain
+
+- Only the synthetic adapter exists. Every real provider rule in `app.privacy.providers` stays stale and blocking until 010-013 re-verify it. The synthetic per-grant revocation, cost units, quota, history limit and webhook scheme describe that adapter only.
+- The worker is a bounded command. Production scheduling and process supervision are decided in 020; until something invokes it, neither the 72-hour teardown target nor the sync interval is met.
+- The synthetic budgets are development values, not commercial budgets (Q-004). Usage records and run history have no approved retention period (Q-012).
+- Section 9.4 of the entry review lists the 009-A limits (an undisposable discarded grant is only logged; a commit reported as failed after it succeeded is resolved by the next sync).
+- Native `tracking_sys` has none of the migrations 0009-0012. Merge, native rollout and deployment are owner decisions.
+
+### Readiness for Spec 010 (Instagram)
+
+The runtime contracts that Spec 010 consumes are in place: the connection lifecycle and teardown, paged and rate-limited synchronization with checkpoints and usage limits, coverage and provenance with explicit metric states, and signed webhook verification. Spec 010 is not ready to implement until the owner decides the following, in this order.
+
+1. Account types and metrics (Q-001 for Instagram): which Instagram professional account kinds (business, creator) are in scope, and which account and media metrics form the launch catalog, each declared with its unit and account kinds as a `MetricSpec`. 010 acceptance criterion 2 relies on the 009-C `unsupported` state for metrics an account kind lacks.
+2. Authorized test-account evidence (010 acceptance criterion 1): a dated feasibility check with an owner-authorized Instagram professional test account, recording the login route used, the granted scopes, the fields and metrics actually returned for each account kind and media type, the history window available, token lifetimes and refresh behavior, revocation scope, rate-limit signals, and the webhook verification scheme. No live call is authorized until the owner approves this check.
+3. Policy rows requiring re-verification before any feature they govern runs: `meta.platform_data` (retention until no longer necessary, deletion on user, client or Meta request, signed data deletion callback, annual Data Use Checkup, per-client separation) and `instagram.login_api` (deauthorize handling, deauthorize and deletion URLs, token refresh after 24 hours and before 60 days, App Review, Advanced Access and Business Verification). Both were researched on 2026-11-03 and are stale. `meta.conversions_api` belongs to 014.

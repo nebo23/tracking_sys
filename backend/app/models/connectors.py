@@ -421,3 +421,27 @@ class ConnectorRecord(Base):
     fetched_at: Mapped[datetime] = _time(False, default=True)
     source_run_id: Mapped[UUID | None] = mapped_column(Uuid)
     adapter_version: Mapped[str | None] = mapped_column(String(32))
+
+
+# A verified provider webhook delivery, kept only to recognize a repeated delivery (009-D,
+# D-049 decision D19). It is not tenant-scoped, because one delivery may concern connections of
+# several clients; it holds a SHA-256 digest of the provider's event ID and the number of
+# connections notified, never the payload or the account. Deleted 7 days after receipt.
+# SELECT provider, received_at, notified
+# FROM public.connector_webhook_deliveries
+# WHERE received_at >= now() - interval '1 day'
+# ORDER BY received_at DESC, id LIMIT 100;
+class ConnectorWebhookDelivery(Base):
+    __tablename__ = "connector_webhook_deliveries"
+    __table_args__ = (
+        UniqueConstraint("provider", "event_digest", name="uq_connector_webhook_deliveries_event"),
+        CheckConstraint("provider IN ('synthetic')", name="valid_provider"),
+        CheckConstraint("event_digest ~ '^[0-9a-f]{64}$'", name="event_digest"),
+        CheckConstraint("notified >= 0", name="valid_notified"),
+        Index("ix_connector_webhook_deliveries_received", "received_at"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    provider: Mapped[str] = mapped_column(String(32))
+    event_digest: Mapped[str] = mapped_column(String(64))
+    received_at: Mapped[datetime] = _time(False, default=True)
+    notified: Mapped[int] = mapped_column(Integer, server_default="0")
