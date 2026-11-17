@@ -83,10 +83,13 @@ MEDIA_METRICS = (
     MetricSpec("likes", "count", streams=("media",), product_types=FEED_REELS),
     MetricSpec("comments", "count", streams=("media",), product_types=FEED_REELS),
     MetricSpec("saved", "count", streams=("media",), product_types=FEED_REELS),
-    MetricSpec("shares", "count", streams=("media",), product_types=FEED_REELS),
-    MetricSpec("total_interactions", "count", streams=("media",), product_types=FEED_REELS),
-    MetricSpec("profile_visits", "count", streams=("media",), product_types=("FEED",)),
-    MetricSpec("follows", "count", streams=("media",), product_types=("FEED",)),
+    # D-054: stories also report shares, interactions, profile visits and follows.
+    MetricSpec("shares", "count", streams=MEDIA, product_types=("FEED", "REELS", "STORY")),
+    MetricSpec(
+        "total_interactions", "count", streams=MEDIA, product_types=("FEED", "REELS", "STORY")
+    ),
+    MetricSpec("profile_visits", "count", streams=MEDIA, product_types=("FEED", "STORY")),
+    MetricSpec("follows", "count", streams=MEDIA, product_types=("FEED", "STORY")),
     MetricSpec(
         "ig_reels_avg_watch_time", "milliseconds", streams=("media",), product_types=("REELS",)
     ),
@@ -99,11 +102,10 @@ MEDIA_METRICS = (
     MetricSpec("reels_skip_rate", "percent", streams=("media",), product_types=("REELS",)),
     MetricSpec("replies", "count", streams=("stories",), product_types=("STORY",)),
     MetricSpec("navigation", "count", streams=("stories",), product_types=("STORY",)),
-    MetricSpec("link_clicks", "count", streams=("stories",), product_types=("STORY",)),
 )
 CAPABILITY = Capability(
     provider="synthetic_instagram",
-    version="synthetic-instagram-1",
+    version="synthetic-instagram-2",
     pkce=None,
     refresh=True,
     revocation_scope="unsupported",

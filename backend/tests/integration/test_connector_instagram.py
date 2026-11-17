@@ -144,7 +144,17 @@ def test_010a_streams_product_types_and_isolation(ig):
     assert reels["profile_visits"]["state"] == "unsupported"
     stories = _records(lab, "owner_a", w.a, w.a1, k1, "stories")
     assert {item["product_type"] for item in stories} == {"STORY"}
-    assert set(stories[0]["metrics"]) == {"reach", "views", "replies", "navigation", "link_clicks"}
+    # The D-054 story catalog, as the 010-B evidence showed it.
+    assert set(stories[0]["metrics"]) == {
+        "reach",
+        "views",
+        "replies",
+        "navigation",
+        "shares",
+        "follows",
+        "profile_visits",
+        "total_interactions",
+    }
     assert lab.browser("owner_a").get(
         f"/agencies/{w.a}/clients/{w.a1}/connections/{k1}/records?stream=unknown"
     ).status_code in {404, 422}

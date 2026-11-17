@@ -131,3 +131,7 @@ Repeated `probe` (56 read-only calls, not throttled) minutes after the owner pub
 | Rate limits | Provider rate-limit answers | Only `x-app-usage` seen | Read `x-app-usage`; keep the per-connection safety cap |
 
 Remaining in 010-B: token refresh at least 24 hours after the first run (F2), the optional PKCE check (F3), the access-removal check (F11), `forget`, and rotation of the app secret shared in the conversation.
+
+### D-054 applied (2026-11-17)
+
+The owner approved the story-catalog amendment as D-054. The synthetic adapter (`synthetic-instagram-2`) now declares `shares`, `total_interactions`, `profile_visits` and `follows` for stories and no longer declares `link_clicks`. `python -m pytest -m "not integration" -q`: 519 passed; `tests/integration/test_connector_instagram.py` with the registry schema check on a fresh disposable PostgreSQL: 9 passed.

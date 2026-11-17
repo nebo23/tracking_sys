@@ -91,3 +91,7 @@ D-053 approves D1-D10 as recommended and authorizes 010-A: a second synthetic ad
 ### 8.1 Documentation finding for 010-B (2026-11-17)
 
 The Instagram media reference, read while preparing the [feasibility checklist](feasibility-checklist.md), documents the `media_product_type` field (`FEED`, `REELS`, `STORY`) as available with Facebook Login only. D7 and the synthetic adapter assume product types under Instagram Login. Question F7 of the checklist establishes what the API returns. If the field is not available, the way reels and stories are distinguished (for example `media_type` and the stories edge) needs an owner decision amending D7 before 010-C.
+
+### 8.2 D2 story catalog amended (D-054, 2026-11-17)
+
+The 010-B evidence showed that `link_clicks` is not available for stories on the Instagram Login endpoint, while `shares`, `follows`, `profile_visits` and `total_interactions` are. D-054 amends the D2 story catalog to `reach`, `views`, `replies`, `navigation`, `shares`, `follows`, `profile_visits` and `total_interactions`. The feed and reel catalogs are unchanged and matched the live answers. The synthetic adapter, now `synthetic-instagram-2`, follows the amended catalog. Section 8.1's question about `media_product_type` is answered: the field is returned under Instagram Login for feed posts and reels.
