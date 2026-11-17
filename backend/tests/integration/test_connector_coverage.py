@@ -52,6 +52,10 @@ def _metrics(coverage):
     return {item["name"]: item["availability"] for item in coverage["metrics"]}
 
 
+def _without_sync(stream):
+    return {key: value for key, value in stream.items() if key != "sync"}
+
+
 def _values(record):
     return {name: (item["state"], item["value"]) for name, item in record["metrics"].items()}
 
@@ -98,7 +102,9 @@ def test_009c_coverage_and_metric_states(lab, api):
         "reason": None,
         "next_attempt_at": None,
     }
-    assert body["streams"] == [
+    # 010-A adds each stream's latest run; with one stream it is the connection's latest run.
+    assert body["streams"][0]["sync"] == body["sync"]
+    assert [_without_sync(stream) for stream in body["streams"]] == [
         {
             "stream": "objects",
             "state": "not_synced",
@@ -122,7 +128,7 @@ def test_009c_coverage_and_metric_states(lab, api):
     assert lab.worker(now=t0)["sync"] == {"succeeded": 2}
     body = _coverage(lab, "owner_a", w.a, w.a1, k1)
     assert (body["freshness"], body["sync"]["state"]) == ("fresh", "idle")
-    assert body["streams"][0] | {"history_limit_days": 30} == {
+    assert _without_sync(body["streams"][0]) | {"history_limit_days": 30} == {
         "stream": "objects",
         "state": "complete",
         "covered_from": _iso(NEWEST - 3 * DAY),

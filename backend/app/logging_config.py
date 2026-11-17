@@ -26,6 +26,9 @@ EVENTS: dict[str, frozenset[str]] = {
     # A newly issued connector grant that could not be saved and whose provider revocation
     # was unsupported or failed (specification 009-A, R009-06); only the outcome code is logged.
     "connector_grant_disposal_failed": frozenset({"outcome"}),
+    # A kept connector grant that carries permissions that were not requested (specification
+    # 010-C, D-055); the permissions stay on the connection, and nothing else is logged.
+    "connector_extra_scopes": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

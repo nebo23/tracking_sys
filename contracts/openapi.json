@@ -12558,6 +12558,25 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32,
+                  "pattern": "^[a-z_]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stream"
+            }
           }
         ],
         "responses": {
@@ -13286,6 +13305,370 @@
         }
       }
     },
+    "/connectors/{provider}/deauthorize": {
+      "post": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "Provider Deauthorize",
+        "operationId": "provider_deauthorize_connectors__provider__deauthorize_post",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedRequestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A verified request the adapter cannot read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/connectors/{provider}/data-deletion": {
+      "post": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "Provider Data Deletion",
+        "operationId": "provider_data_deletion_connectors__provider__data_deletion_post",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionReceiptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A verified request the adapter cannot read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/connectors/{provider}/data-deletion/{code}": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "Provider Deletion Status",
+        "operationId": "provider_deletion_status_connectors__provider__data_deletion__code__get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "404": {
+            "description": "Unknown confirmation code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "tags": [
@@ -13939,7 +14322,11 @@
         "properties": {
           "provider": {
             "type": "string",
-            "const": "synthetic",
+            "enum": [
+              "synthetic",
+              "synthetic_instagram",
+              "instagram"
+            ],
             "title": "Provider"
           }
         },
@@ -14519,6 +14906,65 @@
           "cost"
         ],
         "title": "CoverageResponse"
+      },
+      "DeletionReceiptResponse": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "confirmation_code": {
+            "type": "string",
+            "title": "Confirmation Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "confirmation_code"
+        ],
+        "title": "DeletionReceiptResponse"
+      },
+      "DeletionStatus": {
+        "properties": {
+          "confirmation_code": {
+            "type": "string",
+            "title": "Confirmation Code"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed"
+            ],
+            "title": "Status"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation_code",
+          "status",
+          "received_at",
+          "completed_at"
+        ],
+        "title": "DeletionStatus"
       },
       "DeliveryResult": {
         "properties": {
@@ -15705,6 +16151,24 @@
             "type": "string",
             "title": "Unit"
           },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "product_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Types"
+          },
           "availability": {
             "type": "string",
             "enum": [
@@ -15733,6 +16197,8 @@
         "required": [
           "name",
           "unit",
+          "stream",
+          "product_types",
           "availability",
           "latest_observed_at"
         ],
@@ -15763,12 +16229,28 @@
               }
             ],
             "title": "Value"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_returned",
+                  "below_threshold"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "type": "object",
         "required": [
           "state",
-          "value"
+          "value",
+          "reason"
         ],
         "title": "MetricValue"
       },
@@ -15976,6 +16458,26 @@
             "type": "string",
             "title": "Provider Object Id"
           },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "product_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "FEED",
+                  "REELS",
+                  "STORY"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Type"
+          },
           "observed_at": {
             "type": "string",
             "format": "date-time",
@@ -15985,6 +16487,10 @@
             "type": "string",
             "format": "date-time",
             "title": "Fetched At"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
           },
           "source": {
             "$ref": "#/components/schemas/RecordSource"
@@ -16000,8 +16506,11 @@
         "type": "object",
         "required": [
           "provider_object_id",
+          "stream",
+          "product_type",
           "observed_at",
           "fetched_at",
+          "provisional",
           "source",
           "metrics"
         ],
@@ -16222,6 +16731,20 @@
           "csrf_token"
         ],
         "title": "SessionResponse"
+      },
+      "SignedRequestResult": {
+        "properties": {
+          "result": {
+            "type": "string",
+            "const": "accepted",
+            "title": "Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "SignedRequestResult"
       },
       "SourceInput": {
         "properties": {
@@ -16473,6 +16996,9 @@
           "history_limit_days": {
             "type": "integer",
             "title": "History Limit Days"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncState"
           }
         },
         "type": "object",
@@ -16481,7 +17007,8 @@
           "state",
           "covered_from",
           "complete_through",
-          "history_limit_days"
+          "history_limit_days",
+          "sync"
         ],
         "title": "StreamCoverage"
       },
@@ -16508,6 +17035,20 @@
               }
             ],
             "title": "Days"
+          },
+          "stream": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1,
+                "pattern": "^[a-z_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stream"
           }
         },
         "additionalProperties": false,
@@ -16536,13 +17077,18 @@
               "running"
             ],
             "title": "Status"
+          },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
           }
         },
         "type": "object",
         "required": [
           "run_id",
           "kind",
-          "status"
+          "status",
+          "stream"
         ],
         "title": "SyncRequestResponse"
       },

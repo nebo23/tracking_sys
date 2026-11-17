@@ -15,6 +15,7 @@ from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
 from app.api.collection import webhook_router as collection_webhook_router
 from app.api.connectors import callback_router as connector_callback_router
+from app.api.connectors import provider_router as connector_provider_router
 from app.api.connectors import router as connectors_router
 from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
@@ -99,8 +100,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = configuration
     # Google endpoint client (network access, cached discovery and keys); tests substitute it.
     application.state.google = GoogleOIDC(configuration)
-    # Connector adapters (specification 009-A): only the development synthetic provider, when
-    # its state file is configured; tests substitute providers in code.
+    # Connector adapters (specifications 009-A and 010-C): the development synthetic providers
+    # when their state file is configured, and the live Instagram adapter only when enabled,
+    # configured, and allowed by current provider rules; tests substitute providers in code.
     application.state.connector_providers = build_providers(configuration)
     # Custom-domain verifier (specification 005-E): live DNS and TLS only when explicitly
     # enabled; otherwise verification answers 503. Tests substitute synthetic adapters in code.
@@ -201,6 +203,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(connectors_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
+    application.include_router(connector_provider_router)
 
     # Liveness: answers while the process runs, even when PostgreSQL is unavailable.
     @application.get("/health/live", response_model=HealthResponse, tags=["Health"])

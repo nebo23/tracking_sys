@@ -32,10 +32,15 @@ def event_digest(event_id: str) -> str:
     return hashlib.sha256(event_id.encode()).hexdigest()
 
 
-# Record the delivery and queue its syncs; returns "accepted" or "duplicate". The result does
-# not depend on whether any connection matched.
+# Record the delivery and queue its syncs, one per stream of each matched connection (010-A,
+# D-053 decision D6); returns "accepted" or "duplicate". The result does not depend on whether
+# any connection matched.
 def receive_delivery(
-    engine: Engine, provider: str, delivery: WebhookDelivery, now: datetime
+    engine: Engine,
+    provider: str,
+    delivery: WebhookDelivery,
+    now: datetime,
+    streams: tuple[str, ...] = ("objects",),
 ) -> str:
     with Session(engine) as session, session.begin():
         created = session.execute(
@@ -74,23 +79,25 @@ def receive_delivery(
             )
         )
         for connection in targets:
-            session.execute(
-                insert(ConnectorSyncRun)
-                .values(
-                    id=uuid4(),
-                    agency_id=connection.agency_id,
-                    client_id=connection.client_id,
-                    connection_id=connection.id,
-                    connection_generation=connection.generation,
-                    status="queued",
-                    kind="incremental",
-                    created_at=now,
+            for stream in streams:
+                session.execute(
+                    insert(ConnectorSyncRun)
+                    .values(
+                        id=uuid4(),
+                        agency_id=connection.agency_id,
+                        client_id=connection.client_id,
+                        connection_id=connection.id,
+                        connection_generation=connection.generation,
+                        status="queued",
+                        kind="incremental",
+                        stream=stream,
+                        created_at=now,
+                    )
+                    .on_conflict_do_nothing(
+                        index_elements=["connection_id", "stream"],
+                        index_where=text("status IN ('queued', 'running')"),
+                    )
                 )
-                .on_conflict_do_nothing(
-                    index_elements=["connection_id"],
-                    index_where=text("status IN ('queued', 'running')"),
-                )
-            )
         session.execute(
             update(ConnectorWebhookDelivery)
             .where(ConnectorWebhookDelivery.id == created.id)

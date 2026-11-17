@@ -51,6 +51,7 @@ from app.models import (
     CollectedEvent,
     CollectionSubject,
     ConnectorOAuthTransaction,
+    ConnectorRecord,
     ConnectorWebhookDelivery,
     EventDiagnostic,
     ExternalIdentity,
@@ -142,6 +143,12 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     def webhook_deliveries(cutoff: datetime) -> ColumnElement[bool]:
         return ConnectorWebhookDelivery.received_at < before(
             settings.webhook_delivery_retention_days, cutoff
+        )
+
+    # Connector records (D-053 decision D9) are kept at most 2 years after observation.
+    def connector_records(cutoff: datetime) -> ColumnElement[bool]:
+        return ConnectorRecord.observed_at < before(
+            settings.connector_record_retention_days, cutoff
         )
 
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
@@ -241,6 +248,7 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             ConnectorWebhookDelivery.id,
             webhook_deliveries,
         ),
+        Target("connector_records", ConnectorRecord, ConnectorRecord.id, connector_records),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

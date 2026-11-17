@@ -37,6 +37,7 @@ TABLES = (
     "connector_token_secrets",
     "connector_oauth_transactions",
     "connector_connections",
+    "connector_deletion_requests",
     "deletion_tombstones",
     "deletion_requests",
     "event_diagnostics",

@@ -4,7 +4,10 @@ Connector rows come from research checked on 2026-11-03 and are marked stale: ea
 specification (009-016) must re-verify, test, and mark its rows current before the feature
 they govern is allowed. A stale or unsupported row, or one past its review date, blocks the
 feature instead of defaulting to permissive. The two Google platform rows describe existing
-D-022 behavior. No row implies provider app approval or review access.
+D-022 behavior. Specification 010-C (D-055) re-verified the Meta platform data and Instagram
+Login rows on 2026-11-17 against the Platform Terms and Developer Policies of 2026-02-03 and
+Meta's data deletion callback documentation; they are current until their review date. No row
+implies provider app approval or review access.
 """
 
 from dataclasses import dataclass
@@ -38,33 +41,41 @@ class ProviderRule:
 
 RESEARCHED = date(2026, 11, 3)
 STALE = RuleStatus.STALE
+# Specification 010-C re-verification (D-055) and the annual review it sets.
+REVERIFIED_010 = date(2026, 11, 17)
+REVIEW_010 = date(2027, 11, 17)
 
 RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
         "meta",
         "meta.platform_data",
         "provider.social_data",
-        "Until no longer necessary, including derived and aggregated data",
-        "User, client, or Meta request, or product end: as soon as reasonably possible",
-        "Signed data deletion callback; annual Data Use Checkup",
-        "Per-client separation; no cross-client aggregation",
+        "Until no longer necessary for a legitimate business purpose",
+        "User, client, or Meta request, or no longer necessary: as soon as reasonably possible",
+        "Signed data deletion callback over HTTPS; annual Data Use Checkup once live or with "
+        "Advanced Access",
+        "Each client's Platform Data kept separate; no cross-client aggregation",
         ("S-61", "S-62", "S-66"),
         "009, 010",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_010,
+        RuleStatus.CURRENT,
+        REVIEW_010,
     ),
     ProviderRule(
         "instagram",
         "instagram.login_api",
         "provider.social_data",
-        "Meta rule; references and metrics, not media archives",
-        "Deauthorize: revoke, disconnected state, purpose-end deletion",
-        "Deauthorize and deletion URLs; refresh after 24 hours, before 60 days",
-        "App Review, Advanced Access, and Business Verification are prerequisites",
+        "Meta rule; references and metrics, never media content or backups",
+        "Deauthorize or deletion request: disconnect, destroy tokens, purge (D-053 D5)",
+        "Signed deauthorize and deletion callbacks; long-lived token refreshed after 24 hours "
+        "and at least 7 days before its 60-day expiry",
+        "Development mode: only people with a role on the app; App Review, Advanced Access, "
+        "and Business Verification before customer accounts (010-D)",
         ("S-63", "S-64", "S-65"),
         "010",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_010,
+        RuleStatus.CURRENT,
+        REVIEW_010,
     ),
     ProviderRule(
         "meta",

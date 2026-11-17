@@ -8,6 +8,12 @@ confused with a metric the provider omitted (missing), one it does not offer for
 kind (unsupported), or a value older than the adapter's freshness window (stale). Responses
 never include another tenant's usage, the provider-wide total, raw provider errors, cursors,
 leases, or token state.
+
+010-A (D-053 decisions D6 to D8) reports each stream with its own coverage and latest run,
+each metric with its stream and media product types, a missing value with the provider's
+closed reason ("not_returned" or "below_threshold") when it gave one, a metric not offered for
+a record's product type as unsupported, and values observed within the provider's data delay
+as provisional.
 """
 
 from collections.abc import Mapping
@@ -28,7 +34,7 @@ from app.models import (
     ConnectorUsageRecord,
 )
 from app.services.access import ScopedAccess
-from app.services.connectors import get_connection, provider_for
+from app.services.connectors import ConnectorError, get_connection, provider_for
 
 RECORD_PAGE = 100
 
@@ -37,6 +43,12 @@ RECORD_PAGE = 100
 # connection's known kind; an unknown kind (for example after the purge) is not assumed.
 def _supported(spec: MetricSpec, account_kind: str | None) -> bool:
     return spec.account_kinds is None or account_kind is None or account_kind in spec.account_kinds
+
+
+# Whether a metric applies to a record's media product type; records without a product type
+# (account insights, 009 objects) accept every metric of their stream.
+def _offered(spec: MetricSpec, product_type: str | None) -> bool:
+    return spec.product_types is None or product_type is None or product_type in spec.product_types
 
 
 def _freshness(connection: ConnectorConnection, capability: Capability, now: datetime) -> str:
@@ -97,10 +109,21 @@ def _context(
     return _Context(connection, provider_for(registry, connection.provider).capability)
 
 
+def _latest_run(
+    session: Session, connection_id: UUID, stream: str | None = None
+) -> ConnectorSyncRun | None:
+    query = select(ConnectorSyncRun).where(ConnectorSyncRun.connection_id == connection_id)
+    if stream is not None:
+        query = query.where(ConnectorSyncRun.stream == stream)
+    return session.scalar(
+        query.order_by(ConnectorSyncRun.created_at.desc(), ConnectorSyncRun.id.desc()).limit(1)
+    )
+
+
 # Coverage of one connection of the reader's client (D16). The metric availability is
-# "unsupported" for the account kind, "not_synced" before any record exists, "missing" when no
-# stored record has a value, "stale" when values exist but the last successful synchronization
-# is older than the freshness window, and "available" otherwise.
+# "unsupported" for the account kind, "not_synced" before any record of its stream exists,
+# "missing" when no stored record has a value, "stale" when values exist but the last
+# successful synchronization is older than the freshness window, and "available" otherwise.
 def coverage(
     session: Session,
     settings: Settings,
@@ -111,57 +134,65 @@ def coverage(
 ) -> dict[str, object]:
     context = _context(session, registry, access, connection_id)
     connection, capability = context.connection, context.capability
-    run = session.scalar(
-        select(ConnectorSyncRun)
-        .where(ConnectorSyncRun.connection_id == connection.id)
-        .order_by(ConnectorSyncRun.created_at.desc(), ConnectorSyncRun.id.desc())
-        .limit(1)
-    )
     checkpoints = {
         row.stream: row
         for row in session.scalars(
             select(ConnectorCheckpoint).where(ConnectorCheckpoint.connection_id == connection.id)
         )
     }
-    point = checkpoints.get(capability.stream)
-    if point is None or point.complete_through is None:
-        stream_state = "partial" if point is not None and point.cursor else "not_synced"
-    else:
-        stream_state = "partial" if point.cursor else "complete"
     freshness = _freshness(connection, capability, now)
-    stored = session.scalar(
-        select(func.count())
-        .select_from(ConnectorRecord)
-        .where(ConnectorRecord.connection_id == connection.id)
-    )
+    streams = []
     metrics = []
-    for spec in capability.metrics:
-        valued = (ConnectorRecord.metrics.has_key(spec.name)) & (
-            func.jsonb_typeof(ConnectorRecord.metrics[spec.name]) != "null"
-        )
-        latest = session.scalar(
-            select(func.max(ConnectorRecord.observed_at)).where(
-                ConnectorRecord.connection_id == connection.id, valued
-            )
-        )
-        if not _supported(spec, connection.account_kind):
-            availability = "unsupported"
-        elif not stored:
-            availability = "not_synced"
-        elif latest is None:
-            availability = "missing"
-        elif freshness == "stale":
-            availability = "stale"
+    for spec in capability.stream_specs():
+        point = checkpoints.get(spec.name)
+        if point is None or point.complete_through is None:
+            stream_state = "partial" if point is not None and point.cursor else "not_synced"
         else:
-            availability = "available"
-        metrics.append(
+            stream_state = "partial" if point.cursor else "complete"
+        streams.append(
             {
-                "name": spec.name,
-                "unit": spec.unit,
-                "availability": availability,
-                "latest_observed_at": latest if _supported(spec, connection.account_kind) else None,
+                "stream": spec.name,
+                "state": stream_state,
+                "covered_from": None if point is None else point.covered_from,
+                "complete_through": None if point is None else point.complete_through,
+                "history_limit_days": spec.history_days,
+                "sync": _sync_state(_latest_run(session, connection.id, spec.name), now),
             }
         )
+        in_stream = (ConnectorRecord.connection_id == connection.id) & (
+            ConnectorRecord.stream == spec.name
+        )
+        stored = session.scalar(select(func.count()).select_from(ConnectorRecord).where(in_stream))
+        for metric in capability.stream_metrics(spec.name):
+            valued = (ConnectorRecord.metrics.has_key(metric.name)) & (
+                func.jsonb_typeof(ConnectorRecord.metrics[metric.name]) != "null"
+            )
+            latest = session.scalar(
+                select(func.max(ConnectorRecord.observed_at)).where(in_stream, valued)
+            )
+            supported = _supported(metric, connection.account_kind)
+            if not supported:
+                availability = "unsupported"
+            elif not stored:
+                availability = "not_synced"
+            elif latest is None:
+                availability = "missing"
+            elif freshness == "stale":
+                availability = "stale"
+            else:
+                availability = "available"
+            metrics.append(
+                {
+                    "name": metric.name,
+                    "unit": metric.unit,
+                    "stream": spec.name,
+                    "product_types": (
+                        None if metric.product_types is None else list(metric.product_types)
+                    ),
+                    "availability": availability,
+                    "latest_observed_at": latest if supported else None,
+                }
+            )
     period = _period_start(now)
     consumed = session.scalar(
         select(func.coalesce(func.sum(ConnectorUsageRecord.quantity), 0)).where(
@@ -170,7 +201,7 @@ def coverage(
         )
     )
     allocation = settings.connector_connection_daily_units
-    sync = _sync_state(run, now)
+    sync = _sync_state(_latest_run(session, connection.id), now)
     reason = None
     if consumed >= allocation:
         reason = "connection_allocation"
@@ -188,15 +219,7 @@ def coverage(
         "freshness": freshness,
         "freshness_hours": capability.freshness_hours,
         "sync": sync,
-        "streams": [
-            {
-                "stream": capability.stream,
-                "state": stream_state,
-                "covered_from": None if point is None else point.covered_from,
-                "complete_through": None if point is None else point.complete_through,
-                "history_limit_days": capability.history_days,
-            }
-        ],
+        "streams": streams,
         "metrics": metrics,
         "cost": {
             "unit": capability.cost_unit,
@@ -210,9 +233,10 @@ def coverage(
     }
 
 
-# One page of a connection's stored records with provenance and per-metric states (D17),
-# ordered by provider object ID; `after` continues after the last ID of the previous page.
-# Only metrics declared in the adapter's catalog are returned.
+# One page of a connection's stored records of one stream (the provider's first stream by
+# default) with provenance and per-metric states (D17), ordered by provider object ID; `after`
+# continues after the last ID of the previous page. Only metrics the adapter declares for the
+# stream are returned.
 def records(
     session: Session,
     registry: Mapping[str, ConnectorProvider],
@@ -222,33 +246,53 @@ def records(
     *,
     after: str | None = None,
     limit: int = RECORD_PAGE,
+    stream: str | None = None,
 ) -> tuple[list[dict[str, object]], str | None]:
     context = _context(session, registry, access, connection_id)
     connection, capability = context.connection, context.capability
-    query = select(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
+    stream = stream or capability.primary_stream
+    if capability.stream_spec(stream) is None:
+        raise ConnectorError("invalid_stream", 422)
+    query = select(ConnectorRecord).where(
+        ConnectorRecord.connection_id == connection.id, ConnectorRecord.stream == stream
+    )
     if after is not None:
         query = query.where(ConnectorRecord.provider_object_id > after)
     rows = list(
         session.scalars(query.order_by(ConnectorRecord.provider_object_id).limit(limit + 1))
     )
     window = timedelta(hours=capability.freshness_hours)
+    delay = timedelta(hours=capability.data_delay_hours)
     items = []
     for row in rows[:limit]:
         stale = now - row.fetched_at > window
         values: dict[str, dict[str, object]] = {}
-        for spec in capability.metrics:
+        for spec in capability.stream_metrics(stream):
             value = row.metrics.get(spec.name)
-            if not _supported(spec, connection.account_kind):
-                values[spec.name] = {"state": "unsupported", "value": None}
+            if not _supported(spec, connection.account_kind) or not _offered(
+                spec, row.product_type
+            ):
+                values[spec.name] = {"state": "unsupported", "value": None, "reason": None}
             elif value is None:
-                values[spec.name] = {"state": "missing", "value": None}
+                values[spec.name] = {
+                    "state": "missing",
+                    "value": None,
+                    "reason": row.unavailable.get(spec.name),
+                }
             else:
-                values[spec.name] = {"state": "stale" if stale else "observed", "value": value}
+                values[spec.name] = {
+                    "state": "stale" if stale else "observed",
+                    "value": value,
+                    "reason": None,
+                }
         items.append(
             {
                 "provider_object_id": row.provider_object_id,
+                "stream": row.stream,
+                "product_type": row.product_type,
                 "observed_at": row.observed_at,
                 "fetched_at": row.fetched_at,
+                "provisional": bool(delay) and now - row.observed_at < delay,
                 "source": {
                     "provider": connection.provider,
                     "adapter_version": row.adapter_version,

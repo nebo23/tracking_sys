@@ -360,10 +360,13 @@ class SyntheticProvider:
         self,
         access_token: str,
         *,
+        stream: str = "objects",
         cursor: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> ProviderPage:
+        if stream != self.capability.stream:
+            raise ProviderError(ErrorKind.PERMANENT, "unknown_stream")
         error: ProviderError | None = None
         offset = 0
         if cursor is not None:

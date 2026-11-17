@@ -36,6 +36,7 @@ from app.models.collection import (
 from app.models.connectors import (
     ConnectorCheckpoint,
     ConnectorConnection,
+    ConnectorDeletionRequest,
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorSyncRun,
@@ -97,6 +98,7 @@ __all__ = [
     "ManagedLink",
     "ConnectorCheckpoint",
     "ConnectorConnection",
+    "ConnectorDeletionRequest",
     "ConnectorOAuthTransaction",
     "ConnectorRecord",
     "ConnectorSyncRun",

@@ -22,11 +22,12 @@ from app.services.tenancy import tenancy_transaction
 ACCOUNT = "syn-acct-777"
 
 
-# Build the lab for one test from the authenticated synthetic world and API client factory.
-def make_lab(authenticated_world, api, tmp_path):
+# Build the lab for one test from the authenticated synthetic world and API client factory;
+# `updates` adds settings, such as the live Instagram adapter's (010-C).
+def make_lab(authenticated_world, api, tmp_path, **updates):
     w = authenticated_world
     state = tmp_path / "synthetic-provider.sqlite3"
-    config = api.config.model_copy(update={"connector_synthetic_state": state})
+    config = api.config.model_copy(update={"connector_synthetic_state": state, **updates})
     provider = SyntheticProvider(state)
     clients = {}
 

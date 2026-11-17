@@ -1,5 +1,5 @@
 # 010-instagram — Instagram analytics
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: 010-A to 010-C implemented under D-053 to D-055 (2026-11-17): the synthetic adapter, the owner-run feasibility check, and the live Instagram Login adapter, which is off by default and limited to owner-authorized test accounts ([evidence](evidence.md)). 010-D (App Review, Advanced Access and Business Verification) remains before customer accounts. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 USER Instagram; PDF-024,041 context. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
