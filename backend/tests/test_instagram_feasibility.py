@@ -286,3 +286,31 @@ def test_a_wrong_pkce_verifier_is_recorded_as_a_probe_result(tmp_path, monkeypat
     assert record["pkce"] == "wrong_verifier"
     assert record["code_exchange_error"]["code"] == 36008
     assert tool.TOKEN not in dotenv_values(env)
+
+
+def test_pasted_text_tolerates_terminal_escapes_and_reports_only_a_length():
+    url = f"{REDIRECT}?code={CODE}&state=s1#_"
+    assert tool.code_from_redirect(f"\x1b[200~{url}\x1b[201~\r\n", "s1", REDIRECT) == CODE
+    assert tool.code_from_redirect(f"  \x16{url} ", "s1", REDIRECT) == CODE
+    with pytest.raises(tool.FeasibilityFailed) as caught:
+        tool.code_from_redirect("\x1b[200~\x1b[201~", "s1", REDIRECT)
+    assert "12 characters" in str(caught.value)
+
+
+def test_a_failed_paste_can_be_repeated_with_the_same_consent(tmp_path, monkeypatch, capsys):
+    env = tmp_path / ".env"
+    env.write_text(
+        f"TRACKING_INSTAGRAM_APP_ID=1234567890\nTRACKING_INSTAGRAM_APP_SECRET={APP_SECRET}\n"
+        f"TRACKING_INSTAGRAM_REDIRECT_URI={REDIRECT}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool.secrets, "token_urlsafe", lambda size=32: f"fixed-{size}")
+    answers = iter(["", f"\x1b[200~{REDIRECT}?code={CODE}&state=fixed-24#_\x1b[201~"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    argv = ["--env-file", str(env), "authorize", "--no-browser", "--visible-input"]
+    assert tool.main(argv, transport=FakeMeta()) == 0
+    assert dotenv_values(env)[tool.TOKEN] == LONG
+    output = capsys.readouterr().out
+    assert "0 characters received" in output and "Try pasting again" in output
+    for secret in SECRETS:
+        assert secret not in output

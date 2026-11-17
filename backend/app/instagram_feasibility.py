@@ -58,6 +58,7 @@ APP_ID, APP_SECRET, REDIRECT = (
 )
 TOKEN, ISSUED = "TRACKING_INSTAGRAM_FEASIBILITY_TOKEN", "TRACKING_INSTAGRAM_FEASIBILITY_ISSUED_AT"
 TIMEOUT = 20
+PASTE_ATTEMPTS = 3
 DEFAULT_MAX_CALLS = 150
 # The provisional D2 catalog of the entry review, plus the deprecated impressions metric to
 # confirm its refusal. The check records what the API actually returns for each name.
@@ -204,10 +205,28 @@ def authorization_url(config: AppConfig, state: str, challenge: str | None = Non
     return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(query)}"
 
 
+# Terminal escape sequences, such as the bracketed-paste markers some terminals put around
+# pasted text, and the first web address in what remains.
+_ESCAPES = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+_ADDRESS = re.compile(r"https?://[^\s'\"<>]+")
+
+
+# The address in pasted text, without terminal escapes or control characters. A failure
+# reports only how many characters arrived, never the text.
+def pasted_address(pasted: str) -> str:
+    cleaned = "".join(ch for ch in _ESCAPES.sub("", pasted) if ch.isprintable())
+    match = _ADDRESS.search(cleaned)
+    if match is None:
+        raise FeasibilityFailed(
+            f"No address was found in the pasted text ({len(pasted)} characters received)."
+        )
+    return match.group(0)
+
+
 # Read the code from the pasted redirect address: the state must match, a cancelled consent
 # is refused, and the documented "#_" suffix is never part of the code.
 def code_from_redirect(pasted: str, state: str, redirect_uri: str) -> str:
-    text = pasted.strip()
+    text = pasted_address(pasted)
     parts = urllib.parse.urlsplit(text)
     expected = urllib.parse.urlsplit(redirect_uri)
     if (parts.scheme, parts.netloc, parts.path.rstrip("/")) != (
@@ -215,7 +234,7 @@ def code_from_redirect(pasted: str, state: str, redirect_uri: str) -> str:
         expected.netloc,
         expected.path.rstrip("/"),
     ):
-        raise FeasibilityFailed("Paste the full address of the redirect page.")
+        raise FeasibilityFailed("The pasted address is not the registered redirect address.")
     query = urllib.parse.parse_qs(parts.query)
     if query.get("error"):
         raise FeasibilityFailed("The consent was cancelled or denied.")
@@ -623,6 +642,11 @@ def main(argv: list[str] | None = None, transport: Transport = http_send) -> int
         "--pkce-wrong-verifier", action="store_true", help="Check whether PKCE is enforced."
     )
     authorize.add_argument("--no-browser", action="store_true", help="Print the URL only.")
+    authorize.add_argument(
+        "--visible-input",
+        action="store_true",
+        help="Show the pasted address (when a terminal does not paste into hidden input).",
+    )
     commands.add_parser("probe", help="Read the account with the stored token.")
     commands.add_parser("refresh", help="Refresh the stored token (at least 24 hours old).")
     commands.add_parser("check-access", help="Check the stored token after removing access.")
@@ -692,8 +716,18 @@ def _authorize(options, config, env_file, output, now, transport) -> int:
     if not options.no_browser:
         threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
     print("The browser then shows the redirect address, which may fail to load. That is fine.")
-    pasted = getpass.getpass("Paste the full address from the browser (hidden): ")
-    code = code_from_redirect(pasted, state, config.redirect_uri)
+    read = input if options.visible_input else getpass.getpass
+    prompt = "Paste the full address from the browser, then press Enter"
+    prompt += ": " if options.visible_input else " (hidden): "
+    # The code stays valid for an hour, so a failed paste can simply be repeated.
+    for attempt in range(1, PASTE_ATTEMPTS + 1):
+        try:
+            code = code_from_redirect(read(prompt), state, config.redirect_uri)
+            break
+        except FeasibilityFailed as failure:
+            if attempt == PASTE_ATTEMPTS:
+                raise
+            print(f"{failure} Try pasting again.")
     sent = pkce_pair()[0] if options.pkce_wrong_verifier else verifier
     record: dict[str, Any] = {
         "pkce": (
