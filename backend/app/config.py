@@ -390,6 +390,9 @@ class LifecycleSettings(DatabaseSettings):
     oauth_transaction_retention_days: int = Field(default=1, ge=0, le=1)
     # Connector webhook delivery records (D-049 decision D19): 7 days after receipt.
     webhook_delivery_retention_days: int = Field(default=7, ge=0, le=7)
+    # Connector records (D-053 decision D9): at most 2 years after observation; the
+    # disconnect, deauthorize and data deletion purges remove them earlier.
+    connector_record_retention_days: int = Field(default=730, ge=0, le=730)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

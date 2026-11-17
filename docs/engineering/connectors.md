@@ -1,5 +1,5 @@
 # Connector runtime (specification 009)
-Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. No real provider adapter exists, and every real provider rule in `app.privacy.providers` stays blocking until its own specification (010-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 onward).
+Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. 010-A (D-053) adds an Instagram-shaped synthetic provider and the runtime extensions it needs; see [Instagram-shaped providers](#instagram-shaped-providers-010-a). No real provider adapter exists, and every real provider rule in `app.privacy.providers` stays blocking until its own specification (010-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 onward).
 
 ## Configuration
 Connectors need the D-025 token keyring of the [event collection guide](event-collection.md) (`TRACKING_TOKEN_KEYRING`, `TRACKING_TOKEN_KEYRING_ACTIVE`). Routes answer `503 connector_not_configured` while it is blank.
@@ -73,3 +73,19 @@ Teardown revokes each outstanding token at the provider, refresh token first. It
 
 ## Verification
 The integration suite `backend/tests/integration/test_connectors.py` runs on the disposable PostgreSQL service of the [backend test guide](../../backend/tests/README.md). One case starts the worker as a separate process with the shared provider file. Never point it at `tracking_sys`.
+
+## Instagram-shaped providers (010-A)
+D-053 adds `synthetic_instagram`, built next to `synthetic` from the same development state setting (its SQLite file carries an `-instagram` suffix). It follows the shapes of the Instagram API with Instagram Login described in the [Spec 010 entry review](../../specs/010-instagram/entry-review.md); it is not the live service, and its metric names stay provisional until the feasibility check (010-B).
+
+| Behavior | Runtime handling |
+|---|---|
+| No PKCE | The authorization URL carries no code challenge and the exchange no verifier; the single-use state, the session-bound cookie and the server-side exchange still apply. |
+| One long-lived token that refreshes itself | There is no refresh token. Before reading, the worker refreshes the access token once it is at least 24 hours old and within 7 days of expiry; a refused refresh makes the connection `reconnect_required` (`credential_expired`) with its data kept. |
+| No revocation endpoint | Disconnect reports `revocation: unsupported`; tokens are destroyed and data purged as usual. |
+| Streams `account` (daily), `media` (daily, 2-day overlap) and `stories` (every 2 hours) | Runs, checkpoints and records carry their stream, with one open run per connection and stream. A connect, a webhook delivery and the scheduling step queue every stream. `POST .../sync` accepts `{"stream": "media"}`; the first stream is the default. `GET .../records?stream=` reads one stream, the first by default. |
+| Metrics by media product type, thresholds and empty data | Records carry `product_type` (`FEED`, `REELS`, `STORY`). A metric not offered for the product type is `unsupported`; one the provider withheld is `missing` with `reason` `not_returned` or `below_threshold`; neither is ever 0. Coverage lists each metric with its stream and product types, and each stream with its own latest run. |
+| 48-hour data delay | Records observed within the delay are `provisional: true`. |
+| No fixed daily quota | Only the per-connection allocation and the provider's rate-limit answers apply. |
+
+### Deauthorize and data deletion callbacks
+`POST /connectors/{provider}/deauthorize` and `POST /connectors/{provider}/data-deletion` are public form posts with one field, `signed_request` (`<base64url HMAC-SHA256 signature>.<base64url JSON payload>` signed with the app secret, as Meta sends it). The adapter verifies the signature before reading the payload and refuses a request issued more than 1 hour ago (`401 signature_invalid` or `signature_expired`, `400 invalid_delivery`). A verified request starts the disconnect of every live connection of the named account in every agency and client, archived clients included, with reason `deauthorized` or `deletion_requested`; the answer never reveals whether any connection matched. A data deletion request answers `{"url", "confirmation_code"}`; `GET /connectors/{provider}/data-deletion/{code}` reports `pending` until every connection it stopped has been destroyed and purged, then `completed`. The request row keeps no account or tenant. These provider-initiated disconnects have no human actor and therefore no audit event; the connection's reason and the request row record them.

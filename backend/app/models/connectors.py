@@ -44,6 +44,7 @@ CONNECTION_FK = (
     ],
 )
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
+PROVIDERS = "provider IN ('synthetic', 'synthetic_instagram')"
 
 
 def _time(nullable: bool = True, *, default: bool = False) -> Any:
@@ -69,14 +70,16 @@ class ConnectorConnection(Base):
         UniqueConstraint("agency_id", "client_id", "id", name="uq_connector_connections_scope"),
         ForeignKeyConstraint(*CLIENT_FK),
         ForeignKeyConstraint(["agency_id", "created_by_membership_id"], MEMBERSHIP),
-        CheckConstraint("provider IN ('synthetic')", name="valid_provider"),
+        ForeignKeyConstraint(["deletion_request_id"], ["connector_deletion_requests.id"]),
+        CheckConstraint(PROVIDERS, name="valid_provider"),
         CheckConstraint(
             "status IN ('active', 'reconnect_required', 'disconnecting', 'disconnected')",
             name="valid_status",
         ),
         CheckConstraint(
             "status_reason IS NULL OR status_reason IN "
-            "('credential_expired', 'provider_revoked', 'user_requested')",
+            "('credential_expired', 'provider_revoked', 'user_requested', 'deauthorized', "
+            "'deletion_requested')",
             name="valid_reason",
         ),
         CheckConstraint(
@@ -146,6 +149,8 @@ class ConnectorConnection(Base):
     teardown_lease_until: Mapped[datetime | None] = _time()
     # Provider account kind reported at connect or reconnect (009-C); cleared by the purge.
     account_kind: Mapped[str | None] = mapped_column(String(32))
+    # 010-A: the data deletion request that started this connection's disconnect, if any.
+    deletion_request_id: Mapped[UUID | None] = mapped_column(Uuid)
 
 
 # Single-use connect or reconnect authorization bound to the initiating membership, client,
@@ -285,6 +290,7 @@ class ConnectorSyncRun(Base):
         Index(
             "uq_connector_sync_runs_open",
             "connection_id",
+            "stream",
             unique=True,
             postgresql_where=text("status IN ('queued', 'running')"),
         ),
@@ -312,6 +318,8 @@ class ConnectorSyncRun(Base):
     not_before: Mapped[datetime | None] = _time()
     retries: Mapped[int] = mapped_column(Integer, server_default="0")
     pages: Mapped[int] = mapped_column(Integer, server_default="0")
+    # 010-A: the stream this run reads; one open run per connection and stream.
+    stream: Mapped[str] = mapped_column(String(32), server_default="objects")
 
 
 # Synchronization position and coverage of one stream of a connection (009-B). cursor is the
@@ -406,9 +414,18 @@ class ConnectorRecord(Base):
                 "connector_sync_runs.id",
             ],
         ),
-        UniqueConstraint("connection_id", "provider_object_id", name="uq_connector_records_object"),
+        UniqueConstraint(
+            "connection_id", "stream", "provider_object_id", name="uq_connector_records_object"
+        ),
         CheckConstraint("jsonb_typeof(metrics) = 'object'", name="object_metrics"),
         CheckConstraint("length(metrics::text) <= 4096", name="bounded_metrics"),
+        CheckConstraint("jsonb_typeof(unavailable) = 'object'", name="object_unavailable"),
+        CheckConstraint("length(unavailable::text) <= 2048", name="bounded_unavailable"),
+        CheckConstraint(
+            "product_type IS NULL OR product_type IN ('FEED', 'REELS', 'STORY')",
+            name="valid_product_type",
+        ),
+        Index("ix_connector_records_observed", "observed_at"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -421,6 +438,11 @@ class ConnectorRecord(Base):
     fetched_at: Mapped[datetime] = _time(False, default=True)
     source_run_id: Mapped[UUID | None] = mapped_column(Uuid)
     adapter_version: Mapped[str | None] = mapped_column(String(32))
+    # 010-A (D-053 decisions D6 and D7): the stream, the media product type, and the closed
+    # reason for each metric the provider did not report.
+    stream: Mapped[str] = mapped_column(String(32), server_default="objects")
+    product_type: Mapped[str | None] = mapped_column(String(16))
+    unavailable: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
 
 # A verified provider webhook delivery, kept only to recognize a repeated delivery (009-D,
@@ -435,7 +457,7 @@ class ConnectorWebhookDelivery(Base):
     __tablename__ = "connector_webhook_deliveries"
     __table_args__ = (
         UniqueConstraint("provider", "event_digest", name="uq_connector_webhook_deliveries_event"),
-        CheckConstraint("provider IN ('synthetic')", name="valid_provider"),
+        CheckConstraint(PROVIDERS, name="valid_provider"),
         CheckConstraint("event_digest ~ '^[0-9a-f]{64}$'", name="event_digest"),
         CheckConstraint("notified >= 0", name="valid_notified"),
         Index("ix_connector_webhook_deliveries_received", "received_at"),
@@ -445,3 +467,24 @@ class ConnectorWebhookDelivery(Base):
     event_digest: Mapped[str] = mapped_column(String(64))
     received_at: Mapped[datetime] = _time(False, default=True)
     notified: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+# A provider data deletion request (010-A, D-053 decision D5). It keeps no account or tenant
+# data: only the provider, the random confirmation code the provider shows to its user, the
+# receipt time, how many connections it started to disconnect, and when all of them finished.
+# SELECT provider, received_at, connections, completed_at
+# FROM public.connector_deletion_requests
+# WHERE confirmation_code = 'SYNTHETICCODE0000000000000000000';
+class ConnectorDeletionRequest(Base):
+    __tablename__ = "connector_deletion_requests"
+    __table_args__ = (
+        CheckConstraint(PROVIDERS, name="valid_provider"),
+        CheckConstraint("confirmation_code ~ '^[A-Za-z0-9_-]{16,64}$'", name="valid_code"),
+        CheckConstraint("connections >= 0", name="valid_connections"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    provider: Mapped[str] = mapped_column(String(32))
+    confirmation_code: Mapped[str] = mapped_column(String(64), unique=True)
+    received_at: Mapped[datetime] = _time(False, default=True)
+    connections: Mapped[int] = mapped_column(Integer, server_default="0")
+    completed_at: Mapped[datetime | None] = _time()

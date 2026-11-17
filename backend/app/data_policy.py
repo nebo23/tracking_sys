@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "009-D"
+POLICY_VERSION = "010-A"
 
 
 class Sensitivity(StrEnum):
@@ -385,6 +385,16 @@ CLASSES: dict[str, DataClass] = {
             Provenance.SYSTEM,
             "Deleted 7 days after receipt (D-049).",
             "009",
+        ),
+        DataClass(
+            "connector.deletion_request",
+            "A provider data deletion request: provider, random confirmation code, receipt and "
+            "completion times, and the number of connections it stopped; no account or tenant.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept as deletion evidence; retention awaits Q-012 (D-053).",
+            "010",
         ),
         DataClass(
             "system.schema_version",
@@ -1099,6 +1109,7 @@ TABLES: dict[str, TablePolicy] = {
                 "purge_status",
                 "teardown_attempts",
                 "teardown_lease_until",
+                "deletion_request_id",
             ),
         },
         (
@@ -1198,6 +1209,7 @@ TABLES: dict[str, TablePolicy] = {
                 "not_before",
                 "retries",
                 "pages",
+                "stream",
             ),
         },
         (_row(PENDING, RETENTION, "Run history retention awaits Q-012."),),
@@ -1248,16 +1260,33 @@ TABLES: dict[str, TablePolicy] = {
                 "fetched_at",
                 "source_run_id",
                 "adapter_version",
+                "stream",
+                "product_type",
+                "unavailable",
             ),
         },
         (
             _row(
                 APPROVED,
-                "D-048",
-                "Purged when a disconnect completes; retention while connected follows each "
-                "provider rule (010-013).",
+                "D-048; D-053",
+                "Purged when a disconnect, deauthorization or data deletion request completes; "
+                "deleted by tracking_lifecycle 730 days after observation at the latest (D9).",
             ),
         ),
+    ),
+    "connector_deletion_requests": TablePolicy(
+        {
+            **_same(
+                "connector.deletion_request",
+                "id",
+                "provider",
+                "confirmation_code",
+                "received_at",
+                "connections",
+                "completed_at",
+            ),
+        },
+        (_row(PENDING, RETENTION, "Deletion evidence retention awaits Q-012."),),
     ),
     "connector_webhook_deliveries": TablePolicy(
         {

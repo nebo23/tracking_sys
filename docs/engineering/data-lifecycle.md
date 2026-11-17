@@ -12,6 +12,7 @@ Specification 003-A3/003-A4/003-A5 under D-024, extended for collected data by s
 | Google OAuth transactions | 1 day after consumption or expiry |
 | Connector OAuth transactions (009-A, D-048) | 1 day after consumption or expiry |
 | Connector webhook delivery records (009-D, D-049) | 7 days after receipt (`TRACKING_WEBHOOK_DELIVERY_RETENTION_DAYS`, at most 7) |
+| Connector records (010-A, D-053) | 730 days after observation at the latest (`TRACKING_CONNECTOR_RECORD_RETENTION_DAYS`, at most 730); the disconnect, deauthorize and data deletion purges remove them earlier |
 | Rate-limit buckets | At window expiry (an expired bucket restarts anyway) |
 | Outbox rows | 30 days after delivery or expiry |
 | Password credential, Google identity, sessions, tokens, challenges, and OAuth transactions of a closed account | On the next run after closure, without a period |

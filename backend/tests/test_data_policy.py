@@ -30,7 +30,7 @@ USER_REFERENCES = [
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
     # 42 application tables at 0012_connector_webhooks plus alembic_version.
-    assert len(SCHEMA) == 43
+    assert len(SCHEMA) == 44
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -128,7 +128,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("connector_oauth_transactions", "row", "D-048"),
         ("connector_connections", "external_account_id", "D-048"),
         ("connector_token_secrets", "ciphertext", "D-048"),
-        ("connector_records", "row", "D-048"),
+        # D-053 (010-A): records also leave on deauthorization, deletion and after 730 days.
+        ("connector_records", "row", "D-048; D-053"),
         # D-049 (009-B): the disconnect purge also deletes sync checkpoints.
         ("connector_checkpoints", "row", "D-049"),
         # D-049 (009-D): webhook delivery records are deleted 7 days after receipt.

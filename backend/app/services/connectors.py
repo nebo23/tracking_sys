@@ -28,6 +28,12 @@ provider data call is reserved against a per-connection daily allocation and the
 daily quota before it is made. Rate-limited and retryable failures defer the run (Retry-After
 or backoff, at most five times); forbidden and permanent failures fail it; a budget stop defers
 it to the next UTC day. The worker's scheduling step queues incremental runs that are due.
+
+010-A (D-053) runs several streams per connection, each with its own open run, checkpoint and
+interval; offers no PKCE when the provider has none; refreshes a self-refreshing long-lived
+access token before it expires; stores each record's media product type and the reason for
+every metric the provider did not report; and lets a provider's signed deauthorize or data
+deletion request start the disconnect of every connection of the named account.
 """
 
 import base64
@@ -41,13 +47,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, case, delete, func, select, text, update
+from sqlalchemy import DateTime, Engine, String, case, column, delete, func, select, text, update
+from sqlalchemy import values as values_clause
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.connectors.contracts import (
+    UNAVAILABLE_REASONS,
     Capability,
     ConnectorProvider,
     ErrorKind,
@@ -56,12 +64,14 @@ from app.connectors.contracts import (
     TokenGrant,
 )
 from app.connectors.synthetic import SyntheticProvider
+from app.connectors.synthetic_instagram import SyntheticInstagramProvider
 from app.models import (
     Agency,
     AgencyMembership,
     ClientWorkspace,
     ConnectorCheckpoint,
     ConnectorConnection,
+    ConnectorDeletionRequest,
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorSyncRun,
@@ -124,7 +134,20 @@ CALLBACK_ERRORS = frozenset(
 def build_providers(settings: Settings) -> dict[str, ConnectorProvider]:
     if settings.connector_synthetic_state is None:
         return {}
-    return {"synthetic": SyntheticProvider(settings.connector_synthetic_state)}
+    state = settings.connector_synthetic_state
+    return {
+        "synthetic": SyntheticProvider(state),
+        "synthetic_instagram": SyntheticInstagramProvider(
+            state.with_name(state.stem + "-instagram" + state.suffix)
+        ),
+    }
+
+
+# The stream names a provider synchronizes, in declaration order.
+def stream_names(provider: ConnectorProvider | None) -> tuple[str, ...]:
+    if provider is None:
+        return ("objects",)
+    return tuple(spec.name for spec in provider.capability.stream_specs())
 
 
 def provider_for(registry: Mapping[str, ConnectorProvider], name: str) -> ConnectorProvider:
@@ -252,6 +275,7 @@ def _enqueue(
     kind: str = "incremental",
     since: datetime | None = None,
     until: datetime | None = None,
+    stream: str = "objects",
 ) -> ConnectorSyncRun:
     run = ConnectorSyncRun(
         id=uuid4(),
@@ -263,6 +287,7 @@ def _enqueue(
         kind=kind,
         window_since=since,
         window_until=until,
+        stream=stream,
     )
     session.add(run)
     return run
@@ -290,6 +315,26 @@ def dispose_grant(provider: ConnectorProvider, grant: TokenGrant) -> bool:
         outcome = "failed" if "failed" in unresolved else "unsupported"
         logger.warning("connector_grant_disposal_failed", extra={"outcome": outcome})
     return not unresolved
+
+
+# Stop a live connection, cancel its runs, and fix the teardown deadline; the worker then
+# revokes, destroys, and purges. Used by the Owner/Admin disconnect and, with reason
+# "deauthorized" or "deletion_requested", by a provider's signed request (D-053 decision D5).
+def start_disconnect(
+    session: Session,
+    settings: Settings,
+    connection: ConnectorConnection,
+    reason: str,
+    now: datetime,
+) -> None:
+    connection.status, connection.status_reason = "disconnecting", reason
+    connection.generation += 1
+    connection.disconnect_requested_at = now
+    connection.purge_due_at = now + timedelta(hours=settings.connector_teardown_hours)
+    connection.revocation_status = "pending"
+    connection.destruction_status = connection.purge_status = "pending"
+    connection.updated_at = now
+    _cancel_open_runs(session, connection.id, now, "connection_inactive")
 
 
 # Owner/Admin administration: connect, reconnect, disconnect, and sync requests; audited.
@@ -368,7 +413,11 @@ class ConnectorAdmin(TenancyService):
         self.session.flush()
         url = provider.authorization_url(
             state=raw_state,
-            code_challenge=pkce_challenge(pkce_verifier(self.settings, raw_state)),
+            code_challenge=(
+                pkce_challenge(pkce_verifier(self.settings, raw_state))
+                if provider.capability.pkce
+                else None
+            ),
             redirect_uri=self.settings.connector_redirect_uri,
             scopes=provider.capability.scopes,
         )
@@ -383,15 +432,9 @@ class ConnectorAdmin(TenancyService):
         connection = self._connection(agency_id, client_id, connection_id)
         if connection.status not in LIVE:
             return connection
-        now = now or now_utc()
-        connection.status, connection.status_reason = "disconnecting", "user_requested"
-        connection.generation += 1
-        connection.disconnect_requested_at = now
-        connection.purge_due_at = now + timedelta(hours=self.settings.connector_teardown_hours)
-        connection.revocation_status = "pending"
-        connection.destruction_status = connection.purge_status = "pending"
-        connection.updated_at = now
-        _cancel_open_runs(self.session, connection.id, now, "connection_inactive")
+        start_disconnect(
+            self.session, self.settings, connection, "user_requested", now or now_utc()
+        )
         self._audit(
             agency_id, "connector.disconnect_requested", "connection", connection.id, client_id
         )
@@ -408,15 +451,21 @@ class ConnectorAdmin(TenancyService):
         connection_id: UUID,
         kind: str = "incremental",
         days: int | None = None,
+        stream: str | None = None,
     ) -> ConnectorSyncRun:
         self._manager(agency_id, write=True)
         self._client(agency_id, client_id, active=True)
         connection = self._connection(agency_id, client_id, connection_id)
         if connection.status != "active":
             raise ConnectorError("connection_not_active", 409)
+        names = stream_names(self.registry.get(connection.provider))
+        stream = stream or names[0]
+        if stream not in names:
+            raise ConnectorError("invalid_stream", 422)
         existing = self.session.scalar(
             select(ConnectorSyncRun).where(
                 ConnectorSyncRun.connection_id == connection.id,
+                ConnectorSyncRun.stream == stream,
                 ConnectorSyncRun.status.in_(OPEN_RUNS),
             )
         )
@@ -427,19 +476,21 @@ class ConnectorAdmin(TenancyService):
         since = until = None
         if kind == "backfill":
             capability = provider_for(self.registry, connection.provider).capability
-            if days is None or not 1 <= days <= capability.history_days:
+            spec = capability.stream_spec(stream)
+            assert spec is not None
+            if days is None or not 1 <= days <= spec.history_days:
                 raise ConnectorError("invalid_backfill", 422)
             checkpoint = self.session.scalar(
                 select(ConnectorCheckpoint).where(
                     ConnectorCheckpoint.connection_id == connection.id,
-                    ConnectorCheckpoint.stream == capability.stream,
+                    ConnectorCheckpoint.stream == stream,
                 )
             )
             if checkpoint is None or checkpoint.covered_from is None:
                 raise ConnectorError("sync_required", 409)
             until = checkpoint.covered_from
             since = until - timedelta(days=days)
-        run = _enqueue(self.session, connection, kind, since, until)
+        run = _enqueue(self.session, connection, kind, since, until, stream)
         self.session.flush()
         return run
 
@@ -569,6 +620,7 @@ def _install(
     authorization: _Authorization,
     grant: TokenGrant,
     session_token: str,
+    streams: tuple[str, ...] = ("objects",),
 ) -> ConnectorConnection:
     tenancy, member = _initiator(session, settings, authorization, session_token, write=True)
     now = now_utc()
@@ -627,7 +679,8 @@ def _install(
                 now,
             )
         )
-    _enqueue(session, connection)
+    for stream in streams:
+        _enqueue(session, connection, stream=stream)
     tenancy._audit(
         authorization.agency_id, action, "connection", connection.id, authorization.client_id
     )
@@ -689,7 +742,9 @@ def complete_authorization(
     try:
         grant = provider.exchange(
             code=code,
-            code_verifier=pkce_verifier(settings, raw_state),
+            code_verifier=(
+                pkce_verifier(settings, raw_state) if provider.capability.pkce else None
+            ),
             redirect_uri=settings.connector_redirect_uri,
         )
     except ProviderError as error:
@@ -704,7 +759,13 @@ def complete_authorization(
             )
         with Session(engine, expire_on_commit=False) as session, session.begin():
             connection = _install(
-                session, settings, keyring, authorization, grant, session_token or ""
+                session,
+                settings,
+                keyring,
+                authorization,
+                grant,
+                session_token or "",
+                stream_names(provider),
             )
             result = CallbackResult(authorization.purpose, connection.id)
     except Exception as error:
@@ -837,6 +898,8 @@ class _Claim:
     stream: str = "objects"
     cursor: str | None = field(default=None, repr=False)
     adapter_version: str | None = None
+    refresh_mode: str = "refresh_token"
+    access_refreshed_at: datetime | None = None
 
 
 # Lock the claimed run and report this attempt's ownership: "owned" while the run is running
@@ -1004,13 +1067,13 @@ def _reserve(
         connection_spent = session.scalar(
             spent.where(ConnectorUsageRecord.connection_id == claim.connection_id)
         )
-        provider_spent = session.scalar(
-            spent.where(ConnectorUsageRecord.provider == claim.provider)
-        )
-        if (
-            connection_spent + cost > settings.connector_connection_daily_units
-            or provider_spent + cost > capability.daily_quota
-        ):
+        quota_exceeded = False
+        if capability.daily_quota is not None:
+            provider_spent = session.scalar(
+                spent.where(ConnectorUsageRecord.provider == claim.provider)
+            )
+            quota_exceeded = provider_spent + cost > capability.daily_quota
+        if connection_spent + cost > settings.connector_connection_daily_units or quota_exceeded:
             _requeue(session, claim, "budget_exhausted", _next_period(now))
             return None, "deferred"
         row = ConnectorUsageRecord(
@@ -1098,7 +1161,8 @@ def _claim(
             return None, True
         assert connection is not None and access is not None
         provider = registry.get(connection.provider)
-        stream = provider.capability.stream if provider is not None else "objects"
+        stream = run.stream
+        spec = provider.capability.stream_spec(stream) if provider is not None else None
         checkpoint = session.scalar(
             select(ConnectorCheckpoint).where(
                 ConnectorCheckpoint.connection_id == connection.id,
@@ -1107,8 +1171,8 @@ def _claim(
         )
         if run.attempt == 0 and run.kind == "incremental":
             watermark = checkpoint.complete_through if checkpoint is not None else None
-            if watermark is not None and provider is not None:
-                watermark -= timedelta(days=provider.capability.overlap_days)
+            if watermark is not None and spec is not None:
+                watermark -= timedelta(days=spec.overlap_days)
             run.window_since, run.window_until = watermark, None
         resume = (
             checkpoint.cursor if checkpoint is not None and checkpoint.run_id == run.id else None
@@ -1136,6 +1200,10 @@ def _claim(
                 stream=stream,
                 cursor=resume,
                 adapter_version=provider.capability.version if provider is not None else None,
+                refresh_mode=(
+                    provider.capability.refresh_mode if provider is not None else "refresh_token"
+                ),
+                access_refreshed_at=access.last_refreshed_at,
             ),
             False,
         )
@@ -1188,12 +1256,13 @@ def _refresh(
     claim: _Claim,
     clock: Callable[[], datetime],
 ) -> tuple[str | None, str]:
-    assert claim.refresh_token is not None
+    secret = _refresh_secret(claim)
+    assert secret is not None
     usage, outcome = _reserve(engine, settings, provider.capability, claim, "refresh", clock())
     if usage is None:
         return None, outcome
     try:
-        grant = provider.refresh(claim.refresh_token)
+        grant = provider.refresh(secret)
     except ProviderError as error:
         _settle(engine, usage, error.kind.value, clock())
         if error.kind is ErrorKind.UNAUTHORIZED:
@@ -1284,6 +1353,13 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
                 "fetched_at": now,
                 "source_run_id": claim.run_id,
                 "adapter_version": claim.adapter_version,
+                "stream": claim.stream,
+                "product_type": record.product_type,
+                "unavailable": {
+                    name: reason
+                    for name, reason in record.unavailable.items()
+                    if reason in UNAVAILABLE_REASONS and name not in record.metrics
+                },
             }
             statement = insert(ConnectorRecord).values(**values)
             session.execute(
@@ -1296,6 +1372,8 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
                         "fetched_at": statement.excluded.fetched_at,
                         "source_run_id": statement.excluded.source_run_id,
                         "adapter_version": statement.excluded.adapter_version,
+                        "product_type": statement.excluded.product_type,
+                        "unavailable": statement.excluded.unavailable,
                     },
                 )
             )
@@ -1340,6 +1418,26 @@ def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime
     return "succeeded"
 
 
+# The secret a refresh presents: the refresh token, or, for a self-refreshing provider, the
+# current access token (D-053 decision D4).
+def _refresh_secret(claim: _Claim) -> str | None:
+    return claim.access_token if claim.refresh_mode == "self" else claim.refresh_token
+
+
+# Whether a self-refreshing access token is due for renewal: at least refresh_min_age_hours old
+# and within refresh_before_days of its expiry. A token not refreshed in time expires and the
+# connection then requires reconnection (D-053 decision D4).
+def _renewal_due(capability: Capability, claim: _Claim, now: datetime) -> bool:
+    if claim.refresh_mode != "self" or claim.access_expires_at is None:
+        return False
+    old_enough = claim.access_refreshed_at is None or now - claim.access_refreshed_at >= timedelta(
+        hours=capability.refresh_min_age_hours
+    )
+    return old_enough and claim.access_expires_at - now <= timedelta(
+        days=capability.refresh_before_days
+    )
+
+
 # Read the claimed run's window page by page from its resume cursor. Every data call, refresh
 # included, is first reserved against the usage limits and settled with its outcome. The
 # clock is read at each step rather than once per claim (R009-11): a deferral counts from the
@@ -1361,8 +1459,10 @@ def _execute(
         return "failed"
     access: str | None = claim.access_token
     refreshed = False
-    expired = claim.access_expires_at is not None and claim.access_expires_at <= clock()
-    if expired and claim.refresh_token is not None:
+    now = clock()
+    expired = claim.access_expires_at is not None and claim.access_expires_at <= now
+    due = expired or _renewal_due(provider.capability, claim, now)
+    if due and _refresh_secret(claim) is not None:
         (access, outcome), refreshed = (
             _refresh(engine, settings, keyring, provider, claim, clock),
             True,
@@ -1376,11 +1476,15 @@ def _execute(
             return outcome
         try:
             page = provider.fetch_page(
-                access or "", cursor=cursor, since=claim.since, until=claim.until
+                access or "",
+                stream=claim.stream,
+                cursor=cursor,
+                since=claim.since,
+                until=claim.until,
             )
         except ProviderError as error:
             _settle(engine, usage, error.kind.value, clock())
-            if error.kind is ErrorKind.UNAUTHORIZED and claim.refresh_token and not refreshed:
+            if error.kind is ErrorKind.UNAUTHORIZED and _refresh_secret(claim) and not refreshed:
                 (access, outcome), refreshed = (
                     _refresh(engine, settings, keyring, provider, claim, clock),
                     True,
@@ -1426,27 +1530,52 @@ def run_syncs(
     return counts
 
 
-# Queue one incremental run for each active connection, of an active agency and client, that
-# has no open run and whose most recent run was created more than the sync interval ago (D-049
-# decision D11). Connections locked by another transaction are skipped; the open-run index
-# keeps a concurrent request from creating a second open run.
+# Queue one incremental run for each stream of each active connection, of an active agency
+# and client, whose stream has no open run and whose most recent run of that stream was
+# created more than the stream's interval ago, or the configured sync interval when the stream
+# declares none (D-049 decision D11, D-053 decision D6). Only providers in the registry are
+# scheduled. Connections locked by another transaction are skipped; the open-run index keeps a
+# concurrent request from creating a second open run of a stream.
 def schedule_syncs(
-    engine: Engine, settings: Settings, *, limit: int = 100, now: datetime | None = None
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    *,
+    limit: int = 100,
+    now: datetime | None = None,
 ) -> dict[str, int]:
     now = now or now_utc()
-    cutoff = now - timedelta(hours=settings.connector_sync_interval_hours)
+    plan_rows = [
+        (
+            name,
+            spec.name,
+            now - timedelta(hours=spec.interval_hours or settings.connector_sync_interval_hours),
+        )
+        for name, provider in sorted(registry.items())
+        for spec in provider.capability.stream_specs()
+    ]
+    if not plan_rows:
+        return {}
+    plan = values_clause(
+        column("provider", String),
+        column("stream", String),
+        column("cutoff", DateTime(timezone=True)),
+        name="plan",
+    ).data(plan_rows)
     recent = (
         select(ConnectorSyncRun.id)
         .where(
             ConnectorSyncRun.connection_id == ConnectorConnection.id,
-            ConnectorSyncRun.status.in_(OPEN_RUNS) | (ConnectorSyncRun.created_at > cutoff),
+            ConnectorSyncRun.stream == plan.c.stream,
+            ConnectorSyncRun.status.in_(OPEN_RUNS) | (ConnectorSyncRun.created_at > plan.c.cutoff),
         )
         .exists()
     )
     with Session(engine) as session, session.begin():
         due = list(
-            session.scalars(
-                select(ConnectorConnection)
+            session.execute(
+                select(ConnectorConnection, plan.c.stream)
+                .join(plan, plan.c.provider == ConnectorConnection.provider)
                 .join(Agency, Agency.id == ConnectorConnection.agency_id)
                 .join(
                     ClientWorkspace,
@@ -1459,13 +1588,13 @@ def schedule_syncs(
                     ClientWorkspace.status == "active",
                     ~recent,
                 )
-                .order_by(ConnectorConnection.id)
+                .order_by(ConnectorConnection.id, plan.c.stream)
                 .limit(limit)
                 .with_for_update(of=ConnectorConnection, skip_locked=True)
-            )
+            ).all()
         )
         queued = 0
-        for connection in due:
+        for connection, stream in due:
             created = session.execute(
                 insert(ConnectorSyncRun)
                 .values(
@@ -1476,10 +1605,11 @@ def schedule_syncs(
                     connection_generation=connection.generation,
                     status="queued",
                     kind="incremental",
+                    stream=stream,
                     created_at=now,
                 )
                 .on_conflict_do_nothing(
-                    index_elements=["connection_id"],
+                    index_elements=["connection_id", "stream"],
                     index_where=text("status IN ('queued', 'running')"),
                 )
                 .returning(ConnectorSyncRun.id)
@@ -1601,7 +1731,34 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
         connection.account_kind = None
         connection.status, connection.disconnected_at = "disconnected", completed
         connection.teardown_lease_until, connection.updated_at = None, completed
+        if connection.deletion_request_id is not None:
+            _complete_deletion(session, connection, completed)
         return "disconnected"
+
+
+# Record a data deletion request as completed once the last connection it started to
+# disconnect has finished. The request row lock orders concurrent finalizations.
+def _complete_deletion(
+    session: Session, connection: ConnectorConnection, completed: datetime
+) -> None:
+    request = session.scalar(
+        select(ConnectorDeletionRequest)
+        .where(ConnectorDeletionRequest.id == connection.deletion_request_id)
+        .with_for_update()
+    )
+    if request is None or request.completed_at is not None:
+        return
+    session.flush()
+    remaining = session.scalar(
+        select(func.count())
+        .select_from(ConnectorConnection)
+        .where(
+            ConnectorConnection.deletion_request_id == request.id,
+            ConnectorConnection.status != "disconnected",
+        )
+    )
+    if remaining == 0:
+        request.completed_at = completed
 
 
 def run_teardowns(
@@ -1648,7 +1805,7 @@ def process_connectors(
 ) -> dict[str, dict[str, int]]:
     result = {"teardown": run_teardowns(engine, settings, registry, limit=limit, now=now)}
     if schedule:
-        result["schedule"] = schedule_syncs(engine, settings, now=now)
+        result["schedule"] = schedule_syncs(engine, settings, registry, now=now)
     result["sync"] = run_syncs(engine, settings, registry, limit=limit, now=now)
     return result
 
@@ -1669,4 +1826,6 @@ __all__ = [
     "run_syncs",
     "run_teardowns",
     "schedule_syncs",
+    "start_disconnect",
+    "stream_names",
 ]

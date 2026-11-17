@@ -5,11 +5,14 @@ request disconnection; readers with client:read inspect status. The provider red
 single fixed callback, the only connector route that accepts protocol values (code, state,
 error) in its query string. Responses and redirects never contain a token, authorization code,
 or state; the completion URL receives at most a fixed result code and the connection ID.
+
+010-A (D-053) adds stream-aware sync requests and reads, and the public provider routes for a
+signed deauthorize or data deletion request and the deletion status page.
 """
 
 from datetime import datetime
 from typing import Annotated, Literal
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Request, Response
@@ -19,10 +22,11 @@ from pydantic import Field
 from app.api.dependencies import BrowserDep, RawBody, ReaderDep, SessionDep
 from app.api.schemas import AuthorizationURL, ErrorResponse, Input, Output
 from app.config import Settings
-from app.connectors.contracts import WebhookRejected
+from app.connectors.contracts import SignedRequest, WebhookRejected
 from app.security import now_utc
 from app.services.access import Principal, resolve_scope
 from app.services.auth import enforce_rate_limit
+from app.services.connector_callbacks import deletion_status, receive_signed_request
 from app.services.connector_coverage import coverage, records
 from app.services.connector_webhooks import receive_delivery
 from app.services.connectors import (
@@ -36,15 +40,18 @@ from app.services.connectors import (
     get_connection,
     list_connections,
     provider_for,
+    stream_names,
 )
 
 router = APIRouter(tags=["Connectors"])
 callback_router = APIRouter(prefix="/connectors/oauth", tags=["Connectors"])
 webhook_router = APIRouter(prefix="/connectors/webhooks", tags=["Connectors"])
+provider_router = APIRouter(prefix="/connectors", tags=["Connectors"])
+Stream = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[a-z_]+$")]
 
 
 class ConnectInput(Input):
-    provider: Literal["synthetic"]
+    provider: Literal["synthetic", "synthetic_instagram"]
 
 
 class AccountReference(Output):
@@ -82,15 +89,18 @@ class ConnectionResponse(Output):
 
 # A sync request (009-B, D-049 decision D12): an incremental read, the default, or a backfill
 # extending the stored history `days` further back, within the provider's history limit.
+# 010-A: `stream` names one of the provider's streams; the first stream is the default.
 class SyncInput(Input):
     kind: Literal["incremental", "backfill"] = "incremental"
     days: int | None = Field(default=None, ge=1, le=3650)
+    stream: Stream | None = None
 
 
 class SyncRequestResponse(Output):
     run_id: UUID
     kind: Literal["incremental", "backfill"]
     status: Literal["queued", "running"]
+    stream: str
 
 
 # Coverage and provenance (009-C, D-049 decisions D16 and D17). Every value is paired with an
@@ -114,11 +124,14 @@ class StreamCoverage(Output):
     covered_from: datetime | None
     complete_through: datetime | None
     history_limit_days: int
+    sync: SyncState
 
 
 class MetricAvailability(Output):
     name: str
     unit: str
+    stream: str
+    product_types: list[str] | None
     availability: Literal["available", "unsupported", "missing", "stale", "not_synced"]
     latest_observed_at: datetime | None
 
@@ -146,9 +159,11 @@ class CoverageResponse(Output):
     cost: CostState
 
 
+# A missing value carries the provider's closed reason when it gave one (010-A, D7).
 class MetricValue(Output):
     state: Literal["observed", "missing", "unsupported", "stale"]
     value: int | float | None
+    reason: Literal["not_returned", "below_threshold"] | None
 
 
 class RecordSource(Output):
@@ -159,8 +174,11 @@ class RecordSource(Output):
 
 class RecordItem(Output):
     provider_object_id: str
+    stream: str
+    product_type: Literal["FEED", "REELS", "STORY"] | None
     observed_at: datetime
     fetched_at: datetime
+    provisional: bool
     source: RecordSource
     metrics: dict[str, MetricValue]
 
@@ -172,6 +190,23 @@ class RecordPage(Output):
 
 class DeliveryResult(Output):
     result: Literal["accepted", "duplicate"]
+
+
+class SignedRequestResult(Output):
+    result: Literal["accepted"]
+
+
+# Meta's documented data deletion callback answer: the status URL and confirmation code.
+class DeletionReceiptResponse(Output):
+    url: str
+    confirmation_code: str
+
+
+class DeletionStatus(Output):
+    confirmation_code: str
+    status: Literal["pending", "completed"]
+    received_at: datetime
+    completed_at: datetime | None
 
 
 def _admin(request: Request, session: SessionDep, browser: BrowserDep) -> ConnectorAdmin:
@@ -322,6 +357,7 @@ def read_records(
     principal: ReaderDep,
     after: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    stream: Annotated[str | None, Query(min_length=1, max_length=32, pattern=r"^[a-z_]+$")] = None,
 ) -> RecordPage:
     access = resolve_scope(session, principal, agency_id, client_id)
     items, following = records(
@@ -332,6 +368,7 @@ def read_records(
         now_utc(),
         after=after,
         limit=limit,
+        stream=stream,
     )
     return RecordPage.model_validate({"records": items, "next_after": following})
 
@@ -354,9 +391,14 @@ def request_sync(
 ) -> SyncRequestResponse:
     data = data or SyncInput()
     run = _admin(request, session, browser).request_sync(
-        agency_id, client_id, connection_id, data.kind, data.days
+        agency_id, client_id, connection_id, data.kind, data.days, data.stream
     )
-    return SyncRequestResponse(run_id=run.id, kind=run.kind, status=run.status)  # type: ignore[arg-type]
+    return SyncRequestResponse(
+        run_id=run.id,
+        kind=run.kind,  # type: ignore[arg-type]
+        status=run.status,  # type: ignore[arg-type]
+        stream=run.stream,
+    )
 
 
 # Request disconnection (Owner/Admin); the worker revokes, destroys, and purges. Repeated
@@ -460,4 +502,95 @@ def provider_webhook(
     except WebhookRejected as rejection:
         status = 400 if rejection.reason == "invalid_delivery" else 401
         raise ConnectorError(rejection.reason, status) from None
-    return DeliveryResult(result=receive_delivery(state.engine, provider, delivery, now_utc()))
+    return DeliveryResult(
+        result=receive_delivery(state.engine, provider, delivery, now_utc(), stream_names(adapter))
+    )
+
+
+# Verify a provider's signed_request, sent as the form field `signed_request`, before reading
+# it. The rate limit is per provider and peer at the trusted intake rate.
+def _signed_request(request: Request, provider: str, body: bytes, kind: str) -> SignedRequest:
+    state = request.app.state
+    adapter = provider_for(state.connector_providers, provider)
+    if not adapter.capability.signed_requests:
+        raise ConnectorError("provider_unavailable", 404)
+    enforce_rate_limit(
+        state.security_engine,
+        state.settings,
+        f"connector-{kind}",
+        f"{provider}:{request.client.host if request.client else 'unknown'}",
+        limit=state.settings.ingest_trusted_per_minute,
+        period=60,
+    )
+    try:
+        fields = parse_qs(body.decode("ascii"), max_num_fields=4, strict_parsing=True)
+    except (UnicodeDecodeError, ValueError):
+        raise ConnectorError("invalid_delivery", 400) from None
+    values = fields.get("signed_request", [])
+    if len(values) != 1:
+        raise ConnectorError("invalid_delivery", 400)
+    try:
+        return adapter.verify_signed_request(values[0], now_utc())
+    except WebhookRejected as rejection:
+        status = 400 if rejection.reason == "invalid_delivery" else 401
+        raise ConnectorError(rejection.reason, status) from None
+
+
+SIGNED_RESPONSES: dict[int | str, dict[str, object]] = {
+    400: {"model": ErrorResponse, "description": "A verified request the adapter cannot read."},
+    401: {"model": ErrorResponse, "description": "Missing, invalid, or expired signature."},
+}
+
+
+# Provider deauthorize callback (010-A, D-053 decision D5): every live connection of the named
+# account starts disconnecting. The answer does not reveal whether any connection matched.
+@provider_router.post(
+    "/{provider}/deauthorize", response_model=SignedRequestResult, responses=SIGNED_RESPONSES
+)
+def provider_deauthorize(
+    provider: Annotated[str, Path(min_length=1, max_length=32)],
+    request: Request,
+    body: RawBody,
+) -> SignedRequestResult:
+    signed = _signed_request(request, provider, body, "deauthorize")
+    state = request.app.state
+    receive_signed_request(state.engine, state.settings, provider, "deauthorize", signed, now_utc())
+    return SignedRequestResult(result="accepted")
+
+
+# Provider data deletion callback (010-A, D-053 decision D5): disconnects and purges every
+# connection of the named account and answers with a status URL and confirmation code.
+@provider_router.post(
+    "/{provider}/data-deletion",
+    response_model=DeletionReceiptResponse,
+    responses=SIGNED_RESPONSES,
+)
+def provider_data_deletion(
+    provider: Annotated[str, Path(min_length=1, max_length=32)],
+    request: Request,
+    body: RawBody,
+) -> DeletionReceiptResponse:
+    signed = _signed_request(request, provider, body, "deletion")
+    state = request.app.state
+    receipt = receive_signed_request(
+        state.engine, state.settings, provider, "deletion", signed, now_utc()
+    )
+    assert receipt is not None
+    return DeletionReceiptResponse(url=receipt.url, confirmation_code=receipt.confirmation_code)
+
+
+# Public status of a data deletion request, identified only by its confirmation code.
+@provider_router.get(
+    "/{provider}/data-deletion/{code}",
+    response_model=DeletionStatus,
+    responses={404: {"model": ErrorResponse, "description": "Unknown confirmation code."}},
+)
+def provider_deletion_status(
+    provider: Annotated[str, Path(min_length=1, max_length=32)],
+    code: Annotated[str, Path(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")],
+    request: Request,
+) -> DeletionStatus:
+    status = deletion_status(request.app.state.engine, provider, code)
+    if status is None:
+        raise ConnectorError("deletion_request_not_found", 404)
+    return DeletionStatus.model_validate(status)

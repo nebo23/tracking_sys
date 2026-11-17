@@ -1,8 +1,10 @@
 # Tasks: 010-instagram
-Status: D1-D10 approved by D-053; 010-A in progress. This is a review checklist, not an implementation instruction.
+Status: D1-D10 approved by D-053; 010-A implemented against the synthetic provider ([evidence](evidence.md)); 010-B awaits the owner's Meta app and test account. This is a review checklist, not an implementation instruction.
 
 - [x] Prepare the [entry review](entry-review.md) from the official Meta documentation read on 2026-11-17, with the 009 contract gaps and decisions D1-D10.
-- [ ] Approve the scope and sources for instagram analytics.
+- [x] Approve the scope and sources for instagram analytics: D-053.
+- [x] Implement 010-A: the Instagram-shaped synthetic adapter, runtime extensions and migration 0013 ([evidence](evidence.md)).
+- [ ] 010-B: owner-operated feasibility check with an owner-created Meta app and professional test account (entry review section 6).
 - [ ] Resolve Q-001; exact Meta Insights metrics, access, and history require verification and record the owner decision.
 - [ ] Verify dependencies: 009-connector-runtime.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.

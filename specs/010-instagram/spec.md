@@ -1,5 +1,5 @@
 # 010-instagram — Instagram analytics
-Status: Draft; implementation is not approved. Preparation under D-052 (2026-11-17): the [entry review](entry-review.md) with decisions D1-D10 awaits the owner. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; implementation is not approved. D1-D10 approved by D-053 (2026-11-17); 010-A is implemented against a synthetic provider ([evidence](evidence.md)) and 010-B awaits the owner's Meta app and test account. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 USER Instagram; PDF-024,041 context. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
