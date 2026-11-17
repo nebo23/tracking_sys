@@ -1,5 +1,5 @@
 # 009-connector-runtime — Connector runtime and OAuth
-Status: Draft; slice 009-A is approved by D-048 and implemented locally; slices 009-B to 009-D are approved by D-049 (2026-11-17). Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: implemented against the synthetic provider and presented for owner review: 009-A under D-048, 009-B to 009-D under D-049 (2026-11-17). Live providers are 010-013. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 Foundation for USER social; PDF-058,059,090,100. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
