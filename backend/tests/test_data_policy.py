@@ -29,7 +29,7 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    assert len(SCHEMA) == 40  # 39 application tables at 0009_connector_runtime plus alembic_version
+    assert len(SCHEMA) == 42  # 41 application tables at 0010_connector_sync plus alembic_version
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -128,6 +128,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("connector_connections", "external_account_id", "D-048"),
         ("connector_token_secrets", "ciphertext", "D-048"),
         ("connector_records", "row", "D-048"),
+        # D-049 (009-B): the disconnect purge also deletes sync checkpoints.
+        ("connector_checkpoints", "row", "D-049"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

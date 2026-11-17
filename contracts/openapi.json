@@ -12419,6 +12419,23 @@
             "description": "Session-bound token from login or /auth/me; required for mutations."
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SyncInput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -15615,12 +15632,49 @@
         "type": "object",
         "title": "SourceUpdate"
       },
+      "SyncInput": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "incremental",
+              "backfill"
+            ],
+            "title": "Kind",
+            "default": "incremental"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SyncInput"
+      },
       "SyncRequestResponse": {
         "properties": {
           "run_id": {
             "type": "string",
             "format": "uuid",
             "title": "Run Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "incremental",
+              "backfill"
+            ],
+            "title": "Kind"
           },
           "status": {
             "type": "string",
@@ -15634,6 +15688,7 @@
         "type": "object",
         "required": [
           "run_id",
+          "kind",
           "status"
         ],
         "title": "SyncRequestResponse"

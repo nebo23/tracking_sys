@@ -1,4 +1,4 @@
-"""Connector connection routes (specification 009-A, D-048).
+"""Connector connection routes (specification 009, D-048, D-049).
 
 Owner/Admin browser sessions start connect and reconnect authorizations, request a sync, and
 request disconnection; readers with client:read inspect status. The provider redirects to the
@@ -12,8 +12,9 @@ from typing import Annotated, Literal
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
+from pydantic import Field
 
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import AuthorizationURL, Input, Output
@@ -73,8 +74,16 @@ class ConnectionResponse(Output):
     disconnect: DisconnectState | None
 
 
+# A sync request (009-B, D-049 decision D12): an incremental read, the default, or a backfill
+# extending the stored history `days` further back, within the provider's history limit.
+class SyncInput(Input):
+    kind: Literal["incremental", "backfill"] = "incremental"
+    days: int | None = Field(default=None, ge=1, le=3650)
+
+
 class SyncRequestResponse(Output):
     run_id: UUID
+    kind: Literal["incremental", "backfill"]
     status: Literal["queued", "running"]
 
 
@@ -189,7 +198,8 @@ def read_connection(
     return _response(get_connection(session, access, connection_id), manage)
 
 
-# Queue one synchronization of an active connection (Owner/Admin).
+# Queue a synchronization of an active connection (Owner/Admin). An open run of the same kind
+# is returned; an open run of the other kind answers 409 sync_in_progress.
 @router.post(
     "/agencies/{agency_id}/clients/{client_id}/connections/{connection_id}/sync",
     status_code=202,
@@ -202,9 +212,13 @@ def request_sync(
     request: Request,
     session: SessionDep,
     browser: BrowserDep,
+    data: Annotated[SyncInput | None, Body()] = None,
 ) -> SyncRequestResponse:
-    run = _admin(request, session, browser).request_sync(agency_id, client_id, connection_id)
-    return SyncRequestResponse(run_id=run.id, status=run.status)  # type: ignore[arg-type]
+    data = data or SyncInput()
+    run = _admin(request, session, browser).request_sync(
+        agency_id, client_id, connection_id, data.kind, data.days
+    )
+    return SyncRequestResponse(run_id=run.id, kind=run.kind, status=run.status)  # type: ignore[arg-type]
 
 
 # Request disconnection (Owner/Admin); the worker revokes, destroys, and purges. Repeated

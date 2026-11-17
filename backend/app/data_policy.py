@@ -13,7 +13,7 @@ from enum import StrEnum
 
 # Version of this registry's class meanings. A used class code never changes meaning; a
 # changed meaning needs a new code and a reviewed registry version.
-POLICY_VERSION = "009-A"
+POLICY_VERSION = "009-B"
 
 
 class Sensitivity(StrEnum):
@@ -354,6 +354,26 @@ CLASSES: dict[str, DataClass] = {
             Provenance.OBSERVED,
             "Purged on disconnect (D-048); per-provider retention is 010-013.",
             "009, 010-013",
+        ),
+        DataClass(
+            "connector.sync_state",
+            "Opaque provider cursor of the next page of a running synchronization and the "
+            "coverage watermarks of a connection's stream.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Deleted by the disconnect purge (D-049).",
+            "009",
+        ),
+        DataClass(
+            "connector.usage",
+            "Provider data call counts in the provider's cost unit with operation, outcome, "
+            "attempt, and UTC day; no provider data.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with run history; retention awaits Q-012 (D-049).",
+            "009",
         ),
         DataClass(
             "system.schema_version",
@@ -1156,9 +1176,49 @@ TABLES: dict[str, TablePolicy] = {
                 "created_at",
                 "started_at",
                 "finished_at",
+                "kind",
+                "window_since",
+                "window_until",
+                "not_before",
+                "retries",
+                "pages",
             ),
         },
         (_row(PENDING, RETENTION, "Run history retention awaits Q-012."),),
+    ),
+    "connector_checkpoints": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "connector.sync_state",
+                "stream",
+                "run_id",
+                "cursor",
+                "covered_from",
+                "complete_through",
+                "updated_at",
+            ),
+        },
+        (_row(APPROVED, "D-049", "Deleted when a disconnect completes."),),
+    ),
+    "connector_usage_records": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "connector.usage",
+                "run_id",
+                "attempt",
+                "provider",
+                "operation",
+                "unit",
+                "quantity",
+                "outcome",
+                "period",
+                "occurred_at",
+                "settled_at",
+            ),
+        },
+        (_row(PENDING, RETENTION, "Kept with run history; retention awaits Q-012."),),
     ),
     "connector_records": TablePolicy(
         {

@@ -154,6 +154,13 @@ class Settings(DatabaseSettings):
     connector_complete_url: str = ""
     connector_synthetic_state: Path | None = None
     connector_teardown_hours: int = Field(default=72, ge=1, le=72)
+    # Synchronization (009-B, D-049 decisions D11 and D15). The worker queues an incremental run
+    # for an active connection whose last run is older than the interval. Each connection may
+    # spend at most the daily allocation of its provider's cost unit per UTC day, in addition to
+    # the provider's own daily quota. Both are synthetic development values, not commercial
+    # budgets (Q-004).
+    connector_sync_interval_hours: int = Field(default=24, ge=1, le=168)
+    connector_connection_daily_units: int = Field(default=100, ge=1, le=100000)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.

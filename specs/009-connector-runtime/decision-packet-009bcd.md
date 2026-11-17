@@ -47,3 +47,18 @@ The synthetic provider gains a deterministic dataset independent of the wall clo
 ## 5. Dependency for Spec 010
 
 Instagram analytics depends on D11-D15 for scheduled, paginated and rate-limited insight retrieval, on D16-D17 for showing unsupported Instagram metrics as unsupported rather than zero (010 acceptance criterion 2), and on D18-D19 before any Meta webhook subscription. The Meta and Instagram rows in `app.privacy.providers` remain stale and blocking until 010 re-verifies them.
+
+## 6. Implementation reconciliation
+
+### 6.1 009-B synchronization
+
+Implemented under D-049 with migration `0010_connector_sync`. Evidence is in the [009-B evidence](evidence.md#009-b-synchronization-2026-11-17). The following details were settled during implementation; none changes an approved option.
+
+| Decision | Implemented detail |
+|---|---|
+| D11 | The scheduling step is part of `python -m app.connector_worker` and `process_connectors`; it queues at most 100 connections per pass, skips connections locked by another transaction, and stamps the run with the worker's clock so the interval is judged on one clock. |
+| D12 | A backfill request names `days` instead of a calendar date: `{"kind": "backfill", "days": N}` extends the history N days back from the stream's `covered_from`, with N at most the provider's history limit. The provider applies its own limit to the window and reports what it served, which becomes `covered_from`. This keeps the bound relative to the stored coverage and the tests independent of the wall clock. A backfill before any completed synchronization answers `409 sync_required`. |
+| D13 | The checkpoint holds the cursor of the next page of the run named by `run_id`; a run resumes only its own cursor. The page write also counts the page on the run and renews its lease. The synthetic adapter's version is now `synthetic-2`. |
+| D14 | Deferrals clear on success (`error_kind` is `NULL` for a succeeded run); `retries` keeps the count. A budget deferral does not count toward the five. |
+| D15 | The reservation runs only for the attempt that owns the run, under a per-provider advisory lock, and both limits are checked in that transaction. A call interrupted by a stopped worker stays `reserved` and is counted. The synthetic quota and allocation are 1,000 and 100 units; the per-call cost is 1 unit for `fetch` and `refresh`. |
+| D20 | `0010_connector_sync` adds the run columns, `connector_checkpoints` and `connector_usage_records` with column-limited `tracking_app` grants (DELETE only on checkpoints, for the purge) and a downgrade that refuses populated 009-B state. Registry version `009-B` adds the classes `connector.sync_state` and `connector.usage`. |

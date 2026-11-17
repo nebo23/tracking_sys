@@ -13,7 +13,8 @@ Status: 009-A implemented locally under D-048, with the findings of both reviews
 - [x] Prepare and approve 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks): [decision packet](decision-packet-009bcd.md), D-049 (2026-11-17).
 - [x] Verify (009-A): OAuth callbacks validate state and reject replay; tokens appear in neither the browser nor logs, and PKCE applies where required by the flow.
 - [x] Verify (009-A): Expired or revoked tokens produce an explicit disconnected state and stop affected ingestion without disrupting other clients.
-- [ ] Verify: 429 responses respect provider backoff; 401 responses trigger reconnection; crash recovery resumes without duplicate records. The `401` part is verified in 009-A; backoff and crash recovery at the page/checkpoint boundary are 009-B.
+- [x] Implement 009-B (D-049 decisions D11-D15, D20): migration 0010, run kinds and windows, attempt-fenced checkpoints, the provider error policy, usage reservation with daily limits, the scheduling step ([evidence](evidence.md#009-b-synchronization-2026-11-17)).
+- [x] Verify: 429 responses respect provider backoff; 401 responses trigger reconnection; crash recovery resumes without duplicate records. `401` in 009-A; backoff, retry limits and restart at the page/checkpoint boundary in 009-B.
 - [ ] Verify: Every connection exposes explicit metric availability, last synchronization, historical coverage, and cost states. 009-A exposes status and last successful sync only; the rest is 009-C.
 - [x] Update documentation, limitations, and untested assumptions for 009-A (entry review section 9, [connector guide](../../docs/engineering/connectors.md)).
 - [ ] Present a reviewable result to the owner.

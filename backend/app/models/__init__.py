@@ -34,11 +34,13 @@ from app.models.collection import (
     SubjectDeletionRequest,
 )
 from app.models.connectors import (
+    ConnectorCheckpoint,
     ConnectorConnection,
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorSyncRun,
     ConnectorTokenSecret,
+    ConnectorUsageRecord,
 )
 from app.models.links import (
     LinkCampaign,
@@ -92,9 +94,11 @@ __all__ = [
     "LinkDomain",
     "LinkUtmTemplate",
     "ManagedLink",
+    "ConnectorCheckpoint",
     "ConnectorConnection",
     "ConnectorOAuthTransaction",
     "ConnectorRecord",
     "ConnectorSyncRun",
     "ConnectorTokenSecret",
+    "ConnectorUsageRecord",
 ]

@@ -1,4 +1,4 @@
-"""Connector connection lifecycle (specification 009-A, D-048).
+"""Connector connection lifecycle and synchronization (specification 009, D-048, D-049).
 
 An Owner or Admin starts a connect or reconnect authorization for one client. The provider
 redirects to one fixed callback, which recovers the agency, client, initiator, and, for a
@@ -20,35 +20,53 @@ sealed material and purges provider data in one transaction; it finishes regardl
 later archive or suspension, and after the deadline it finishes with the revocation reported
 as failed. Every step can be repeated: a revocation that succeeded before a crash is
 confirmed again on the next run.
+
+Synchronization (009-B, D-049) reads a run's window page by page. Each page's records and the
+checkpoint cursor commit together under the attempt fence, so a reclaimed run resumes at the
+next unstored page; the last page moves the coverage watermarks and finishes the run. Every
+provider data call is reserved against a per-connection daily allocation and the provider's
+daily quota before it is made. Rate-limited and retryable failures defer the run (Retry-After
+or backoff, at most five times); forbidden and permanent failures fail it; a budget stop defers
+it to the next UTC day. The worker's scheduling step queues incremental runs that are due.
 """
 
 import base64
 import hashlib
 import hmac
 import logging
+import zlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, case, delete, func, select, update
+from sqlalchemy import Engine, case, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.connectors.contracts import ConnectorProvider, ErrorKind, ProviderError, TokenGrant
+from app.connectors.contracts import (
+    Capability,
+    ConnectorProvider,
+    ErrorKind,
+    ProviderError,
+    ProviderPage,
+    TokenGrant,
+)
 from app.connectors.synthetic import SyntheticProvider
 from app.models import (
     Agency,
     AgencyMembership,
     ClientWorkspace,
+    ConnectorCheckpoint,
     ConnectorConnection,
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorSyncRun,
     ConnectorTokenSecret,
+    ConnectorUsageRecord,
 )
 from app.privacy.token_secrets import (
     AAD_VERSION,
@@ -71,6 +89,13 @@ LIVE = ("active", "reconnect_required")
 OPEN_RUNS = ("queued", "running")
 SettledRevocation = ("done", "unsupported")
 Purpose = Literal["connect", "reconnect"]
+# Synchronization policy (D-049 decisions D14 and D15).
+MAX_DEFERRALS = 5
+RETRY_BASE = timedelta(seconds=30)
+RETRY_CAP = timedelta(minutes=15)
+RATE_LIMIT_DEFAULT = 60
+RATE_LIMIT_CAP = 3600
+USAGE_LOCK_NAMESPACE = 9009
 logger = logging.getLogger("tracking")
 
 
@@ -221,7 +246,13 @@ def _cancel_open_runs(session: Session, connection_id: UUID, now: datetime, kind
     )
 
 
-def _enqueue(session: Session, connection: ConnectorConnection) -> ConnectorSyncRun:
+def _enqueue(
+    session: Session,
+    connection: ConnectorConnection,
+    kind: str = "incremental",
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> ConnectorSyncRun:
     run = ConnectorSyncRun(
         id=uuid4(),
         agency_id=connection.agency_id,
@@ -229,6 +260,9 @@ def _enqueue(session: Session, connection: ConnectorConnection) -> ConnectorSync
         connection_id=connection.id,
         connection_generation=connection.generation,
         status="queued",
+        kind=kind,
+        window_since=since,
+        window_until=until,
     )
     session.add(run)
     return run
@@ -363,9 +397,17 @@ class ConnectorAdmin(TenancyService):
         )
         return connection
 
-    # Queue one synchronization of an active connection; an open run is returned unchanged.
+    # Queue a synchronization of an active connection (D-049 decision D12). An open run of the
+    # same kind is returned unchanged; an open run of the other kind refuses the request. A
+    # backfill extends the stream's history `days` further back from its oldest covered time,
+    # within the provider's history limit, and needs a completed synchronization first.
     def request_sync(
-        self, agency_id: UUID, client_id: UUID, connection_id: UUID
+        self,
+        agency_id: UUID,
+        client_id: UUID,
+        connection_id: UUID,
+        kind: str = "incremental",
+        days: int | None = None,
     ) -> ConnectorSyncRun:
         self._manager(agency_id, write=True)
         self._client(agency_id, client_id, active=True)
@@ -379,8 +421,25 @@ class ConnectorAdmin(TenancyService):
             )
         )
         if existing is not None:
+            if existing.kind != kind:
+                raise ConnectorError("sync_in_progress", 409)
             return existing
-        run = _enqueue(self.session, connection)
+        since = until = None
+        if kind == "backfill":
+            capability = provider_for(self.registry, connection.provider).capability
+            if days is None or not 1 <= days <= capability.history_days:
+                raise ConnectorError("invalid_backfill", 422)
+            checkpoint = self.session.scalar(
+                select(ConnectorCheckpoint).where(
+                    ConnectorCheckpoint.connection_id == connection.id,
+                    ConnectorCheckpoint.stream == capability.stream,
+                )
+            )
+            if checkpoint is None or checkpoint.covered_from is None:
+                raise ConnectorError("sync_required", 409)
+            until = checkpoint.covered_from
+            since = until - timedelta(days=days)
+        run = _enqueue(self.session, connection, kind, since, until)
         self.session.flush()
         return run
 
@@ -770,12 +829,18 @@ class _Claim:
     access_expires_at: datetime | None
     refresh_token: str | None = field(repr=False)
     attempt: int = 0
+    kind: str = "incremental"
+    since: datetime | None = None
+    until: datetime | None = None
+    stream: str = "objects"
+    cursor: str | None = field(default=None, repr=False)
 
 
 # Lock the claimed run and report this attempt's ownership: "owned" while the run is running
 # under the same attempt number, "superseded" when a replacement claim after lease expiry has
-# taken it (a higher attempt), and "ended" when it was canceled or finished, for example by a
-# disconnect. A delayed worker can therefore never act for its replacement (R009-02).
+# taken it (a higher attempt), and "ended" when it was canceled, finished, or deferred, for
+# example by a disconnect. A delayed worker can therefore never act for its replacement
+# (R009-02).
 def _ownership(session: Session, claim: _Claim) -> str:
     row = session.execute(
         select(ConnectorSyncRun.status, ConnectorSyncRun.attempt)
@@ -844,14 +909,155 @@ def _finish(
     )
 
 
-# Claim the oldest queued run, or a running run whose lease expired, and open its tokens.
-# A run whose agency, client, or connection is no longer eligible is canceled instead.
-def _claim(engine: Engine, keyring: LocalKeyring, now: datetime) -> tuple[_Claim | None, bool]:
+def _not_owned(ownership: str, default: str = "stopped") -> str:
+    return "superseded" if ownership == "superseded" else default
+
+
+# Return the owned run to the queue until `until`, recording why (D-049 decision D14). A
+# rate-limit or retryable deferral counts toward MAX_DEFERRALS; a budget deferral does not.
+# The checkpoint is untouched, so the next attempt resumes at the stored cursor.
+def _requeue(session: Session, claim: _Claim, reason: str, until: datetime) -> None:
+    session.execute(
+        update(ConnectorSyncRun)
+        .where(
+            ConnectorSyncRun.id == claim.run_id,
+            ConnectorSyncRun.status == "running",
+            ConnectorSyncRun.attempt == claim.attempt,
+        )
+        .values(
+            status="queued",
+            not_before=until,
+            error_kind=reason,
+            lease_expires_at=None,
+            retries=ConnectorSyncRun.retries
+            + (1 if reason in {"rate_limited", "retryable"} else 0),
+        )
+    )
+
+
+# The start of the next UTC day, when the daily usage limits reset.
+def _next_period(now: datetime) -> datetime:
+    day = now.astimezone(UTC).date() + timedelta(days=1)
+    return datetime(day.year, day.month, day.day, tzinfo=UTC)
+
+
+# How long a failed call defers its run: the provider's Retry-After for 429 (default 60 s, at
+# most 1 hour) and 30 s doubling per earlier deferral for retryable failures (at most 15 min).
+def _delay(error: ProviderError, retries: int) -> timedelta:
+    if error.kind is ErrorKind.RATE_LIMITED:
+        seconds = RATE_LIMIT_DEFAULT if error.retry_after is None else error.retry_after
+        return timedelta(seconds=min(max(seconds, 1), RATE_LIMIT_CAP))
+    return min(RETRY_BASE * 2**retries, RETRY_CAP)
+
+
+# Apply the error policy to a failed data call (D-049 decision D14): rate-limited and
+# retryable failures defer the run until at most MAX_DEFERRALS have been used, then fail it;
+# forbidden, permanent, and other failures fail it without retry. The connection stays active.
+def _fail_or_defer(engine: Engine, claim: _Claim, error: ProviderError, now: datetime) -> str:
+    with Session(engine) as session, session.begin():
+        ownership = _ownership(session, claim)
+        if ownership != "owned":
+            return _not_owned(ownership, "discarded")
+        retries = session.scalar(
+            select(ConnectorSyncRun.retries).where(ConnectorSyncRun.id == claim.run_id)
+        )
+        retryable = error.kind in {ErrorKind.RATE_LIMITED, ErrorKind.RETRYABLE}
+        if retryable and (retries or 0) < MAX_DEFERRALS:
+            _requeue(session, claim, error.kind.value, now + _delay(error, retries or 0))
+            return "deferred"
+        _finish(session, claim, "failed", now, error.kind.value)
+    return "failed"
+
+
+def _usage_key(provider: str) -> int:
+    return zlib.crc32(provider.encode()) & 0x7FFFFFFF
+
+
+# Reserve one data call against the daily limits before it is made (D-049 decision D15). The
+# per-provider advisory lock serializes reservations, so concurrent workers cannot together
+# exceed the connection allocation or the provider quota. Only the attempt that owns the run
+# may reserve. When either limit would be exceeded, the run is deferred to the next UTC day
+# with budget_exhausted in the same transaction. Returns the usage row ID, or None with the
+# run outcome.
+def _reserve(
+    engine: Engine,
+    settings: Settings,
+    capability: Capability,
+    claim: _Claim,
+    operation: str,
+    now: datetime,
+) -> tuple[UUID | None, str]:
+    cost, period = capability.cost(operation), now.astimezone(UTC).date()
+    with Session(engine) as session, session.begin():
+        session.execute(
+            select(func.pg_advisory_xact_lock(USAGE_LOCK_NAMESPACE, _usage_key(claim.provider)))
+        )
+        ownership = _ownership(session, claim)
+        if ownership != "owned":
+            return None, _not_owned(ownership)
+        spent = select(func.coalesce(func.sum(ConnectorUsageRecord.quantity), 0)).where(
+            ConnectorUsageRecord.period == period
+        )
+        connection_spent = session.scalar(
+            spent.where(ConnectorUsageRecord.connection_id == claim.connection_id)
+        )
+        provider_spent = session.scalar(
+            spent.where(ConnectorUsageRecord.provider == claim.provider)
+        )
+        if (
+            connection_spent + cost > settings.connector_connection_daily_units
+            or provider_spent + cost > capability.daily_quota
+        ):
+            _requeue(session, claim, "budget_exhausted", _next_period(now))
+            return None, "deferred"
+        row = ConnectorUsageRecord(
+            id=uuid4(),
+            agency_id=claim.agency_id,
+            client_id=claim.client_id,
+            connection_id=claim.connection_id,
+            run_id=claim.run_id,
+            attempt=claim.attempt,
+            provider=claim.provider,
+            operation=operation,
+            unit=capability.cost_unit,
+            quantity=cost,
+            period=period,
+            occurred_at=now,
+        )
+        session.add(row)
+        return row.id, "reserved"
+
+
+# Record the outcome of a reserved call. A call whose worker stopped before this stays
+# "reserved" and still counts against the limits.
+def _settle(engine: Engine, usage_id: UUID, outcome: str, now: datetime) -> None:
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(ConnectorUsageRecord)
+            .where(ConnectorUsageRecord.id == usage_id)
+            .values(outcome=outcome, settled_at=now)
+        )
+
+
+# Claim the oldest queued run whose deferral has passed, or a running run whose lease expired,
+# and open its tokens. A run whose agency, client, or connection is no longer eligible is
+# canceled instead. The first claim of an incremental run fixes its window from the stream's
+# watermark minus the provider's overlap; a later claim of the same run resumes at the cursor
+# its last stored page left in the checkpoint.
+def _claim(
+    engine: Engine,
+    keyring: LocalKeyring,
+    registry: Mapping[str, ConnectorProvider],
+    now: datetime,
+) -> tuple[_Claim | None, bool]:
     with Session(engine, expire_on_commit=False) as session, session.begin():
         run = session.scalar(
             select(ConnectorSyncRun)
             .where(
-                (ConnectorSyncRun.status == "queued")
+                (
+                    (ConnectorSyncRun.status == "queued")
+                    & (ConnectorSyncRun.not_before.is_(None) | (ConnectorSyncRun.not_before <= now))
+                )
                 | (
                     (ConnectorSyncRun.status == "running")
                     & (ConnectorSyncRun.lease_expires_at < now)
@@ -888,23 +1094,44 @@ def _claim(engine: Engine, keyring: LocalKeyring, now: datetime) -> tuple[_Claim
             run.lease_expires_at = None
             return None, True
         assert connection is not None and access is not None
+        provider = registry.get(connection.provider)
+        stream = provider.capability.stream if provider is not None else "objects"
+        checkpoint = session.scalar(
+            select(ConnectorCheckpoint).where(
+                ConnectorCheckpoint.connection_id == connection.id,
+                ConnectorCheckpoint.stream == stream,
+            )
+        )
+        if run.attempt == 0 and run.kind == "incremental":
+            watermark = checkpoint.complete_through if checkpoint is not None else None
+            if watermark is not None and provider is not None:
+                watermark -= timedelta(days=provider.capability.overlap_days)
+            run.window_since, run.window_until = watermark, None
+        resume = (
+            checkpoint.cursor if checkpoint is not None and checkpoint.run_id == run.id else None
+        )
         run.status, run.attempt, run.started_at = "running", run.attempt + 1, now
-        run.lease_expires_at = now + RUN_LEASE
+        run.lease_expires_at, run.not_before = now + RUN_LEASE, None
         refresh = secrets.get("refresh_token")
         return (
             _Claim(
-                run.id,
-                run.agency_id,
-                run.client_id,
-                run.connection_id,
-                run.connection_generation,
-                connection.provider,
-                access.id,
-                access.version,
-                _open(keyring, access),
-                access.provider_expires_at,
-                _open(keyring, refresh) if refresh is not None else None,
-                run.attempt,
+                run_id=run.id,
+                agency_id=run.agency_id,
+                client_id=run.client_id,
+                connection_id=run.connection_id,
+                generation=run.connection_generation,
+                provider=connection.provider,
+                access_id=access.id,
+                access_version=access.version,
+                access_token=_open(keyring, access),
+                access_expires_at=access.provider_expires_at,
+                refresh_token=_open(keyring, refresh) if refresh is not None else None,
+                attempt=run.attempt,
+                kind=run.kind,
+                since=run.window_since,
+                until=run.window_until,
+                stream=stream,
+                cursor=resume,
             ),
             False,
         )
@@ -923,7 +1150,7 @@ def _require_reconnect(engine: Engine, claim: _Claim, reason: str, now: datetime
         )
         ownership = _ownership(session, claim)
         if ownership != "owned":
-            return "superseded" if ownership == "superseded" else "stopped"
+            return _not_owned(ownership)
         _finish(session, claim, "failed", now, "unauthorized")
         if (
             connection is None
@@ -940,36 +1167,34 @@ def _require_reconnect(engine: Engine, claim: _Claim, reason: str, now: datetime
         return "stopped"
 
 
-# Refresh the access token only while this attempt owns the run, and install the result only
-# if the attempt still owns it, the connection is still active under the claimed generation,
-# and its agency and client are active. The new token is revoked only when the connection's
-# generation changed: then its grant is being torn down or was replaced. A superseded attempt
-# or an inactive client leaves the token unsaved without revoking it, because it belongs to
-# the grant the connection still holds and the winning attempt's tokens share that grant
-# (R009-03); it expires at the provider. Returns the access token, or the run outcome.
+# Refresh the access token only while this attempt owns the run (checked when the call is
+# reserved against the usage limits), and install the result only if the attempt still owns
+# it, the connection is still active under the claimed generation, and its agency and client
+# are active. The new token is revoked only when the connection's generation changed: then
+# its grant is being torn down or was replaced. A superseded attempt or an inactive client
+# leaves the token unsaved without revoking it, because it belongs to the grant the connection
+# still holds and the winning attempt's tokens share that grant (R009-03); it expires at the
+# provider. Returns the access token, or the run outcome.
 def _refresh(
     engine: Engine,
+    settings: Settings,
     keyring: LocalKeyring,
     provider: ConnectorProvider,
     claim: _Claim,
     now: datetime,
 ) -> tuple[str | None, str]:
     assert claim.refresh_token is not None
-    with Session(engine) as session, session.begin():
-        ownership = _ownership(session, claim)
-    if ownership != "owned":
-        return None, "superseded" if ownership == "superseded" else "stopped"
+    usage, outcome = _reserve(engine, settings, provider.capability, claim, "refresh", now)
+    if usage is None:
+        return None, outcome
     try:
         grant = provider.refresh(claim.refresh_token)
     except ProviderError as error:
+        _settle(engine, usage, error.kind.value, now)
         if error.kind is ErrorKind.UNAUTHORIZED:
             return None, _require_reconnect(engine, claim, "credential_expired", now)
-        with Session(engine) as session, session.begin():
-            ownership = _ownership(session, claim)
-            if ownership != "owned":
-                return None, "superseded" if ownership == "superseded" else "stopped"
-            _finish(session, claim, "failed", now, error.kind.value)
-        return None, "failed"
+        return None, _fail_or_defer(engine, claim, error, now)
+    _settle(engine, usage, "ok", now)
     moved_on = False
     try:
         with Session(engine) as session, session.begin():
@@ -1026,43 +1251,13 @@ def _refresh(
     return grant.access_token, "refreshed"
 
 
-def _execute(
-    engine: Engine,
-    keyring: LocalKeyring,
-    registry: Mapping[str, ConnectorProvider],
-    claim: _Claim,
-    now: datetime,
-) -> str:
-    provider = registry.get(claim.provider)
-    if provider is None:
-        with Session(engine) as session, session.begin():
-            _finish(session, claim, "failed", now, "permanent")
-        return "failed"
-    access: str | None = claim.access_token
-    refreshed = False
-    expired = claim.access_expires_at is not None and claim.access_expires_at <= now
-    if expired and claim.refresh_token is not None:
-        (access, outcome), refreshed = _refresh(engine, keyring, provider, claim, now), True
-        if access is None:
-            return outcome
-    while True:
-        try:
-            records = provider.fetch_page(access or "")
-            break
-        except ProviderError as error:
-            if error.kind is ErrorKind.UNAUTHORIZED and claim.refresh_token and not refreshed:
-                (access, outcome), refreshed = _refresh(engine, keyring, provider, claim, now), True
-                if access is None:
-                    return outcome
-                continue
-            if error.kind is ErrorKind.UNAUTHORIZED:
-                return _require_reconnect(engine, claim, "provider_revoked", now)
-            with Session(engine) as session, session.begin():
-                ownership = _ownership(session, claim)
-                if ownership != "owned":
-                    return "superseded" if ownership == "superseded" else "discarded"
-                _finish(session, claim, "failed", now, error.kind.value)
-            return "failed"
+# Store one page under the attempt fence (D-049 decision D13): the page's records, the run's
+# page count and renewed lease, and the checkpoint's cursor commit together, so a stop before
+# the commit repeats the page and a stop after it resumes at the next one. The last page also
+# moves the stream's watermarks to the window the provider reported, records the successful
+# sync, and finishes the run, in the same transaction. Returns "stored", "succeeded",
+# "superseded", or "discarded".
+def _store_page(engine: Engine, claim: _Claim, page: ProviderPage, now: datetime) -> str:
     with Session(engine) as session, session.begin():
         connection, reason = _fence(session, claim)
         if reason == "superseded":
@@ -1070,7 +1265,7 @@ def _execute(
         if reason is not None or connection is None:
             _finish(session, claim, "canceled", now, reason or "fenced")
             return "discarded"
-        for record in records:
+        for record in page.records:
             values = {
                 "id": uuid4(),
                 "agency_id": claim.agency_id,
@@ -1094,9 +1289,99 @@ def _execute(
                     },
                 )
             )
+        session.execute(
+            update(ConnectorSyncRun)
+            .where(ConnectorSyncRun.id == claim.run_id)
+            .values(pages=ConnectorSyncRun.pages + 1, lease_expires_at=now + RUN_LEASE)
+        )
+        checkpoint = session.scalar(
+            select(ConnectorCheckpoint)
+            .where(
+                ConnectorCheckpoint.connection_id == claim.connection_id,
+                ConnectorCheckpoint.stream == claim.stream,
+            )
+            .with_for_update()
+        )
+        if checkpoint is None:
+            checkpoint = ConnectorCheckpoint(
+                id=uuid4(),
+                agency_id=claim.agency_id,
+                client_id=claim.client_id,
+                connection_id=claim.connection_id,
+                stream=claim.stream,
+            )
+            session.add(checkpoint)
+        checkpoint.run_id, checkpoint.cursor = claim.run_id, page.next_cursor
+        checkpoint.updated_at = now
+        if page.next_cursor is not None:
+            return "stored"
+        if page.covered_from is not None:
+            known = checkpoint.covered_from
+            checkpoint.covered_from = (
+                page.covered_from if known is None else min(known, page.covered_from)
+            )
+        if page.complete_through is not None and claim.kind == "incremental":
+            known = checkpoint.complete_through
+            checkpoint.complete_through = (
+                page.complete_through if known is None else max(known, page.complete_through)
+            )
         connection.last_successful_sync_at = connection.updated_at = now
         _finish(session, claim, "succeeded", now)
     return "succeeded"
+
+
+# Read the claimed run's window page by page from its resume cursor. Every data call, refresh
+# included, is first reserved against the usage limits and settled with its outcome.
+def _execute(
+    engine: Engine,
+    settings: Settings,
+    keyring: LocalKeyring,
+    registry: Mapping[str, ConnectorProvider],
+    claim: _Claim,
+    now: datetime,
+) -> str:
+    provider = registry.get(claim.provider)
+    if provider is None:
+        with Session(engine) as session, session.begin():
+            _finish(session, claim, "failed", now, "permanent")
+        return "failed"
+    access: str | None = claim.access_token
+    refreshed = False
+    expired = claim.access_expires_at is not None and claim.access_expires_at <= now
+    if expired and claim.refresh_token is not None:
+        (access, outcome), refreshed = (
+            _refresh(engine, settings, keyring, provider, claim, now),
+            True,
+        )
+        if access is None:
+            return outcome
+    cursor = claim.cursor
+    while True:
+        usage, outcome = _reserve(engine, settings, provider.capability, claim, "fetch", now)
+        if usage is None:
+            return outcome
+        try:
+            page = provider.fetch_page(
+                access or "", cursor=cursor, since=claim.since, until=claim.until
+            )
+        except ProviderError as error:
+            _settle(engine, usage, error.kind.value, now)
+            if error.kind is ErrorKind.UNAUTHORIZED and claim.refresh_token and not refreshed:
+                (access, outcome), refreshed = (
+                    _refresh(engine, settings, keyring, provider, claim, now),
+                    True,
+                )
+                if access is None:
+                    return outcome
+                continue
+            if error.kind is ErrorKind.UNAUTHORIZED:
+                return _require_reconnect(engine, claim, "provider_revoked", now)
+            return _fail_or_defer(engine, claim, error, now)
+        _settle(engine, usage, "ok", now)
+        outcome = _store_page(engine, claim, page, now)
+        if outcome != "stored":
+            return outcome
+        cursor = page.next_cursor
 
 
 # Process at most `limit` sync runs, each claimed, fetched, and persisted separately.
@@ -1112,15 +1397,77 @@ def run_syncs(
     counts: dict[str, int] = {}
     for _ in range(limit):
         moment = now or now_utc()
-        claim, canceled = _claim(engine, keyring, moment)
+        claim, canceled = _claim(engine, keyring, registry, moment)
         if claim is None:
             if not canceled:
                 break
             counts["canceled"] = counts.get("canceled", 0) + 1
             continue
-        outcome = _execute(engine, keyring, registry, claim, moment)
+        outcome = _execute(engine, settings, keyring, registry, claim, moment)
         counts[outcome] = counts.get(outcome, 0) + 1
     return counts
+
+
+# Queue one incremental run for each active connection, of an active agency and client, that
+# has no open run and whose most recent run was created more than the sync interval ago (D-049
+# decision D11). Connections locked by another transaction are skipped; the open-run index
+# keeps a concurrent request from creating a second open run.
+def schedule_syncs(
+    engine: Engine, settings: Settings, *, limit: int = 100, now: datetime | None = None
+) -> dict[str, int]:
+    now = now or now_utc()
+    cutoff = now - timedelta(hours=settings.connector_sync_interval_hours)
+    recent = (
+        select(ConnectorSyncRun.id)
+        .where(
+            ConnectorSyncRun.connection_id == ConnectorConnection.id,
+            ConnectorSyncRun.status.in_(OPEN_RUNS) | (ConnectorSyncRun.created_at > cutoff),
+        )
+        .exists()
+    )
+    with Session(engine) as session, session.begin():
+        due = list(
+            session.scalars(
+                select(ConnectorConnection)
+                .join(Agency, Agency.id == ConnectorConnection.agency_id)
+                .join(
+                    ClientWorkspace,
+                    (ClientWorkspace.agency_id == ConnectorConnection.agency_id)
+                    & (ClientWorkspace.id == ConnectorConnection.client_id),
+                )
+                .where(
+                    ConnectorConnection.status == "active",
+                    Agency.status == "active",
+                    ClientWorkspace.status == "active",
+                    ~recent,
+                )
+                .order_by(ConnectorConnection.id)
+                .limit(limit)
+                .with_for_update(of=ConnectorConnection, skip_locked=True)
+            )
+        )
+        queued = 0
+        for connection in due:
+            created = session.execute(
+                insert(ConnectorSyncRun)
+                .values(
+                    id=uuid4(),
+                    agency_id=connection.agency_id,
+                    client_id=connection.client_id,
+                    connection_id=connection.id,
+                    connection_generation=connection.generation,
+                    status="queued",
+                    kind="incremental",
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["connection_id"],
+                    index_where=text("status IN ('queued', 'running')"),
+                )
+                .returning(ConnectorSyncRun.id)
+            ).first()
+            queued += created is not None
+    return {"queued": queued} if queued else {}
 
 
 @dataclass(frozen=True)
@@ -1216,6 +1563,9 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
         for row in secrets:
             _destroy(row, now)
         session.execute(
+            delete(ConnectorCheckpoint).where(ConnectorCheckpoint.connection_id == connection.id)
+        )
+        session.execute(
             delete(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
         )
         _cancel_open_runs(session, connection.id, now, "connection_inactive")
@@ -1266,7 +1616,8 @@ def run_teardowns(
     return counts
 
 
-# One bounded worker pass: teardowns first, then sync runs.
+# One bounded worker pass: teardowns first, then the scheduling step (unless disabled), then
+# sync runs.
 def process_connectors(
     engine: Engine,
     settings: Settings,
@@ -1274,11 +1625,13 @@ def process_connectors(
     *,
     limit: int = 10,
     now: datetime | None = None,
+    schedule: bool = True,
 ) -> dict[str, dict[str, int]]:
-    return {
-        "teardown": run_teardowns(engine, settings, registry, limit=limit, now=now),
-        "sync": run_syncs(engine, settings, registry, limit=limit, now=now),
-    }
+    result = {"teardown": run_teardowns(engine, settings, registry, limit=limit, now=now)}
+    if schedule:
+        result["schedule"] = schedule_syncs(engine, settings, now=now)
+    result["sync"] = run_syncs(engine, settings, registry, limit=limit, now=now)
+    return result
 
 
 __all__ = [
@@ -1296,4 +1649,5 @@ __all__ = [
     "process_connectors",
     "run_syncs",
     "run_teardowns",
+    "schedule_syncs",
 ]

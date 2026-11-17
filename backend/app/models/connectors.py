@@ -1,4 +1,4 @@
-"""Connector connection lifecycle state (specification 009-A, D-048).
+"""Connector connection lifecycle and synchronization state (specification 009, D-048, D-049).
 
 Every table is scoped by agency and client, and every reference to a connection is the
 composite (agency_id, client_id, id) key, so a transaction, secret, run, or record can never
@@ -9,12 +9,13 @@ Reference queries below are manual read-only diagnostics for an authorized opera
 the synthetic literals before use. Sealed material and transaction digests are omitted.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKeyConstraint,
     Index,
@@ -246,10 +247,12 @@ class ConnectorTokenSecret(Base):
     destroyed_at: Mapped[datetime | None] = _time()
 
 
-# One synchronization attempt of a connection under the generation it was queued with. At
-# most one run per connection is queued or running.
-# SELECT id, connection_id, connection_generation, status, attempt, error_kind, created_at,
-#        started_at, finished_at
+# One synchronization of a connection under the generation it was queued with: an incremental
+# read from the stream's watermark or a backfill of older history (009-B). At most one run per
+# connection is queued or running. A deferred run is queued again with not_before, and its
+# last deferral reason in error_kind; retries counts rate-limit and retryable deferrals.
+# SELECT id, connection_id, connection_generation, kind, status, attempt, retries, pages,
+#        error_kind, not_before, created_at, started_at, finished_at
 # FROM public.connector_sync_runs
 # WHERE connection_id = '00000000-0000-0000-0000-000000000009'::uuid
 # ORDER BY created_at DESC, id LIMIT 20;
@@ -268,6 +271,12 @@ class ConnectorSyncRun(Base):
             name="valid_error_kind",
         ),
         CheckConstraint("attempt >= 0 AND connection_generation >= 1", name="valid_attempt"),
+        CheckConstraint("kind IN ('incremental', 'backfill')", name="valid_kind"),
+        CheckConstraint("retries >= 0 AND pages >= 0", name="valid_progress"),
+        CheckConstraint(
+            "window_since IS NULL OR window_until IS NULL OR window_since < window_until",
+            name="valid_window",
+        ),
         Index(
             "uq_connector_sync_runs_open",
             "connection_id",
@@ -292,6 +301,84 @@ class ConnectorSyncRun(Base):
     created_at: Mapped[datetime] = _time(False, default=True)
     started_at: Mapped[datetime | None] = _time()
     finished_at: Mapped[datetime | None] = _time()
+    kind: Mapped[str] = mapped_column(String(16), server_default="incremental")
+    window_since: Mapped[datetime | None] = _time()
+    window_until: Mapped[datetime | None] = _time()
+    not_before: Mapped[datetime | None] = _time()
+    retries: Mapped[int] = mapped_column(Integer, server_default="0")
+    pages: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+# Synchronization position and coverage of one stream of a connection (009-B). cursor is the
+# provider's opaque position of the next page of run_id's window; it advances in the same
+# transaction as the records of the page before it. covered_from and complete_through bound
+# the history known to be complete; they move only when a run stores its last page. Deleted by
+# the disconnect purge.
+# SELECT stream, run_id, covered_from, complete_through, updated_at
+# FROM public.connector_checkpoints
+# WHERE connection_id = '00000000-0000-0000-0000-000000000009'::uuid
+# ORDER BY stream LIMIT 20;
+class ConnectorCheckpoint(Base):
+    __tablename__ = "connector_checkpoints"
+    __table_args__ = (
+        ForeignKeyConstraint(*CONNECTION_FK),
+        ForeignKeyConstraint(["run_id"], ["connector_sync_runs.id"]),
+        UniqueConstraint("connection_id", "stream", name="uq_connector_checkpoints_stream"),
+        CheckConstraint("length(cursor) <= 512", name="bounded_cursor"),
+        CheckConstraint(
+            "covered_from IS NULL OR complete_through IS NULL OR covered_from <= complete_through",
+            name="valid_coverage",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agency_id: Mapped[UUID] = mapped_column(Uuid)
+    client_id: Mapped[UUID] = mapped_column(Uuid)
+    connection_id: Mapped[UUID] = mapped_column(Uuid)
+    stream: Mapped[str] = mapped_column(String(32))
+    run_id: Mapped[UUID | None] = mapped_column(Uuid)
+    cursor: Mapped[str | None] = mapped_column(String(512))
+    covered_from: Mapped[datetime | None] = _time()
+    complete_through: Mapped[datetime | None] = _time()
+    updated_at: Mapped[datetime] = _time(False, default=True)
+
+
+# One provider data call (009-B, D-049 decision D15), reserved before the call and settled with
+# its outcome afterwards, including failed and retried calls. quantity is in the provider's
+# cost unit; period is the UTC day the budgets count against. No provider data is stored.
+# SELECT operation, unit, quantity, outcome, period, occurred_at, settled_at
+# FROM public.connector_usage_records
+# WHERE connection_id = '00000000-0000-0000-0000-000000000009'::uuid
+#   AND period = DATE '2026-11-17'
+# ORDER BY occurred_at, id LIMIT 100;
+class ConnectorUsageRecord(Base):
+    __tablename__ = "connector_usage_records"
+    __table_args__ = (
+        ForeignKeyConstraint(*CONNECTION_FK),
+        ForeignKeyConstraint(["run_id"], ["connector_sync_runs.id"]),
+        CheckConstraint("operation IN ('fetch', 'refresh')", name="valid_operation"),
+        CheckConstraint(
+            "outcome IN ('reserved', 'ok', 'unauthorized', 'forbidden', 'rate_limited', "
+            "'retryable', 'permanent')",
+            name="valid_outcome",
+        ),
+        CheckConstraint("quantity > 0 AND attempt >= 1", name="valid_quantity"),
+        Index("ix_connector_usage_records_connection_period", "connection_id", "period"),
+        Index("ix_connector_usage_records_provider_period", "provider", "period"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agency_id: Mapped[UUID] = mapped_column(Uuid)
+    client_id: Mapped[UUID] = mapped_column(Uuid)
+    connection_id: Mapped[UUID] = mapped_column(Uuid)
+    run_id: Mapped[UUID] = mapped_column(Uuid)
+    attempt: Mapped[int] = mapped_column(Integer)
+    provider: Mapped[str] = mapped_column(String(32))
+    operation: Mapped[str] = mapped_column(String(16))
+    unit: Mapped[str] = mapped_column(String(32))
+    quantity: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(16), server_default="reserved")
+    period: Mapped[date] = mapped_column(Date)
+    occurred_at: Mapped[datetime] = _time(False, default=True)
+    settled_at: Mapped[datetime | None] = _time()
 
 
 # Provider data of one connection: one row per provider object with its latest observed

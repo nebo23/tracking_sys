@@ -109,3 +109,39 @@ Method: with the regression tests in place, `app/services/connectors.py` was tem
 | `git diff --check` | No whitespace errors |
 
 Remaining limits are unchanged from section 9.4 of the entry review. 009-B to 009-D remain subject to their own decisions.
+
+## 009-B synchronization (2026-11-17)
+
+Scope: D-049 decisions D11-D15 and D20 ([decision packet](decision-packet-009bcd.md)), implemented against the synthetic provider with migration `0010_connector_sync`. Implementation details settled during the work are in [packet section 6.1](decision-packet-009bcd.md#61-009-b-synchronization). No dependency was added. Native `tracking_sys` was not touched and no live provider was contacted.
+
+| Area | Files |
+|---|---|
+| Migration (run kind, window, deferral, retries, pages; checkpoints; usage records; grants; guarded downgrade) | `backend/migrations/versions/0010_connector_sync.py` |
+| Contracts (paged reads, call costs, provider quota, history and overlap) | `backend/app/connectors/contracts.py` |
+| Synthetic provider (fixed-anchor data set, cursor pages, scripted `401`/`403`/`429`/`5xx`/permanent outcomes, read log) | `backend/app/connectors/synthetic.py` |
+| Runtime (claims with `not_before`, attempt-fenced page and checkpoint writes, error policy, usage reservation and daily limits, scheduling, backfill requests, purge of checkpoints) | `backend/app/services/connectors.py`, `backend/app/connector_worker.py`, `backend/app/api/connectors.py`, `backend/app/config.py` |
+| Models, registry (`009-B`), OpenAPI snapshot | `backend/app/models/connectors.py`, `backend/app/data_policy.py`, `contracts/openapi.json` |
+| Tests | `backend/tests/integration/test_connector_sync.py` (8 cases), shared lab in `backend/tests/integration/connector_support.py`, updated registry and table guards |
+
+| Command (from `backend/`, project `.venv`, disposable PostgreSQL 18.6 at `127.0.0.1:55433/tracking_foundation_test` with a synthetic environment file) | Result |
+|---|---|
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 123 files formatted |
+| `python -m pytest -m "not integration" -q` | **507 passed**, 310 deselected |
+| `python -m pytest -m integration -q -rw` | **307 passed, 3 skipped**, no warnings. The skips are the opt-in Spec 005 browser journeys. |
+| `python -m pytest -m integration -q tests/integration/test_connector_sync.py` | 8 passed |
+| Model and migration agreement, registry against the migrated schema, migration cycle with grants | Passed (`test_migration_matches_model_metadata`, `test_migrated_schema_matches_registry`, `test_postgresql_migration_cycle_and_runtime_permissions`) |
+| Mutation check: each 009-B safeguard disabled in turn, the 009-B tests rerun, source restored | All eight caught: resume ignoring the stored cursor (5 failures), claiming before `not_before` (2), no usage limits (1), no provider quota (1), unbounded retries (1), ignoring `Retry-After` (1), scheduling regardless of the interval (1), moving the watermark on every page (6) |
+| `git diff --check` | No whitespace errors |
+
+| Criterion | Test (`test_connector_sync.py`) | Result |
+|---|---|---|
+| Pagination, checkpoints, incremental overlap, backfill within the history limit, overlapping requests | `test_009b_pages_checkpoints_backfill_and_overlapping_requests` | Passed |
+| AC3 crash recovery: a stop after a read, inside the page transaction, and after its commit; each resumes at the right page, stores every object once and counts every reserved call | `test_009b_restart_at_the_page_boundary_skips_and_duplicates_nothing` (3 cases) | Passed |
+| AC3 `429` backoff (Retry-After honored and capped), retryable `5xx` backoff and the five-deferral limit, `403` and permanent failures, usage of failed calls | `test_009b_rate_limits_retries_forbidden_and_permanent_failures` | Passed |
+| Usage accounting, connection allocation and provider quota stops, resumption on the next UTC day at the stored cursor | `test_009b_usage_accounting_and_budget_stops` | Passed |
+| Scheduling of due connections only, skipping inactive clients, connections that require reconnection, and connections with an open run | `test_009b_scheduling_queues_due_connections_once` | Passed |
+| Privileges, scoped checkpoint references, and the disconnect purge of checkpoints (003 case D3 extended) | `test_009b_privileges_scoped_references_and_disconnect_purge` | Passed |
+
+Each 009-B test also keeps the other connections of the fixture working where it uses them: another client of the same agency and a client of another agency sharing `syn-acct-777`. The 23 connector cases of 009-A pass unchanged apart from the paged return type of the synthetic read and the `schedule` key of the worker command output.
+
+Remaining for later slices: coverage and provenance reads (009-C) and provider webhooks (009-D). Commercial budgets (Q-004) and production scheduling and supervision (020) remain open.

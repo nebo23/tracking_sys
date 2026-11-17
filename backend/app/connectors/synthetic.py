@@ -1,4 +1,4 @@
-"""Synthetic OAuth provider for local development and tests (specification 009-A, D-048).
+"""Synthetic OAuth provider for local development and tests (specification 009, D-048, D-049).
 
 The provider keeps its state in one SQLite file (standard library sqlite3), so the API and a
 separate `python -m app.connector_worker` process observe the same codes, grants, tokens, and
@@ -8,6 +8,12 @@ grant with its own access and refresh tokens; revoking any token of a grant revo
 and nothing else, so two clients authorizing the same external account remain independent.
 This per-grant scope describes this adapter only: each live provider's revocation scope is
 established from its own evidence in specifications 010-013.
+
+The data set is deterministic and independent of the wall clock (009-B): one object per day
+ending at a fixed anchor date, served newest first in pages behind an opaque cursor. Without a
+lower bound a read covers the recent window; a backfill reaches older days down to the history
+limit. Each page reports the window it covers. A scripted sequence of outcomes can fail
+individual reads with 401, 403, 429 (with Retry-After), retryable 5xx, or permanent errors.
 
 Settings refuse the synthetic provider outside development. The authorization URL uses the
 reserved .invalid domain and is never fetched: tests approve it through `approve`, standing
@@ -29,6 +35,7 @@ from app.connectors.contracts import (
     Capability,
     ErrorKind,
     ProviderError,
+    ProviderPage,
     ProviderRecord,
     RevocationOutcome,
     TokenGrant,
@@ -37,22 +44,33 @@ from app.connectors.contracts import (
 AUTHORIZE_URL = "https://synthetic-provider.invalid/oauth/authorize"
 CAPABILITY = Capability(
     provider="synthetic",
-    version="synthetic-1",
+    version="synthetic-2",
     pkce="S256",
     refresh=True,
     revocation_scope="grant",
     scopes=("synthetic.metrics.read",),
     metrics=("impressions", "engagements"),
+    stream="objects",
+    history_days=30,
+    overlap_days=1,
+    cost_unit="synthetic_unit",
+    daily_quota=1000,
 )
 CODE_SECONDS = 60
 DEFAULT_ACCESS_SECONDS = 3600
+# The newest synthetic object is observed on this day; object i is observed i - 1 days earlier.
 OBSERVED_AT = datetime(2026, 11, 1, tzinfo=UTC)
+DAY = timedelta(days=1)
+CURSOR_PREFIX = "syn_cursor_"
+FETCH_OUTCOMES = {"ok", "unauthorized", "forbidden", "rate_limited", "retryable", "permanent"}
+NUMBERS = {"access_ttl": 0, "objects": 0, "page_size": 1, "recent_days": 1, "retry_after": 0}
 BEHAVIORS = {
     "exchange": {"ok", "retryable"},
     "refresh": {"ok", "invalid_grant", "retryable"},
-    "fetch": {"ok", "unauthorized", "retryable"},
+    "fetch": FETCH_OUTCOMES,
     "revoke": {"ok", "retryable", "unsupported"},
 }
+DEFAULTS = {"objects": 3, "page_size": 100, "recent_days": 3, "retry_after": 60}
 SCHEMA = (
     "CREATE TABLE IF NOT EXISTS codes (digest TEXT PRIMARY KEY, challenge TEXT, redirect_uri "
     "TEXT, scopes TEXT, account TEXT, label TEXT, expires_at TEXT, used INTEGER DEFAULT 0)",
@@ -61,7 +79,8 @@ SCHEMA = (
     "CREATE TABLE IF NOT EXISTS tokens (digest TEXT PRIMARY KEY, grant_id INTEGER, kind TEXT, "
     "expires_at TEXT)",
     "CREATE TABLE IF NOT EXISTS behaviors (name TEXT PRIMARY KEY, value TEXT)",
-    "CREATE TABLE IF NOT EXISTS calls (seq INTEGER PRIMARY KEY, operation TEXT, outcome TEXT)",
+    "CREATE TABLE IF NOT EXISTS calls (seq INTEGER PRIMARY KEY, operation TEXT, outcome TEXT, "
+    "detail TEXT)",
 )
 
 
@@ -108,16 +127,36 @@ class SyntheticProvider:
         return row[0] if row else "ok"
 
     @staticmethod
-    def _call(connection: sqlite3.Connection, operation: str, outcome: str) -> None:
+    def _call(
+        connection: sqlite3.Connection, operation: str, outcome: str, detail: str | None = None
+    ) -> None:
         connection.execute(
-            "INSERT INTO calls (operation, outcome) VALUES (?, ?)", (operation, outcome)
+            "INSERT INTO calls (operation, outcome, detail) VALUES (?, ?, ?)",
+            (operation, outcome, detail),
         )
 
-    # Test control: inject a failure mode, or set "access_ttl" in seconds (0 issues tokens that
-    # are already expired).
+    def _number(self, connection: sqlite3.Connection, name: str) -> int:
+        row = connection.execute("SELECT value FROM behaviors WHERE name = ?", (name,)).fetchone()
+        return int(row[0]) if row else DEFAULTS[name]
+
+    # Test control: inject a failure mode; set a number ("access_ttl" in seconds, where 0 issues
+    # tokens that are already expired, "objects", "page_size", "recent_days", "retry_after");
+    # name a metric to report as zero ("zero_metric") or to omit ("omit_metric"), or "" for
+    # none; or script the outcomes of the next reads ("fetch_script", comma-separated items of
+    # FETCH_OUTCOMES, where "rate_limited:30" sets that read's Retry-After), consumed in order
+    # before the "fetch" behavior applies.
     def set_behavior(self, name: str, value: str) -> None:
-        if name == "access_ttl":
-            int(value)
+        if name in NUMBERS:
+            if int(value) < NUMBERS[name]:
+                raise ValueError("Synthetic number out of range.")
+        elif name in {"zero_metric", "omit_metric"}:
+            if value and value not in self.capability.metrics:
+                raise ValueError("Unknown synthetic metric.")
+        elif name == "fetch_script":
+            for item in filter(None, value.split(",")):
+                outcome, _, seconds = item.partition(":")
+                if outcome not in FETCH_OUTCOMES or (seconds and not seconds.isdigit()):
+                    raise ValueError("Unknown synthetic read outcome.")
         elif value not in BEHAVIORS.get(name, set()):
             raise ValueError("Unknown synthetic behavior.")
         with self._transaction() as connection:
@@ -257,37 +296,109 @@ class SyntheticProvider:
             raise error
         return TokenGrant(access, refresh_token, expires, tuple(scopes.split()), account, label)
 
-    def fetch_page(self, access_token: str) -> list[ProviderRecord]:
+    # The next scripted read outcome, if any, removed from the script; otherwise the behavior.
+    def _read_outcome(self, connection: sqlite3.Connection) -> tuple[str, int | None]:
+        row = connection.execute(
+            "SELECT value FROM behaviors WHERE name = 'fetch_script'"
+        ).fetchone()
+        items = [item for item in (row[0] if row else "").split(",") if item]
+        if items:
+            connection.execute(
+                "UPDATE behaviors SET value = ? WHERE name = 'fetch_script'",
+                (",".join(items[1:]),),
+            )
+            outcome, _, seconds = items[0].partition(":")
+            return outcome, int(seconds) if seconds else None
+        return self._behavior(connection, "fetch"), None
+
+    # The window [since, until) after the history limit; since None is the recent window.
+    def _window(
+        self, connection: sqlite3.Connection, since: datetime | None, until: datetime | None
+    ) -> tuple[datetime, datetime]:
+        newest = OBSERVED_AT + DAY
+        end = newest if until is None else min(until, newest)
+        oldest = newest - self.capability.history_days * DAY
+        start = newest - self._number(connection, "recent_days") * DAY if since is None else since
+        return max(start, oldest), end
+
+    def fetch_page(
+        self,
+        access_token: str,
+        *,
+        cursor: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> ProviderPage:
         error: ProviderError | None = None
+        offset = 0
+        if cursor is not None:
+            digits = cursor.removeprefix(CURSOR_PREFIX)
+            if not cursor.startswith(CURSOR_PREFIX) or not digits.isdigit():
+                raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
+            offset = int(digits)
         with self._transaction() as connection:
-            behavior = self._behavior(connection, "fetch")
+            behavior, retry_after = self._read_outcome(connection)
             found = self._grant(connection, access_token, "access_token")
             expired = (
                 found is not None
                 and found[2] is not None
                 and datetime.fromisoformat(found[2]) <= _now()
             )
+            detail = str(offset)
             if behavior == "retryable":
-                self._call(connection, "fetch", "retryable")
+                self._call(connection, "fetch", "retryable", detail)
                 error = ProviderError(ErrorKind.RETRYABLE, "unavailable")
+            elif behavior == "rate_limited":
+                self._call(connection, "fetch", "rate_limited", detail)
+                seconds = self._number(connection, "retry_after")
+                error = ProviderError(
+                    ErrorKind.RATE_LIMITED,
+                    "too_many_requests",
+                    seconds if retry_after is None else retry_after,
+                )
+            elif behavior == "permanent":
+                self._call(connection, "fetch", "permanent", detail)
+                error = ProviderError(ErrorKind.PERMANENT, "bad_request")
             elif found is None or found[1] or expired or behavior == "unauthorized":
-                self._call(connection, "fetch", "unauthorized")
+                self._call(connection, "fetch", "unauthorized", detail)
                 error = ProviderError(ErrorKind.UNAUTHORIZED, "invalid_token")
+            elif behavior == "forbidden":
+                self._call(connection, "fetch", "forbidden", detail)
+                error = ProviderError(ErrorKind.FORBIDDEN, "insufficient_permission")
             else:
                 account = connection.execute(
                     "SELECT account FROM grants WHERE id = ?", (found[0],)
                 ).fetchone()[0]
-                self._call(connection, "fetch", "ok")
+                start, end = self._window(connection, since, until)
+                size = self._number(connection, "page_size")
+                total = self._number(connection, "objects")
+                zero = self._behavior(connection, "zero_metric")
+                omit = self._behavior(connection, "omit_metric")
+                self._call(connection, "fetch", "ok", detail)
         if error is not None:
             raise error
-        return [
-            ProviderRecord(
-                f"{account}-post-{index}",
-                OBSERVED_AT,
-                {"impressions": 100 * index, "engagements": 10 * index},
-            )
-            for index in range(1, 4)
+        indexes = [
+            index for index in range(1, total + 1) if start <= OBSERVED_AT - (index - 1) * DAY < end
         ]
+        records = []
+        for index in indexes[offset : offset + size]:
+            metrics: dict[str, int | float] = {
+                "impressions": 100 * index,
+                "engagements": 10 * index,
+            }
+            if zero in metrics:
+                metrics[zero] = 0
+            metrics.pop(omit, None)
+            records.append(
+                ProviderRecord(f"{account}-post-{index}", OBSERVED_AT - (index - 1) * DAY, metrics)
+            )
+        following = offset + size
+        return ProviderPage(
+            tuple(records),
+            f"{CURSOR_PREFIX}{following}" if following < len(indexes) else None,
+            start,
+            end,
+        )
 
     def revoke(self, token: str, kind: str) -> RevocationOutcome:
         error: ProviderError | None = None
@@ -323,6 +434,15 @@ class SyntheticProvider:
         with self._transaction() as connection:
             rows = connection.execute("SELECT account, revoked FROM grants ORDER BY id").fetchall()
         return [(row[0], bool(row[1])) for row in rows]
+
+    # Test inspection: (offset, outcome) of each read in order, so a test can show which pages
+    # were requested and that none was skipped.
+    def reads(self) -> list[tuple[int, str]]:
+        with self._transaction() as connection:
+            rows = connection.execute(
+                "SELECT detail, outcome FROM calls WHERE operation = 'fetch' ORDER BY seq"
+            ).fetchall()
+        return [(int(row[0]), row[1]) for row in rows]
 
     # Test inspection: (operation, outcome) per call in order.
     def calls(self) -> list[tuple[str, str]]:

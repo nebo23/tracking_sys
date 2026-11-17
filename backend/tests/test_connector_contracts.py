@@ -69,7 +69,7 @@ def test_revocation_is_per_grant_and_visible_to_another_instance(tmp_path):
     assert not provider.token_usable(first.access_token)
     assert not provider.token_usable(first.refresh_token)
     assert provider.token_usable(second.access_token)
-    assert provider.fetch_page(second.access_token)
+    assert provider.fetch_page(second.access_token).records
     with pytest.raises(ProviderError) as revoked:
         provider.fetch_page(first.access_token)
     assert revoked.value.kind is ErrorKind.UNAUTHORIZED
@@ -94,7 +94,7 @@ def test_injected_behaviors_and_expiry(tmp_path):
     provider.set_behavior("access_ttl", "60")
     refreshed = provider.refresh(grant.refresh_token)
     assert refreshed.refresh_token == grant.refresh_token
-    assert len(provider.fetch_page(refreshed.access_token)) == 3
+    assert len(provider.fetch_page(refreshed.access_token).records) == 3
     provider.set_behavior("revoke", "unsupported")
     assert provider.revoke(grant.refresh_token, "refresh_token") == "unsupported"
     assert provider.token_usable(refreshed.access_token)

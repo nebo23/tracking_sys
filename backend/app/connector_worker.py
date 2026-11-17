@@ -8,10 +8,12 @@ from app.logging_config import configure_logging
 from app.services.connectors import build_providers, process_connectors
 
 
-# Command-line entry point (specification 009-A, D-048): load validated settings, run at most
-# one bounded batch of disconnect teardowns and then of sync runs, print only outcome counts,
-# and dispose of the engine. It is not a scheduler: the synthetic 72-hour teardown target is
-# met only if the command is invoked within it. Queue and scheduling choices remain Q-009.
+# Command-line entry point (specification 009, D-048 and D-049): load validated settings, run
+# at most one bounded batch of disconnect teardowns, queue the incremental runs that are due,
+# run at most one bounded batch of sync runs, print only outcome counts, and dispose of the
+# engine. It is not a long-running scheduler: the synthetic 72-hour teardown target and the
+# sync interval are met only if the command is invoked within them. Production scheduling and
+# process supervision are decided in 020 (D-049 decision D11).
 def main() -> None:
     configure_logging()
     settings = Settings()
