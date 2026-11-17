@@ -1,5 +1,5 @@
 # 011-youtube — YouTube analytics
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; implementation is not approved. The [entry review](entry-review.md) (D-056, 2026-11-18) proposes decisions D1-D17 and slices 011-A to 011-D for owner choice. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 USER YouTube; PDF-024,041 context. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -24,7 +24,9 @@ Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md)
 
 Specification 003 obligations (D-025): re-verify and test the YouTube rows in `app.privacy.providers` and mark them current before the features they govern run.
 
-Open decisions: Q-001, Q-004; provider use-case and policy approval. See the [decision register](../../docs/planning/decisions.md).
+The [entry review](entry-review.md#45-re-verification-of-the-policy-rows) (section 4.5) found the `youtube.authorized_analytics` and `youtube.other_data` rows consistent with the policies read on 2026-11-18. They stay stale until the live adapter slice (011-C) re-verifies them and marks them current.
+
+Open decisions: Q-001, Q-004; provider use-case and policy approval. See the [decision register](../../docs/planning/decisions.md). The entry review places each: Q-001 (YouTube part) through D1, D7 and D8, Q-004 through D10 and D17, Q-012 through D11, and the use case and policies through D5, D6 and D11 to D13.
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-056 (2026-11-18) authorizes preparation only. Detailed specification approval is pending: the owner's choices on D1-D17 of the [entry review](entry-review.md) must be recorded with date and scope boundaries before implementation.

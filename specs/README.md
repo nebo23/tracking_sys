@@ -14,7 +14,7 @@ Each specification contains spec.md, plan.md, and tasks.md. The foundation and a
 | [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine (008-A synthetic slice merged in PR 7, `3f6dc06`) |
 | [009-connector-runtime](009-connector-runtime/spec.md) | L4 | Connector runtime and OAuth (implemented against the synthetic provider: 009-A under D-048, 009-B to 009-D under D-049, verified with correction R009-11 under D-050 and merged in PR 8, `4abcbc6`; [evidence](009-connector-runtime/evidence.md)) |
 | [010-instagram](010-instagram/spec.md) | L4 | Instagram analytics (010-A to 010-C under D-053 to D-055; 010-D, access for customer accounts, pending; [evidence](010-instagram/evidence.md)) |
-| [011-youtube](011-youtube/spec.md) | L4 | YouTube analytics |
+| [011-youtube](011-youtube/spec.md) | L4 | YouTube analytics (preparation under D-056; [entry review](011-youtube/entry-review.md) with decisions D1-D17 pending) |
 | [012-linkedin](012-linkedin/spec.md) | L4 | LinkedIn analytics |
 | [013-x](013-x/spec.md) | L4 | X analytics |
 | [014-ad-spend-capi](014-ad-spend-capi/spec.md) | L4 | Advertising spend and conversion delivery |
