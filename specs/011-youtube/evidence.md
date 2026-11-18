@@ -134,3 +134,13 @@ Scope: the [completion prompt](completion-prompt.md), recorded as D-060, reviewe
 | The R011-10 regression against a temporary checkout of `c2a2cd4` | **1 failed** |
 | `python -m ruff check .` and `python -m ruff format --check .` | All checks passed |
 | `python -m pytest -m "not integration" -q` | **573 passed**, 328 deselected |
+
+## 011-B Phase 1 steps (2026-11-18)
+
+Under D-060, in the order of the [completion prompt](completion-prompt.md). Every consent used slot b; slot a, which F3 needs, was not touched.
+
+| Question | Result |
+|---|---|
+| F1 partial consent | Two consents at 11:35 and 11:41 UTC requested both scopes with `prompt=consent`. On the second, the consent screen showed a checkbox for each scope, and the owner unticked one. Google still granted both: the `scope` field of the answer listed `youtube.readonly` and `yt-analytics.readonly`, with a new refresh token and `refresh_token_expires_in` 604,799. For an account that has already granted both scopes to the project, unticking one on a repeated consent does not narrow the grant, and the answer reports the account's whole grant. A first consent with a scope cleared (no earlier grant) is still unchecked. It can only be tried after access is revoked, so it moves to Phase 4, after F3, under the access rule. The F6 consent showed that a grant can carry one scope only. |
+
+Consequence: none for D2. The adapter installs a connection only when the `scope` field of the answer holds both scopes, which follows what Google actually grants, whatever was ticked on the screen.
