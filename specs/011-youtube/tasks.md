@@ -1,5 +1,5 @@
 # Tasks: 011-youtube
-Status: Not completed; this is a review checklist, not an implementation instruction. Preparation under D-056.
+Status: Merged in PR 11 under D-062, before Phase 4; the open items below that belong to Phase 4 are follow-ups after the merge. This is a review checklist, not an implementation instruction.
 
 - [x] Prepare the [entry review](entry-review.md) from the official Google documentation read on 2026-11-18, with the 009 contract gaps, the policy constraints, decisions D1-D17 and slices 011-A to 011-D.
 - [x] Approve the scope and sources for youtube analytics: D15 by D-057 (existing project `connectapp`), D1-D14, D16 and D17 as recommended by D-058, with 011-B before 011-A.
@@ -12,8 +12,9 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [x] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015 ([design](design-011a.md), [evidence](evidence.md#011-a-youtube-shaped-synthetic-adapter-2026-11-18)). Started before the next-day probe (F8) at the owner's request of 2026-11-18.
 - [x] 011-C: the live adapter, its settings, the operator purge and migration 0016, with fixture tests ([evidence](evidence.md#011-c-live-youtube-adapter-2026-11-18)).
 - [x] 011-C read-only live check with the owner's test channel (2026-11-18): the browser connect and one sync of each stream. It found and corrected the `video_totals` report ([evidence](evidence.md#live-check-with-the-owners-test-channel-2026-11-18)).
-- [ ] 011-C live disconnect check after F3 (Phase 4).
+- [ ] 011-C live disconnect check after F3 (Phase 4, a follow-up after the merge under D-062).
 - [x] Correct the findings R011-13 to R011-17 of Claude's merge review of PR 11, each code correction with a regression that fails at `d8b6b5d`, and adopt Q1 and Q2 (D-061, [merge review prompt](merge-review-prompt.md), [corrections](evidence.md#merge-review-corrections-d-061-2026-11-18)).
+- [x] Claude's review of the D-061 corrections at `5ccb87a`, and the merge of PR 11 before Phase 4 (D-062, [review](evidence.md#claudes-review-of-the-d-061-corrections-and-the-merge-d-062-2026-11-18)).
 - [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner; planned after Phase 4 (D-058, D-061).
 - [ ] Follow-up (Spec 010): the Instagram `account` stream has the day-list pattern that R011-15 corrected for YouTube ([010 follow-ups](../010-instagram/evidence.md#follow-ups-and-limits-after-010-c)).
 - [ ] Owner decision (D10): the proposal to reserve each page's actual cost instead of its maximum ([proposal](evidence.md#proposal-for-the-owner-actual-page-cost-d10)).

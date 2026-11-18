@@ -430,3 +430,24 @@ Not part of this work, because it changes D10's accounting. Each page reserves i
 - **Deleted videos in archived clients (observation for the owner).** The gating that R011-13 corrected for the authorization check also stops the D11 inventory sweep. No run is queued for a connection whose client is archived or whose agency is suspended, so the records of videos deleted on YouTube stay until the client is active again, the connection is disconnected, or the 730-day retention ends, while P-1 III.E.4.b asks for the check every 30 days. Correcting it needs a decision, for example an inventory check in the scheduling step, or the disconnect of a connection whose client has been archived for 30 days. It is recorded in the [tasks](tasks.md) and not changed.
 - **Cursors written before R011-15.** A bare `channel_daily` offset is refused as `invalid_cursor` and fails its run, and the next scheduled run starts the read again. None exists outside disposable databases: there are no customer channels, and the live-check database was removed.
 - **Several channels.** A read that finds several channels stays `PERMANENT` (`channel_unavailable`); only the absence of any channel is lost authorization.
+
+## Claude's review of the D-061 corrections and the merge (D-062) (2026-11-18)
+
+Claude reviewed `5ccb87a` independently. It ran on Linux with Python 3.12.3, on the pinned `postgres:18.6-bookworm` image as the disposable service, never on the owner's `tracking_sys`.
+
+| Check | Result |
+|---|---|
+| `ruff check` and `ruff format --check` | All checks passed; 152 files formatted |
+| `pytest -m "not integration"` | **608 passed**, 346 deselected |
+| `pytest -m integration` (full suite) | **343 passed, 3 skipped** (the browser journeys) |
+| The new regressions against a temporary checkout of `d8b6b5d` | Unit: 11 failed, 4 passed (the guard cases). Integration: 4 failed. These match the counts recorded above, now on Linux. |
+| Mutation spot checks | The scheduled authorization check was removed from the scheduling step, and client errors were mapped to `UNAUTHORIZED` again. Both mutations were caught (2 and 5 failures), and the sources were restored byte for byte. |
+| The review's reproductions at the corrected head | **Archived client:** the revocation is detected on day 8 (`reconnect_required`), and the connection is purged after the grace period. **Rejected client:** the run fails, and the connection stays `active`. **Resumed first read:** 91 contiguous days with no gap. |
+| PR 11 | `mergeable_state` clean against `main` at `5d05153` |
+
+Notes, none of which blocks the merge:
+
+- **Capacity on the connect day.** The first `channel_daily` read uses 3 Analytics requests (90 days in 31-day windows), so on the day of the connect the limit is about 650 videos (3 + 2 × 13 = 29). Measured: 650 videos complete in one day, and at 700 one run is deferred to the next Pacific day. The steady state is about 700, as recorded above.
+- **Checks before syncs.** The scheduling step makes its token calls before the pass's sync runs: at most 100, each bounded by the adapter's 20-second timeout. Production scheduling (020) should account for it.
+
+The owner then decided to merge PR 11 before Phase 4 (D-062). The F8 next-day probe and Phase 4 are follow-ups after the merge, recorded on a fresh branch from the merged `main`. The access rule stays in force until F3 is recorded.
