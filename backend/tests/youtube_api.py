@@ -9,7 +9,8 @@ It answers with the shapes recorded in the 011-B evidence (specs/011-youtube/evi
 - videos.list with private, unlisted and public uploads, hidden likes and disabled comments,
   refusing more than 50 IDs;
 - day reports with sparse rows;
-- video reports with lowerCamelCase creatorContentType values;
+- video reports with lowerCamelCase creatorContentType values, which refuse the playlist
+  metrics together with that dimension (011-C live check);
 - the 401 authError and 403 insufficientPermissions errors.
 
 Identifiers, tokens, secrets and values are synthetic; nothing contacts Google.
@@ -40,6 +41,12 @@ LABEL = "Synthetic Live Channel"
 ACCESS_SECONDS = 3599
 REFRESH_SECONDS = 604799
 CONTENT_TYPES = ("shorts", "videoOnDemand", "creatorContentTypeUnspecified")
+PLAYLIST_METRICS = frozenset({"videosAddedToPlaylists", "videosRemovedFromPlaylists"})
+UNSUPPORTED_QUERY = (
+    "The query is not supported. Check the documentation at "
+    "https://developers.google.com/youtube/analytics/v2/available_reports for a list of "
+    "supported queries."
+)
 
 
 def _error(status: int, reason: str, message: str = "") -> Reply:
@@ -260,14 +267,18 @@ class FakeYouTube:
             )
         return Reply(200, {"kind": "youtube#videoListResponse", "items": items})
 
+    # Report shapes as Google answered them: sparse day rows (F8); video rows only for videos
+    # with data (F9); and "The query is not supported" for the playlist metrics together with
+    # creatorContentType (011-C live check, 2026-11-18).
     def _report(self, query: Mapping[str, str]) -> Reply:
         assert query["ids"] == "channel==MINE"
         metrics = query["metrics"].split(",")
-        assert tuple(metrics) == METRIC_NAMES
+        assert set(metrics) <= set(METRIC_NAMES)
         headers = [
             {"name": name, "columnType": "METRIC", "dataType": "INTEGER"} for name in metrics
         ]
         if query["dimensions"] == "day":
+            assert tuple(metrics) == METRIC_NAMES
             start = date.fromisoformat(query["startDate"])
             end = date.fromisoformat(query["endDate"])
             rows = []
@@ -281,19 +292,19 @@ class FakeYouTube:
                 day += timedelta(days=1)
             dimension = [{"name": "day", "columnType": "DIMENSION", "dataType": "STRING"}]
             return Reply(200, {"columnHeaders": dimension + headers, "rows": rows})
-        assert query["dimensions"] == "video,creatorContentType"
-        videos = query["filters"].removeprefix("video==").split(",")
-        rows = [
-            [
-                video,
-                CONTENT_TYPES[int(video[1:]) % 3],
-                *[int(video[1:]) * 10 + position for position in range(len(metrics))],
-            ]
-            for video in videos
-            if video != "v0002"
+        dimensions = query["dimensions"].split(",")
+        assert dimensions in (["video"], ["video", "creatorContentType"])
+        if len(dimensions) == 2 and set(metrics) & PLAYLIST_METRICS:
+            return _error(400, "badRequest", UNSUPPORTED_QUERY)
+        rows = []
+        for video in query["filters"].removeprefix("video==").split(","):
+            if video == "v0002":
+                continue
+            number = int(video[1:])
+            kind = [CONTENT_TYPES[number % 3]] if len(dimensions) == 2 else []
+            values = [number * 10 + METRIC_NAMES.index(name) for name in metrics]
+            rows.append([video, *kind, *values])
+        columns = [
+            {"name": name, "columnType": "DIMENSION", "dataType": "STRING"} for name in dimensions
         ]
-        dimensions = [
-            {"name": "video", "columnType": "DIMENSION", "dataType": "STRING"},
-            {"name": "creatorContentType", "columnType": "DIMENSION", "dataType": "STRING"},
-        ]
-        return Reply(200, {"columnHeaders": dimensions + headers, "rows": rows})
+        return Reply(200, {"columnHeaders": columns + headers, "rows": rows})

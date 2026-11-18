@@ -217,7 +217,8 @@ Existing tests were updated only for the new fields and the larger registry:
 Scope: Phase 3 of the [completion prompt](completion-prompt.md), under D-058 and D-060.
 - **Testing.** The tests run the adapter against `tests/youtube_api.py`, an in-memory Google API built from the 011-B answers. No test contacts Google, and no dependency was added.
 - **Database.** Migration `0016` ran only on the disposable PostgreSQL 18 service (Compose project `tracking-system-foundation-test` on 127.0.0.1:55433), never on the owner's `tracking_sys`.
-- **Recorded when they take place:** the read-only live check with the owner's test channel (step 8) and the secret rotation (step 7).
+- **Live check (step 8):** run with the owner on 2026-11-18; see the [live check](#live-check-with-the-owners-test-channel-2026-11-18). It found the `video_totals` defect corrected there.
+- **Secret rotation (step 7):** deferred by the owner on 2026-11-18.
 - **After F3, under the access rule:** the live disconnect check.
 
 ### Policy rows re-verified (2026-11-18)
@@ -246,7 +247,7 @@ Both rows now carry the texts of entry review section 4.5:
     - No channel (`no_channel`), several channels (`several_channels`) or a failed lookup (`channel_unavailable`) is a refusal.
     - A grant without the Data API scope comes back without a channel read, and the runtime refuses it as `scopes_missing` (D2).
   - **Tokens.** A refresh keeps the refresh token (F3). Revocation at `oauth2.googleapis.com/revoke` counts an already invalid token as done.
-  - **Streams.** As in 011-A. The `fields` parameter keeps titles, descriptions, thumbnails, tags and other text out of every video answer. An inventory read resolves the uploads playlist once.
+  - **Streams.** As in 011-A. The `fields` parameter keeps titles, descriptions, thumbnails, tags and other text out of every video answer. An inventory read resolves the uploads playlist once. A `video_totals` page reads two reports: the catalog by `video`, and the product type by `video,creatorContentType` with `views` only (see the live check).
   - **Errors (F14, YT-5):**
     - 401 is unauthorized.
     - A 403 with `quotaExceeded` or `dailyLimitExceeded` is `budget_exhausted` in the call's bucket.
@@ -293,10 +294,10 @@ Existing tests changed only where 011-C changes behavior:
 | Code exchange: channel ID and title only, grant expiry kept; refusals named | `test_exchange_reads_the_channel_and_keeps_the_grant_expiry`, `test_exchange_refusals_name_their_reason` |
 | A refresh keeps the refresh token; revocation ends every grant of the account | `test_refresh_keeps_the_refresh_token_and_revocation_ends_every_grant` |
 | Channel snapshot with a hidden subscriber count `not_returned`; day reports with the days without rows `not_returned` | `test_channel_snapshot_and_day_reports` |
-| Inventory pages, the uploads playlist resolved once, allow-listed attributes without titles, lifetime totals with product types, deleted videos confirmed | `test_inventory_attributes_totals_and_deleted_videos` |
+| Inventory pages, the uploads playlist resolved once, allow-listed attributes without titles, lifetime totals as two reports (the whole catalog by video, the product type with `views` only), deleted videos confirmed | `test_inventory_attributes_totals_and_deleted_videos` |
 | Error mapping (7 cases), `Retry-After`, invalid tokens | `test_errors_map_to_runtime_kinds`, `test_rate_limits_carry_retry_after_and_invalid_tokens_are_unauthorized` |
 | Settings validation, registration off by default, no registration with a stale row or after the review date | `test_settings_and_rule_gated_registration` |
-| Connect through the API; one run per stream; 6 Data units and 4 Analytics requests for 4 videos and 90 days; a quota answer deferred to the Pacific midnight; a deleted video purged; the operator purge | `tests/integration/test_connector_youtube_live.py::test_011c_connect_read_every_stream_and_purge` |
+| Connect through the API; one run per stream; 6 Data units and 5 Analytics requests for 4 videos and 90 days; a quota answer deferred to the Pacific midnight; a deleted video purged; the operator purge | `tests/integration/test_connector_youtube_live.py::test_011c_connect_read_every_stream_and_purge` |
 | Operator purge with a revocation that cannot be made, a teardown under way with the adapter removed, and a teardown held by a worker | `test_011c_operator_purge_does_not_wait_for_an_unavailable_revocation` |
 | Partial consent refused, and its grant revoked when no other connection holds the account | `test_011c_partial_consent_is_refused_and_revoked` |
 | Migration `0016` downgrade refused with live YouTube state | `test_011c_migration_downgrade_refuses_live_youtube_state` |
@@ -305,16 +306,16 @@ Existing tests changed only where 011-C changes behavior:
 |---|---|
 | `python -m pytest -m "not integration" -q` | **593 passed**, 342 deselected |
 | `python -m pytest -m "integration or not integration" -q tests/test_connector_youtube_adapter.py tests/integration/test_connector_youtube_live.py tests/integration/test_connector_youtube.py` | **29 passed** (15, 4 and 10) |
-| `python -m pytest -m integration -q` (full integration suite, after the purge correction) | **339 passed, 3 skipped**: the three browser journeys of `test_tracker_journey.py`, which need `TRACKING_RUN_BROWSER_TESTS=1` and are unrelated to connectors (skipped, not passed) |
+| `python -m pytest -m integration -q` (full integration suite, after the purge and `video_totals` corrections) | **339 passed, 3 skipped**: the three browser journeys of `test_tracker_journey.py`, which need `TRACKING_RUN_BROWSER_TESTS=1` and are unrelated to connectors (skipped, not passed) |
 | Migration `0016` | The suite upgrades to head (`0016_youtube_provider`). `test_postgresql_migration_cycle_and_runtime_permissions` downgrades to base and upgrades again on the empty database. The downgrade to `0015` is refused while a `youtube` connection exists. |
 | OpenAPI snapshot | Regenerated; `tests/test_contract.py` passes |
 | `python -m ruff check .` and `python -m ruff format --check .` | All checks passed |
-| Mutation check: each safeguard disabled in turn, the 29 YouTube tests rerun, the source restored byte for byte (SHA-256 compared) | **All 8 caught**, with no setup error in any run:<br>- rule-gated registration;<br>- the kept grant for unknown accounts (D5);<br>- the deadline at the time of the purge;<br>- the `remaining` report;<br>- a client of its own;<br>- titles kept out of video answers (3 failures);<br>- days without rows `not_returned`;<br>- no channel read without the Data scope (2 failures).<br><br>This is the second run; the first hung on the deadline mutation (see the purge defect above). |
+| Mutation check: each safeguard disabled in turn, the 29 YouTube tests rerun, the source restored byte for byte (SHA-256 compared) | **All 10 caught**, with no setup error in any run:<br>- rule-gated registration;<br>- the kept grant for unknown accounts (D5);<br>- the deadline at the time of the purge;<br>- the `remaining` report;<br>- a client of its own;<br>- titles kept out of video answers (3 failures);<br>- the content type read with `views` only (3 failures);<br>- the catalog read by `video` (3 failures);<br>- days without rows `not_returned`;<br>- no channel read without the Data scope (2 failures).<br><br>The first run hung on the deadline mutation (see the purge defect above). The two `video_totals` safeguards were added after the live check. |
 
 ### Limits and follow-ups
 
-- **Live check.** Recorded here when the owner runs it. The live disconnect check comes after F3 (Phase 4).
-- **Secret rotation.** Requested on 2026-11-18. It stays an open follow-up in the [tasks](tasks.md) until it is done.
+- **Live check.** Done on 2026-11-18 (below). The live disconnect check comes after F3 (Phase 4).
+- **Secret rotation.** Deferred by the owner on 2026-11-18: the live check ran with the existing secret. It stays an open follow-up in the [tasks](tasks.md).
 - **Policy wording.** Developer Policies III.E was confirmed from the fetch tool's summary, not word for word. A complete reading belongs to the review before production (011-D).
 - **Operator purge deadline.** The deadline is the moment the purge starts, and the teardown ends a few milliseconds later. The connection view therefore reports `deadline_met: false` for every connection the purge completes.
 - **Page costs are maxima.** Only the first page of a read resolves the uploads playlist:
@@ -322,5 +323,49 @@ Existing tests changed only where 011-C changes behavior:
   - later `video_totals` pages reserve 2 but use 1.
 
   Recorded usage can therefore exceed Google's count by one Data unit per later page.
+- **Large channels.** A `video_totals` page needs two Analytics requests. With the 30 requests a connection may use per day (D10), a run therefore covers about 700 videos a day and continues from its cursor the next Pacific day. (011-A counted one request per page and about 1,450 videos.)
 - **Several channels.** Not observable with the owner's account (F4). The refusal is tested with the fixture only.
 - **Testing status.** While `connectapp` is in Testing, only its test users can authorize, and refresh tokens last 7 days. Use beyond the owner's test channels waits for 011-D.
+
+### Live check with the owner's test channel (2026-11-18)
+
+Completion prompt Phase 3 step 8, with the owner present. Only redacted facts are recorded: outcomes, counts, states and offsets, with no ID, label, token or metric value.
+
+**Setup:**
+- **Database.** A separate disposable database: Compose project `tracking-system-youtube-live`, `tracking_youtube_live` on 127.0.0.1:55434, at head `0016_youtube_provider`. Never `tracking_sys`.
+- **API.** Ran in process with the adapter enabled only for this check, using the connector's Web client from the main `.env`.
+- **Callback.** A loopback receiver on `127.0.0.1:8000` took Google's redirect to `/connectors/oauth/callback`. It passed the code and state to the API's callback, with the session and binding cookies of the client that had started the connect.
+- **Access rule.** A guard replaced the adapter's revoke: it counts attempts and never calls Google. No disconnect was made.
+
+**Consent and first sync.** At about 19:26 UTC the owner chose the test channel's account and granted both scopes.
+- The callback answered `connected`.
+- The connection is `active`, with both scopes and a label. Its grant expiry is 7.0 days ahead (Testing).
+- One worker pass ran the first sync of each stream: 3 succeeded and 1 failed.
+
+| Stream | Coverage | Records |
+|---|---|---|
+| `channel` | `complete` through the current Pacific day | 1 snapshot, 3 values observed |
+| `channel_daily` | `complete` through 3 days before the read (the 72-hour rule) | 90 days, 4 of them provisional; all 1,170 values observed, so every day of the window had a row |
+| `videos` | `complete` | 26 videos, 78 values observed; attributes only `duration`, `live_state`, `privacy_status` and `published_at` |
+| `video_totals` | `not_synced`, sync `failed` with `permanent` | 0 |
+
+**Defect.** Google answered the `video_totals` report with 400 `badRequest`: "The query is not supported". Read-only queries with the same connection showed the cause:
+- **Refused:** the adapter's query, the 13 metrics by `video,creatorContentType`, whether it started on 2005-02-14 or 2008-07-01.
+- **Accepted (24 rows each), as in F9:** the 13 metrics by `video` alone, and `views` by `video,creatorContentType`.
+- **Each metric alone by `video,creatorContentType`:** accepted, except `videosAddedToPlaylists` and `videosRemovedFromPlaylists`, which were refused. Removing any single metric from the full query therefore still failed.
+- **Single-metric answers** hold only the videos with a non-zero value: for example 6 rows for `dislikes` and none for `subscribersLost`.
+
+F9 had tried both accepted shapes, but not the combination the adapter used.
+
+**Correction**, within D7 and D8 (the catalog and product types are unchanged):
+- **Adapter.** A `video_totals` page reads two reports: the catalog by `video`, and the content type by `video,creatorContentType` with `views` only. The page cost becomes 2 Data units and 2 Analytics requests.
+- **In-memory API.** It now refuses the playlist metrics together with `creatorContentType`, as Google does.
+- **Tests.** The adapter test checks both report shapes and the whole catalog in each record. Two mutations guard the shapes.
+
+**Re-run.** With the corrected adapter on the same connection, without a new consent, `video_totals` succeeded and is `complete`:
+- **Records:** 26, of which 24 have all 13 metrics (312 values). 2 have no data (`not_returned`, product type unknown), as in F9.
+- **Product types:** 21 `SHORTS` and 3 `VIDEO_ON_DEMAND`.
+- **Coverage:** all 32 metrics of the catalog `available`.
+- **Usage on the Pacific day after both runs:** 8 Data units and 6 Analytics requests.
+
+**Access rule.** The guard counted no revocation attempt in either run. The connection was not disconnected. The live-check database was removed afterwards (`down -v`). The grant stays at Google until it expires, 7 days after consent, or until Phase 4 revokes the account's grants.

@@ -11,8 +11,9 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] After 011-B: delete `local-data\youtube-feasibility` once the summary is recorded (R011-08, D-010).
 - [x] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015 ([design](design-011a.md), [evidence](evidence.md#011-a-youtube-shaped-synthetic-adapter-2026-11-18)). Started before the next-day probe (F8) at the owner's request of 2026-11-18.
 - [x] 011-C: the live adapter, its settings, the operator purge and migration 0016, with fixture tests ([evidence](evidence.md#011-c-live-youtube-adapter-2026-11-18)).
-- [ ] 011-C live checks with the owner's test channel: the read-only browser connect with one sync of each stream, then the disconnect check after F3 (Phase 4).
-- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7).
+- [x] 011-C read-only live check with the owner's test channel (2026-11-18): the browser connect and one sync of each stream. It found and corrected the `video_totals` report ([evidence](evidence.md#live-check-with-the-owners-test-channel-2026-11-18)).
+- [ ] 011-C live disconnect check after F3 (Phase 4).
+- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner.
 - [x] Re-verify the `youtube.authorized_analytics` and `youtube.other_data` rows and mark them current before the live adapter runs (011-C, D-025): verified 2026-11-18, review due 2027-11-18 ([evidence](evidence.md#policy-rows-re-verified-2026-11-18)).
 - [ ] Resolve Q-001, Q-004; provider use-case and policy approval and record the owner decision.
 - [ ] Verify dependencies: 009-connector-runtime.

@@ -63,7 +63,7 @@ def test_capability_requests_read_only_scopes_with_pkce_and_offline_access():
         True,
     )
     assert CAPABILITY.bucket_costs("fetch", "videos") == {DATA: 3}
-    assert CAPABILITY.bucket_costs("fetch", "video_totals") == {DATA: 2, ANALYTICS: 1}
+    assert CAPABILITY.bucket_costs("fetch", "video_totals") == {DATA: 2, ANALYTICS: 2}
     assert CAPABILITY.bucket_costs("confirm", "videos") == {DATA: 1}
     url = _provider(FakeYouTube()).authorization_url(
         state="state", code_challenge="challenge", redirect_uri=REDIRECT, scopes=CAPABILITY.scopes
@@ -267,13 +267,21 @@ def test_inventory_attributes_totals_and_deleted_videos():
     assert by_id["v0001"].provisional_until == datetime(2026, 11, 13, tzinfo=UTC) + PST + timedelta(
         hours=193
     )
-    report = [
+    # Two reports per page: the whole catalog by video, and the content type with views only,
+    # because Google refuses the playlist metrics together with creatorContentType.
+    assert set(by_id["v0001"].metrics) == set(METRIC_NAMES)
+    reports = [
         query
         for _, base, query in api.requests
-        if query.get("dimensions") == "video,creatorContentType"
-    ][-1]
-    assert (report["startDate"], report["endDate"]) == ("2005-02-14", "2026-11-14")
-    assert report["filters"].startswith("video==v0001,v0002")
+        if base.endswith("/reports") and query["dimensions"] != "day"
+    ][-2:]
+    assert [(report["dimensions"], report["metrics"]) for report in reports] == [
+        ("video", ",".join(METRIC_NAMES)),
+        ("video,creatorContentType", "views"),
+    ]
+    for report in reports:
+        assert (report["startDate"], report["endDate"]) == ("2005-02-14", "2026-11-14")
+        assert report["filters"].startswith("video==v0001,v0002")
 
     api.deleted.add("v0004")
     assert provider.confirm_deleted(access, stream="videos", object_ids=("v0003", "v0004")) == (

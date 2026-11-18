@@ -21,7 +21,9 @@ specs/011-youtube/evidence.md) or is documented by Google:
   not return recorded as not_returned, never zero (D9 as amended by D-060); the uploads
   inventory 50 videos per page with the allow-listed attributes (F5, D11), whose missing
   videos are confirmed gone through videos.list; and lifetime totals per video with the
-  creatorContentType product type (F9). The fields parameter keeps titles, descriptions and
+  creatorContentType product type (F9), read as two reports per page because Google refuses
+  the playlist metrics with that dimension (011-C live check). The fields parameter keeps
+  titles, descriptions and
   every other text out of the answers, except the channel title used as the label.
 - Errors (F14, YT-5): 401 is unauthorized; 403 quotaExceeded is the bucket's budget answer;
   403 rate limits and 429 are rate limits; other 403 answers are forbidden for the stream;
@@ -95,7 +97,7 @@ QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
 RATE_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
 RATE_WAIT = 60
 # A page's cost is its maximum: the first page of an inventory read also resolves the uploads
-# playlist with one channels.list call (D10).
+# playlist with one channels.list call (D10). A video_totals page reads two reports.
 STREAMS = (
     StreamSpec("channel", None, history_days=1, overlap_days=0, cost={DATA: 1}),
     StreamSpec(
@@ -116,7 +118,7 @@ STREAMS = (
         inventory=True,
         confirm_cost={DATA: 1},
     ),
-    StreamSpec("video_totals", None, history_days=1, overlap_days=0, cost={DATA: 2, ANALYTICS: 1}),
+    StreamSpec("video_totals", None, history_days=1, overlap_days=0, cost={DATA: 2, ANALYTICS: 2}),
 )
 CAPABILITY = replace(
     SYNTHETIC_CAPABILITY,
@@ -645,41 +647,36 @@ class YouTubeProvider:
         if not uploads:
             return ()
         last_day = pacific_day(through) - DAY
-        answer = self._get(
-            ANALYTICS_URL,
-            {
-                "ids": "channel==MINE",
-                "startDate": HISTORY_START.isoformat(),
-                "endDate": last_day.isoformat(),
-                "metrics": ",".join(METRIC_NAMES),
-                "dimensions": "video,creatorContentType",
-                "filters": "video==" + ",".join(uploads),
-            },
-            token,
-            ANALYTICS,
+        window = {
+            "ids": "channel==MINE",
+            "startDate": HISTORY_START.isoformat(),
+            "endDate": last_day.isoformat(),
+            "filters": "video==" + ",".join(uploads),
+        }
+        # Google refuses the playlist metrics together with creatorContentType ("The query is
+        # not supported", 011-C live check), so the catalog is read by video, and the product
+        # type by video and content type with views only; F9 accepted both shapes.
+        found = self._rows(
+            self._get(
+                ANALYTICS_URL,
+                {**window, "metrics": ",".join(METRIC_NAMES), "dimensions": "video"},
+                token,
+                ANALYTICS,
+            ),
+            "video",
         )
-        headers = [
-            item.get("name") for item in answer.get("columnHeaders") or [] if isinstance(item, dict)
-        ]
-        found: dict[str, tuple[dict[str, int | float], str]] = {}
-        for row in answer.get("rows") or []:
-            if not isinstance(row, list) or len(row) != len(headers):
-                continue
-            values = dict(zip(headers, row, strict=True))
-            video = values.get("video")
-            if not isinstance(video, str) or video in found:
-                continue
-            metrics = {
-                name: number
-                for name in METRIC_NAMES
-                if (number := _number(values.get(name))) is not None
-            }
-            content = values.get("creatorContentType")
-            found[video] = (metrics, content if isinstance(content, str) else "")
+        kinds = self._content_types(
+            self._get(
+                ANALYTICS_URL,
+                {**window, "metrics": "views", "dimensions": "video,creatorContentType"},
+                token,
+                ANALYTICS,
+            )
+        )
         observed = pacific_start(last_day)
         records = []
         for video, published in uploads.items():
-            metrics, content = found.get(video, ({}, ""))
+            metrics = found.get(video, {})
             unavailable = {name: "not_returned" for name in METRIC_NAMES if name not in metrics}
             provisional = (
                 pacific_start(pacific_day(published)) + timedelta(hours=PROVISIONAL_HOURS)
@@ -691,12 +688,29 @@ class YouTubeProvider:
                     video,
                     observed,
                     metrics,
-                    product_type(content) if video in found else None,
+                    product_type(kinds[video]) if video in kinds else None,
                     unavailable,
                     provisional_until=provisional,
                 )
             )
         return tuple(records)
+
+    # The content type of each video in a video,creatorContentType answer; the first row of a
+    # video wins.
+    @staticmethod
+    def _content_types(answer: Mapping[str, Any]) -> dict[str, str]:
+        headers = [
+            item.get("name") for item in answer.get("columnHeaders") or [] if isinstance(item, dict)
+        ]
+        kinds: dict[str, str] = {}
+        for row in answer.get("rows") or []:
+            if not isinstance(row, list) or len(row) != len(headers):
+                continue
+            values = dict(zip(headers, row, strict=True))
+            video, content = values.get("video"), values.get("creatorContentType")
+            if isinstance(video, str) and isinstance(content, str):
+                kinds.setdefault(video, content)
+        return kinds
 
     # videos.list with the missing IDs: those it no longer returns are gone (D11).
     def confirm_deleted(

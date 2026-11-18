@@ -121,7 +121,7 @@ def test_011c_connect_read_every_stream_and_purge(live, capsys):
     }
     assert counts["channel"] == 1 and counts["videos"] == 4 and counts["video_totals"] == 4
     assert 89 <= counts["channel_daily"] <= 90
-    assert _usage(lab, k1) == {"youtube_data": 6, "youtube_analytics": 4}
+    assert _usage(lab, k1) == {"youtube_data": 6, "youtube_analytics": 5}
     with Session(w.db.migration) as session:
         stored = {
             item.provider_object_id: item
