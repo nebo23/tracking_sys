@@ -105,3 +105,14 @@ Scope: D-059, within D-058, from the [review corrections prompt](review-correcti
 | `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 142 files formatted |
 
 The integration suite was not run, because these corrections change no shared code, migration or setting. No live Google call was made for the corrections.
+
+### Corrected probe (2026-11-18 11:11 UTC)
+
+One read-only `probe` with the corrected tool (27 calls, not throttled) recorded the following.
+
+| Question | Result |
+|---|---|
+| F5 ID limits | `videos.list` accepted 50 IDs (26 distinct, repeated in order) and returned 50 items, so repeated IDs are not merged. It refused 51 with `invalidFilters` (400), a conclusive refusal. `videos:batchGetStats` with `part=statistics` returned all 26 videos. It also accepted 50 IDs (50 items) and refused 51 with 400 `INVALID_ARGUMENT` (`badRequest`). Both methods therefore take at most 50 IDs per call (D10). |
+| F5 comparison | All 26 uploads were read in one batch, and the public items equal `videoCount`. |
+| F9 sorting | The filtered video reports with `sort=-views` and `maxResults=200` returned 24 rows, and so did the unsorted `video_filter_unsorted` variant: a filtered video report needs neither `sort` nor `maxResults`. |
+| F8 latency | At 03:11 Pacific on 2026-11-18, the last day returned was still 2026-11-15, three days earlier. The 28 days compared with the probe of eleven hours before were unchanged. |
