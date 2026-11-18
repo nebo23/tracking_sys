@@ -6,7 +6,10 @@ they govern is allowed. A stale or unsupported row, or one past its review date,
 feature instead of defaulting to permissive. The two Google platform rows describe existing
 D-022 behavior. Specification 010-C (D-055) re-verified the Meta platform data and Instagram
 Login rows on 2026-11-17 against the Platform Terms and Developer Policies of 2026-02-03 and
-Meta's data deletion callback documentation; they are current until their review date. No row
+Meta's data deletion callback documentation; they are current until their review date.
+Specification 011-C (D-060) re-verified the two YouTube rows on 2026-11-18 against the YouTube
+API Services Developer Policies (III.D.2, III.E.2 to III.E.4), the YouTube API Services Terms of
+Service (section 24.3) and the Google API Services User Data Policy of 2024-02-15. No row
 implies provider app approval or review access.
 """
 
@@ -44,6 +47,9 @@ STALE = RuleStatus.STALE
 # Specification 010-C re-verification (D-055) and the annual review it sets.
 REVERIFIED_010 = date(2026, 11, 17)
 REVIEW_010 = date(2027, 11, 17)
+# Specification 011-C re-verification (D-060) and the annual review it sets.
+REVERIFIED_011 = date(2026, 11, 18)
+REVIEW_011 = date(2027, 11, 18)
 
 RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
@@ -95,28 +101,35 @@ RULES: tuple[ProviderRule, ...] = (
         "youtube",
         "youtube.authorized_analytics",
         "provider.social_data",
-        "While necessary; authorization rechecked every 30 days",
-        "In-app revocation: delete within 7 days; settings revocation: 30 days; "
-        "user request: 7 days",
-        "Optional Cross-Account Protection receiver",
-        "Limited Use; no cross-owner aggregation; no derived metrics by default",
-        ("S-71", "S-72", "S-73", "S-75"),
+        "While necessary, at most 730 days (Q-012 proposal); authorization confirmed at least "
+        "every 30 days; videos checked for deletion every 30 days",
+        "In-app revocation: revoke at once, delete within 7 days; revocation in Google settings "
+        "or an unrefreshable token: within 30 days; user request or account deletion: 7 days; "
+        "termination: immediately",
+        "No deletion callback; refresh failures detect revocation; RISC not used",
+        "Limited Use; the authorizing user and expressly approved agents only; aggregation "
+        "within one content owner; no derived metrics without the additional terms; "
+        "non-YouTube data disclosed",
+        ("S-71", "S-72", "S-73", "S-74", "S-75"),
         "011",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_011,
+        RuleStatus.CURRENT,
+        REVIEW_011,
     ),
     ProviderRule(
         "youtube",
         "youtube.other_data",
         "provider.social_data",
-        "30 days, statistics included for public data",
+        "Labels and video attributes refreshed or deleted within 30 days; non-authorized "
+        "statistics at most 30 days; none collected at launch",
         "Expiry; termination: immediately, with certification possible",
         "Refresh or purge job",
         "Shown only to the authorizing user and approved agents",
         ("S-72", "S-74"),
         "011",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_011,
+        RuleStatus.CURRENT,
+        REVIEW_011,
     ),
     ProviderRule(
         "linkedin",

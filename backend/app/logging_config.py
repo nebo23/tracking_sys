@@ -29,6 +29,13 @@ EVENTS: dict[str, frozenset[str]] = {
     # A kept connector grant that carries permissions that were not requested (specification
     # 010-C, D-055); the permissions stay on the connection, and nothing else is logged.
     "connector_extra_scopes": frozenset(),
+    # A refused grant of an account-wide provider that was not revoked because another active
+    # connection holds the same account's grant (specification 011-A, D5); nothing is logged.
+    "connector_grant_kept_shared": frozenset(),
+    # The provider's token endpoint rejected the connector's own OAuth client (a wrong, rotated,
+    # deleted or disabled client); connections stay active until the operator repairs the
+    # client or purges them (specification 011, R011-14); nothing else is logged.
+    "connector_client_rejected": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

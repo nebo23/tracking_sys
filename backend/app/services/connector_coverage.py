@@ -14,12 +14,17 @@ each metric with its stream and media product types, a missing value with the pr
 closed reason ("not_returned" or "below_threshold") when it gave one, a metric not offered for
 a record's product type as unsupported, and values observed within the provider's data delay
 as provisional.
+
+011-A (D8 to D11) adds each metric's non-additive marker and definition-change dates, one cost
+entry per quota bucket counted on the bucket's local day, each record's allow-listed attributes
+with their refresh time, a provisional period per stream, and a record's own provisional end.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -191,6 +196,8 @@ def coverage(
                     ),
                     "availability": availability,
                     "latest_observed_at": latest if supported else None,
+                    "additive": metric.additive,
+                    "definition_changes": list(metric.definition_changes),
                 }
             )
     period = _period_start(now)
@@ -207,6 +214,40 @@ def coverage(
         reason = "connection_allocation"
     elif sync["state"] == "budget_stopped":
         reason = "provider_quota"
+    # Quota buckets (011-A, D10): the connection's own use of each bucket on its local day.
+    buckets = []
+    for bucket in capability.buckets:
+        local = ZoneInfo(bucket.zone)
+        day = now.astimezone(local).date()
+        spent = session.scalar(
+            select(func.coalesce(func.sum(ConnectorUsageRecord.quantity), 0)).where(
+                ConnectorUsageRecord.connection_id == connection.id,
+                ConnectorUsageRecord.bucket == bucket.name,
+                ConnectorUsageRecord.period == day,
+            )
+        )
+        buckets.append(
+            {
+                "bucket": bucket.name,
+                "unit": bucket.unit,
+                "period_start": datetime.combine(day, time(), local).astimezone(UTC),
+                "consumed": spent,
+                "allocation": bucket.connection_daily,
+                "remaining": max(bucket.connection_daily - spent, 0),
+                "state": "exhausted" if spent >= bucket.connection_daily else "available",
+            }
+        )
+    if capability.buckets:
+        exhausted = any(item["state"] == "exhausted" for item in buckets)
+        first = buckets[0]
+        period, consumed, allocation = first["period_start"], first["consumed"], first["allocation"]
+        reason = (
+            "connection_allocation"
+            if exhausted
+            else "provider_quota"
+            if sync["state"] == "budget_stopped"
+            else None
+        )
     return {
         "connection_id": connection.id,
         "source": {
@@ -229,6 +270,7 @@ def coverage(
             "remaining": max(allocation - consumed, 0),
             "state": "exhausted" if reason else "available",
             "reason": reason,
+            "buckets": buckets,
         },
     }
 
@@ -262,7 +304,7 @@ def records(
         session.scalars(query.order_by(ConnectorRecord.provider_object_id).limit(limit + 1))
     )
     window = timedelta(hours=capability.freshness_hours)
-    delay = timedelta(hours=capability.data_delay_hours)
+    delay = timedelta(hours=capability.stream_delay_hours(stream))
     items = []
     for row in rows[:limit]:
         stale = now - row.fetched_at > window
@@ -292,7 +334,10 @@ def records(
                 "product_type": row.product_type,
                 "observed_at": row.observed_at,
                 "fetched_at": row.fetched_at,
-                "provisional": bool(delay) and now - row.observed_at < delay,
+                "provisional": (bool(delay) and now - row.observed_at < delay)
+                or (row.provisional_until is not None and now < row.provisional_until),
+                "attributes": dict(row.attributes),
+                "attributes_refreshed_at": row.attributes_refreshed_at,
                 "source": {
                     "provider": connection.provider,
                     "adapter_version": row.adapter_version,

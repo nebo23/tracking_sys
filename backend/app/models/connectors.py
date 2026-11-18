@@ -44,7 +44,14 @@ CONNECTION_FK = (
     ],
 )
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
-PROVIDERS = "provider IN ('synthetic', 'synthetic_instagram', 'instagram')"
+PROVIDERS = (
+    "provider IN ('synthetic', 'synthetic_instagram', 'instagram', 'synthetic_youtube', 'youtube')"
+)
+# 011-A (D8): media product types of Instagram and YouTube.
+PRODUCT_TYPES = (
+    "product_type IS NULL OR product_type IN ('FEED', 'REELS', 'STORY', 'SHORTS', "
+    "'VIDEO_ON_DEMAND', 'LIVE_STREAM', 'UNSPECIFIED')"
+)
 
 
 def _time(nullable: bool = True, *, default: bool = False) -> Any:
@@ -79,12 +86,12 @@ class ConnectorConnection(Base):
         CheckConstraint(
             "status_reason IS NULL OR status_reason IN "
             "('credential_expired', 'provider_revoked', 'user_requested', 'deauthorized', "
-            "'deletion_requested')",
+            "'deletion_requested', 'authorization_lost', 'operator_purged')",
             name="valid_reason",
         ),
         CheckConstraint(
             "(revocation_status IS NULL OR revocation_status IN "
-            "('pending', 'done', 'unsupported', 'failed')) "
+            "('pending', 'done', 'unsupported', 'failed', 'shared')) "
             "AND (destruction_status IS NULL OR destruction_status IN ('pending', 'done')) "
             "AND (purge_status IS NULL OR purge_status IN ('pending', 'done'))",
             name="valid_outcomes",
@@ -106,6 +113,13 @@ class ConnectorConnection(Base):
         ),
         CheckConstraint(
             "status = 'disconnected' OR external_account_id IS NOT NULL", name="account_present"
+        ),
+        CheckConstraint(
+            "(status = 'reconnect_required') = (reconnect_required_since IS NOT NULL)",
+            name="reconnect_since",
+        ),
+        CheckConstraint(
+            "(agent_approved_at IS NULL) = (agent_disclosure IS NULL)", name="agent_approval"
         ),
         Index(
             "uq_connector_connections_live_account",
@@ -151,6 +165,18 @@ class ConnectorConnection(Base):
     account_kind: Mapped[str | None] = mapped_column(String(32))
     # 010-A: the data deletion request that started this connection's disconnect, if any.
     deletion_request_id: Mapped[UUID | None] = mapped_column(Uuid)
+    # 011-A (D6): when the connection began to require reconnection, which starts its grace
+    # period; set exactly while the status is reconnect_required.
+    reconnect_required_since: Mapped[datetime | None] = _time()
+    # 011-A (D11): when the label was last refreshed from the provider, for providers whose
+    # labels are cleared after a period without refresh; NULL otherwise.
+    account_label_refreshed_at: Mapped[datetime | None] = _time()
+    # 011-A (D4, F1): the provider-reported end of the grant's refresh token.
+    grant_expires_at: Mapped[datetime | None] = _time()
+    # 011-A (D13): when the connect or latest reconnect approved the agency and the client's
+    # members as agents, and the disclosure version approved. Kept after a disconnect.
+    agent_approved_at: Mapped[datetime | None] = _time()
+    agent_disclosure: Mapped[str | None] = mapped_column(String(64))
 
 
 # Single-use connect or reconnect authorization bound to the initiating membership, client,
@@ -177,6 +203,9 @@ class ConnectorOAuthTransaction(Base):
         ),
         CheckConstraint("state_digest ~ '^[0-9a-f]{64}$'", name="state_digest"),
         CheckConstraint("binding_digest ~ '^[0-9a-f]{64}$'", name="binding_digest"),
+        CheckConstraint(
+            "(agent_approved_at IS NULL) = (agent_disclosure IS NULL)", name="agent_approval"
+        ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -191,6 +220,9 @@ class ConnectorOAuthTransaction(Base):
     created_at: Mapped[datetime] = _time(False, default=True)
     expires_at: Mapped[datetime] = _time(False)
     consumed_at: Mapped[datetime | None] = _time()
+    # 011-A (D13): the agent approval the request carried, copied to the connection.
+    agent_approved_at: Mapped[datetime | None] = _time()
+    agent_disclosure: Mapped[str | None] = mapped_column(String(64))
 
 
 # Sealed access or refresh token versions of one connection (TokenSecretReference, D-025).
@@ -214,7 +246,8 @@ class ConnectorTokenSecret(Base):
             "status IN ('active', 'refresh_due', 'revoked', 'destroyed')", name="valid_status"
         ),
         CheckConstraint(
-            "revocation IS NULL OR revocation IN ('done', 'unsupported', 'failed', 'not_required')",
+            "revocation IS NULL OR revocation IN "
+            "('done', 'unsupported', 'failed', 'not_required', 'shared')",
             name="valid_revocation",
         ),
         CheckConstraint(
@@ -358,6 +391,8 @@ class ConnectorCheckpoint(Base):
 # One provider data call (009-B, D-049 decision D15), reserved before the call and settled with
 # its outcome afterwards, including failed and retried calls. quantity is in the provider's
 # cost unit; period is the UTC day the budgets count against. No provider data is stored.
+# 011-A (D10): for a provider with quota buckets, each call has one row per bucket it touches,
+# and period is the bucket's local day; bucket is NULL for providers without buckets.
 # SELECT operation, unit, quantity, outcome, period, occurred_at, settled_at
 # FROM public.connector_usage_records
 # WHERE connection_id = '00000000-0000-0000-0000-000000000009'::uuid
@@ -368,15 +403,16 @@ class ConnectorUsageRecord(Base):
     __table_args__ = (
         ForeignKeyConstraint(*CONNECTION_FK),
         ForeignKeyConstraint(["run_id"], ["connector_sync_runs.id"]),
-        CheckConstraint("operation IN ('fetch', 'refresh')", name="valid_operation"),
+        CheckConstraint("operation IN ('fetch', 'refresh', 'confirm')", name="valid_operation"),
         CheckConstraint(
             "outcome IN ('reserved', 'ok', 'unauthorized', 'forbidden', 'rate_limited', "
-            "'retryable', 'permanent')",
+            "'retryable', 'permanent', 'budget_exhausted')",
             name="valid_outcome",
         ),
         CheckConstraint("quantity > 0 AND attempt >= 1", name="valid_quantity"),
         Index("ix_connector_usage_records_connection_period", "connection_id", "period"),
         Index("ix_connector_usage_records_provider_period", "provider", "period"),
+        Index("ix_connector_usage_records_bucket_period", "provider", "bucket", "period"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -392,6 +428,7 @@ class ConnectorUsageRecord(Base):
     period: Mapped[date] = mapped_column(Date)
     occurred_at: Mapped[datetime] = _time(False, default=True)
     settled_at: Mapped[datetime | None] = _time()
+    bucket: Mapped[str | None] = mapped_column(String(32))
 
 
 # Provider data of one connection: one row per provider object with its latest observed
@@ -421,9 +458,12 @@ class ConnectorRecord(Base):
         CheckConstraint("length(metrics::text) <= 4096", name="bounded_metrics"),
         CheckConstraint("jsonb_typeof(unavailable) = 'object'", name="object_unavailable"),
         CheckConstraint("length(unavailable::text) <= 2048", name="bounded_unavailable"),
+        CheckConstraint(PRODUCT_TYPES, name="valid_product_type"),
+        CheckConstraint("jsonb_typeof(attributes) = 'object'", name="object_attributes"),
+        CheckConstraint("length(attributes::text) <= 1024", name="bounded_attributes"),
         CheckConstraint(
-            "product_type IS NULL OR product_type IN ('FEED', 'REELS', 'STORY')",
-            name="valid_product_type",
+            "attributes = '{}'::jsonb OR attributes_refreshed_at IS NOT NULL",
+            name="attributes_refreshed",
         ),
         Index("ix_connector_records_observed", "observed_at"),
     )
@@ -443,6 +483,11 @@ class ConnectorRecord(Base):
     stream: Mapped[str] = mapped_column(String(32), server_default="objects")
     product_type: Mapped[str | None] = mapped_column(String(16))
     unavailable: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    # 011-A (D9, D11): allow-listed attributes with their refresh time, cleared after a period
+    # without refresh, and the end of the provisional period of a lifetime total.
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    attributes_refreshed_at: Mapped[datetime | None] = _time()
+    provisional_until: Mapped[datetime | None] = _time()
 
 
 # A verified provider webhook delivery, kept only to recognize a repeated delivery (009-D,

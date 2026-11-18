@@ -11,11 +11,18 @@ each needs a current rule in app.privacy.providers and dated evidence (specifica
 optional PKCE method, a long-lived access token that refreshes itself, metric support by media
 product type with a reason for every absent value, a provider data delay, and Meta-style signed
 requests for deauthorization and data deletion.
+
+011-A (D-058, D-060) adds what Google-shaped providers need: account-wide revocation, a
+required set of scopes, refresh ahead of expiry with a periodic authorization check and a grace
+period after lost access, named quota buckets counted on the provider's local day, local-day
+stream windows, allow-listed record attributes with refresh times, inventory streams whose
+missing objects are confirmed gone and purged, a non-additive metric marker, and the agent
+approval a connect must carry.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Literal, Protocol
@@ -33,10 +40,16 @@ class ErrorKind(StrEnum):
 # A provider failure in runtime terms. provider_code is a short closed code chosen by the
 # adapter, never a provider message or response body.
 class ProviderError(Exception):
+    # bucket names the quota bucket of a BUDGET_EXHAUSTED answer (011-A, D10).
     def __init__(
-        self, kind: ErrorKind, provider_code: str = "", retry_after: int | None = None
+        self,
+        kind: ErrorKind,
+        provider_code: str = "",
+        retry_after: int | None = None,
+        bucket: str | None = None,
     ) -> None:
         self.kind, self.provider_code, self.retry_after = kind, provider_code, retry_after
+        self.bucket = bucket
         super().__init__(kind.value)
 
     def __repr__(self) -> str:
@@ -47,6 +60,8 @@ class ProviderError(Exception):
 # means every kind). A metric outside an account's kinds is reported as unsupported, never as
 # zero (009-C, D-049 decision D17). 010-A adds the streams that carry the metric and the media
 # product types that offer it (None means all), so a story metric is unsupported for a reel.
+# 011-A (D8): additive False marks a metric whose values must not be summed (averages), and
+# definition_changes lists the dates on which the provider changed the metric's definition.
 @dataclass(frozen=True)
 class MetricSpec:
     name: str
@@ -54,17 +69,39 @@ class MetricSpec:
     account_kinds: tuple[str, ...] | None = None
     streams: tuple[str, ...] | None = None
     product_types: tuple[str, ...] | None = None
+    additive: bool = True
+    definition_changes: tuple[date, ...] = ()
 
 
 # One synchronized stream of a connection (010-A, D-053 decision D6): its name, how often the
 # worker queues an incremental run (None uses the configured sync interval), how far back the
 # provider serves history, and how many days an incremental run re-reads before its watermark.
+# 011-A adds the units a page costs in each quota bucket (D10), a stream-specific data delay
+# for the provisional marking (D9), the record attributes the runtime may store (D11), and
+# whether a complete read lists every live object, so that objects it misses are confirmed
+# gone at confirm_cost per call and purged from every stream (D11).
 @dataclass(frozen=True)
 class StreamSpec:
     name: str
     interval_hours: float | None = None
     history_days: int = 30
     overlap_days: int = 1
+    cost: Mapping[str, int] | None = None
+    data_delay_hours: int | None = None
+    attributes: tuple[str, ...] = ()
+    inventory: bool = False
+    confirm_cost: Mapping[str, int] | None = None
+
+
+# A named daily quota bucket (011-A, D10): its unit, the provider-wide cap the runtime keeps
+# under, the allocation of one connection, and the time zone whose midnight resets it.
+@dataclass(frozen=True)
+class QuotaBucket:
+    name: str
+    unit: str
+    daily_quota: int
+    connection_daily: int
+    zone: str = "UTC"
 
 
 # What an adapter supports. revocation_scope states what a revocation call invalidates: one
@@ -83,13 +120,24 @@ class StreamSpec:
 # has no fixed daily quota and its rate-limit answers govern (D8). data_delay_hours marks
 # recently observed values as provisional (D8). signed_requests declares the Meta-style
 # deauthorize and data deletion callbacks (D5).
+# 011-A (D-058, D-060): revocation_scope "account" means one revocation invalidates every token
+# the account granted (Google, G-1; D5). require_all_scopes refuses a grant without every
+# requested scope (D2). refresh_ahead_seconds refreshes an access token about to expire, and
+# authorization_check_days forces a refresh when the last one is older (D4, D6), in a run and
+# in the worker's scheduling step whatever the state of the agency and client (R011-13); that
+# step has no run to charge, so the provider must declare quota buckets, which leave refreshes
+# unmetered. reconnect_grace_days disconnects a connection left in reconnect_required that long
+# (D6).
+# buckets replace the single unit and daily_quota (D10); day_zone is the zone of the
+# provider's days (D9). agent_disclosure is the disclosure version a connect must approve
+# (D13), and label_refresh_days the period after which an unrefreshed label is cleared (D11).
 @dataclass(frozen=True)
 class Capability:
     provider: str
     version: str
     pkce: Literal["S256"] | None
     refresh: bool
-    revocation_scope: Literal["token", "grant", "unsupported"]
+    revocation_scope: Literal["token", "grant", "account", "unsupported"]
     scopes: tuple[str, ...]
     metrics: tuple[MetricSpec, ...] = ()
     stream: str = "objects"
@@ -108,9 +156,40 @@ class Capability:
     streams: tuple[StreamSpec, ...] = ()
     data_delay_hours: int = 0
     signed_requests: bool = False
+    require_all_scopes: bool = False
+    refresh_ahead_seconds: int = 0
+    authorization_check_days: int | None = None
+    reconnect_grace_days: int | None = None
+    buckets: tuple[QuotaBucket, ...] = ()
+    day_zone: str | None = None
+    agent_disclosure: str | None = None
+    label_refresh_days: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.authorization_check_days is not None and not self.buckets:
+            raise ValueError("An authorization check period needs quota buckets (R011-13).")
 
     def cost(self, operation: str) -> int:
         return self.call_costs.get(operation, 1)
+
+    def bucket(self, name: str) -> QuotaBucket | None:
+        return next((item for item in self.buckets if item.name == name), None)
+
+    # The bucket costs of one call: a page of the stream, or ("confirm") one confirmation of
+    # missing inventory objects. A refresh is not metered in a bucketed provider.
+    def bucket_costs(self, operation: str, stream: str) -> dict[str, int]:
+        spec = self.stream_spec(stream)
+        if operation == "refresh" or spec is None:
+            return {}
+        costs = spec.confirm_cost if operation == "confirm" else spec.cost
+        return dict(costs or {})
+
+    # The provisional delay of a stream's records.
+    def stream_delay_hours(self, stream: str) -> int:
+        spec = self.stream_spec(stream)
+        if spec is not None and spec.data_delay_hours is not None:
+            return spec.data_delay_hours
+        return self.data_delay_hours
 
     # The declared streams, or the single stream of a 009 adapter.
     def stream_specs(self) -> tuple[StreamSpec, ...]:
@@ -132,6 +211,9 @@ class Capability:
 
 # Tokens and account identity from a code exchange or refresh, including the provider's
 # account kind when it reports one. Repr omits the tokens.
+# 011-A: refresh_expires_at is the provider-reported end of the refresh token (Google's
+# refresh_token_expires_in), kept as the grant's expiry; refusal is a closed reason why the
+# account cannot be connected although tokens were issued (no channel or several channels, F4).
 @dataclass(frozen=True, repr=False)
 class TokenGrant:
     access_token: str
@@ -141,6 +223,8 @@ class TokenGrant:
     external_account_id: str
     account_label: str | None = None
     account_kind: str | None = None
+    refresh_expires_at: datetime | None = None
+    refusal: str | None = None
 
     def __repr__(self) -> str:
         return f"TokenGrant(account={self.external_account_id!r}, scopes={self.scopes!r})"
@@ -153,6 +237,9 @@ class TokenGrant:
 UNAVAILABLE_REASONS = frozenset({"not_returned", "below_threshold"})
 
 
+# 011-A (D9, D11): attributes are candidate record attributes, of which the runtime stores only
+# those its stream allows; provisional_until ends the provisional period of a value that does
+# not follow the stream's delay (lifetime totals of a recent video).
 @dataclass(frozen=True)
 class ProviderRecord:
     provider_object_id: str
@@ -160,18 +247,23 @@ class ProviderRecord:
     metrics: Mapping[str, int | float] = field(default_factory=dict)
     product_type: str | None = None
     unavailable: Mapping[str, str] = field(default_factory=dict)
+    attributes: Mapping[str, str | int | bool | None] = field(default_factory=dict)
+    provisional_until: datetime | None = None
 
 
 # One page of a windowed read. next_cursor is the provider's opaque position of the following
 # page, or None on the last page. covered_from and complete_through are the provider-reported
 # bounds of the window the read covers, after the provider applied its history limit; the
 # runtime moves its coverage watermarks to them only when the last page is stored.
+# 011-A (D11): account_label is the account's label as read with the page, which refreshes the
+# connection's label.
 @dataclass(frozen=True)
 class ProviderPage:
     records: tuple[ProviderRecord, ...]
     next_cursor: str | None
     covered_from: datetime | None
     complete_through: datetime | None
+    account_label: str | None = None
 
 
 # A provider webhook delivery after its adapter verified the signature over the raw body: the
@@ -250,3 +342,10 @@ class ConnectorProvider(Protocol):
     # Revoke one token. Returns "done" when the provider confirms the token is unusable
     # (including an already revoked token), or "unsupported"; raises ProviderError otherwise.
     def revoke(self, token: str, kind: str) -> RevocationOutcome: ...
+
+    # Of object IDs that a complete read of an inventory stream did not return (at most 50),
+    # those the provider confirms no longer exist (011-A, D11). Only adapters with an inventory
+    # stream are called.
+    def confirm_deleted(
+        self, access_token: str, *, stream: str, object_ids: tuple[str, ...]
+    ) -> tuple[str, ...]: ...

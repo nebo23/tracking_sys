@@ -124,7 +124,11 @@ def test_pkce_values_are_derived_and_not_stored(settings):
 def test_settings_fail_closed(settings, tmp_path):
     assert build_providers(settings) == {}
     configured = settings.model_copy(update={"connector_synthetic_state": tmp_path / "s.sqlite3"})
-    assert set(build_providers(configured)) == {"synthetic", "synthetic_instagram"}
+    assert set(build_providers(configured)) == {
+        "synthetic",
+        "synthetic_instagram",
+        "synthetic_youtube",
+    }
     base = {"database_password": "synthetic", "_env_file": None}
     with pytest.raises(ValidationError):
         Settings(**base, connector_redirect_uri="http://example.test/connectors/oauth/callback")

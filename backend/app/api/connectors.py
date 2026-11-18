@@ -8,9 +8,13 @@ or state; the completion URL receives at most a fixed result code and the connec
 
 010-A (D-053) adds stream-aware sync requests and reads, and the public provider routes for a
 signed deauthorize or data deletion request and the deletion status page.
+
+011-A (D-058, D-060) adds the YouTube-shaped synthetic provider, the agent approval a connect
+or reconnect carries (D13), the grant expiry of a connection, metric markers, per-bucket costs,
+record attributes and the widened product types.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from urllib.parse import parse_qs, urlencode
 from uuid import UUID
@@ -50,8 +54,23 @@ provider_router = APIRouter(prefix="/connectors", tags=["Connectors"])
 Stream = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[a-z_]+$")]
 
 
+# The agent approval of D13 (011-A): the person authorizing the account approves the agency and
+# the client's members as agents under the named disclosure version. Customer-facing wording
+# waits for the owner's brief (D-039).
+class AgentApproval(Input):
+    approved: Literal[True]
+    disclosure: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
+
+
 class ConnectInput(Input):
-    provider: Literal["synthetic", "synthetic_instagram", "instagram"]
+    provider: Literal[
+        "synthetic", "synthetic_instagram", "instagram", "synthetic_youtube", "youtube"
+    ]
+    agent_approval: AgentApproval | None = None
+
+
+class ReconnectInput(Input):
+    agent_approval: AgentApproval | None = None
 
 
 class AccountReference(Output):
@@ -62,7 +81,7 @@ class AccountReference(Output):
 class DisconnectState(Output):
     requested_at: datetime
     completed_at: datetime | None
-    revocation: Literal["pending", "done", "unsupported", "failed"]
+    revocation: Literal["pending", "done", "unsupported", "failed", "shared"]
     secret_destruction: Literal["pending", "done"]
     data_purge: Literal["pending", "done"]
     purge_due_at: datetime
@@ -85,6 +104,7 @@ class ConnectionResponse(Output):
     last_successful_sync_at: datetime | None
     actions: ConnectionActions
     disconnect: DisconnectState | None
+    grant_expires_at: datetime | None
 
 
 # A sync request (009-B, D-049 decision D12): an incremental read, the default, or a backfill
@@ -134,6 +154,19 @@ class MetricAvailability(Output):
     product_types: list[str] | None
     availability: Literal["available", "unsupported", "missing", "stale", "not_synced"]
     latest_observed_at: datetime | None
+    additive: bool
+    definition_changes: list[date]
+
+
+# The connection's own use of one quota bucket on the bucket's local day (011-A, D10).
+class BucketCost(Output):
+    bucket: str
+    unit: str
+    period_start: datetime
+    consumed: int
+    allocation: int
+    remaining: int
+    state: Literal["available", "exhausted"]
 
 
 class CostState(Output):
@@ -144,6 +177,7 @@ class CostState(Output):
     remaining: int
     state: Literal["available", "exhausted"]
     reason: Literal["connection_allocation", "provider_quota"] | None
+    buckets: list[BucketCost]
 
 
 class CoverageResponse(Output):
@@ -175,12 +209,17 @@ class RecordSource(Output):
 class RecordItem(Output):
     provider_object_id: str
     stream: str
-    product_type: Literal["FEED", "REELS", "STORY"] | None
+    product_type: (
+        Literal["FEED", "REELS", "STORY", "SHORTS", "VIDEO_ON_DEMAND", "LIVE_STREAM", "UNSPECIFIED"]
+        | None
+    )
     observed_at: datetime
     fetched_at: datetime
     provisional: bool
     source: RecordSource
     metrics: dict[str, MetricValue]
+    attributes: dict[str, str | int | bool | None]
+    attributes_refreshed_at: datetime | None
 
 
 class RecordPage(Output):
@@ -264,8 +303,13 @@ def connect(
     session: SessionDep,
     browser: BrowserDep,
 ) -> AuthorizationURL:
+    approval = data.agent_approval
     url, binding = _admin(request, session, browser).begin(
-        agency_id, client_id, data.provider, browser.token
+        agency_id,
+        client_id,
+        data.provider,
+        browser.token,
+        agent_disclosure=approval.disclosure if approval is not None else None,
     )
     _binding_cookie(response, request.app.state.settings, binding)
     return AuthorizationURL(authorization_url=url)
@@ -284,9 +328,16 @@ def reconnect(
     response: Response,
     session: SessionDep,
     browser: BrowserDep,
+    data: Annotated[ReconnectInput | None, Body()] = None,
 ) -> AuthorizationURL:
+    approval = data.agent_approval if data is not None else None
     url, binding = _admin(request, session, browser).begin(
-        agency_id, client_id, "", browser.token, connection_id
+        agency_id,
+        client_id,
+        "",
+        browser.token,
+        connection_id,
+        agent_disclosure=approval.disclosure if approval is not None else None,
     )
     _binding_cookie(response, request.app.state.settings, binding)
     return AuthorizationURL(authorization_url=url)
