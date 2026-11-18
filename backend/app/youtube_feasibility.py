@@ -688,7 +688,9 @@ def _table(
 
 
 # F6, F8: the channel day report for the last 30 Pacific days through today, with the whole
-# proposed catalog; one metric at a time if the combined query is refused.
+# proposed catalog; one metric at a time if the combined query is refused. The combined
+# failure is recorded first, so a call without an answer keeps its own label, and no fallback
+# is attempted once the probe has stopped (R011-10).
 def _probe_day_report(
     probe: Probe, today: date, key: bytes, previous: Mapping[str, str] | None
 ) -> dict[str, Any]:
@@ -701,6 +703,9 @@ def _probe_day_report(
         ),
     )
     if not _ok(reply):
+        combined = probe.failure(reply)
+        if probe.stopped:
+            return {"day_report": {"combined": combined}}
         per_metric = {
             name: _table(
                 probe,
@@ -710,7 +715,7 @@ def _probe_day_report(
             )
             for name in CATALOG
         }
-        return {"day_report": {"combined": probe.failure(reply), "per_metric": per_metric}}
+        return {"day_report": {"combined": combined, "per_metric": per_metric}}
     headers = reply.body.get("columnHeaders") or []
     names = [str(h.get("name")) for h in headers]
     rows = _rows(reply)
@@ -926,7 +931,7 @@ def _probe_video_reports(probe: Probe, ids: list[str], today: date) -> dict[str,
             _analytics_url({**lifetime, "metrics": ",".join(CATALOG), "dimensions": "video"}),
         )
         out["video_filter_catalog"] = _table(probe, reply, len(sample))
-        if not _ok(reply):
+        if not _ok(reply) and not probe.stopped:
             out["video_filter_two_metrics"] = _table(
                 probe,
                 probe.get(

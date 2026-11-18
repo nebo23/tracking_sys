@@ -100,7 +100,8 @@ Scope: D-059, within D-058, from the [review corrections prompt](review-correcti
 | Command (from `backend/`, project `.venv`) | Result |
 |---|---|
 | `python -m pytest -q tests/test_youtube_feasibility.py` | **24 passed** (15 earlier tests, some updated to the corrected answers, and 9 regressions) |
-| The 9 regressions (`-k r011`) against temporary checkouts of `bb3263e` and of `7d66822` | **9 failed** at each, for the reasons in the table |
+| The 9 regressions (`-k r011`) against temporary checkouts of `bb3263e` and of `7d66822`, on Windows 11 with Python 3.12.4 | **9 failed** at each, for the reasons in the table |
+| The same run on Linux, by the independent review of `c2a2cd4` | **8 failed and 1 passed** at each revision. `test_r011_09_the_receiver_refuses_a_port_that_is_in_use` passes there, because Linux refuses a second bind of a listening port even with `SO_REUSEADDR`; the bug and its regression are Windows-specific (R011-11). |
 | `python -m pytest -m "not integration" -q` | **572 passed**, 328 deselected |
 | `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 142 files formatted |
 
@@ -116,3 +117,20 @@ One read-only `probe` with the corrected tool (27 calls, not throttled) recorded
 | F5 comparison | All 26 uploads were read in one batch, and the public items equal `videoCount`. |
 | F9 sorting | The filtered video reports with `sort=-views` and `maxResults=200` returned 24 rows, and so did the unsorted `video_filter_unsorted` variant: a filtered video report needs neither `sort` nor `maxResults`. |
 | F8 latency | At 03:11 Pacific on 2026-11-18, the last day returned was still 2026-11-15, three days earlier. The 28 days compared with the probe of eleven hours before were unchanged. |
+
+## Corrections R011-10 to R011-12 and D-060 (2026-11-18)
+
+Scope: the [completion prompt](completion-prompt.md), recorded as D-060, reviewed at `c2a2cd4`. D-060 also amends D9 as proposed above: `complete_through` follows the 72-hour latency, and omitted days are `not_returned`, never 0.
+
+| Finding | Correction | Regression | At `c2a2cd4` |
+|---|---|---|---|
+| R011-10 | The combined day report's failure is recorded before any fallback, and no fallback runs once the probe has stopped (also applied to the video-report fallback). | `test_r011_10_a_day_report_without_an_answer_keeps_its_label_and_sends_no_fallback` | fails: `combined` was `not_requested` instead of `no_answer` (Windows) |
+| R011-11 | The platform of the regression run is named above, with the Linux result of the review. | Documentation | n/a |
+| R011-12 | The status lines of `spec.md`, `specs/README.md` and `docs/planning/review-next.md` name D-059, D-060 and the partial 011-B run. | Documentation | n/a |
+
+| Command (from `backend/`, project `.venv`) | Result |
+|---|---|
+| `python -m pytest -q tests/test_youtube_feasibility.py` | **25 passed** |
+| The R011-10 regression against a temporary checkout of `c2a2cd4` | **1 failed** |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed |
+| `python -m pytest -m "not integration" -q` | **573 passed**, 328 deselected |

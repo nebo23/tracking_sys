@@ -814,3 +814,16 @@ def test_r011_09_the_receiver_does_not_reuse_addresses_on_windows(monkeypatch):
             assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
     finally:
         receiver.server.server_close()
+
+
+# Regression of the review of c2a2cd4 (specs/011-youtube/completion-prompt.md).
+
+
+def test_r011_10_a_day_report_without_an_answer_keeps_its_label_and_sends_no_fallback():
+    # The combined day report is the 9th GET of the default fake.
+    google = FakeGoogle(fail_at_get=9)
+    evidence = tool.probe_channel(google, ACCESS, NOW, digest_key=b"k")
+    day = evidence["day_report"]
+    assert day["combined"] == {"outcome": "no_answer"}
+    assert "per_metric" not in day
+    assert google.gets == 9 and evidence["stopped"] == "no_answer"
