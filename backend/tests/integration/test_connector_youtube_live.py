@@ -2,9 +2,11 @@
 
 The API and the worker build the real YouTubeProvider from settings; its transport is the
 in-memory FakeYouTube, which answers with the shapes the 011-B feasibility check recorded. No
-case contacts Google. Agency A connects the synthetic channel in client A1.
+case contacts Google. Agency A connects the synthetic channel in client A1. The merge review
+corrections (D-061) add a rejected client (R011-14) and a deleted channel (R011-16).
 """
 
+import json
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
@@ -258,3 +260,75 @@ def test_011c_migration_downgrade_refuses_live_youtube_state(live):
     with w.db.migration.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
     assert version == "0016_youtube_provider"
+
+
+def _events(captured: str, name: str) -> list[dict]:
+    lines = [json.loads(line) for line in captured.splitlines() if line.startswith("{")]
+    return [entry for entry in lines if entry.get("event") == name]
+
+
+def _token_calls(lab) -> int:
+    return sum(1 for _, base, _ in lab.google.requests if base == youtube.TOKEN_URL)
+
+
+# R011-14: a client secret that Google no longer accepts (for example a rotation that .env
+# missed) gets 401 invalid_client at the token endpoint. Runs and the scheduled authorization
+# check then fail, and the connection stays active with its data; only invalid_grant still
+# ends the authorization.
+def test_r011_14_a_rejected_client_fails_runs_and_keeps_the_connection_active(live, capsys):
+    lab, w = live, live.w
+    k1 = UUID(_connect(lab, w.a1)["connection_id"])
+    assert _work(lab)["sync"] == {"succeeded": 4}
+    records = lab.records(k1)
+    rejected = {PROVIDER: youtube.YouTubeProvider(CLIENT_ID, "rotated-client-secret-0000")}
+    # Two hours later the access token has expired, so the run refreshes before reading.
+    later = datetime.now(UTC) + timedelta(hours=2)
+    assert lab.sync("owner_a", w.a, w.a1, k1, {"stream": "channel"}).status_code == 202
+    capsys.readouterr()
+    assert lab.worker(now=later, registry=rejected, limit=20)["sync"] == {"failed": 1}
+    assert len(_events(capsys.readouterr().err, "connector_client_rejected")) == 1
+    with Session(w.db.migration) as session:
+        run = session.scalars(
+            select(ConnectorSyncRun)
+            .where(ConnectorSyncRun.connection_id == k1, ConnectorSyncRun.stream == "channel")
+            .order_by(ConnectorSyncRun.created_at.desc())
+        ).first()
+    assert (run.status, run.error_kind) == ("failed", "permanent")
+    row = lab.row(k1)
+    assert (row.status, row.status_reason, row.reconnect_required_since) == ("active", None, None)
+    # The scheduled check 8 days later fails the same way and changes nothing either.
+    result = lab.worker(now=later + timedelta(days=8), registry=rejected, schedule=True, limit=20)
+    assert result["schedule"]["check_failed"] == 1
+    assert lab.row(k1).status == "active" and lab.records(k1) == records
+
+    # A revoked grant is still lost authorization: invalid_grant requires reconnection.
+    lab.google.revoked.update(grant for _, grant, _ in lab.google.tokens.values())
+    assert lab.sync("owner_a", w.a, w.a1, k1, {"stream": "channel"}).status_code == 202
+    assert lab.worker(now=later, registry=lab.registry, limit=20)["sync"] == {"stopped": 1}
+    row = lab.row(k1)
+    assert (row.status, row.status_reason) == ("reconnect_required", "credential_expired")
+    assert lab.records(k1) == records
+
+
+# R011-16: the channel is deleted while the Google account stays, so channels.list returns no
+# channel. The run makes its one refresh, reads again, and then requires reconnection; after 14
+# days the D6 grace purge removes the records, those of the deleted videos included.
+def test_r011_16_a_deleted_channel_requires_reconnection_and_is_purged(live):
+    lab, w = live, live.w
+    k1 = UUID(_connect(lab, w.a1)["connection_id"])
+    assert _work(lab)["sync"] == {"succeeded": 4}
+    assert _count(lab, k1, "videos") == 4
+    lab.google.channels = 0
+    tokens = _token_calls(lab)
+    for stream in ("channel", "videos"):
+        assert lab.sync("owner_a", w.a, w.a1, k1, {"stream": stream}).status_code == 202
+    assert _work(lab)["sync"] == {"stopped": 1}
+    assert _token_calls(lab) == tokens + 1
+    row = lab.row(k1)
+    assert (row.status, row.status_reason) == ("reconnect_required", "provider_revoked")
+    due = row.reconnect_required_since + timedelta(days=14)
+    assert lab.worker(now=due, registry=lab.registry, schedule=True)["schedule"] == {"expired": 1}
+    assert lab.worker(now=due, registry=lab.registry)["teardown"] == {"disconnected": 1}
+    row = lab.row(k1)
+    assert (row.status, row.status_reason) == ("disconnected", "authorization_lost")
+    assert lab.records(k1) == 0

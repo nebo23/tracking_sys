@@ -209,7 +209,7 @@ Existing tests were updated only for the new fields and the larger registry:
 - **Synthetic only.** The adapter reproduces the documented shapes and the 011-B answers; the live adapter is 011-C.
 - **Disconnect race.** A disconnect that races a new connect of the same channel can revoke the new grant, because Google revokes every token of the account at once. That connection then fails its first refresh and requires reconnection.
 - **`batchGetStats` bucket.** Not declared, because no stream uses that method.
-- **Large channels.** A channel with more than about 1,450 videos exceeds the 30 Analytics requests a day of D10, so its `video_totals` run continues from its cursor the next Pacific day.
+- **Large channels.** With the synthetic adapter's costs (1 Analytics request per `video_totals` page), a channel with more than about 1,450 videos exceeds the 30 Analytics requests a day of D10, so its `video_totals` run continues from its cursor the next Pacific day. The live adapter reads two reports per page, so its limit is about 700 videos a day (corrected by D-061, R011-17; see the [capacity](#capacity-of-the-live-adapter-r011-17)).
 - **Not in this slice.** The D13 wording and any frontend work wait for the owner's brief (D-039). The disclosure version is the development identifier `dev-agent-approval-1`.
 
 ## 011-C: Live YouTube adapter (2026-11-18)
@@ -323,7 +323,7 @@ Existing tests changed only where 011-C changes behavior:
   - later `video_totals` pages reserve 2 but use 1.
 
   Recorded usage can therefore exceed Google's count by one Data unit per later page.
-- **Large channels.** A `video_totals` page needs two Analytics requests. With the 30 requests a connection may use per day (D10), a run therefore covers about 700 videos a day and continues from its cursor the next Pacific day. (011-A counted one request per page and about 1,450 videos.)
+- **Large channels.** A `video_totals` page reserves 2 Analytics requests and 2 Data units, and a `videos` page 3 Data units. Next to the daily `channel_daily` request, the 30 Analytics requests a connection may use per day (D10) cover 14 `video_totals` pages, about 700 videos, and the rest continues from its cursor the next Pacific day. The Data allocation alone would stop at 19 pages, about 950 videos. D10 estimated about 2,000 videos. See the [capacity](#capacity-of-the-live-adapter-r011-17) recorded with the D-061 corrections.
 - **Several channels.** Not observable with the owner's account (F4). The refusal is tested with the fixture only.
 - **Testing status.** While `connectapp` is in Testing, only its test users can authorize, and refresh tokens last 7 days. Use beyond the owner's test channels waits for 011-D.
 
@@ -369,3 +369,64 @@ F9 had tried both accepted shapes, but not the combination the adapter used.
 - **Usage on the Pacific day after both runs:** 8 Data units and 6 Analytics requests.
 
 **Access rule.** The guard counted no revocation attempt in either run. The connection was not disconnected. The live-check database was removed afterwards (`down -v`). The grant stays at Google until it expires, 7 days after consent, or until Phase 4 revokes the account's grants.
+
+## Merge review corrections (D-061) (2026-11-18)
+
+Scope: the [merge review prompt](merge-review-prompt.md), recorded as D-061. Claude's independent review of the whole branch ran at `cd307d7`, and each finding was re-checked at `d8b6b5d`. That was still the head when the corrections started: no later commit existed, and the F8 next-day probe is not recorded yet.
+
+- **No live access.** No live Google call was made, no token of the test account was revoked, and no live connection was disconnected (the access rule of the completion prompt).
+- **Database.** Every check ran against fixtures and the disposable PostgreSQL 18 service (Compose project `tracking-system-foundation-test` on 127.0.0.1:55433), never the owner's `tracking_sys`.
+- **Unchanged.** No migration, dependency, privilege or API field changed, so the OpenAPI snapshot is unchanged (`tests/test_contract.py` passes).
+- **Platform.** Every run below, the regression runs against `d8b6b5d` included, was on Windows 11 with Python 3.12.4.
+
+| Finding | Correction | Regression | At `d8b6b5d` |
+|---|---|---|---|
+| R011-13 | The worker's scheduling step `check_authorizations`, next to `expire_reconnects`, refreshes the access token of each active connection whose provider declares `authorization_check_days` and whose last refresh is older than that period, without reading data and whatever the state of the agency and client, the longest unchecked first (at most 100 a pass). It follows `_refresh`: nothing is reserved (a provider with the check must declare quota buckets, which `Capability` now enforces); the new token is stored with the same code (`_store_refreshed`) only while the connection is active under the generation read before the call and the refreshed version is current, and is otherwise discarded as `_refresh` discards it; and `invalid_grant` makes the connection `reconnect_required` (`credential_expired`) through the shared `_mark_reconnect_required`, after which the 14-day grace purge applies. The design note and the guide are corrected. | `tests/integration/test_connector_youtube.py::test_r011_13_authorization_is_checked_for_an_archived_client_and_a_suspended_agency`; `tests/test_connector_youtube_synthetic.py::test_r011_13_an_authorization_check_period_needs_quota_buckets` | fail: no check 8 days later (`({}, {})` instead of `({"checked": 2}, {})`); no `ValueError` |
+| R011-14 | `_token_error` maps `invalid_client`, `unauthorized_client`, `deleted_client` and `disabled_client` to `PERMANENT` with the code `client_rejected`, at a refresh and at an exchange. Only `invalid_grant` is `UNAUTHORIZED`, and only at a refresh; any other refusal, an unexplained 401 included, is `PERMANENT` (`refused`). The adapter logs `connector_client_rejected` without fields, registered in `app.logging_config.EVENTS`. | `tests/test_connector_youtube_adapter.py::test_r011_14_only_invalid_grant_ends_the_authorization` (10 cases); `tests/test_logging.py::test_r011_14_client_rejected_event_is_registered_without_fields`; `tests/integration/test_connector_youtube_live.py::test_r011_14_a_rejected_client_fails_runs_and_keeps_the_connection_active` | fail: 6 of the 10 cases (client errors answered with 401 at a refresh, and an unexplained 401, were `UNAUTHORIZED`; `unauthorized_client` and a client error at an exchange were `refused`); the event was rejected as unregistered; with a rejected client the run made the connection `reconnect_required` (`{"stopped": 1}` instead of `{"failed": 1}`). The 4 unchanged cases (`invalid_grant` at a refresh and at an exchange, 429 and 503) pass at both revisions. |
+| R011-15 | The live and synthetic adapters carry the read's first day in the `channel_daily` cursor (`<first-day>:<offset>`, after the `syt_cursor_` prefix in the synthetic adapter). A resumed page continues the day list that the first page fixed, while the end follows the latest 72-hour bound, so the days that became complete meanwhile are read too. Any other cursor, including a bare offset written before the correction, is refused as `invalid_cursor`. The Instagram `account` stream has the same pattern on UTC days; it is recorded as a [Spec 010 follow-up](../010-instagram/evidence.md#follow-ups-and-limits-after-010-c) and not changed. | `tests/test_connector_youtube_adapter.py::test_r011_15_a_resumed_day_read_continues_the_day_list_it_started_with`; `tests/test_connector_youtube_synthetic.py::test_r011_15_the_synthetic_day_cursor_carries_the_first_day`; `tests/integration/test_connector_youtube.py::test_r011_15_a_first_day_read_deferred_between_pages_skips_no_day` | fail: the page read after the Pacific midnight started at `day-2026-09-17` instead of `day-2026-09-16`, as reported; a bare synthetic offset was accepted; after the deferral across the Pacific midnight one day of the list was missing |
+| R011-16 | A `channels.list?mine=true` answer without a channel raises `UNAUTHORIZED` with the code `channel_gone`, for the `channel` snapshot and for the uploads lookup of `videos` and `video_totals`. Several channels stay `PERMANENT` (`channel_unavailable`), and a failed request (a 5xx or a network error) stays retryable. | `tests/test_connector_youtube_adapter.py::test_r011_16_a_read_without_a_channel_is_unauthorized`; `tests/integration/test_connector_youtube_live.py::test_r011_16_a_deleted_channel_requires_reconnection_and_is_purged` | fail: `PERMANENT` `channel_unavailable` instead of `UNAUTHORIZED` `channel_gone`; both runs failed (`{"failed": 2}`) and the connection stayed `active` |
+| R011-17 | (a) `README.md` and `docs/engineering/local-environment.md` name `0016_youtube_provider` and migrations 0005 to 0016; the table count stays 43, because 0015 and 0016 add none. (b) `.env.example` has the YouTube block. (c) The capacity is corrected in the design note, the guide and the 011-A and 011-C limits; see [below](#capacity-of-the-live-adapter-r011-17). | Documentation | n/a |
+
+### Commands and results
+
+| Command (from `backend/`, project `.venv`; the database runs through the disposable service) | Result |
+|---|---|
+| The 19 new regressions (`-k "r011_13 or r011_14 or r011_15 or r011_16"`) against a temporary checkout of `d8b6b5d`, made with `git archive` outside the repository, with the new test files copied in and removed afterwards | Unit: **11 failed, 4 passed** (the 4 unchanged `_token_error` cases above, kept as guards). Integration: **4 failed**. The reasons are in the table above. |
+| The same 19 regressions at the corrected head | **19 passed** |
+| `python -m pytest -m "not integration" -q` | **608 passed**, 346 deselected |
+| `python -m pytest -m integration -q` (full integration suite, because R011-13 to R011-16 change shared runtime code) | **343 passed, 3 skipped**: the three browser journeys of `test_tracker_journey.py`, which need `TRACKING_RUN_BROWSER_TESTS=1` and are unrelated to connectors (skipped, not passed) |
+| The YouTube tests: `tests/test_connector_youtube_adapter.py`, `tests/test_connector_youtube_synthetic.py`, `tests/test_logging.py`, `tests/integration/test_connector_youtube_live.py` and `tests/integration/test_connector_youtube.py` | **61 passed** |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 152 files formatted |
+| Mutation check: each new safeguard disabled in turn, the 61 YouTube tests rerun, the source restored byte for byte (SHA-256 compared) | **All 6 caught**, each by its own regression:<br>- the authorization check removed from the scheduling step (`test_r011_13_...`, and `test_r011_14_a_rejected_client_...`, which expects `check_failed`);<br>- a refused check that no longer leads to `reconnect_required` (`test_r011_13_...`);<br>- a client error that ends the authorization again (`test_r011_14_a_rejected_client_...` and 4 cases of `test_r011_14_only_invalid_grant_...`);<br>- the first day recomputed on a resumed page of the live adapter (`test_r011_15_a_resumed_day_read_...`);<br>- the same in the synthetic adapter (`test_r011_15_a_first_day_read_deferred_...`);<br>- a read without a channel that is permanent again (both `test_r011_16_...`). |
+
+### Capacity of the live adapter (R011-17)
+
+Per connection and Pacific day, against the D10 allocations of 100 Data units and 30 Analytics requests:
+
+| Stream | Reserved per page (50 videos for `videos` and `video_totals`) |
+|---|---|
+| `channel` | 1 Data unit; one page a day |
+| `channel_daily` | 1 Analytics request; a daily incremental window fits one page |
+| `videos` | 3 Data units: the first page uses 3 (the uploads playlist lookup, `playlistItems.list` and `videos.list`), later pages 2 |
+| `video_totals` | 2 Data units and 2 Analytics requests: the first page uses 2 Data units (the lookup and `playlistItems.list`), later pages 1 |
+
+- **Analytics bound.** 1 + 2 × 14 = 29 requests, so 14 `video_totals` pages: about **700 videos a day**. A larger channel's `video_totals` run continues from its cursor the next Pacific day.
+- **Data bound.** 1 + 5 × 19 = 96 units, so 19 pages, about 950 videos. The review measured this at `cd307d7`: 950 videos complete in one day, and at 1,000 videos one run is deferred, although only 63 Data API calls were made.
+- **D10's estimate** of about 2,000 videos is reached by neither bound.
+
+### Proposal for the owner: actual page cost (D10)
+
+Not part of this work, because it changes D10's accounting. Each page reserves its maximum cost, so recorded usage can exceed Google's count by one Data unit per later page. The proposal is to reserve each page's actual cost: 3 Data units for the first `videos` page and 2 for later ones, and 2 for the first `video_totals` page and 1 for later ones. The Data bound would then rise to 32 pages (3 + 3 × 32 = 99 units), about 1,600 videos, while the Analytics bound stays at about 700. Channels beyond that would also need a larger per-connection Analytics allocation than D10's 30 requests, which is a decision of its own.
+
+### Q1 and Q2 (adopted by D-061)
+
+- **Q1.** While the adapter is switched off, or a provider rule is past its review date (2027-11-18), the registry has no `youtube` provider: its connections are neither synced nor checked, and the grace purge skips them. The operator purge must follow within 30 days of switching the adapter off (P-1), and the rule review must be renewed before 2027-11-18. No code change; see the guide's [operator obligations](../../docs/engineering/connectors.md#operator-obligations-q1-and-q2-d-061) and the 020 follow-ups in [review-next](../../docs/planning/review-next.md).
+- **Q2.** With client errors mapped to `PERMANENT`, connections keep their data while the client is broken. The operator repairs the client or runs the operator purge within the 30 days of P-1. It is documented next to Q1.
+
+### Limits and observations after the D-061 corrections
+
+- **Check retries.** A refresh in the scheduling step that fails other than with `invalid_grant` (a rejected client, a 5xx, a network error) leaves the connection unchanged and is tried again at the next pass. There is no backoff between passes; a pass makes at most one token call per due connection and at most 100 in all.
+- **Worker invocation.** The check, like the grace purge, runs only when the worker's scheduling step runs; production scheduling is decided in 020.
+- **Deleted videos in archived clients (observation for the owner).** The gating that R011-13 corrected for the authorization check also stops the D11 inventory sweep. No run is queued for a connection whose client is archived or whose agency is suspended, so the records of videos deleted on YouTube stay until the client is active again, the connection is disconnected, or the 730-day retention ends, while P-1 III.E.4.b asks for the check every 30 days. Correcting it needs a decision, for example an inventory check in the scheduling step, or the disconnect of a connection whose client has been archived for 30 days. It is recorded in the [tasks](tasks.md) and not changed.
+- **Cursors written before R011-15.** A bare `channel_daily` offset is refused as `invalid_cursor` and fails its run, and the next scheduled run starts the read again. None exists outside disposable databases: there are no customer channels, and the live-check database was removed.
+- **Several channels.** A read that finds several channels stays `PERMANENT` (`channel_unavailable`); only the absence of any channel is lost authorization.

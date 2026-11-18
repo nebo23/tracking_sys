@@ -123,8 +123,11 @@ class QuotaBucket:
 # 011-A (D-058, D-060): revocation_scope "account" means one revocation invalidates every token
 # the account granted (Google, G-1; D5). require_all_scopes refuses a grant without every
 # requested scope (D2). refresh_ahead_seconds refreshes an access token about to expire, and
-# authorization_check_days forces a refresh when the last one is older (D4, D6);
-# reconnect_grace_days disconnects a connection left in reconnect_required that long (D6).
+# authorization_check_days forces a refresh when the last one is older (D4, D6), in a run and
+# in the worker's scheduling step whatever the state of the agency and client (R011-13); that
+# step has no run to charge, so the provider must declare quota buckets, which leave refreshes
+# unmetered. reconnect_grace_days disconnects a connection left in reconnect_required that long
+# (D6).
 # buckets replace the single unit and daily_quota (D10); day_zone is the zone of the
 # provider's days (D9). agent_disclosure is the disclosure version a connect must approve
 # (D13), and label_refresh_days the period after which an unrefreshed label is cleared (D11).
@@ -161,6 +164,10 @@ class Capability:
     day_zone: str | None = None
     agent_disclosure: str | None = None
     label_refresh_days: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.authorization_check_days is not None and not self.buckets:
+            raise ValueError("An authorization check period needs quota buckets (R011-13).")
 
     def cost(self, operation: str) -> int:
         return self.call_costs.get(operation, 1)

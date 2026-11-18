@@ -18,7 +18,9 @@ specs/011-youtube/evidence.md) or is documented by Google:
 - Streams (D7) and the D8 catalog of the synthetic adapter: the channel snapshot of the
   Pacific day; channel day reports in windows of at most 31 days, complete through the end of
   the last Pacific day that ended at least 72 hours before the read, with a day the API does
-  not return recorded as not_returned, never zero (D9 as amended by D-060); the uploads
+  not return recorded as not_returned, never zero (D9 as amended by D-060), and a cursor that
+  keeps the read's first day, so a read resumed after a Pacific midnight skips none
+  (R011-15); the uploads
   inventory 50 videos per page with the allow-listed attributes (F5, D11), whose missing
   videos are confirmed gone through videos.list; and lifetime totals per video with the
   creatorContentType product type (F9), read as two reports per page because Google refuses
@@ -27,7 +29,12 @@ specs/011-youtube/evidence.md) or is documented by Google:
   every other text out of the answers, except the channel title used as the label.
 - Errors (F14, YT-5): 401 is unauthorized; 403 quotaExceeded is the bucket's budget answer;
   403 rate limits and 429 are rate limits; other 403 answers are forbidden for the stream;
-  5xx and network failures are retryable; anything else is permanent.
+  5xx and network failures are retryable; anything else is permanent. A read that finds no
+  channel for the authorized account is unauthorized (channel_gone), so a deleted channel
+  leads to reconnect_required and the D6 grace purge (R011-16). At the token endpoint only
+  invalid_grant ends the user's authorization; a rejected OAuth client is permanent
+  (client_rejected) and logged as connector_client_rejected, and connections stay active
+  (R011-14).
 
 The adapter is registered only when it is enabled and configured and the
 youtube.authorized_analytics and youtube.other_data rules in app.privacy.providers are current
@@ -36,6 +43,7 @@ authorize, and live use stays with the owner's test channels until 011-D.
 """
 
 import json
+import logging
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -68,8 +76,10 @@ from app.connectors.synthetic_youtube import (
     VIDEO_ATTRIBUTES,
     WINDOW_DAYS,
     complete_through,
+    day_cursor,
     pacific_day,
     pacific_start,
+    parse_day_cursor,
     product_type,
 )
 from app.connectors.synthetic_youtube import CAPABILITY as SYNTHETIC_CAPABILITY
@@ -95,7 +105,13 @@ VIDEO_FIELDS = (
 )
 QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
 RATE_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
+# Token endpoint errors that reject the connector's own OAuth client (a wrong, rotated, deleted
+# or disabled client), not a user's authorization (R011-14).
+CLIENT_ERRORS = frozenset(
+    {"invalid_client", "unauthorized_client", "deleted_client", "disabled_client"}
+)
 RATE_WAIT = 60
+logger = logging.getLogger("tracking")
 # A page's cost is its maximum: the first page of an inventory read also resolves the uploads
 # playlist with one channels.list call (D10). A video_totals page reads two reports.
 STREAMS = (
@@ -199,19 +215,35 @@ def _error(reply: Reply, bucket: str) -> ProviderError:
     return ProviderError(ErrorKind.PERMANENT, "bad_request" if reply.status == 400 else "refused")
 
 
-# Map a refused token endpoint answer: invalid_grant is permanent for an exchange and ends the
-# authorization for a refresh.
+# Map a refused token endpoint answer. Only invalid_grant ends the user's authorization, and
+# only for a refresh; at an exchange it is permanent. A client error, which Google answers with
+# 401 for a wrong secret, rejects the connector's own client: it is permanent with the closed
+# code client_rejected, so runs fail and every connection stays active (R011-14). Any other
+# refusal is permanent as well.
 def _token_error(reply: Reply, *, refresh: bool) -> ProviderError:
     error = reply.body.get("error") if isinstance(reply.body, dict) else None
     if reply.status == 429:
         return ProviderError(ErrorKind.RATE_LIMITED, "rate_limited", _retry_after(reply.headers))
     if reply.status >= 500:
         return ProviderError(ErrorKind.RETRYABLE, "backend_error")
-    if refresh and (error == "invalid_grant" or reply.status == 401):
-        return ProviderError(ErrorKind.UNAUTHORIZED, "invalid_grant")
-    return ProviderError(
-        ErrorKind.PERMANENT, "invalid_grant" if error == "invalid_grant" else "refused"
-    )
+    if error in CLIENT_ERRORS:
+        return ProviderError(ErrorKind.PERMANENT, "client_rejected")
+    if error == "invalid_grant":
+        kind = ErrorKind.UNAUTHORIZED if refresh else ErrorKind.PERMANENT
+        return ProviderError(kind, "invalid_grant")
+    return ProviderError(ErrorKind.PERMANENT, "refused")
+
+
+# The items of a channels.list?mine=true answer. An answer without a channel means the
+# authorized account no longer has one (a deleted channel): the authorization has lost its
+# object, so the read is unauthorized with the closed code channel_gone, and the runtime makes
+# the connection reconnect_required after its one refresh, which leads to the D6 grace purge
+# (R011-16). A failed request is mapped by _error and stays retryable.
+def _channel_items(answer: Mapping[str, Any]) -> list[dict[str, Any]]:
+    items = [item for item in answer.get("items") or [] if isinstance(item, dict)]
+    if not items:
+        raise ProviderError(ErrorKind.UNAUTHORIZED, "channel_gone")
+    return items
 
 
 def _count(value: Any) -> int | None:
@@ -304,11 +336,17 @@ class YouTubeProvider:
             query["code_challenge_method"] = "S256"
         return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(query)}"
 
+    # A token endpoint call. A rejected client is logged as connector_client_rejected, without
+    # fields, so the operator learns that the client must be repaired or the connections purged
+    # (R011-14).
     def _token(self, form: Mapping[str, str], *, refresh: bool) -> tuple[dict[str, Any], datetime]:
         reply = self._send("POST", TOKEN_URL, form, None)
         body = reply.body if isinstance(reply.body, dict) else {}
         if reply.status >= 400 or not isinstance(body.get("access_token"), str):
-            raise _token_error(reply, refresh=refresh)
+            error = _token_error(reply, refresh=refresh)
+            if error.provider_code == "client_rejected":
+                logger.error("connector_client_rejected")
+            raise error
         return body, self._clock()
 
     @staticmethod
@@ -434,7 +472,7 @@ class YouTubeProvider:
             token,
             DATA,
         )
-        items = [item for item in answer.get("items") or [] if isinstance(item, dict)]
+        items = _channel_items(answer)
         if len(items) != 1:
             raise ProviderError(ErrorKind.PERMANENT, "channel_unavailable")
         item = items[0]
@@ -452,6 +490,11 @@ class YouTubeProvider:
         record = ProviderRecord(f"snapshot-{pacific_day(now)}", today, metrics, None, unavailable)
         return ProviderPage((record,), None, today, now, title if isinstance(title, str) else None)
 
+    # The first page fixes the read's first day: 90 days back at connect (since None), the
+    # Pacific day of `since` otherwise, never before the history limit. The cursor carries that
+    # day with the next offset, so a page read after the 72-hour bound has moved (a deferral
+    # across a Pacific midnight) continues the same day list and skips no day (R011-15). The end
+    # follows the latest bound, so a later page may add the days that became complete.
     def _daily_page(
         self,
         token: str,
@@ -462,22 +505,18 @@ class YouTubeProvider:
     ) -> ProviderPage:
         through = complete_through(now)
         last_day = pacific_day(through)
-        oldest = pacific_start(last_day - timedelta(days=HISTORY_DAYS))
-        start = (
-            pacific_start(last_day - timedelta(days=CONNECT_DAYS))
-            if since is None
-            else pacific_start(pacific_day(since))
-        )
-        start = max(start, oldest)
+        if cursor is None:
+            first = last_day - timedelta(days=CONNECT_DAYS) if since is None else pacific_day(since)
+            first, offset = max(first, last_day - timedelta(days=HISTORY_DAYS)), 0
+        else:
+            first, offset = parse_day_cursor(cursor)
+        start = pacific_start(first)
         end = through if until is None else min(through, pacific_start(pacific_day(until)))
         days: list[date] = []
-        day = pacific_day(start)
+        day = first
         while start < end and pacific_start(day) < end:
             days.append(day)
             day += DAY
-        offset = int(cursor) if cursor is not None and cursor.isdigit() else 0
-        if cursor is not None and not cursor.isdigit():
-            raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
         chunk = days[offset : offset + WINDOW_DAYS]
         rows: dict[str, dict[str, int | float]] = {}
         if chunk:
@@ -499,7 +538,7 @@ class YouTubeProvider:
         following = offset + WINDOW_DAYS
         return ProviderPage(
             records,
-            str(following) if following < len(days) else None,
+            day_cursor(first, following) if following < len(days) else None,
             start if start < end else None,
             max(start, end),
         )
@@ -536,7 +575,8 @@ class YouTubeProvider:
         )
 
     # The uploads playlist and the position in it, carried in the cursor so that every page
-    # after the first reads the playlist directly.
+    # after the first reads the playlist directly. A channel that no longer exists is
+    # channel_gone (R011-16).
     def _uploads(self, token: str) -> str:
         answer = self._get(
             f"{DATA_API}/channels",
@@ -544,7 +584,7 @@ class YouTubeProvider:
             token,
             DATA,
         )
-        items = [item for item in answer.get("items") or [] if isinstance(item, dict)]
+        items = _channel_items(answer)
         playlist = (
             ((items[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
             if len(items) == 1

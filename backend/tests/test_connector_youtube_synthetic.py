@@ -1,17 +1,23 @@
 """Pure parts of the 011-A runtime extensions and the YouTube-shaped synthetic adapter.
 
 No database and no network: Pacific day arithmetic across the 2026 daylight-saving changes, the
-D-060 completeness bound, the content-type mapping, rounded counts, and the capability that
-the integration tests rely on.
+D-060 completeness bound, the content-type mapping, rounded counts, the capability that the
+integration tests rely on, and the merge review corrections (D-061) that need no database: the
+synthetic day cursor (R011-15) and the authorization check's need for quota buckets (R011-13).
 """
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
+
+from app.connectors.contracts import ErrorKind, ProviderError
 from app.connectors.synthetic_youtube import (
     ANALYTICS,
     CAPABILITY,
     DATA,
     VIDEO_ATTRIBUTES,
+    SyntheticYouTubeProvider,
     complete_through,
     pacific_start,
     product_type,
@@ -97,3 +103,30 @@ def test_capability_declares_the_approved_rules():
     assert capability.stream_delay_hours("videos") == 0
     averages = {spec.name for spec in capability.metrics if not spec.additive}
     assert averages == {"averageViewDuration", "averageViewPercentage"}
+
+
+# R011-15: a channel_daily cursor carries the read's first day with the offset; a bare offset,
+# as written before the correction, is refused rather than read against a moved first day.
+# The cursor is checked before any token or state is read.
+def test_r011_15_the_synthetic_day_cursor_carries_the_first_day(tmp_path):
+    provider = SyntheticYouTubeProvider(tmp_path / "synthetic-youtube.sqlite3")
+    for malformed in ("syt_cursor_31", "syt_cursor_2026-08-04", "syt_cursor_2026-08-04:x", "31"):
+        with pytest.raises(ProviderError) as invalid:
+            provider.fetch_page("unused", stream="channel_daily", cursor=malformed)
+        assert (invalid.value.kind, invalid.value.provider_code) == (
+            ErrorKind.PERMANENT,
+            "invalid_cursor",
+        )
+    # Inventory cursors keep their plain offset.
+    with pytest.raises(ProviderError) as invalid:
+        provider.fetch_page("unused", stream="videos", cursor="syt_cursor_2026-08-04:31")
+    assert invalid.value.provider_code == "invalid_cursor"
+
+
+# R011-13: the scheduling step that checks authorization has no run to charge, so a provider
+# that declares the check must have quota buckets, which leave refreshes unmetered (D10).
+def test_r011_13_an_authorization_check_period_needs_quota_buckets():
+    assert CAPABILITY.bucket_costs("refresh", "channel") == {}
+    with pytest.raises(ValueError, match="quota buckets"):
+        replace(CAPABILITY, buckets=())
+    assert replace(CAPABILITY, buckets=(), authorization_check_days=None).buckets == ()

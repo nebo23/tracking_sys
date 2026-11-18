@@ -34,6 +34,23 @@ def test_registered_event_keeps_permitted_codes(capsys):
     )
 
 
+# Specification 011, R011-14: a rejected connector client is logged without any field, so
+# neither the client ID nor the secret can reach the log.
+def test_r011_14_client_rejected_event_is_registered_without_fields(capsys):
+    logger = configure_logging()
+    logger.error("connector_client_rejected")
+    logger.error("connector_client_rejected", extra={"client": SECRET})
+    output = capsys.readouterr().err
+    assert SECRET not in output
+    accepted, rejected = entries(output)
+    assert set(accepted) == {"timestamp", "level", "event"}
+    assert (accepted["event"], accepted["level"]) == ("connector_client_rejected", "ERROR")
+    assert (rejected["event"], rejected["rejection"]) == (
+        "log_event_rejected",
+        "unregistered_field",
+    )
+
+
 @pytest.mark.parametrize(
     ("emit", "rejection"),
     [

@@ -5,9 +5,13 @@ Offline: every answer comes from tests/youtube_api.py, built from the 011-B evid
   revocation;
 - each stream's records and windows, and the confirmation of deleted videos;
 - the error mapping;
-- the settings and the rule-gated registration.
+- the settings and the rule-gated registration;
+- the merge review corrections (D-061): only invalid_grant ends the authorization (R011-14), a
+  resumed day read keeps its first day (R011-15), and a read without a channel is unauthorized
+  (R011-16).
 """
 
+import json
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
@@ -29,6 +33,7 @@ from app.config import Settings
 from app.connectors.contracts import ErrorKind, ProviderError
 from app.connectors.synthetic_youtube import ANALYTICS, ANALYTICS_SCOPE, DATA, DATA_SCOPE
 from app.connectors.youtube import CAPABILITY, METRIC_NAMES, Reply, YouTubeProvider
+from app.logging_config import configure_logging
 from app.privacy.providers import RuleStatus
 from app.services.connectors import build_providers, pkce_challenge
 
@@ -391,3 +396,122 @@ def test_settings_and_rule_gated_registration(settings, monkeypatch):
         assert CLIENT_SECRET not in str(invalid.value)
     disabled = Settings(database_password="synthetic", _env_file=None)
     assert disabled.connector_youtube_enabled is False
+
+
+# R011-14: Google answers client errors such as invalid_client with 401. Only invalid_grant ends
+# the user's authorization; a rejected client is permanent and logged without fields.
+@pytest.mark.parametrize(
+    ("status", "error", "refresh", "kind", "code"),
+    [
+        (400, "invalid_grant", True, ErrorKind.UNAUTHORIZED, "invalid_grant"),
+        (400, "invalid_grant", False, ErrorKind.PERMANENT, "invalid_grant"),
+        (401, "invalid_client", True, ErrorKind.PERMANENT, "client_rejected"),
+        (400, "unauthorized_client", True, ErrorKind.PERMANENT, "client_rejected"),
+        (401, "deleted_client", True, ErrorKind.PERMANENT, "client_rejected"),
+        (401, "disabled_client", True, ErrorKind.PERMANENT, "client_rejected"),
+        (401, "invalid_client", False, ErrorKind.PERMANENT, "client_rejected"),
+        (401, None, True, ErrorKind.PERMANENT, "refused"),
+        (429, None, True, ErrorKind.RATE_LIMITED, "rate_limited"),
+        (503, None, True, ErrorKind.RETRYABLE, "backend_error"),
+    ],
+)
+def test_r011_14_only_invalid_grant_ends_the_authorization(
+    status, error, refresh, kind, code, capsys
+):
+    body = {} if error is None else {"error": error, "error_description": "Unauthorized"}
+    provider = YouTubeProvider(
+        CLIENT_ID, CLIENT_SECRET, transport=lambda *args: Reply(status, body), clock=lambda: NOW
+    )
+    configure_logging()
+    capsys.readouterr()
+    with pytest.raises(ProviderError) as refused:
+        if refresh:
+            provider.refresh("synthetic-refresh-token")
+        else:
+            provider.exchange(code="synthetic-code", code_verifier=VERIFIER, redirect_uri=REDIRECT)
+    assert (refused.value.kind, refused.value.provider_code) == (kind, code)
+    output = capsys.readouterr().err
+    events = [
+        entry
+        for entry in (json.loads(line) for line in output.splitlines() if line.startswith("{"))
+        if entry.get("event") == "connector_client_rejected"
+    ]
+    assert len(events) == (1 if code == "client_rejected" else 0)
+    assert all(set(entry) == {"timestamp", "level", "event"} for entry in events)
+    assert CLIENT_SECRET not in output and CLIENT_ID not in output
+
+
+# R011-15: the first page ends at 2026-09-15 at 23:30 Pacific time on 2026-11-17. The next page
+# is read one hour later, after the Pacific midnight, when the 72-hour bound has moved by one
+# day; it continues the same day list at 2026-09-16 instead of skipping that day.
+def test_r011_15_a_resumed_day_read_continues_the_day_list_it_started_with():
+    api = FakeYouTube()
+    moments = [datetime(2026, 11, 18, 7, 30, tzinfo=UTC)]
+    provider = YouTubeProvider(CLIENT_ID, CLIENT_SECRET, transport=api, clock=lambda: moments[-1])
+    access = _grant(api, provider).access_token
+    first = provider.fetch_page(access, stream="channel_daily")
+    assert (first.records[0].provider_object_id, first.records[-1].provider_object_id) == (
+        "day-2026-08-16",
+        "day-2026-09-15",
+    )
+    moments.append(moments[0] + timedelta(hours=1))
+    pages, cursor = [first], first.next_cursor
+    while cursor is not None:
+        page = provider.fetch_page(access, stream="channel_daily", cursor=cursor)
+        pages.append(page)
+        cursor = page.next_cursor
+    assert pages[1].records[0].provider_object_id == "day-2026-09-16"
+    days = [
+        date.fromisoformat(record.provider_object_id.removeprefix("day-"))
+        for page in pages
+        for record in page.records
+    ]
+    # Every day from the first one through the day the moved bound made complete, once.
+    assert days == [date(2026, 8, 16) + timedelta(days=index) for index in range(91)]
+    assert pages[-1].covered_from == datetime(2026, 8, 16, 7, tzinfo=UTC)
+    assert pages[-1].complete_through == datetime(2026, 11, 15, tzinfo=UTC) + PST
+    # A cursor that does not carry a first day and an offset is still refused.
+    for malformed in (
+        "31",
+        "2026-08-16",
+        "2026-8-16:31",
+        "20260816:31",
+        "2026-08-16:x",
+        "2026-08-16:-1",
+        "x:31",
+    ):
+        with pytest.raises(ProviderError) as invalid:
+            provider.fetch_page(access, stream="channel_daily", cursor=malformed)
+        assert (invalid.value.kind, invalid.value.provider_code) == (
+            ErrorKind.PERMANENT,
+            "invalid_cursor",
+        )
+
+
+# R011-16: when the channel is deleted while the Google account stays, the reads find no
+# channel. That is lost authorization, so the runtime requires a reconnect after its one
+# refresh and the D6 grace purge applies; a failed request stays retryable.
+def test_r011_16_a_read_without_a_channel_is_unauthorized():
+    api = FakeYouTube()
+    provider = _provider(api)
+    access = _grant(api, provider).access_token
+    api.channels = 0
+    for stream in ("channel", "videos", "video_totals"):
+        with pytest.raises(ProviderError) as gone:
+            provider.fetch_page(access, stream=stream)
+        assert (gone.value.kind, gone.value.provider_code) == (
+            ErrorKind.UNAUTHORIZED,
+            "channel_gone",
+        )
+    api.channels = 1
+    api.fail_next(_error(503, "backendError"))
+    with pytest.raises(ProviderError) as failed:
+        provider.fetch_page(access, stream="channel")
+    assert failed.value.kind is ErrorKind.RETRYABLE
+    api.channels = 2
+    with pytest.raises(ProviderError) as several:
+        provider.fetch_page(access, stream="channel")
+    assert (several.value.kind, several.value.provider_code) == (
+        ErrorKind.PERMANENT,
+        "channel_unavailable",
+    )

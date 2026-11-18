@@ -13,7 +13,11 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [x] 011-C: the live adapter, its settings, the operator purge and migration 0016, with fixture tests ([evidence](evidence.md#011-c-live-youtube-adapter-2026-11-18)).
 - [x] 011-C read-only live check with the owner's test channel (2026-11-18): the browser connect and one sync of each stream. It found and corrected the `video_totals` report ([evidence](evidence.md#live-check-with-the-owners-test-channel-2026-11-18)).
 - [ ] 011-C live disconnect check after F3 (Phase 4).
-- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner.
+- [x] Correct the findings R011-13 to R011-17 of Claude's merge review of PR 11, each code correction with a regression that fails at `d8b6b5d`, and adopt Q1 and Q2 (D-061, [merge review prompt](merge-review-prompt.md), [corrections](evidence.md#merge-review-corrections-d-061-2026-11-18)).
+- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner; planned after Phase 4 (D-058, D-061).
+- [ ] Follow-up (Spec 010): the Instagram `account` stream has the day-list pattern that R011-15 corrected for YouTube ([010 follow-ups](../010-instagram/evidence.md#follow-ups-and-limits-after-010-c)).
+- [ ] Owner decision (D10): the proposal to reserve each page's actual cost instead of its maximum ([proposal](evidence.md#proposal-for-the-owner-actual-page-cost-d10)).
+- [ ] Owner decision (D11, Q-012): the deleted-video check for connections whose client is archived or whose agency is suspended ([observation](evidence.md#limits-and-observations-after-the-d-061-corrections)).
 - [x] Re-verify the `youtube.authorized_analytics` and `youtube.other_data` rows and mark them current before the live adapter runs (011-C, D-025): verified 2026-11-18, review due 2027-11-18 ([evidence](evidence.md#policy-rows-re-verified-2026-11-18)).
 - [ ] Resolve Q-001, Q-004; provider use-case and policy approval and record the owner decision.
 - [ ] Verify dependencies: 009-connector-runtime.

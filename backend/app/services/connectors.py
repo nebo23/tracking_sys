@@ -42,9 +42,10 @@ permissions that were not requested. 011-C (D-060) does the same for the live Yo
 011-A (D-058, D-060) adds the runtime rules for Google-shaped providers. A grant without every
 requested scope, or one the adapter refuses, is not installed. Grants shared by every token of
 an account are never revoked while another active connection holds them, and a reconnect
-replaces them without a revocation. A run refreshes an access token about to expire and
-checks the authorization periodically; a connection left in reconnect_required past its grace
-period is disconnected and purged. Quota buckets are counted on their local day and a provider
+replaces them without a revocation. A run refreshes an access token about to expire, and the
+worker's scheduling step checks the authorization periodically whatever the state of the agency
+and client (R011-13); a connection left in reconnect_required past its grace period is
+disconnected and purged. Quota buckets are counted on their local day and a provider
 quota answer defers the run to the next reset. Incremental windows overlap by local days.
 Records keep only allow-listed attributes with their refresh time, the label is refreshed from
 the provider, and objects missing from a complete inventory read are confirmed gone and purged
@@ -1427,20 +1428,97 @@ def _require_reconnect(engine: Engine, claim: _Claim, reason: str, now: datetime
         if ownership != "owned":
             return _not_owned(ownership)
         _finish(session, claim, "failed", now, "unauthorized")
-        if (
-            connection is None
-            or connection.status != "active"
-            or connection.generation != claim.generation
-        ):
-            return "stopped"
-        connection.status, connection.status_reason = "reconnect_required", reason
-        connection.reconnect_required_since = now
-        connection.generation += 1
-        connection.updated_at = now
-        for row in _live_secrets(session, connection.id):
-            row.status = "revoked"
-        _cancel_open_runs(session, connection.id, now, "connection_inactive")
+        _mark_reconnect_required(session, connection, claim.generation, reason, now)
         return "stopped"
+
+
+# Make a connection that is still active under `generation` require reconnection, in the
+# caller's transaction with the connection locked: the data are kept without further writes,
+# its live tokens are marked revoked, its open runs are canceled (D-048 D7), and its grace
+# period starts (011-A, D6). Returns whether the connection changed.
+def _mark_reconnect_required(
+    session: Session,
+    connection: ConnectorConnection | None,
+    generation: int,
+    reason: str,
+    now: datetime,
+) -> bool:
+    if connection is None or connection.status != "active" or connection.generation != generation:
+        return False
+    connection.status, connection.status_reason = "reconnect_required", reason
+    connection.reconnect_required_since = now
+    connection.generation += 1
+    connection.updated_at = now
+    for row in _live_secrets(session, connection.id):
+        row.status = "revoked"
+    _cancel_open_runs(session, connection.id, now, "connection_inactive")
+    return True
+
+
+# Store a refreshed grant in the caller's transaction, under the caller's fence: the access
+# version that was refreshed is destroyed as not required and the new access token is sealed as
+# the next version; a reported refresh-token expiry becomes the connection's grant expiry; and a
+# rotated refresh token replaces every live refresh version. `held` is the refresh token the
+# connection held when the refresh was made.
+def _store_refreshed(
+    session: Session,
+    keyring: LocalKeyring,
+    connection: ConnectorConnection,
+    previous: ConnectorTokenSecret,
+    grant: TokenGrant,
+    held: str | None,
+    now: datetime,
+) -> None:
+    _destroy(previous, now, "not_required")
+    session.flush()
+    if grant.refresh_expires_at is not None:
+        connection.grant_expires_at = grant.refresh_expires_at
+    session.add(
+        _new_secret(
+            keyring,
+            connection,
+            "access_token",
+            _next_version(session, connection.id, "access_token"),
+            grant.access_token,
+            grant.access_expires_at,
+            now,
+        )
+    )
+    if grant.refresh_token is not None and grant.refresh_token != held:
+        for row in _live_secrets(session, connection.id):
+            if row.kind == "refresh_token":
+                _destroy(row, now, "not_required")
+        session.flush()
+        session.add(
+            _new_secret(
+                keyring,
+                connection,
+                "refresh_token",
+                _next_version(session, connection.id, "refresh_token"),
+                grant.refresh_token,
+                grant.refresh_expires_at,
+                now,
+            )
+        )
+
+
+# Revoke a refreshed token that was not stored because its connection's generation changed (its
+# grant is being torn down or was replaced). An account-wide grant is settled by the teardown or
+# the reconnect instead (011-A, D5), and a refresh token that was not rotated still belongs to
+# the grant and is kept.
+def _discard_refreshed(provider: ConnectorProvider, grant: TokenGrant, held: str | None) -> None:
+    if provider.capability.revocation_scope == "account":
+        return
+    dispose_grant(
+        provider,
+        TokenGrant(
+            grant.access_token,
+            grant.refresh_token if grant.refresh_token != held else None,
+            grant.access_expires_at,
+            grant.scopes,
+            grant.external_account_id,
+        ),
+    )
 
 
 # Refresh the access token only while this attempt owns the run (checked when the call is
@@ -1486,50 +1564,11 @@ def _refresh(
             if previous is None or previous.status == "destroyed":
                 _finish(session, claim, "canceled", now, "fenced")
                 return None, "stopped"
-            _destroy(previous, now, "not_required")
-            session.flush()
-            if grant.refresh_expires_at is not None:
-                connection.grant_expires_at = grant.refresh_expires_at
-            session.add(
-                _new_secret(
-                    keyring,
-                    connection,
-                    "access_token",
-                    _next_version(session, connection.id, "access_token"),
-                    grant.access_token,
-                    grant.access_expires_at,
-                    now,
-                )
-            )
-            if grant.refresh_token is not None and grant.refresh_token != claim.refresh_token:
-                for row in _live_secrets(session, connection.id):
-                    if row.kind == "refresh_token":
-                        _destroy(row, now, "not_required")
-                session.flush()
-                session.add(
-                    _new_secret(
-                        keyring,
-                        connection,
-                        "refresh_token",
-                        _next_version(session, connection.id, "refresh_token"),
-                        grant.refresh_token,
-                        grant.refresh_expires_at,
-                        now,
-                    )
-                )
+            held = claim.refresh_token
+            _store_refreshed(session, keyring, connection, previous, grant, held, now)
     finally:
-        # An account-wide grant is settled by the teardown or the reconnect (011-A, D5).
-        if moved_on and provider.capability.revocation_scope != "account":
-            dispose_grant(
-                provider,
-                TokenGrant(
-                    grant.access_token,
-                    grant.refresh_token if grant.refresh_token != claim.refresh_token else None,
-                    grant.access_expires_at,
-                    grant.scopes,
-                    grant.external_account_id,
-                ),
-            )
+        if moved_on:
+            _discard_refreshed(provider, grant, claim.refresh_token)
     return grant.access_token, "refreshed"
 
 
@@ -2011,6 +2050,146 @@ def expire_reconnects(
     return {"expired": expired} if expired else {}
 
 
+# The D6 authorization check as a scheduling step of its own (011-A, R011-13). Runs are queued
+# and claimed only for an active agency and client, so the check inside a run never sees a
+# connection whose client is archived or whose agency is suspended: a revocation there would go
+# unnoticed, and the data would outlive the 30 days of P-1 III.D.2. This step therefore
+# refreshes, without reading data and whatever the state of the agency and client, the access
+# token of each active connection of a registered provider with authorization_check_days whose
+# access token was last refreshed longer ago than that period, the longest unchecked first. It
+# follows the rules of _refresh: nothing is reserved, because such a provider has quota buckets
+# and its refreshes are not metered (D10); the new token is sealed and stored only while the
+# connection is still active under the generation read before the call and the refreshed
+# access version is still current, and is otherwise discarded as _refresh discards it; and a
+# refused grant (invalid_grant) makes the connection reconnect_required with reason
+# credential_expired, so expire_reconnects disconnects and purges it after the grace period.
+# Any other failure, such as a rejected client (R011-14), leaves the connection unchanged for
+# the next pass. Connections locked by another transaction are left for the next pass. Returns
+# counts: checked, reconnect_required, check_failed, check_discarded and check_skipped.
+def check_authorizations(
+    engine: Engine,
+    settings: Settings,
+    registry: Mapping[str, ConnectorProvider],
+    *,
+    limit: int = 100,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    def clock() -> datetime:
+        return now if now is not None else now_utc()
+
+    providers = {
+        name: provider
+        for name, provider in sorted(registry.items())
+        if provider.capability.authorization_check_days is not None
+    }
+    if not providers:
+        return {}
+    keyring = require_keys(settings)
+    counts: dict[str, int] = {}
+    for connection_id, name in _due_checks(engine, providers, clock(), limit):
+        outcome = _check_authorization(engine, keyring, providers[name], connection_id, clock)
+        counts[outcome] = counts.get(outcome, 0) + 1
+    return counts
+
+
+# Active connections whose access token is older than their provider's check period, at most
+# `limit`, the oldest first.
+def _due_checks(
+    engine: Engine, providers: Mapping[str, ConnectorProvider], now: datetime, limit: int
+) -> list[tuple[UUID, str]]:
+    due: list[tuple[UUID, str]] = []
+    with Session(engine) as session:
+        for name, provider in providers.items():
+            days = provider.capability.authorization_check_days
+            assert days is not None
+            rows = session.scalars(
+                select(ConnectorConnection.id)
+                .join(
+                    ConnectorTokenSecret,
+                    ConnectorTokenSecret.connection_id == ConnectorConnection.id,
+                )
+                .where(
+                    ConnectorConnection.provider == name,
+                    ConnectorConnection.status == "active",
+                    ConnectorTokenSecret.kind == "access_token",
+                    ConnectorTokenSecret.status != "destroyed",
+                    ConnectorTokenSecret.last_refreshed_at <= now - timedelta(days=days),
+                )
+                .order_by(ConnectorTokenSecret.last_refreshed_at, ConnectorConnection.id)
+                .limit(limit - len(due))
+            )
+            due.extend((connection_id, name) for connection_id in rows)
+            if len(due) >= limit:
+                break
+    return due
+
+
+def _locked_connection(
+    session: Session, connection_id: UUID, *, skip_locked: bool = False
+) -> ConnectorConnection | None:
+    return session.scalar(
+        select(ConnectorConnection)
+        .where(ConnectorConnection.id == connection_id)
+        .with_for_update(skip_locked=skip_locked)
+        .execution_options(populate_existing=True)
+    )
+
+
+# Check one connection's authorization: read its tokens under the connection lock, refresh
+# while holding no lock, then store the result under the fence. Each step reads the clock when
+# it happens (R009-11).
+def _check_authorization(
+    engine: Engine,
+    keyring: LocalKeyring,
+    provider: ConnectorProvider,
+    connection_id: UUID,
+    clock: Callable[[], datetime],
+) -> str:
+    capability = provider.capability
+    assert capability.authorization_check_days is not None
+    with Session(engine) as session, session.begin():
+        connection = _locked_connection(session, connection_id, skip_locked=True)
+        if connection is None or connection.status != "active":
+            return "check_skipped"
+        secrets = {row.kind: row for row in _live_secrets(session, connection.id)}
+        access, refresh = secrets.get("access_token"), secrets.get("refresh_token")
+        cutoff = clock() - timedelta(days=capability.authorization_check_days)
+        if access is None or access.last_refreshed_at is None or access.last_refreshed_at > cutoff:
+            return "check_skipped"
+        held = _open(keyring, refresh) if refresh is not None else None
+        presented = _open(keyring, access) if capability.refresh_mode == "self" else held
+        if presented is None:
+            return "check_skipped"
+        generation, access_id = connection.generation, access.id
+    try:
+        grant = provider.refresh(presented)
+    except ProviderError as error:
+        if error.kind is not ErrorKind.UNAUTHORIZED:
+            return "check_failed"
+        with Session(engine) as session, session.begin():
+            connection = _locked_connection(session, connection_id)
+            if _mark_reconnect_required(
+                session, connection, generation, "credential_expired", clock()
+            ):
+                return "reconnect_required"
+        return "check_discarded"
+    moved_on = False
+    try:
+        with Session(engine) as session, session.begin():
+            connection = _locked_connection(session, connection_id)
+            if connection is None or connection.generation != generation:
+                moved_on = True
+                return "check_discarded"
+            previous = session.get(ConnectorTokenSecret, access_id)
+            if connection.status != "active" or previous is None or previous.status == "destroyed":
+                return "check_discarded"
+            _store_refreshed(session, keyring, connection, previous, grant, held, clock())
+    finally:
+        if moved_on:
+            _discard_refreshed(provider, grant, held)
+    return "checked"
+
+
 @dataclass(frozen=True)
 class _Outstanding:
     secret_id: UUID
@@ -2199,8 +2378,9 @@ def run_teardowns(
     return counts
 
 
-# One bounded worker pass: teardowns first, then the scheduling step (unless disabled), then
-# sync runs.
+# One bounded worker pass: teardowns first, then the scheduling step (unless disabled), which
+# disconnects connections past their reconnect grace period, checks the authorizations that
+# are due (R011-13) and queues the incremental runs that are due, then sync runs.
 def process_connectors(
     engine: Engine,
     settings: Settings,
@@ -2214,6 +2394,7 @@ def process_connectors(
     if schedule:
         result["schedule"] = {
             **expire_reconnects(engine, settings, registry, now=now),
+            **check_authorizations(engine, settings, registry, now=now),
             **schedule_syncs(engine, settings, registry, now=now),
         }
     result["sync"] = run_syncs(engine, settings, registry, limit=limit, now=now)
@@ -2227,6 +2408,7 @@ __all__ = [
     "ConnectorAdmin",
     "ConnectorError",
     "build_providers",
+    "check_authorizations",
     "complete_authorization",
     "connection_view",
     "dispose_grant",

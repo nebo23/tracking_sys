@@ -5,7 +5,8 @@ API builds next to the 009 and 010 providers. Agency A connects the synthetic ch
 clients A1 and A2, and agency B connects it in client B1. No case contacts Google: the provider
 reproduces the documented shapes and the 011-B evidence only. The worker's clock and the
 provider's data clock are set together where data depends on dates; token lifetimes use the
-real clock.
+real clock. The merge review corrections (D-061) add the authorization check for archived
+clients and suspended agencies (R011-13) and the resumed first day read (R011-15).
 """
 
 from dataclasses import replace
@@ -16,7 +17,7 @@ from uuid import UUID
 import pytest
 from alembic import command
 from alembic.config import Config
-from connector_support import make_lab
+from connector_support import archive, make_lab
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -690,3 +691,94 @@ def test_011a_migration_downgrade_refuses_youtube_state(yt):
         command.downgrade(config, "0014_instagram_provider")
     # The refused downgrade leaves every revision in place.
     assert version() == head
+
+
+# R011-13 (D6): runs are queued and claimed only for an active agency and client, so the
+# scheduling step checks the authorization of connections whose client is archived (K1) or
+# whose agency is suspended (K3). A revocation in the Google settings, stood in for by a refused
+# refresh, then leads to reconnect_required and the 14-day grace purge.
+def test_r011_13_authorization_is_checked_for_an_archived_client_and_a_suspended_agency(yt):
+    lab, w = yt, yt.w
+    k1 = _connect(lab, "owner_a", w.a, w.a1)
+    k3 = _connect(lab, "owner_b", w.b, w.b1, account="UCotherchannel")
+    assert _work(lab)["sync"] == {"succeeded": 8}
+    kept = {item: lab.records(item) for item in (k1, k3)}
+    reads, usage = len(_calls(lab, "fetch")), _usage(lab, k1)
+    archive(w, w.a1)
+    with w.db.migration.begin() as connection:
+        connection.execute(
+            text("UPDATE agencies SET status = 'suspended' WHERE id = :b"), {"b": w.b}
+        )
+    start = now_utc()
+
+    # Nothing is due within 7 days of the last refresh.
+    assert _work(lab, now=start + timedelta(days=6), schedule=True)["schedule"] == {}
+    # After 7 days each access token is refreshed without a read, a run or a reservation.
+    later = start + timedelta(days=8)
+    result = _work(lab, now=later, schedule=True)
+    assert (result["schedule"], result["sync"]) == ({"checked": 2}, {})
+    assert _calls(lab, "refresh") == ["ok", "ok"] and len(_calls(lab, "fetch")) == reads
+    assert _usage(lab, k1) == usage
+    for item in (k1, k3):
+        versions = [(s.version, s.status) for s in lab.secrets(item) if s.kind == "access_token"]
+        assert versions == [(1, "destroyed"), (2, "active")]
+        assert lab.row(item).status == "active"
+    # A checked authorization is not checked again within the period.
+    assert _work(lab, now=later + timedelta(days=6), schedule=True)["schedule"] == {}
+
+    # The next check is refused: both connections require reconnection and keep their data.
+    lab.yt.set_behavior("refresh", "invalid_grant")
+    lost = later + timedelta(days=7, minutes=1)
+    assert _work(lab, now=lost, schedule=True)["schedule"] == {"reconnect_required": 2}
+    for item in (k1, k3):
+        row = lab.row(item)
+        assert (row.status, row.status_reason, row.reconnect_required_since) == (
+            "reconnect_required",
+            "credential_expired",
+            lost,
+        )
+        assert lab.records(item) == kept[item]
+    # 14 days later both are disconnected and purged with reason authorization_lost.
+    due = lost + timedelta(days=14)
+    assert _work(lab, now=due, schedule=True)["schedule"] == {"expired": 2}
+    assert _work(lab, now=due)["teardown"] == {"disconnected": 2}
+    for item in (k1, k3):
+        row = lab.row(item)
+        assert (row.status, row.status_reason, row.revocation_status) == (
+            "disconnected",
+            "authorization_lost",
+            "done",
+        )
+        assert lab.records(item) == 0
+
+
+# R011-15 (D9): two Analytics requests a day defer the first channel_daily read (three windows
+# of at most 31 days) between pages, whichever stream claims the allocation first. The read
+# resumes after the Pacific midnight, when the 72-hour bound has moved by one day, and still
+# stores every day from its first one, each exactly once.
+def test_r011_15_a_first_day_read_deferred_between_pages_skips_no_day(yt):
+    lab, w = yt, yt.w
+    t0 = datetime(2026, 11, 6, 7, 30, tzinfo=UTC)  # 23:30 on 2026-11-05, Pacific time
+    lab.yt.set_behavior("clock", t0.isoformat())
+    data, analytics = BUCKETS
+    lab.yt.capability = replace(CAPABILITY, buckets=(data, replace(analytics, connection_daily=2)))
+    k1 = _connect(lab, "owner_a", w.a, w.a1)
+    _work(lab, now=t0)
+    run = _latest(lab, k1, "channel_daily")
+    assert (run.status, run.error_kind) == ("queued", "budget_exhausted")
+    assert run.pages >= 1 and _checkpoint(lab, k1, "channel_daily").cursor is not None
+
+    t1 = datetime(2026, 11, 6, 8, 30, tzinfo=UTC)  # 00:30 on 2026-11-06, Pacific time
+    lab.yt.set_behavior("clock", t1.isoformat())
+    lab.yt.capability = CAPABILITY
+    _work(lab, now=t1)
+    assert _latest(lab, k1, "channel_daily").status == "succeeded"
+    days = sorted(
+        date.fromisoformat(key.removeprefix("day-")) for key in _stored(lab, k1, "channel_daily")
+    )
+    # From the first day fixed at connect (90 days before 2026-11-02) through 2026-11-02,
+    # which the moved bound made complete.
+    assert days == [date(2026, 8, 4) + timedelta(days=index) for index in range(91)]
+    point = _checkpoint(lab, k1, "channel_daily")
+    assert point.covered_from == datetime(2026, 8, 4, tzinfo=UTC) + PDT
+    assert point.complete_through == datetime(2026, 11, 3, tzinfo=UTC) + PST

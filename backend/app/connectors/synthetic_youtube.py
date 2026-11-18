@@ -12,9 +12,9 @@ service:
 - Partial consent: only the approved scopes are granted, together with any scope a live grant
   of the same account already holds (F1).
 - Channels: one channel per account; an account with none or several is refused (F4).
-- Data: Pacific days with 72-hour completeness and sparse day rows (F8, D-060), an inventory
-  of private, unlisted and public uploads served 50 per page (F5), and lowerCamelCase
-  creatorContentType values (F9).
+- Data: Pacific days with 72-hour completeness and sparse day rows (F8, D-060), read with a
+  cursor that keeps the read's first day (R011-15), an inventory of private, unlisted and
+  public uploads served 50 per page (F5), and lowerCamelCase creatorContentType values (F9).
 - Errors: the documented error kinds, including quotaExceeded (F14, YT-5).
 
 State lives in its own SQLite file, shared by the API and the worker, through the storage of
@@ -218,6 +218,27 @@ def pacific_day(instant: datetime) -> date:
 # of the Pacific day containing now - 72 hours.
 def complete_through(now: datetime) -> datetime:
     return pacific_start(pacific_day(now - LATENCY))
+
+
+# A channel_daily position: the read's first day and the offset of the next page in its day
+# list, as "<first-day>:<offset>". The first day stays fixed for the whole read, so a page read
+# after the 72-hour bound has moved (a deferral across a Pacific midnight) continues the same
+# list and skips no day (R011-15). Anything else is refused as invalid_cursor.
+def day_cursor(first: date, offset: int) -> str:
+    return f"{first.isoformat()}:{offset}"
+
+
+def parse_day_cursor(position: str) -> tuple[date, int]:
+    text, separator, offset = position.partition(":")
+    try:
+        first = date.fromisoformat(text)
+    except ValueError:
+        first = None
+    valid = first is not None and first.isoformat() == text and separator == ":"
+    if not valid or not (offset.isascii() and offset.isdigit()):
+        raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
+    assert first is not None
+    return first, int(offset)
 
 
 # Round down to three significant figures, as YouTube reports subscriberCount (YT-2).
@@ -583,13 +604,15 @@ class SyntheticYouTubeProvider(SyntheticProvider):
             "videosRemovedFromPlaylists": 0,
         }
 
+    # One page of a stream at `position`, the cursor without its prefix (None for the first
+    # page): an offset into the inventory, or a channel_daily day cursor (R011-15).
     def _page(
         self,
         connection: sqlite3.Connection,
         stream: str,
         account: str,
         label: str | None,
-        offset: int,
+        position: str | None,
         since: datetime | None,
         until: datetime | None,
     ) -> ProviderPage:
@@ -618,16 +641,19 @@ class SyntheticYouTubeProvider(SyntheticProvider):
                 )
             return ProviderPage((record,), None, today, clock, label)
         if stream == "channel_daily":
-            oldest = pacific_start(pacific_day(through) - timedelta(days=HISTORY_DAYS))
-            start = (
-                pacific_start(pacific_day(through) - timedelta(days=CONNECT_DAYS))
-                if since is None
-                else pacific_start(pacific_day(since))
-            )
-            start = max(start, oldest)
+            # The first page fixes the read's first day; the cursor carries it (R011-15).
+            last_day = pacific_day(through)
+            if position is None:
+                first = (
+                    last_day - timedelta(days=CONNECT_DAYS) if since is None else pacific_day(since)
+                )
+                first, offset = max(first, last_day - timedelta(days=HISTORY_DAYS)), 0
+            else:
+                first, offset = parse_day_cursor(position)
+            start = pacific_start(first)
             end = through if until is None else min(through, pacific_start(pacific_day(until)))
             days = []
-            day = pacific_day(start)
+            day = first
             while start < end and pacific_start(day) < end:
                 days.append(day)
                 day += DAY
@@ -641,10 +667,11 @@ class SyntheticYouTubeProvider(SyntheticProvider):
             following = offset + WINDOW_DAYS
             return ProviderPage(
                 records,
-                f"{CURSOR_PREFIX}{following}" if following < len(days) else None,
+                CURSOR_PREFIX + day_cursor(first, following) if following < len(days) else None,
                 start if start < end else None,
                 max(start, end),
             )
+        offset = int(position) if position is not None else 0
         uploads = self._videos(connection, True)
         chunk = uploads[offset : offset + PAGE_VIDEOS]
         following = offset + PAGE_VIDEOS
@@ -707,12 +734,15 @@ class SyntheticYouTubeProvider(SyntheticProvider):
     ) -> ProviderPage:
         if self.capability.stream_spec(stream) is None:
             raise ProviderError(ErrorKind.PERMANENT, "unknown_stream")
-        offset = 0
+        position = None
         if cursor is not None:
-            digits = cursor.removeprefix(CURSOR_PREFIX)
-            if not cursor.startswith(CURSOR_PREFIX) or not digits.isdigit():
+            position = cursor.removeprefix(CURSOR_PREFIX)
+            if not cursor.startswith(CURSOR_PREFIX):
                 raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
-            offset = int(digits)
+            if stream == "channel_daily":
+                parse_day_cursor(position)
+            elif not (position.isascii() and position.isdigit()):
+                raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
         error: ProviderError | None = None
         page: ProviderPage | None = None
         with self._transaction() as connection:
@@ -723,7 +753,7 @@ class SyntheticYouTubeProvider(SyntheticProvider):
                 and found[2] is not None
                 and datetime.fromisoformat(found[2]) <= _now()
             )
-            detail = f"{stream}:{offset}"
+            detail = f"{stream}:{position or 0}"
             scopes: set[str] = set()
             if found is not None:
                 scopes = set(
@@ -760,7 +790,7 @@ class SyntheticYouTubeProvider(SyntheticProvider):
                 account, label = connection.execute(
                     "SELECT account, label FROM grants WHERE id = ?", (found[0],)
                 ).fetchone()
-                page = self._page(connection, stream, account, label, offset, since, until)
+                page = self._page(connection, stream, account, label, position, since, until)
                 self._call(connection, "fetch", "ok", detail)
         if error is not None:
             raise error
