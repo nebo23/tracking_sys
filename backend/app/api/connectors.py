@@ -63,7 +63,9 @@ class AgentApproval(Input):
 
 
 class ConnectInput(Input):
-    provider: Literal["synthetic", "synthetic_instagram", "instagram", "synthetic_youtube"]
+    provider: Literal[
+        "synthetic", "synthetic_instagram", "instagram", "synthetic_youtube", "youtube"
+    ]
     agent_approval: AgentApproval | None = None
 
 

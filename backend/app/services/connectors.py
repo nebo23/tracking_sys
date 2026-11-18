@@ -37,7 +37,7 @@ deletion request start the disconnect of every connection of the named account.
 
 010-C (D-055) registers the live Instagram adapter only when it is enabled and configured and
 its provider rules are current, and logs connector_extra_scopes when a kept grant carries
-permissions that were not requested.
+permissions that were not requested. 011-C (D-060) does the same for the live YouTube adapter.
 
 011-A (D-058, D-060) adds the runtime rules for Google-shaped providers. A grant without every
 requested scope, or one the adapter refuses, is not installed. Grants shared by every token of
@@ -96,6 +96,7 @@ from app.connectors.instagram import InstagramProvider
 from app.connectors.synthetic import SyntheticProvider
 from app.connectors.synthetic_instagram import SyntheticInstagramProvider
 from app.connectors.synthetic_youtube import SyntheticYouTubeProvider
+from app.connectors.youtube import YouTubeProvider
 from app.models import (
     Agency,
     AgencyMembership,
@@ -169,7 +170,10 @@ CALLBACK_ERRORS = frozenset(
 
 
 # Provider rules that must be current before a live adapter is registered (003-C, D-025).
-LIVE_RULES = {"instagram": ("meta.platform_data", "instagram.login_api")}
+LIVE_RULES = {
+    "instagram": ("meta.platform_data", "instagram.login_api"),
+    "youtube": ("youtube.authorized_analytics", "youtube.other_data"),
+}
 
 
 # Whether every provider rule a live adapter depends on allows it today.
@@ -178,9 +182,10 @@ def rules_allow(provider: str, today: date) -> bool:
 
 
 # The adapters this process may use: the development synthetic providers when their state
-# file is configured, and the live Instagram adapter when it is enabled and configured and its
-# provider rules are current (010-C, D-055). A rule that becomes due for review takes effect
-# when the registry is next built, at the API's or worker's next start.
+# file is configured, and the live Instagram (010-C, D-055) and YouTube (011-C, D-060) adapters
+# when each is enabled and configured and its provider rules are current. A rule that becomes
+# due for review takes effect when the registry is next built, at the API's or worker's next
+# start.
 def build_providers(settings: Settings, today: date | None = None) -> dict[str, ConnectorProvider]:
     registry: dict[str, ConnectorProvider] = {}
     if settings.connector_synthetic_state is not None:
@@ -195,6 +200,10 @@ def build_providers(settings: Settings, today: date | None = None) -> dict[str, 
     if settings.connector_instagram_enabled and rules_allow("instagram", today or now_utc().date()):
         registry["instagram"] = InstagramProvider(
             settings.instagram_app_id, settings.instagram_app_secret.get_secret_value()
+        )
+    if settings.connector_youtube_enabled and rules_allow("youtube", today or now_utc().date()):
+        registry["youtube"] = YouTubeProvider(
+            settings.youtube_client_id, settings.youtube_client_secret.get_secret_value()
         )
     return registry
 
@@ -848,10 +857,19 @@ def _settle_previous(
         raise ConnectorError("provider_unavailable", 503)
 
 
-# Whether a refused grant of an account-wide provider is shared with an active connection.
+# Refusals after which the grant's account cannot be told apart from another connection's
+# (several channels, or a failed channel lookup): the grant is kept rather than risk revoking a
+# working connection's tokens (011-C, D5).
+UNKNOWN_ACCOUNT_REFUSALS = frozenset({"several_channels", "channel_unavailable"})
+
+
+# Whether a refused grant of an account-wide provider is shared with an active connection, or
+# cannot be shown not to be.
 def _grant_shared(engine: Engine, provider: ConnectorProvider, grant: TokenGrant) -> bool:
     if provider.capability.revocation_scope != "account":
         return False
+    if grant.refusal in UNKNOWN_ACCOUNT_REFUSALS:
+        return True
     with Session(engine) as session:
         return _account_shared(session, provider.capability.provider, grant.external_account_id)
 
@@ -2057,8 +2075,9 @@ def _record_revocation(engine: Engine, secret_id: UUID, outcome: str) -> None:
 # ("not_required") do not count. The clock is read once the connection is locked, to decide
 # whether the deadline forces completion (R009-04), and again after the purge has run, in the
 # transaction that records the outcome: that second reading is the completion time, so a
-# purge that ends after the deadline is reported as late (R009-10). purge_due_at never
-# changes. Before the deadline an unsettled teardown releases its lease for retry.
+# purge that ends after the deadline is reported as late (R009-10). purge_due_at never moves
+# later; only the operator purge (011-C) brings it forward to the time of the purge. Before
+# the deadline an unsettled teardown releases its lease for retry.
 def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]) -> str:
     with Session(engine) as session, session.begin():
         connection = session.scalar(

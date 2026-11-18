@@ -3,7 +3,7 @@
 import base64
 import secrets
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -118,9 +118,16 @@ def test_connector_rules_block_their_features_until_reverified():
     today = date(2026, 11, 4)
     connector_rules = [rule for rule in providers.RULES if rule.provider != "google"]
     assert len(connector_rules) == 11
-    # Specification 010-C (D-055) re-verified the Meta platform data and Instagram Login rows;
-    # every other connector row stays stale and blocking until its own specification.
-    reverified = {"meta.platform_data", "instagram.login_api"}
+    # Specification 010-C (D-055) re-verified the Meta platform data and Instagram Login rows,
+    # and 011-C (D-060) the two YouTube rows; every other connector row stays stale and
+    # blocking until its own specification.
+    reviews = {
+        "meta.platform_data": (date(2026, 11, 17), date(2027, 11, 17)),
+        "instagram.login_api": (date(2026, 11, 17), date(2027, 11, 17)),
+        "youtube.authorized_analytics": (date(2026, 11, 18), date(2027, 11, 18)),
+        "youtube.other_data": (date(2026, 11, 18), date(2027, 11, 18)),
+    }
+    reverified = set(reviews)
     assert {rule.rule_id for rule in connector_rules if rule.rule_id not in reverified} == {
         rule.rule_id for rule in connector_rules if rule.status is providers.RuleStatus.STALE
     }
@@ -129,12 +136,11 @@ def test_connector_rules_block_their_features_until_reverified():
         for rule in connector_rules
         if rule.rule_id not in reverified
     )
-    for rule_id in sorted(reverified):
+    for rule_id, (verified, review) in sorted(reviews.items()):
         item = providers.rule(rule_id)
-        assert item.verified_at == date(2026, 11, 17)
-        assert item.review_due_at == date(2027, 11, 17)
-        assert providers.feature_allowed(item, date(2027, 11, 17)) == Decision(True, "rule_current")
-        assert providers.feature_allowed(item, date(2027, 11, 18)) == Decision(
+        assert (item.verified_at, item.review_due_at) == (verified, review)
+        assert providers.feature_allowed(item, review) == Decision(True, "rule_current")
+        assert providers.feature_allowed(item, review + timedelta(days=1)) == Decision(
             False, "rule_review_overdue"
         )
     current = providers.rule("google.sign_in")

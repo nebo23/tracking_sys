@@ -266,12 +266,14 @@ def test_011a_partial_consent_and_unavailable_accounts_are_refused(yt):
     k3 = _connect(lab, "owner_b", w.b, w.b1, scopes=(ANALYTICS_SCOPE,))
     assert set(lab.row(k3).granted_scopes) == {DATA_SCOPE, ANALYTICS_SCOPE}
 
-    # F4: an account without exactly one channel is refused and its grant revoked.
+    # F4: an account without exactly one channel is refused. A grant without a channel is
+    # revoked; with several channels the account cannot be told apart from another
+    # connection's, so the grant is kept rather than risk revoking working tokens (D5).
     for channels in (0, 2):
         url = _begin(lab, "owner_b", w.b, w.b2).json()["authorization_url"]
         result = _finish(lab, "owner_b", url, f"UCnone{channels}", channels=channels)
         assert result == {"error": "account_unavailable"}
-    assert ("UCnone0", True) in lab.yt.grants() and ("UCnone2", True) in lab.yt.grants()
+    assert ("UCnone0", True) in lab.yt.grants() and ("UCnone2", False) in lab.yt.grants()
     assert _usable(lab, other, k1, k3)
 
 
@@ -678,10 +680,13 @@ def test_011a_migration_downgrade_refuses_youtube_state(yt):
     lab, w = yt, yt.w
     _connect(lab, "owner_a", w.a, w.a1)
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
+
+    def version():
+        with w.db.migration.connect() as connection:
+            return connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+
+    head = version()
     with pytest.raises(RuntimeError, match="Refuse to remove populated connector state"):
         command.downgrade(config, "0014_instagram_provider")
-    with w.db.migration.connect() as connection:
-        assert (
-            connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0015_youtube_runtime"
-        )
+    # The refused downgrade leaves every revision in place.
+    assert version() == head

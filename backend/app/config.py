@@ -168,6 +168,14 @@ class Settings(DatabaseSettings):
     connector_instagram_enabled: bool = False
     instagram_app_id: str = ""
     instagram_app_secret: SecretStr = SecretStr("")
+    # YouTube Data API and YouTube Analytics API (specification 011-C, D-058, D-060). The live
+    # adapter stays off unless explicitly enabled with its own Web client from ignored .env
+    # (TRACKING_YOUTUBE_CLIENT_ID and TRACKING_YOUTUBE_CLIENT_SECRET), never the Google sign-in
+    # or Gmail sender client, and it is registered only while the YouTube provider rules are
+    # current. Turning it off is the kill switch; app.connector_purge disconnects and purges.
+    connector_youtube_enabled: bool = False
+    youtube_client_id: str = ""
+    youtube_client_secret: SecretStr = SecretStr("")
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -291,6 +299,20 @@ class Settings(DatabaseSettings):
                 and 16 <= len(secret) <= 128
             ):
                 raise ValueError("The Instagram connector requires the Meta app ID and secret.")
+        if self.connector_youtube_enabled:
+            client = self.youtube_client_id
+            secret = self.youtube_client_secret.get_secret_value()
+            if not (
+                client.isascii()
+                and client.endswith(".apps.googleusercontent.com")
+                and len(client) <= 128
+                and secret.isascii()
+                and secret.strip() == secret
+                and 8 <= len(secret) <= 128
+            ):
+                raise ValueError("The YouTube connector requires its Web client ID and secret.")
+            if client in {self.google_client_id, self.gmail_client_id}:
+                raise ValueError("The YouTube connector needs a client of its own.")
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.
@@ -416,7 +438,7 @@ class LifecycleSettings(DatabaseSettings):
     # and a provider may keep its records for a shorter period (730 days for YouTube).
     connector_attribute_refresh_days: int = Field(default=30, ge=0, le=30)
     connector_provider_retention_days: dict[str, int] = Field(
-        default_factory=lambda: {"synthetic_youtube": 730}
+        default_factory=lambda: {"synthetic_youtube": 730, "youtube": 730}
     )
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)

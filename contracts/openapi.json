@@ -14414,7 +14414,8 @@
               "synthetic",
               "synthetic_instagram",
               "instagram",
-              "synthetic_youtube"
+              "synthetic_youtube",
+              "youtube"
             ],
             "title": "Provider"
           },

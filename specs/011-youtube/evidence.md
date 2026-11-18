@@ -211,3 +211,116 @@ Existing tests were updated only for the new fields and the larger registry:
 - **`batchGetStats` bucket.** Not declared, because no stream uses that method.
 - **Large channels.** A channel with more than about 1,450 videos exceeds the 30 Analytics requests a day of D10, so its `video_totals` run continues from its cursor the next Pacific day.
 - **Not in this slice.** The D13 wording and any frontend work wait for the owner's brief (D-039). The disclosure version is the development identifier `dev-agent-approval-1`.
+
+## 011-C: Live YouTube adapter (2026-11-18)
+
+Scope: Phase 3 of the [completion prompt](completion-prompt.md), under D-058 and D-060.
+- **Testing.** The tests run the adapter against `tests/youtube_api.py`, an in-memory Google API built from the 011-B answers. No test contacts Google, and no dependency was added.
+- **Database.** Migration `0016` ran only on the disposable PostgreSQL 18 service (Compose project `tracking-system-foundation-test` on 127.0.0.1:55433), never on the owner's `tracking_sys`.
+- **Recorded when they take place:** the read-only live check with the owner's test channel (step 8) and the secret rotation (step 7).
+- **After F3, under the access rule:** the live disconnect check.
+
+### Policy rows re-verified (2026-11-18)
+
+On 2026-11-18 the pages behind the `youtube.authorized_analytics` and `youtube.other_data` rows were read again (entry review sections 1.5 and 4.5).
+
+| Source | Reading | Result |
+|---|---|---|
+| YouTube API Services Developer Policies (P-1, S-72) | III.D.2 verbatim. The fetched page was cut at about 40% of its length. III.E.2, III.E.3, III.E.4.b, III.E.4.c, III.E.4.g and III.E.4.h therefore come from the fetch tool's summary of the remainder, with short quotes. No revision date is shown. | Unchanged:<br>- **Revocation in the client:** revoke "right away" and delete within 7 calendar days.<br>- **Revocation in the Google security settings:** delete within 30 calendar days.<br>- **Tokens that cannot be refreshed:** delete those users' data.<br>- **Aggregation:** only within one content owner.<br>- **Display:** only to the authorizing user or agents that user expressly approved.<br>- **Statistics:** kept as long as necessary, with authorization confirmed and videos checked for deletion every 30 days.<br>- **Other data:** deleted or refreshed after 30 days.<br>- **Deletion request or account deletion:** within 7 calendar days.<br>- **Replacement data and derived data or metrics:** not allowed. |
+| YouTube API Services Terms of Service (P-2, S-74) | Section 24.3 verbatim. No revision date is shown. | Unchanged. On termination, delete all API Data, including from servers. At YouTube's request, certify the deletion in a writing signed by an authorized representative. |
+| Google API Services User Data Policy (P-8, S-71) | Verbatim; "Last updated: February 15, 2024". | Unchanged. Limited Use covers the raw data and data "aggregated, anonymized, or derived" from it. |
+
+The revision history (S-73) and the Cross-Account Protection page (S-75) were not read again. The rows depend on them only for two things: the derived-metrics terms, which stay excluded, and not using RISC.
+
+Both rows now carry the texts of entry review section 4.5:
+- **Status:** `current`, verified 2026-11-18, review due 2027-11-18.
+- **Sources:** `youtube.authorized_analytics` also cites S-74, for its termination rule.
+- **Effect:** the live adapter is registered only while both rows are current and before their review date.
+
+### Built
+
+- **Adapter.** `app/connectors/youtube.py` (version `youtube-data-v3-analytics-v2`) uses the 011-A capability: scopes, buckets, streams and catalog. Live behavior:
+  - **Authorization.** Google's web server flow with `access_type=offline`, `prompt=consent` and PKCE `S256`. The code exchange keeps the refresh token's reported lifetime as the grant's expiry (F1).
+  - **Channel.** `channels.list?mine=true` with `part=id,snippet` and `fields=items(id,snippet/title)`.
+    - A connection is installed only for exactly one channel (F4).
+    - No channel (`no_channel`), several channels (`several_channels`) or a failed lookup (`channel_unavailable`) is a refusal.
+    - A grant without the Data API scope comes back without a channel read, and the runtime refuses it as `scopes_missing` (D2).
+  - **Tokens.** A refresh keeps the refresh token (F3). Revocation at `oauth2.googleapis.com/revoke` counts an already invalid token as done.
+  - **Streams.** As in 011-A. The `fields` parameter keeps titles, descriptions, thumbnails, tags and other text out of every video answer. An inventory read resolves the uploads playlist once.
+  - **Errors (F14, YT-5):**
+    - 401 is unauthorized.
+    - A 403 with `quotaExceeded` or `dailyLimitExceeded` is `budget_exhausted` in the call's bucket.
+    - 403 rate limits and 429 are rate limits, with `Retry-After`.
+    - Other 403 answers are forbidden for the stream.
+    - 5xx and network failures are retryable; everything else is permanent.
+- **Settings.** `connector_youtube_enabled` (default false), `youtube_client_id` and `youtube_client_secret`, read from `TRACKING_CONNECTOR_YOUTUBE_ENABLED`, `TRACKING_YOUTUBE_CLIENT_ID` and `TRACKING_YOUTUBE_CLIENT_SECRET`. When the adapter is enabled:
+  - the client ID must end in `.apps.googleusercontent.com` and differ from the Google sign-in and Gmail sender clients;
+  - the secret must be 8 to 128 ASCII characters without surrounding spaces;
+  - validation errors never contain the secret.
+- **Registration.** `build_providers` registers `youtube` only when it is enabled and configured and both rows are current (`LIVE_RULES`).
+- **Runtime.** A refusal for several channels or a failed channel lookup keeps the grant (`UNKNOWN_ACCOUNT_REFUSALS`, D5). Such an account cannot be told apart from a working connection's account, and Google would revoke that connection's tokens too.
+- **Operator purge.** `python -m app.connector_purge --provider youtube --confirm` (entry review section 4.2):
+  - disconnects every live YouTube connection with reason `operator_purged`;
+  - brings forward the deadline of teardowns already under way to the time of the purge;
+  - runs the teardowns in the same command, so neither a revocation that cannot be made nor an adapter removed by the kill switch delays the deletion;
+  - reports a teardown that a running worker holds as `remaining`;
+  - prints only counts.
+- **Migration.** `0016_youtube_provider` admits `youtube` in connections, webhook deliveries and deletion requests, and admits the reason `operator_purged`. It changes no table, column, index or privilege. The downgrade refuses YouTube state in five tables and any operator-purged connection.
+- **API and documents.** The connect input accepts `youtube`, and the OpenAPI snapshot was regenerated. The [connector guide](../../docs/engineering/connectors.md#youtube-providers-011-a-and-011-c) describes both YouTube providers.
+- **Fixture.** `tests/youtube_api.py` serves the token, revocation, Data API and Analytics endpoints with synthetic values only.
+
+Existing tests changed only where 011-C changes behavior:
+- **`test_connector_youtube.py`:** a refusal for several channels now keeps the grant. The migration test compares the head before and after the refused downgrade instead of naming `0015`.
+- **`test_privacy_secrets_restore.py`:** the two YouTube rows are current, with their new dates.
+
+### Purge defect found by the mutation check
+
+**What happened.** The first mutation run removed the purge-time deadline, and the run hung. With the normal deadline, a teardown whose revocation fails returns `pending` and releases its lease, and the purge loop ran until no YouTube connection remained `disconnecting`.
+
+**Why it was a real defect.** The same loop would never end for a teardown already under way before the purge. Two examples: an owner's disconnect while Google's revocation endpoint fails, or a teardown after the kill switch has removed the adapter.
+
+**Fix.** The purge now also brings forward the deadline of those teardowns, and it stops when a pass completes none. `test_011c_operator_purge_does_not_wait_for_an_unavailable_revocation` covers both cases, plus a teardown held by a worker.
+
+**Recovery.**
+- The hung run was stopped by ending its test process. The script then restored the source byte for byte.
+- The disposable database was recreated, because the stopped test had left synthetic rows that the suite refuses.
+
+### Tests
+
+| Requirement | Test |
+|---|---|
+| Read-only scopes, offline access, consent and PKCE `S256` | `tests/test_connector_youtube_adapter.py::test_capability_requests_read_only_scopes_with_pkce_and_offline_access` |
+| Code exchange: channel ID and title only, grant expiry kept; refusals named | `test_exchange_reads_the_channel_and_keeps_the_grant_expiry`, `test_exchange_refusals_name_their_reason` |
+| A refresh keeps the refresh token; revocation ends every grant of the account | `test_refresh_keeps_the_refresh_token_and_revocation_ends_every_grant` |
+| Channel snapshot with a hidden subscriber count `not_returned`; day reports with the days without rows `not_returned` | `test_channel_snapshot_and_day_reports` |
+| Inventory pages, the uploads playlist resolved once, allow-listed attributes without titles, lifetime totals with product types, deleted videos confirmed | `test_inventory_attributes_totals_and_deleted_videos` |
+| Error mapping (7 cases), `Retry-After`, invalid tokens | `test_errors_map_to_runtime_kinds`, `test_rate_limits_carry_retry_after_and_invalid_tokens_are_unauthorized` |
+| Settings validation, registration off by default, no registration with a stale row or after the review date | `test_settings_and_rule_gated_registration` |
+| Connect through the API; one run per stream; 6 Data units and 4 Analytics requests for 4 videos and 90 days; a quota answer deferred to the Pacific midnight; a deleted video purged; the operator purge | `tests/integration/test_connector_youtube_live.py::test_011c_connect_read_every_stream_and_purge` |
+| Operator purge with a revocation that cannot be made, a teardown under way with the adapter removed, and a teardown held by a worker | `test_011c_operator_purge_does_not_wait_for_an_unavailable_revocation` |
+| Partial consent refused, and its grant revoked when no other connection holds the account | `test_011c_partial_consent_is_refused_and_revoked` |
+| Migration `0016` downgrade refused with live YouTube state | `test_011c_migration_downgrade_refuses_live_youtube_state` |
+
+| Command (from `backend/`, project `.venv`; database runs through the disposable service) | Result |
+|---|---|
+| `python -m pytest -m "not integration" -q` | **593 passed**, 342 deselected |
+| `python -m pytest -m "integration or not integration" -q tests/test_connector_youtube_adapter.py tests/integration/test_connector_youtube_live.py tests/integration/test_connector_youtube.py` | **29 passed** (15, 4 and 10) |
+| `python -m pytest -m integration -q` (full integration suite, after the purge correction) | **339 passed, 3 skipped**: the three browser journeys of `test_tracker_journey.py`, which need `TRACKING_RUN_BROWSER_TESTS=1` and are unrelated to connectors (skipped, not passed) |
+| Migration `0016` | The suite upgrades to head (`0016_youtube_provider`). `test_postgresql_migration_cycle_and_runtime_permissions` downgrades to base and upgrades again on the empty database. The downgrade to `0015` is refused while a `youtube` connection exists. |
+| OpenAPI snapshot | Regenerated; `tests/test_contract.py` passes |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed |
+| Mutation check: each safeguard disabled in turn, the 29 YouTube tests rerun, the source restored byte for byte (SHA-256 compared) | **All 8 caught**, with no setup error in any run:<br>- rule-gated registration;<br>- the kept grant for unknown accounts (D5);<br>- the deadline at the time of the purge;<br>- the `remaining` report;<br>- a client of its own;<br>- titles kept out of video answers (3 failures);<br>- days without rows `not_returned`;<br>- no channel read without the Data scope (2 failures).<br><br>This is the second run; the first hung on the deadline mutation (see the purge defect above). |
+
+### Limits and follow-ups
+
+- **Live check.** Recorded here when the owner runs it. The live disconnect check comes after F3 (Phase 4).
+- **Secret rotation.** Requested on 2026-11-18. It stays an open follow-up in the [tasks](tasks.md) until it is done.
+- **Policy wording.** Developer Policies III.E was confirmed from the fetch tool's summary, not word for word. A complete reading belongs to the review before production (011-D).
+- **Operator purge deadline.** The deadline is the moment the purge starts, and the teardown ends a few milliseconds later. The connection view therefore reports `deadline_met: false` for every connection the purge completes.
+- **Page costs are maxima.** Only the first page of a read resolves the uploads playlist:
+  - later `videos` pages reserve 3 Data units but use 2;
+  - later `video_totals` pages reserve 2 but use 1.
+
+  Recorded usage can therefore exceed Google's count by one Data unit per later page.
+- **Several channels.** Not observable with the owner's account (F4). The refusal is tested with the fixture only.
+- **Testing status.** While `connectapp` is in Testing, only its test users can authorize, and refresh tokens last 7 days. Use beyond the owner's test channels waits for 011-D.

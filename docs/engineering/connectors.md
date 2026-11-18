@@ -1,5 +1,5 @@
 # Connector runtime (specification 009)
-Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. 010-A (D-053) adds an Instagram-shaped synthetic provider and the runtime extensions it needs; see [Instagram-shaped providers](#instagram-shaped-providers-010-a). 010-C (D-055) adds the live Instagram Login adapter; see [Live Instagram adapter](#live-instagram-adapter-010-c). Every other real provider rule in `app.privacy.providers` stays blocking until its own specification (011-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 onward).
+Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. 010-A (D-053) adds an Instagram-shaped synthetic provider and the runtime extensions it needs; see [Instagram-shaped providers](#instagram-shaped-providers-010-a). 010-C (D-055) adds the live Instagram Login adapter; see [Live Instagram adapter](#live-instagram-adapter-010-c). 011-A (D-058, D-060) adds a YouTube-shaped synthetic provider and its runtime extensions, and 011-C the live YouTube adapter; see [YouTube providers](#youtube-providers-011-a-and-011-c). Every other real provider rule in `app.privacy.providers` stays blocking until its own specification (012-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 to 0016).
 
 ## Configuration
 Connectors need the D-025 token keyring of the [event collection guide](event-collection.md) (`TRACKING_TOKEN_KEYRING`, `TRACKING_TOKEN_KEYRING_ACTIVE`). Routes answer `503 connector_not_configured` while it is blank.
@@ -14,6 +14,8 @@ Connectors need the D-025 token keyring of the [event collection guide](event-co
 | `TRACKING_CONNECTOR_CONNECTION_DAILY_UNITS` | Daily allocation of each connection in its provider's cost unit, counted per UTC day, in addition to the provider's own daily quota. Default 100. A synthetic development value, not a commercial budget (Q-004). |
 | `TRACKING_CONNECTOR_INSTAGRAM_ENABLED` | Registers the live Instagram Login adapter (010-C) when true, with the app ID and secret set and the `meta.platform_data` and `instagram.login_api` rules current. Default false. |
 | `TRACKING_INSTAGRAM_APP_ID`, `TRACKING_INSTAGRAM_APP_SECRET` | The Meta app's Instagram app ID (digits) and app secret, kept only in the ignored `.env` and required when the adapter is enabled. The 010-B feasibility tool reads the same values. |
+| `TRACKING_CONNECTOR_YOUTUBE_ENABLED` | Registers the live YouTube adapter (011-C) when true, with the client ID and secret set and the `youtube.authorized_analytics` and `youtube.other_data` rules current. Default false. Turning it off is the kill switch. |
+| `TRACKING_YOUTUBE_CLIENT_ID`, `TRACKING_YOUTUBE_CLIENT_SECRET` | The connector's own Google Web client (`...apps.googleusercontent.com`) and secret, kept only in the ignored `.env`. The client must differ from the Google sign-in and Gmail sender clients. The 011-B feasibility tool reads the same values. |
 
 The synthetic provider never makes network calls. Its authorization URL uses the reserved `.invalid` domain. Tests approve it with `SyntheticProvider.approve`, which stands in for the provider's consent page and returns the code that the provider would send to the callback.
 
@@ -107,3 +109,38 @@ D-055 adds `instagram`, the adapter for the Instagram API with Instagram Login (
 | Signed requests | Verified with the app secret and accepted for 24 hours after Meta signed them. |
 
 Meta redirects only to an HTTPS redirect URI registered on the app, so a browser connect through `/connectors/oauth/callback` needs the API hosted at such an address (020), where the deauthorize and data deletion URLs are registered as well. Until App Review, Advanced Access and Business Verification (010-D), Meta's development mode lets only people with a role on the app authorize it, and live use stays with owner-authorized test accounts. The tests use the in-memory `backend/tests/instagram_graph.py`; nothing in the suite contacts Meta.
+
+## YouTube providers (011-A and 011-C)
+D-058 and D-060 add two providers:
+- `synthetic_youtube` (011-A), built next to the other synthetic providers from the same development state setting. Its SQLite file carries a `-youtube` suffix.
+- `youtube` (011-C, `app.connectors.youtube`, version `youtube-data-v3-analytics-v2`), the adapter for the YouTube Data API v3 and the YouTube Analytics API.
+
+Both follow:
+- the [Spec 011 entry review](../../specs/011-youtube/entry-review.md) as decided;
+- the [011-A design note](../../specs/011-youtube/design-011a.md);
+- the answers of the 011-B feasibility check in the [evidence](../../specs/011-youtube/evidence.md).
+
+| Topic | Behavior |
+|---|---|
+| Registration | `youtube` only with `TRACKING_CONNECTOR_YOUTUBE_ENABLED=true`, its own Web client, and current `youtube.authorized_analytics` and `youtube.other_data` rules (re-verified 2026-11-18, review due 2027-11-18). |
+| Authorization | Offline access, consent on every connect and reconnect, PKCE `S256`, and only `youtube.readonly` and `yt-analytics.readonly`. A grant without both scopes is refused (`scopes_missing`). An account is refused (`account_unavailable`) when it has no channel or several, or when its channel cannot be read. |
+| Agent approval | Connect and reconnect carry `agent_approval: {"approved": true, "disclosure": "dev-agent-approval-1"}`, otherwise `422 agent_approval_required`. The approval time and version stay on the connection. |
+| Account-wide grants | Google revokes every token of an account at once. A reconnect replaces the tokens without revoking them (`not_required`). A disconnect or a refused grant revokes only when no other active connection holds the same account; otherwise the outcome is `shared`. A refusal whose account cannot be told apart from another connection's keeps the grant. |
+| Tokens | One-hour access tokens are refreshed when they expire within 5 minutes, and at least every 7 days. A refused refresh makes the connection `reconnect_required`. After 14 days without a reconnect, the worker's scheduling step disconnects and purges it with reason `authorization_lost`. The refresh token's reported expiry is the connection's `grant_expires_at`. |
+| Streams | `channel`: one snapshot per Pacific day, which also refreshes the label. `channel_daily`: Pacific days in windows of up to 31 days (see below). `videos`: the uploads inventory, 50 per page, with the allow-listed attributes `published_at`, `duration`, `privacy_status` and `live_state`. Videos missing from a complete read are confirmed gone through `videos.list` and purged from every stream. `video_totals`: lifetime totals per video with the `creatorContentType` product type. |
+| Quotas | Buckets on the Pacific day: `youtube_data` (cap 9,000 units, 100 per connection) and `youtube_analytics` (cap 90,000 requests, 30 per connection). A cap, an allocation or a `quotaExceeded` answer defers the run to the next Pacific midnight with `budget_exhausted`; this does not count as a retry or failure. Coverage reports each bucket. |
+| Retention | Records are kept at most 730 days (`connector_provider_retention_days`). The lifecycle job clears attributes and labels 30 days after their last refresh. |
+| Operator purge | `python -m app.connector_purge --provider youtube --confirm` disconnects every YouTube connection with reason `operator_purged` and brings forward the deadline of teardowns already under way to the time of the purge (P-2 section 24.3). It revokes where the adapter is registered; with the setting off, it purges without revoking. Sealed material is destroyed and records purged in the same command. A teardown that a running worker holds is reported as `remaining` and completed by that worker. Only counts are printed. |
+
+`channel_daily` reads:
+- 90 days at connect, and backfill up to 730 days.
+- It is complete through the end of the last Pacific day that ended at least 72 hours before the read.
+- Each day stays provisional for 193 hours.
+- A day the API does not return is recorded as `not_returned`.
+
+Google accepts the loopback callback, so a browser connect through `/connectors/oauth/callback` works locally. While the Google Cloud project is in Testing:
+- only its test users can authorize;
+- refresh tokens last 7 days;
+- live use stays with the owner's test channels until 011-D.
+
+The tests use the in-memory `backend/tests/youtube_api.py` and the synthetic adapter; nothing in the suite contacts Google.
