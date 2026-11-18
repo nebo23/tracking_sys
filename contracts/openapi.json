@@ -12098,6 +12098,23 @@
             "description": "Session-bound token from login or /auth/me; required for mutations."
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReconnectInput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -13999,6 +14016,29 @@
         ],
         "title": "AgencyResponse"
       },
+      "AgentApproval": {
+        "properties": {
+          "approved": {
+            "type": "boolean",
+            "const": true,
+            "title": "Approved"
+          },
+          "disclosure": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9-]+$",
+            "title": "Disclosure"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approved",
+          "disclosure"
+        ],
+        "title": "AgentApproval"
+      },
       "AuditResponse": {
         "properties": {
           "id": {
@@ -14072,6 +14112,54 @@
           "authorization_url"
         ],
         "title": "AuthorizationURL"
+      },
+      "BucketCost": {
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "title": "Bucket"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Period Start"
+          },
+          "consumed": {
+            "type": "integer",
+            "title": "Consumed"
+          },
+          "allocation": {
+            "type": "integer",
+            "title": "Allocation"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "exhausted"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bucket",
+          "unit",
+          "period_start",
+          "consumed",
+          "allocation",
+          "remaining",
+          "state"
+        ],
+        "title": "BucketCost"
       },
       "CampaignInput": {
         "properties": {
@@ -14325,9 +14413,20 @@
             "enum": [
               "synthetic",
               "synthetic_instagram",
-              "instagram"
+              "instagram",
+              "synthetic_youtube"
             ],
             "title": "Provider"
+          },
+          "agent_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -14433,6 +14532,18 @@
                 "type": "null"
               }
             ]
+          },
+          "grant_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Expires At"
           }
         },
         "type": "object",
@@ -14446,7 +14557,8 @@
           "connected_at",
           "last_successful_sync_at",
           "actions",
-          "disconnect"
+          "disconnect",
+          "grant_expires_at"
         ],
         "title": "ConnectionResponse"
       },
@@ -14812,6 +14924,13 @@
               }
             ],
             "title": "Reason"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/BucketCost"
+            },
+            "type": "array",
+            "title": "Buckets"
           }
         },
         "type": "object",
@@ -14822,7 +14941,8 @@
           "allocation",
           "remaining",
           "state",
-          "reason"
+          "reason",
+          "buckets"
         ],
         "title": "CostState"
       },
@@ -15042,7 +15162,8 @@
               "pending",
               "done",
               "unsupported",
-              "failed"
+              "failed",
+              "shared"
             ],
             "title": "Revocation"
           },
@@ -16191,6 +16312,18 @@
               }
             ],
             "title": "Latest Observed At"
+          },
+          "additive": {
+            "type": "boolean",
+            "title": "Additive"
+          },
+          "definition_changes": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Definition Changes"
           }
         },
         "type": "object",
@@ -16200,7 +16333,9 @@
           "stream",
           "product_types",
           "availability",
-          "latest_observed_at"
+          "latest_observed_at",
+          "additive",
+          "definition_changes"
         ],
         "title": "MetricAvailability"
       },
@@ -16452,6 +16587,23 @@
         "type": "object",
         "title": "Received"
       },
+      "ReconnectInput": {
+        "properties": {
+          "agent_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReconnectInput"
+      },
       "RecordItem": {
         "properties": {
           "provider_object_id": {
@@ -16469,7 +16621,11 @@
                 "enum": [
                   "FEED",
                   "REELS",
-                  "STORY"
+                  "STORY",
+                  "SHORTS",
+                  "VIDEO_ON_DEMAND",
+                  "LIVE_STREAM",
+                  "UNSPECIFIED"
                 ]
               },
               {
@@ -16501,6 +16657,38 @@
             },
             "type": "object",
             "title": "Metrics"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Attributes"
+          },
+          "attributes_refreshed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes Refreshed At"
           }
         },
         "type": "object",
@@ -16512,7 +16700,9 @@
           "fetched_at",
           "provisional",
           "source",
-          "metrics"
+          "metrics",
+          "attributes",
+          "attributes_refreshed_at"
         ],
         "title": "RecordItem"
       },

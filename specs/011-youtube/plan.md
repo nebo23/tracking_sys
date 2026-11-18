@@ -1,5 +1,5 @@
 # Plan: 011-youtube
-Status: Draft. This plan does not authorize implementation or dependency selection. The [entry review](entry-review.md) (D-056) proposes slices 011-A (YouTube-shaped synthetic adapter and runtime extensions), 011-B (owner-operated feasibility check), 011-C (live adapter) and 011-D (Google verification and quota audit), D-057 and D-058 decided D1-D17; 011-B runs first (see the [feasibility checklist](feasibility-checklist.md) and [evidence](evidence.md)).
+Status: Draft. This plan does not authorize implementation or dependency selection. The [entry review](entry-review.md) (D-056) proposes slices 011-A (YouTube-shaped synthetic adapter and runtime extensions), 011-B (owner-operated feasibility check), 011-C (live adapter) and 011-D (Google verification and quota audit), D-057 and D-058 decided D1-D17; 011-B runs first (see the [feasibility checklist](feasibility-checklist.md) and [evidence](evidence.md)). D-060 ordered the completion; 011-A follows the [design note](design-011a.md).
 
 ## Expected outcome
 Retrieve authorized channel/video statistics and permitted analytics; distinguish the Data API from the Analytics API and review derived-metric policies before combining data.

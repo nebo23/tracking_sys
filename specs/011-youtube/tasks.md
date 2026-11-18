@@ -6,10 +6,10 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [x] Google Cloud console steps (owner, 2026-11-18), as adjusted for `connectapp` in [entry review section 10](entry-review.md#10-owner-decisions).
 - [x] Prepare the 011-B [feasibility checklist](feasibility-checklist.md) and the read-only tool `app.youtube_feasibility` with offline tests ([evidence](evidence.md)).
 - [x] Correct review findings R011-01 to R011-09 of the 011-B tool and documents, each with a regression that fails at `bb3263e` (D-059, [corrections](evidence.md#011-b-review-corrections-2026-11-18)).
-- [ ] 011-B feasibility check: the owner's run and answers to F1-F14 with redacted evidence. Answered so far: F1 (without partial consent), F3 (without the 7-day check), F4, F5, F6, F8 (without the next-day check), F9, F10 and F14.
-- [ ] Owner decision on the proposed D9 completeness amendment ([consequences for 011-A](evidence.md#consequences-for-011-a)) before 011-A uses it.
+- [ ] 011-B feasibility check: the owner's run and answers to F1-F14 with redacted evidence. Answered so far: F1 (a first consent with a scope cleared waits for Phase 4), F2, F3 (without the 7-day check), F4, F5, F6, F7, F8 (without the next-day check), F9, F10, F11 and F14. F3, F12 and F13 follow after 2026-11-24 23:57 UTC under the access rule of the [completion prompt](completion-prompt.md).
+- [x] Owner decision on the proposed D9 completeness amendment ([consequences for 011-A](evidence.md#consequences-for-011-a)): approved as D-060.
 - [ ] After 011-B: delete `local-data\youtube-feasibility` once the summary is recorded (R011-08, D-010).
-- [ ] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015, after the 011-B evidence.
+- [x] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015 ([design](design-011a.md), [evidence](evidence.md#011-a-youtube-shaped-synthetic-adapter-2026-11-18)). Started before the next-day probe (F8) at the owner's request of 2026-11-18.
 - [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels.
 - [ ] Re-verify the `youtube.authorized_analytics` and `youtube.other_data` rows and mark them current before the live adapter runs (011-C, D-025).
 - [ ] Resolve Q-001, Q-004; provider use-case and policy approval and record the owner decision.

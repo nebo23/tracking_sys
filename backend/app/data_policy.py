@@ -1110,6 +1110,11 @@ TABLES: dict[str, TablePolicy] = {
                 "teardown_attempts",
                 "teardown_lease_until",
                 "deletion_request_id",
+                "reconnect_required_since",
+                "account_label_refreshed_at",
+                "grant_expires_at",
+                "agent_approved_at",
+                "agent_disclosure",
             ),
         },
         (
@@ -1124,6 +1129,13 @@ TABLES: dict[str, TablePolicy] = {
                 APPROVED,
                 "D-048",
                 "Cleared with the account label when a disconnect completes.",
+            ),
+            EndOfLifeRule(
+                "account_label",
+                APPROVED,
+                "D-058",
+                "For providers that refresh their labels, cleared by tracking_lifecycle 30 days "
+                "after the last refresh (011-A D11); always cleared when a disconnect completes.",
             ),
         ),
     ),
@@ -1146,6 +1158,8 @@ TABLES: dict[str, TablePolicy] = {
                 "created_at",
                 "expires_at",
                 "consumed_at",
+                "agent_approved_at",
+                "agent_disclosure",
             ),
         },
         (_row(APPROVED, "D-048", "Deleted 1 day after consumption or expiry."),),
@@ -1244,6 +1258,7 @@ TABLES: dict[str, TablePolicy] = {
                 "period",
                 "occurred_at",
                 "settled_at",
+                "bucket",
             ),
         },
         (_row(PENDING, RETENTION, "Kept with run history; retention awaits Q-012."),),
@@ -1263,14 +1278,26 @@ TABLES: dict[str, TablePolicy] = {
                 "stream",
                 "product_type",
                 "unavailable",
+                "attributes",
+                "attributes_refreshed_at",
+                "provisional_until",
             ),
         },
         (
             _row(
                 APPROVED,
-                "D-048; D-053",
-                "Purged when a disconnect, deauthorization or data deletion request completes; "
-                "deleted by tracking_lifecycle 730 days after observation at the latest (D9).",
+                "D-048; D-053; D-058",
+                "Purged when a disconnect, deauthorization or data deletion request completes, "
+                "or when the provider confirms the object deleted (011-A D11); deleted by "
+                "tracking_lifecycle 730 days after observation at the latest (D9), or after the "
+                "provider's shorter period.",
+            ),
+            EndOfLifeRule(
+                "attributes",
+                APPROVED,
+                "D-058",
+                "Allow-listed attributes are cleared by tracking_lifecycle 30 days after their "
+                "last refresh; the statistics stay (011-A D11).",
             ),
         ),
     ),

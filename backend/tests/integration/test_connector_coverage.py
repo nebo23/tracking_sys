@@ -149,6 +149,7 @@ def test_009c_coverage_and_metric_states(lab, api):
         "remaining": 99,
         "state": "available",
         "reason": None,
+        "buckets": [],
     }
     run = _latest_run(lab, k1)
     page = _records(lab, "owner_a", w.a, w.a1, k1)
@@ -248,6 +249,7 @@ def test_009c_coverage_and_metric_states(lab, api):
         "remaining",
         "state",
         "reason",
+        "buckets",
     }
     # With a smaller allocation, the connection's own spending exhausts it.
     small = api.new_client(lab.config.model_copy(update={"connector_connection_daily_units": 3}))

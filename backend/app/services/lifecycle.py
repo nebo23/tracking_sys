@@ -17,11 +17,14 @@ each purpose's effective record: the latest record of a subject and purpose is d
 once no older record of it remains, so no batch can expose an older grant (review finding
 R004-04). Specification 009-A (D-048) adds connector OAuth transactions, deleted one day
 after consumption or expiry like sign-in transactions.
+Specification 011-A (D-058 decision D11) clears connector record attributes and account labels
+that were not refreshed for 30 days, keeping the statistics, and lets a provider keep its
+connector records for a shorter period than the global one.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -39,6 +42,7 @@ from sqlalchemy import (
     text,
     tuple_,
     union,
+    update,
 )
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import aliased
@@ -50,6 +54,7 @@ from app.models import (
     AuthToken,
     CollectedEvent,
     CollectionSubject,
+    ConnectorConnection,
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorWebhookDelivery,
@@ -86,6 +91,8 @@ class Target:
     # Collected data whose eligibility depends on a client's privacy state; deleted per client
     # under that client's privacy lock (delete_client_batch). The model has a client_id column.
     client_scoped: bool = False
+    # 011-A (D11): the values that clear an eligible row's expired columns; the row is kept.
+    clear: Mapping[str, Any] | None = None
 
 
 # The approved targets with their end-of-life predicates for a given cutoff.
@@ -145,10 +152,34 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             settings.webhook_delivery_retention_days, cutoff
         )
 
-    # Connector records (D-053 decision D9) are kept at most 2 years after observation.
+    # Connector records (D-053 decision D9) are kept at most 2 years after observation, or
+    # their provider's shorter period (011-A, D11).
     def connector_records(cutoff: datetime) -> ColumnElement[bool]:
-        return ConnectorRecord.observed_at < before(
-            settings.connector_record_retention_days, cutoff
+        rules = [
+            ConnectorRecord.observed_at < before(settings.connector_record_retention_days, cutoff)
+        ]
+        for provider, days in sorted(settings.connector_provider_retention_days.items()):
+            rules.append(
+                and_(
+                    ConnectorRecord.observed_at < before(days, cutoff),
+                    ConnectorRecord.connection_id.in_(
+                        select(ConnectorConnection.id).where(
+                            ConnectorConnection.provider == provider
+                        )
+                    ),
+                )
+            )
+        return or_(*rules)
+
+    # Record attributes and account labels not refreshed within the period (011-A, D11).
+    def stale_attributes(cutoff: datetime) -> ColumnElement[bool]:
+        return ConnectorRecord.attributes_refreshed_at < before(
+            settings.connector_attribute_refresh_days, cutoff
+        )
+
+    def stale_labels(cutoff: datetime) -> ColumnElement[bool]:
+        return ConnectorConnection.account_label_refreshed_at < before(
+            settings.connector_attribute_refresh_days, cutoff
         )
 
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
@@ -249,6 +280,20 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             webhook_deliveries,
         ),
         Target("connector_records", ConnectorRecord, ConnectorRecord.id, connector_records),
+        Target(
+            "connector_record_attributes",
+            ConnectorRecord,
+            ConnectorRecord.id,
+            stale_attributes,
+            clear={"attributes": {}, "attributes_refreshed_at": None},
+        ),
+        Target(
+            "connector_account_labels",
+            ConnectorConnection,
+            ConnectorConnection.id,
+            stale_labels,
+            clear={"account_label": None, "account_label_refreshed_at": None},
+        ),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),
@@ -263,13 +308,17 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     )
 
 
-# Delete one ordered batch of eligible rows. The outer predicate repeats the eligibility test,
-# so PostgreSQL re-checks a row changed by a concurrent transaction (for example a rate-limit
-# bucket restarted after the key subquery ran) and leaves it in place.
+# Delete one ordered batch of eligible rows, or clear their expired columns for a clearing
+# target. The outer predicate repeats the eligibility test, so PostgreSQL re-checks a row
+# changed by a concurrent transaction (for example a rate-limit bucket restarted after the key
+# subquery ran) and leaves it in place.
 def _delete_batch(connection: Any, target: Target, cutoff: datetime, size: int) -> int:
     condition = target.eligible(cutoff)
     keys = select(target.key).where(condition).order_by(target.key).limit(size)
     connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
+    if target.clear is not None:
+        statement = update(target.model).where(target.key.in_(keys), condition)
+        return connection.execute(statement.values(**target.clear)).rowcount
     return connection.execute(delete(target.model).where(target.key.in_(keys), condition)).rowcount
 
 

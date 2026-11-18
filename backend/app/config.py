@@ -412,6 +412,12 @@ class LifecycleSettings(DatabaseSettings):
     # Connector records (D-053 decision D9): at most 2 years after observation; the
     # disconnect, deauthorize and data deletion purges remove them earlier.
     connector_record_retention_days: int = Field(default=730, ge=0, le=730)
+    # 011-A (D11): record attributes and account labels not refreshed for 30 days are cleared,
+    # and a provider may keep its records for a shorter period (730 days for YouTube).
+    connector_attribute_refresh_days: int = Field(default=30, ge=0, le=30)
+    connector_provider_retention_days: dict[str, int] = Field(
+        default_factory=lambda: {"synthetic_youtube": 730}
+    )
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13
@@ -421,6 +427,14 @@ class LifecycleSettings(DatabaseSettings):
     diagnostic_retention_days: int = Field(default=30, ge=0, le=30)
     subject_retention_days: int = Field(default=395, ge=0, le=395)
     lifecycle_batch_size: int = Field(default=500, ge=1, le=5000)
+
+    @field_validator("connector_provider_retention_days")
+    @classmethod
+    def _bounded_provider_retention(cls, value: dict[str, int]) -> dict[str, int]:
+        for provider, days in value.items():
+            if not provider.replace("_", "").isalnum() or not 0 <= days <= 730:
+                raise ValueError("Provider retention needs a provider name and 0 to 730 days.")
+        return value
 
 
 # Separate migrator credentials through explicit TRACKING_MIGRATION_* aliases, with a longer

@@ -86,6 +86,7 @@ def test_connect_status_isolation_and_sync(lab):
         "last_successful_sync_at",
         "actions",
         "disconnect",
+        "grant_expires_at",
     }
     # Readers with a grant see the connection; another agency and ungranted clients do not.
     assert lab.view("analyst", w.a, w.a1, k1).status_code == 200

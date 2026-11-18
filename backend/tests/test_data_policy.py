@@ -129,7 +129,11 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("connector_connections", "external_account_id", "D-048"),
         ("connector_token_secrets", "ciphertext", "D-048"),
         # D-053 (010-A): records also leave on deauthorization, deletion and after 730 days.
-        ("connector_records", "row", "D-048; D-053"),
+        # D-058 (011-A): records of confirmed-deleted objects are purged, and attributes and
+        # refreshed labels are cleared 30 days after their last refresh.
+        ("connector_records", "row", "D-048; D-053; D-058"),
+        ("connector_records", "attributes", "D-058"),
+        ("connector_connections", "account_label", "D-058"),
         # D-049 (009-B): the disconnect purge also deletes sync checkpoints.
         ("connector_checkpoints", "row", "D-049"),
         # D-049 (009-D): webhook delivery records are deleted 7 days after receipt.

@@ -149,6 +149,65 @@ Under D-060, in the order of the [completion prompt](completion-prompt.md). Ever
 
 Consequence: none for D2. The adapter installs a connection only when the `scope` field of the answer holds both scopes, which follows what Google actually grants, whatever was ticked on the screen. Under D3, the adapters declare PKCE `S256` (`Capability.pkce = "S256"`), with the single-use state, the session binding and the server-side exchange unchanged.
 
-Consequence of F7 and F11, within D10: the runtime keeps three daily buckets on the Pacific day: the Data API general bucket (D10 cap of 9,000 of the 10,000 units), the `batchGetStats` bucket (10,000 queries) and the Analytics API (100,000 queries). The 011-A design note proposes the Analytics cap that D10 sets from the console value, and a cap for the `batchGetStats` bucket, with the same 90% margin (90,000 and 9,000). The Analytics limit of 720 queries per minute is far above the 30 requests per connection per day of D10, but a scheduler that starts many connections at once must stay under it. Refused requests are charged, which supports refreshing the token before a call (D4) and checking the ID count before sending (D10). The per-video daily series of the D7 alternative can now be sized: at one request per video per day, the 90,000 cap covers about 180 channels of 500 videos. D7 stays as approved.
+Consequence of F7 and F11, within D10: the runtime keeps daily buckets on the Pacific day: the Data API general bucket (D10 cap of 9,000 of the 10,000 units) and the Analytics API (100,000 queries), for which the 011-A design note sets the cap that D10 derives from the console value with the same 90% margin (90,000). The `batchGetStats` bucket (10,000 queries) is declared only if a stream uses that method; the 011-A streams do not, because `videos.list` returns the statistics with the attributes. The Analytics limit of 720 queries per minute is far above the 30 requests per connection per day of D10, but a scheduler that starts many connections at once must stay under it. Refused requests are charged, which supports refreshing the token before a call (D4) and checking the ID count before sending (D10). The per-video daily series of the D7 alternative can now be sized: at one request per video per day, the 90,000 cap covers about 180 channels of 500 videos. D7 stays as approved.
 
 Consequence of F4: the connection's external account is the one channel that `channels.list?mine=true` returns for the account chosen at consent. The 011-A design note proposes that a connection is installed only when exactly one channel comes back; none or several refuse the installation with a stated reason instead of a guess. The several-channel case stays untested until an account with a brand-account channel is available.
+
+## 011-A: YouTube-shaped synthetic adapter (2026-11-18)
+
+Scope: D-058 (D2 to D14) and D-060 (D9 as amended), as planned in the [design note](design-011a.md). At the owner's request of 2026-11-18, 011-A started before the next-day probe (F8). F8 is recorded when it runs, and any change to D9 that it requires goes to the owner first. No live Google call was made, and no dependency was added. Migration `0015` ran only on the disposable PostgreSQL 18 service (Compose project `tracking-system-foundation-test` on 127.0.0.1:55433), never on the owner's `tracking_sys`.
+
+**Built:**
+- **Adapter.** `app/connectors/synthetic_youtube.py`, which reproduces the 011-B answers.
+- **Runtime extensions.** In `contracts.py`, `services/connectors.py`, `connector_coverage.py` and `lifecycle.py`:
+  - required scopes and adapter refusals;
+  - account-wide grants;
+  - refresh ahead of expiry, the 7-day authorization check and the 14-day grace purge;
+  - quota buckets on the Pacific day, with deferral on `quotaExceeded`;
+  - local-day overlaps;
+  - allow-listed attributes and label refresh, cleared after 30 days;
+  - the inventory sweep with deletion confirmation;
+  - retention per provider;
+  - the non-additive marker and definition-change dates;
+  - the D13 approval.
+- **Migration.** `0015_youtube_runtime`.
+- **API fields.** The OpenAPI snapshot was regenerated for them.
+- **Data policy.** Rules recorded under D-058.
+- **Logged event.** `connector_grant_kept_shared` (no fields).
+
+Existing tests were updated only for the new fields and the larger registry:
+- `test_connectors.py`: the connection view has `grant_expires_at`.
+- `test_connector_coverage.py`: the cost block has `buckets`.
+- `test_connector_contracts.py` and `test_connector_instagram_login.py`: the registry includes `synthetic_youtube`.
+- `test_data_policy.py`: the D-058 rules.
+
+| Entry review section 6 case | Test (`tests/integration/test_connector_youtube.py`, unless stated) |
+|---|---|
+| Authorization parameters (offline access, consent, PKCE `S256`) and the D13 approval | `test_011a_authorization_parameters_and_agent_approval` |
+| Partial consent refused without harming other connections; the F1 union grant; F4 refusals | `test_011a_partial_consent_and_unavailable_accounts_are_refused` |
+| Account-wide grants: two clients, the shared disconnect, reconnect without revocation, a refused duplicate connect, the last connection revoking | `test_011a_account_wide_grants_are_revoked_only_by_the_last_connection` |
+| Refresh ahead of expiry with no refused read; the 7-day check; the purge after 14 days in `reconnect_required` | `test_011a_refresh_ahead_authorization_check_and_grace_purge` |
+| The Pacific quota day, a `quotaExceeded` deferral that is neither a retry nor a failure, separate buckets, the provider cap | `test_011a_quota_buckets_follow_the_pacific_day_and_quota_answers_defer` |
+| Pacific days across the 25-hour 2026-11-01, `complete_through` at the 72-hour bound, provisional days, `not_returned` days, no zero filling, the local-day overlap and re-read | `test_011a_pacific_days_completeness_and_days_without_rows` |
+| Product types, `not_returned` statistics, rounded counts, the non-additive marker, attributes allow-listed, a deleted video purged from every stream after confirmation, a hidden video kept | `test_011a_videos_attributes_product_types_and_deleted_videos` |
+| Attributes and labels cleared after 30 days without refresh, the label refreshed again, 730-day and shorter provider retention, lifecycle privileges | `test_011a_lifecycle_clears_attributes_labels_and_keeps_provider_retention` |
+| Error mapping (403 forbidden per stream, 400 permanent, 401 with one refresh, a second 401) and tenant isolation | `test_011a_error_mapping_and_tenant_isolation` |
+| Migration `0015` downgrade refused with YouTube state | `test_011a_migration_downgrade_refuses_youtube_state` |
+| Pure parts: Pacific days at both 2026 changes, the completeness bound, bucket days and resets, content types, rounded counts, the capability | `tests/test_connector_youtube_synthetic.py` (5 tests) |
+
+| Command (from `backend/`, project `.venv`; database runs through the disposable service) | Result |
+|---|---|
+| `python -m pytest -m "not integration" -q` | **578 passed**, 338 deselected |
+| `python -m pytest -m integration -q tests/integration/test_connector_youtube.py` | **10 passed** |
+| `python -m pytest -m integration -q` (full integration suite) | **335 passed, 3 skipped**: the three browser journeys of `test_tracker_journey.py`, which need `TRACKING_RUN_BROWSER_TESTS=1` and are unrelated to connectors (skipped, not passed) |
+| Migration `0015` | The suite upgrades to head (`0015_youtube_runtime`). `test_postgresql_migration_cycle_and_runtime_permissions` downgrades through `0015` to base and upgrades again on the empty database. The downgrade to `0014` is refused while a `synthetic_youtube` connection exists. After the `budget_exhausted` usage outcome was added to `0015`, the empty disposable database was downgraded to `0014` and upgraded again. |
+| OpenAPI snapshot | Regenerated; `tests/test_contract.py` passes |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed |
+| Mutation check: each safeguard disabled in turn, the YouTube tests rerun, the source restored byte for byte (SHA-256 compared) | **All 14 caught**, each by its own test: the scope check, the shared-revocation rule, the reconnect without revocation, refresh ahead, the 7-day check, the grace purge, the bucket reservation, the Pacific period, the quota deferral, the local-day overlap, the attribute allow-list, the deletion confirmation, the approval check (2 failures) and the lifecycle clearing |
+
+**Limits and follow-ups:**
+- **Synthetic only.** The adapter reproduces the documented shapes and the 011-B answers; the live adapter is 011-C.
+- **Disconnect race.** A disconnect that races a new connect of the same channel can revoke the new grant, because Google revokes every token of the account at once. That connection then fails its first refresh and requires reconnection.
+- **`batchGetStats` bucket.** Not declared, because no stream uses that method.
+- **Large channels.** A channel with more than about 1,450 videos exceeds the 30 Analytics requests a day of D10, so its `video_totals` run continues from its cursor the next Pacific day.
+- **Not in this slice.** The D13 wording and any frontend work wait for the owner's brief (D-039). The disclosure version is the development identifier `dev-agent-approval-1`.

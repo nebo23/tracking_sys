@@ -52,7 +52,12 @@ def live(authenticated_world, api, tmp_path, monkeypatch):
     )
     lab.graph = graph
     lab.registry = build_providers(lab.config)
-    assert set(lab.registry) == {"synthetic", "synthetic_instagram", "instagram"}
+    assert set(lab.registry) == {
+        "synthetic",
+        "synthetic_instagram",
+        "instagram",
+        "synthetic_youtube",
+    }
     lab.public = api.new_client(lab.config)
     return lab
 
