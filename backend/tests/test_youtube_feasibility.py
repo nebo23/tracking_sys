@@ -159,10 +159,13 @@ class FakeGoogle:
                 },
             )
         if resource == "videos" and query["part"] == "id":
-            return _reply(
-                400,
-                _api_error(400, "badRequest", f"Too many IDs, starting with {VIDEO_IDS[0]}."),
-            )
+            ids = query["id"].split(",")
+            if len(ids) > 50:
+                return _reply(
+                    400,
+                    _api_error(400, "invalidFilters", f"Too many IDs, such as {VIDEO_IDS[0]}."),
+                )
+            return _reply(200, {"items": [{"id": ids[0]}]})
         if resource == "videos":
             assert "title" not in query["fields"]
             return _reply(
@@ -230,11 +233,17 @@ class FakeGoogle:
                 body["rows"] = rows
             return _reply(200, body)
         if dimensions == "month":
+            # As observed live on 2026-11-17: both dates must be the first day of a month.
+            if not (query["startDate"].endswith("-01") and query["endDate"].endswith("-01")):
+                return _reply(
+                    400,
+                    _api_error(400, "badRequest", "Date range does not align to dimension."),
+                )
             return _reply(
                 200,
                 {
                     "columnHeaders": [{"name": "month"}, {"name": "views"}],
-                    "rows": [["2025-03", MINUTES], ["2026-10", VIEWS]],
+                    "rows": [["2024-01", 0], ["2025-03", MINUTES], ["2026-10", VIEWS]],
                 },
             )
         if dimensions is None:
@@ -379,7 +388,8 @@ def test_probe_records_availability_without_identifying_values():
     assert videos["title_returned"] is False and videos["iso_durations"] == 2
     assert videos["public_items_equal_video_count"] is True
     assert videos["age_days_range"] == [10, 50]
-    assert evidence["videos_51_ids"]["reasons"] == ["badRequest"]
+    assert evidence["videos_50_ids"] == {"outcome": "ok", "returned": 1}
+    assert evidence["videos_51_ids"]["reasons"] == ["invalidFilters"]
     assert "<id>" in evidence["videos_51_ids"]["message"]
     assert evidence["batch_get_stats"]["summary_keys"] == ["failedVideoIds", "requestedVideoCount"]
     day = evidence["day_report"]
@@ -388,9 +398,20 @@ def test_probe_records_availability_without_identifying_values():
     assert [header["name"] for header in day["column_headers"]] == ["day", *tool.CATALOG]
     assert day["value_types"]["views"] == ["int"]
     assert "changed_since_previous_probe" not in day
-    history = evidence["history_one_day_at_depth"]
+    history = evidence["history_windows"]
     assert set(history) == {str(days) for days in tool.HISTORY_DAYS}
-    assert evidence["months_since_documented_start"]["earliest_month_offset"] == 20
+    assert all(item["outcome"] == "rows" for item in history.values())
+    assert all(0 < item["days_with_views"] < item["rows"] for item in history.values())
+    months = evidence["months_since_documented_start"]
+    assert months["outcome"] == "rows" and months["months_with_views"] == 2
+    assert months["earliest_month_offset"] == 34
+    assert months["earliest_month_with_views_offset"] == 20
+    assert months["earliest_month_with_views_days"]["outcome"] == "rows"
+    assert evidence["start_before_youtube"]["outcome"] == "rows"
+    density = evidence["day_density"]
+    assert density["recent_views_only"]["requested_days"] == 31
+    assert density["old_full_catalog"]["requested_days"] == tool.HISTORY_WINDOW
+    assert density["old_full_catalog"]["columns"] == ["day", *tool.CATALOG]
     reports = evidence["video_reports"]
     assert reports["video_filter_catalog"]["rows"] == 1
     assert reports["video_and_content_type"]["values_of_creatorContentType"] == [

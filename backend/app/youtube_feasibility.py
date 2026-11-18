@@ -103,6 +103,7 @@ CATALOG = (
 VIDEO_STATISTICS = ("viewCount", "likeCount", "dislikeCount", "favoriteCount", "commentCount")
 CHANNEL_STATISTICS = ("viewCount", "subscriberCount", "hiddenSubscriberCount", "videoCount")
 HISTORY_DAYS = (90, 365, 730, 1095, 1825, 3650)
+HISTORY_WINDOW = 30
 BEFORE_YOUTUBE = "2005-02-14"
 DOCUMENTED_START = "2008-07-01"
 CONTENT_TYPES_START = "2019-01-01"
@@ -555,12 +556,17 @@ def _probe_videos(probe: Probe, ids: list[str], public_count: Any, now: datetime
         }
     else:
         result["videos"] = probe.failure(reply)
-    over = probe.get("data", _data_url("videos", {"part": "id", "id": ",".join([batch[0]] * 51)}))
-    result["videos_51_ids"] = (
-        {"outcome": "ok", "returned": len(over.body.get("items") or [])}
-        if _ok(over)
-        else probe.failure(over)
-    )
+    # The same ID repeated 50 and 51 times: the first is the control, so a refusal of the
+    # second is due to the count rather than to repeated IDs.
+    for count in (50, 51):
+        reply = probe.get(
+            "data", _data_url("videos", {"part": "id", "id": ",".join([batch[0]] * count)})
+        )
+        result[f"videos_{count}_ids"] = (
+            {"outcome": "ok", "returned": len(reply.body.get("items") or [])}
+            if _ok(reply)
+            else probe.failure(reply)
+        )
     stats = probe.get("data", _data_url("videos:batchGetStats", {"id": ",".join(batch)}))
     if _ok(stats):
         result["batch_get_stats"] = {
@@ -682,18 +688,55 @@ def _probe_day_report(
     return {"day_report": record}
 
 
-# F10: one day of views at growing depths, a start before YouTube existed, and the first
-# month with data since the documented start.
+def _positive(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and value > 0
+
+
+def _month_start(text: str) -> date | None:
+    try:
+        year, month = (int(part) for part in text.split("-")[:2])
+        return date(year, month, 1)
+    except ValueError:
+        return None
+
+
+def _month_offset(start: date, today: date) -> int:
+    return (today.year - start.year) * 12 + today.month - start.month
+
+
+# A day-dimension answer with the number of its days that had views (a count, not a value).
+def _day_window(probe: Probe, reply: Reply | None) -> dict[str, Any]:
+    record = _table(probe, reply)
+    if _ok(reply):
+        names = [str(h.get("name")) for h in reply.body.get("columnHeaders") or []]
+        views = names.index("views") if "views" in names else None
+        record["days_with_views"] = sum(
+            1 for row in _rows(reply) if views is not None and _positive(row[views])
+        )
+    return record
+
+
+# F10: 30-day day windows ending at growing depths (whether old ranges still come back as
+# day rows), a start before YouTube existed, monthly totals since the documented start (a
+# month report needs first-of-month start and end dates), and the day rows of the earliest
+# month with views. A single day without views answers like a day without data, so the
+# monthly totals tell the two apart.
 def _probe_history(probe: Probe, today: date) -> dict[str, Any]:
-    depths = {}
+    windows = {}
     for days in HISTORY_DAYS:
-        day = (today - timedelta(days=days)).isoformat()
-        depths[str(days)] = _table(
+        end = today - timedelta(days=days)
+        start = end - timedelta(days=HISTORY_WINDOW - 1)
+        windows[str(days)] = _day_window(
             probe,
             probe.get(
                 "analytics",
                 _analytics_url(
-                    {"startDate": day, "endDate": day, "metrics": "views", "dimensions": "day"}
+                    {
+                        "startDate": start.isoformat(),
+                        "endDate": end.isoformat(),
+                        "metrics": "views",
+                        "dimensions": "day",
+                    }
                 ),
             ),
         )
@@ -706,13 +749,13 @@ def _probe_history(probe: Probe, today: date) -> dict[str, Any]:
             ),
         ),
     )
-    month_end = today.replace(day=1) - timedelta(days=1)
+    last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     reply = probe.get(
         "analytics",
         _analytics_url(
             {
                 "startDate": DOCUMENTED_START,
-                "endDate": month_end.isoformat(),
+                "endDate": last_month.isoformat(),
                 "metrics": "views",
                 "dimensions": "month",
                 "sort": "month",
@@ -721,15 +764,78 @@ def _probe_history(probe: Probe, today: date) -> dict[str, Any]:
     )
     months = _table(probe, reply)
     if _ok(reply):
-        listed = sorted(str(row[0]) for row in _rows(reply))
-        if listed:
-            year, month = (int(part) for part in listed[0].split("-")[:2])
-            months["earliest_month_offset"] = (today.year - year) * 12 + today.month - month
+        names = [str(h.get("name")) for h in reply.body.get("columnHeaders") or []]
+        views = names.index("views") if "views" in names else None
+        rows = [(_month_start(str(row[0])), row) for row in _rows(reply)]
+        listed = sorted(start for start, _ in rows if start is not None)
+        active = sorted(
+            start
+            for start, row in rows
+            if start is not None and views is not None and _positive(row[views])
+        )
+        months |= {
+            "earliest_month_offset": _month_offset(listed[0], today) if listed else None,
+            "months_with_views": len(active),
+            "earliest_month_with_views_offset": (
+                _month_offset(active[0], today) if active else None
+            ),
+        }
+        if active:
+            first = active[0]
+            last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            months["earliest_month_with_views_days"] = _day_window(
+                probe,
+                probe.get(
+                    "analytics",
+                    _analytics_url(
+                        {
+                            "startDate": first.isoformat(),
+                            "endDate": last.isoformat(),
+                            "metrics": "views",
+                            "dimensions": "day",
+                        }
+                    ),
+                ),
+            )
     return {
-        "history_one_day_at_depth": depths,
+        "history_windows": windows,
         "start_before_youtube": before,
         "months_since_documented_start": months,
+        "day_density": _probe_density(probe, today),
     }
+
+
+# F8: whether day reports list every day of the range or only days with data, and whether
+# that depends on how recent the range is or on the metrics requested. The recent window is
+# read with views only, and a window ending 365 days ago with the whole catalog.
+def _probe_density(probe: Probe, today: date) -> dict[str, Any]:
+    old_end = today - timedelta(days=365)
+    reads = {
+        "recent_views_only": (today - timedelta(days=DAY_WINDOW), today, "views"),
+        "old_full_catalog": (
+            old_end - timedelta(days=HISTORY_WINDOW - 1),
+            old_end,
+            ",".join(CATALOG),
+        ),
+    }
+    out = {}
+    for name, (start, end, metrics) in reads.items():
+        out[name] = _day_window(
+            probe,
+            probe.get(
+                "analytics",
+                _analytics_url(
+                    {
+                        "startDate": start.isoformat(),
+                        "endDate": end.isoformat(),
+                        "metrics": metrics,
+                        "dimensions": "day",
+                    }
+                ),
+            ),
+        )
+        out[name]["requested_days"] = (end - start).days + 1
+    return out
 
 
 # F9: per-video lifetime reports by filter, with the content type, the top-200 report, and

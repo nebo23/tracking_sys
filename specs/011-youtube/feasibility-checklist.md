@@ -17,7 +17,7 @@ The questions are those of [entry review section 7](entry-review.md#7-feasibilit
 | F7 | How many units do calls record, where does `batchGetStats` count, and what do quota errors look like? | `probe` counts calls per API. The owner reads the console quota pages (Part E). |
 | F8 | Which is the last day returned, are days without activity zero rows or missing, do recent days change, and is the whole catalog accepted? | `probe` records the first and last day offsets, missing days, zero-view days and the column headers. A second `probe` a day later compares keyed digests of each day (Part D step 4). |
 | F9 | Does the `video` dimension work with a multi-ID filter and with `creatorContentType`, and how does the top-200 report behave? | `probe` records row counts and content-type values for each report. |
-| F10 | How far back does data go, and what does a start date before YouTube existed do? | `probe` reads one day at depths of 90 to 3,650 days, a total from 2005-02-14, and months since 2008-07-01. |
+| F10 | How far back does data go, and what does a start date before YouTube existed do? | `probe` reads 30-day windows ending 90 to 3,650 days back, a total from 2005-02-14, monthly totals since 2008-07-01 (first-of-month dates), and the days of the earliest month with views. |
 | F11 | What Analytics API quota does the console show? | The owner reads it (Part E). |
 | F12 | Does revoking one consent's token end another consent of the same account? | `revoke-test --confirm` with two stored consents (Part D step 6). It ends access. |
 | F13 | What does a refresh answer after the owner removes access in the Google account? | `check-access` after removal (Part D step 7). |

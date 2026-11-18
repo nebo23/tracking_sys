@@ -40,4 +40,38 @@ See [entry review section 10](entry-review.md#10-owner-decisions):
 - A separate Web client with the loopback callback exists.
 - The client credentials are in the ignored `.env`, used at the owner's instruction, and rotating the secret is a follow-up.
 
-Next: the owner runs Part C of the checklist (`authorize`), and Claude records the redacted results here.
+## 011-B first run (2026-11-18)
+
+Scope: D-058 decision D16.
+
+- **Consent.** The owner completed the consent with the test channel's Google account at 2026-11-17 23:57 UTC (2026-11-18 local time). Google redirected to the loopback callback, which carried `state`, `iss` (`https://accounts.google.com`) and `code`.
+- **Read-only calls.** The tool stored the refresh token in the ignored `.env` without showing it. It then made only read-only calls: the first probe (20 calls), one refresh, and two probes after the tool correction below (24 and 26 calls). Nothing was throttled, no quota error occurred, and nothing on the channel was changed.
+- **Evidence files.** The redacted files stay in the ignored `local-data/youtube-feasibility/` folder.
+
+**Tool correction during the run.** The first probe's one-day history reads cannot tell a day without views from a day without data, and its month report was refused. The tool now reads 30-day windows at the same depths, the month report with first-of-month dates, and the day rows of the earliest month with views. It also runs a density check: the recent window with `views` only, and a window 365 days back with the whole catalog. It also sends a 50-ID control next to the 51-ID request. After the change, `tests/test_youtube_feasibility.py` passes (15), `python -m pytest -m "not integration" -q` passes (563), and ruff is clean.
+
+| Question | Result |
+|---|---|
+| F1 token answer | The code exchange returned `access_token`, `expires_in` (3,599), `refresh_token`, `refresh_token_expires_in`, `scope` and `token_type` `Bearer`, with both requested scopes granted. `refresh_token_expires_in` was 604,799 seconds, which is the documented 7-day Testing limit. Google reported it in the answer even though the OAuth page describes the field only for time-based access. Partial consent is not yet checked. |
+| F3 refresh | A refresh two minutes later succeeded and returned no new refresh token. It reported `refresh_token_expires_in` 604,693, so the 7-day limit counts from the consent and refreshes do not renew it. The failure after 7 days is checked after 2026-11-24 23:57 UTC. |
+| F4 channel | `channels.list?mine=true` returned one channel. `viewCount`, `subscriberCount` and `videoCount` came as strings, `hiddenSubscriberCount` was false, and the channel had an uploads playlist and privacy status `public`. How the channel was chosen at consent is for the owner to confirm. |
+| F5 inventory | The uploads playlist listed 26 videos in one page: 22 private, 1 unlisted and 3 public. `videoCount` equals the public count, so it counts public videos only. `videos.list` returned all 26, private ones included, and the `fields` filter kept titles out. All five statistics fields, including `dislikeCount` and `favoriteCount`, were present for every video, and all durations were ISO 8601; one video was an upcoming live broadcast. The same ID repeated 50 times was accepted (50 items), and 51 times was refused with `invalidFilters` (400), so the limit is 50 IDs per call. `videos:batchGetStats` with `id` returned all 26 items, with top-level keys `etag`, `items` and `kind` and no `summary`. |
+| F8 day report | The whole 13-metric catalog was accepted in one `day` query. Columns are INTEGER except `averageViewPercentage`, which is FLOAT. At 15:57 Pacific on 2026-11-17 the last day returned was 2026-11-15, two days before today. Day rows are sparse: which days appear depends on the metrics requested and the underlying data. The recent 31-day window returned 29 rows with the catalog (9 of them all zero) but 20 with `views` only, and a 30-day window ending 365 days earlier returned 12 rows with the catalog. Three reads within five minutes returned identical rows; the next-day comparison is pending. |
+| F9 video reports | `dimensions=video` with a filter of the 26 IDs accepted the whole catalog and returned 24 rows; 2 videos had no data. `video,creatorContentType` and the top-200 report sorted by views also worked. `creatorContentType` values come back as `shorts`, `videoOnDemand` and `creatorContentTypeUnspecified`, not as the documented `SHORTS`, `VIDEO_ON_DEMAND` and `UNSPECIFIED`. |
+| F10 history | A month report needs both dates on the first day of a month; an end date on the last day was refused with "does not align to chosen date dimension". From 2008-07 the report returned all 220 months, zero months included. 52 months had views, the earliest 82 months back (about 6.8 years), and that month returned day rows. Day-level history therefore reaches at least 82 months for this channel, beyond the 730-day backfill of D9. A total from 2005-02-14 to today was accepted. |
+| F14 invalid token | Both APIs answered 401 `UNAUTHENTICATED` with reason `authError`. |
+| F2, F6, F7, F11, F12, F13 | Not yet checked. |
+
+### Consequences for 011-A
+
+| Area | Assumption so far | Evidence | Proposed change |
+|---|---|---|---|
+| Completeness (D9) | `complete_through` moves to the end of the last day returned | Day rows are sparse, so a channel without activity on its latest available days returns an earlier last row, and the last row cannot show availability. | **Needs owner approval as a D9 amendment.** `complete_through` follows the documented latency: it is the end of the last Pacific day that ended at least 72 hours before the read. A day of a read window without a row is `missing` with reason `not_returned`, never 0. The 4-day re-read and the provisional marking stay. |
+| Product types (D8) | `creatorContentType` returns `SHORTS` and similar names | Values come back in lowerCamelCase | The adapter maps `shorts`, `videoOnDemand` and `creatorContentTypeUnspecified` to `SHORTS`, `VIDEO_ON_DEMAND` and `UNSPECIFIED`. Values not yet observed (live streams, stories) map to `UNSPECIFIED` until seen. This stays within D8. |
+| Refresh token (D4) | Its lifetime is unknown | Google reports `refresh_token_expires_in` at consent and on refresh (7 days in Testing) and does not rotate the token | The grant keeps the reported expiry, so a connection created under Testing shows when it needs a new consent. No rotation handling is needed. |
+| Inventory (D7, D11) | The inventory covers public counters | Private and unlisted uploads are listed and returned with statistics to the owner, while `videoCount` counts public videos only | The inventory covers every upload with its privacy status attribute, and no total is derived from `videoCount`. |
+| Batches (D10) | 50 IDs per call | 51 IDs are refused with `invalidFilters` | 50 IDs per `videos.list` and `batchGetStats` call. |
+| History (D9, D11) | Backfill up to 730 days unless the API offers less | Day rows reach at least 82 months back | No change: 730 days remains the product limit. |
+| Errors | Assumed from documentation | Invalid token: 401 `authError`. Too many IDs: 400 `invalidFilters` | 401 maps to unauthorized (one refresh, then reconnect), and 400 to permanent. |
+
+Remaining in 011-B (owner steps of the [checklist](feasibility-checklist.md)): partial consent (F1), PKCE (F2), the analytics-only consent (F6), the console quota readings (F7, F11), the next-day stability probe (F8), the 7-day refresh check (F3), and the access-ending checks F12 and F13 last, then `forget`.
