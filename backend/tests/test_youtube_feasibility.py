@@ -6,6 +6,7 @@ or video ID, or metric value reaches the console or the evidence files.
 """
 
 import json
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -25,8 +26,10 @@ CODE, ACCESS, RENEWED = "4/0CodeSecretValue", "ya29.AccessSecret", "ya29.Renewed
 REFRESH, REFRESH_B = "1//RefreshSecretA", "1//RefreshSecretB"
 CHANNEL_ID, UPLOADS = "UCchannelIdentifier0001", "UUchannelIdentifier0001"
 VIDEO_IDS = ("Vid0000001a", "Vid0000002b", "Vid0000003c")
+MANY_IDS = tuple(f"Many{number:07d}" for number in range(80))
 VIEWS, SUBSCRIBERS, MINUTES = 7319753, 6626021, 5180417
 SECRETS = (
+    *MANY_IDS,
     CLIENT_SECRET,
     CODE,
     ACCESS,
@@ -63,23 +66,52 @@ def _api_error(code, reason, message="", status="FAILED"):
 
 
 class FakeGoogle:
-    """Answers the documented requests with identifying values that must never leak."""
+    """Answers the documented requests with identifying values that must never leak.
 
-    def __init__(self, *, data_scope=True, reject_combined=False, quota=False, views=VIEWS):
+    uploads switches to a channel of that many public uploads (paged by 50); ID lists are
+    answered after removing repeated IDs, and more than 50 distinct IDs are refused.
+    strict_video_sort refuses video reports without sort and maxResults. revocation_delay
+    lets the other consent stop working only once the fake clock has advanced that far.
+    fail_at_get makes the n-th GET request get no answer.
+    """
+
+    def __init__(
+        self,
+        *,
+        data_scope=True,
+        reject_combined=False,
+        quota=False,
+        views=VIEWS,
+        uploads=None,
+        strict_video_sort=False,
+        revocation_delay=None,
+        fail_at_get=None,
+    ):
         self.requests = []
         self.data_scope, self.reject_combined, self.quota = data_scope, reject_combined, quota
-        self.views = views
+        self.views, self.uploads, self.strict_video_sort = views, uploads, strict_video_sort
+        self.revocation_delay, self.fail_at_get = revocation_delay, fail_at_get
         self.revoked: set[str] = set()
+        self.clock, self.gets, self.b_revoked_at = 0.0, 0, None
 
     def __call__(self, method, url, form, headers):
         self.requests.append((method, url, dict(form or {}), dict(headers or {})))
+        if method == "GET":
+            self.gets += 1
+            if self.gets == self.fail_at_get:
+                raise tool.FeasibilityFailed("A Google endpoint did not answer.")
         parts = urlsplit(url)
         query = {key: values[0] for key, values in parse_qs(parts.query).items()}
         if url == tool.TOKEN_URL:
             return self._token(form)
         if url == tool.REVOKE_URL:
-            # Google revokes every token of the account in the project (entry review G-1).
-            self.revoked |= {REFRESH, REFRESH_B}
+            # Google revokes every token of the account in the project (entry review G-1);
+            # with a delay, the other consent stops working only later.
+            self.revoked.add(REFRESH)
+            if self.revocation_delay is None:
+                self.revoked.add(REFRESH_B)
+            else:
+                self.b_revoked_at = self.clock + self.revocation_delay
             return _reply(200, {})
         bearer = (headers or {}).get("Authorization", "")
         if bearer == "Bearer invalid-feasibility-token":
@@ -108,7 +140,8 @@ class FakeGoogle:
                     "token_type": "Bearer",
                 },
             )
-        if form["refresh_token"] in self.revoked:
+        late = self.b_revoked_at is not None and self.clock >= self.b_revoked_at
+        if form["refresh_token"] in self.revoked or (form["refresh_token"] == REFRESH_B and late):
             return _reply(
                 400,
                 {
@@ -138,7 +171,7 @@ class FakeGoogle:
                                 "viewCount": str(self.views),
                                 "subscriberCount": str(SUBSCRIBERS),
                                 "hiddenSubscriberCount": False,
-                                "videoCount": "1",
+                                "videoCount": str(self.uploads) if self.uploads else "1",
                             },
                             "contentDetails": {"relatedPlaylists": {"uploads": UPLOADS}},
                             "status": {"privacyStatus": "public"},
@@ -148,6 +181,21 @@ class FakeGoogle:
             )
         if resource == "playlistItems":
             assert query["playlistId"] == UPLOADS
+            if self.uploads:
+                start = int(query.get("pageToken", "0"))
+                page = MANY_IDS[: self.uploads][start : start + 50]
+                body = {
+                    "items": [
+                        {
+                            "contentDetails": {"videoId": video},
+                            "status": {"privacyStatus": "public"},
+                        }
+                        for video in page
+                    ]
+                }
+                if start + 50 < self.uploads:
+                    body["nextPageToken"] = str(start + 50)
+                return _reply(200, body)
             statuses = ("public", "unlisted", "private")
             return _reply(
                 200,
@@ -158,16 +206,44 @@ class FakeGoogle:
                     ]
                 },
             )
-        if resource == "videos" and query["part"] == "id":
-            ids = query["id"].split(",")
-            if len(ids) > 50:
+        if resource == "videos:batchGetStats" or query.get("part") == "id":
+            # Repeated IDs are merged, and more than 50 distinct IDs are refused.
+            distinct = list(dict.fromkeys(query["id"].split(",")))
+            if len(distinct) > 50:
                 return _reply(
                     400,
-                    _api_error(400, "invalidFilters", f"Too many IDs, such as {VIDEO_IDS[0]}."),
+                    _api_error(400, "invalidFilters", f"Too many IDs, such as {distinct[0]}."),
                 )
-            return _reply(200, {"items": [{"id": ids[0]}]})
+            items = [
+                {"id": video, "statistics": {"viewCount": str(self.views)}} for video in distinct
+            ]
+            if resource == "videos":
+                return _reply(200, {"items": [{"id": item["id"]} for item in items]})
+            return _reply(
+                200,
+                {
+                    "items": items,
+                    "summary": {"requestedVideoCount": len(distinct), "failedVideoIds": []},
+                },
+            )
         if resource == "videos":
             assert "title" not in query["fields"]
+            if self.uploads:
+                return _reply(
+                    200,
+                    {
+                        "items": [
+                            {
+                                "id": video,
+                                "snippet": {"publishedAt": "2026-11-01T09:00:00Z"},
+                                "contentDetails": {"duration": "PT1M"},
+                                "status": {"privacyStatus": "public"},
+                                "statistics": {"viewCount": "7", "commentCount": "0"},
+                            }
+                            for video in query["id"].split(",")
+                        ]
+                    },
+                )
             return _reply(
                 200,
                 {
@@ -196,20 +272,16 @@ class FakeGoogle:
                     ]
                 },
             )
-        if resource == "videos:batchGetStats":
-            return _reply(
-                200,
-                {
-                    "items": [{"id": VIDEO_IDS[0], "statistics": {"viewCount": str(self.views)}}],
-                    "summary": {"requestedVideoCount": 3, "failedVideoIds": [VIDEO_IDS[2]]},
-                },
-            )
         return _reply(404, _api_error(404, "notFound"))
 
     def _analytics(self, query):
         assert query["ids"] == "channel==MINE"
         dimensions = query.get("dimensions")
         metrics = query["metrics"].split(",")
+        sorted_report = "sort" in query and "maxResults" in query
+        if dimensions in {"video", "video,creatorContentType"} and self.strict_video_sort:
+            if not sorted_report:
+                return _reply(400, _api_error(400, "badRequest", "The query is not supported."))
         if dimensions == "day":
             if len(metrics) > 1 and self.reject_combined:
                 return _reply(
@@ -386,11 +458,19 @@ def test_probe_records_availability_without_identifying_values():
     assert videos["statistics_present"]["likeCount"] == 1
     assert videos["statistics_present"]["dislikeCount"] == 0
     assert videos["title_returned"] is False and videos["iso_durations"] == 2
-    assert videos["public_items_equal_video_count"] is True
+    # One of the three uploads is missing from the answer, so no comparison is made.
+    assert videos["public_items_equal_video_count"] is None
+    assert videos["public_items_comparison_skipped"] == "videos_missing_from_answer"
     assert videos["age_days_range"] == [10, 50]
-    assert evidence["videos_50_ids"] == {"outcome": "ok", "returned": 1}
-    assert evidence["videos_51_ids"]["reasons"] == ["invalidFilters"]
-    assert "<id>" in evidence["videos_51_ids"]["message"]
+    # Only three distinct uploads exist: 51 IDs are accepted after merging, inconclusively.
+    for name in ("videos_id_limit", "batch_get_stats_id_limit"):
+        assert evidence[name]["51"] == {
+            "ids_sent": 51,
+            "distinct_ids": 3,
+            "outcome": "ok",
+            "returned": 3,
+            "conclusive": False,
+        }
     assert evidence["batch_get_stats"]["summary_keys"] == ["failedVideoIds", "requestedVideoCount"]
     day = evidence["day_report"]
     assert day["requested_days"] == 31 and day["last_day_offset"] == 3
@@ -414,6 +494,7 @@ def test_probe_records_availability_without_identifying_values():
     assert density["old_full_catalog"]["columns"] == ["day", *tool.CATALOG]
     reports = evidence["video_reports"]
     assert reports["video_filter_catalog"]["rows"] == 1
+    assert reports["video_filter_unsorted"]["outcome"] == "rows"
     assert reports["video_and_content_type"]["values_of_creatorContentType"] == [
         "SHORTS",
         "VIDEO_ON_DEMAND",
@@ -568,6 +649,7 @@ def test_revoke_test_needs_confirmation_and_records_the_other_consent(tmp_path, 
     record = json.loads(path.read_text(encoding="utf-8"))
     assert record["b_before"]["status"] == 200 and record["revoke_a"] == {"status": 200}
     assert record["b_survives_revocation_of_a"] is False
+    assert record["conclusion"] == "final" and record["wait_seconds"] == tool.REVOCATION_WAIT
     assert record["b_after"]["error"] == "invalid_grant"
     values = dotenv_values(env)
     assert a[0] not in values and b[0] not in values
@@ -603,3 +685,132 @@ def test_redaction_removes_known_and_identifier_like_words():
     assert CHANNEL_ID not in redacted and "123456789012" not in redacted
     assert "youtube.googleapis.com" in redacted and "exceeded the" in redacted
     assert tool.redact(None) is None and len(tool.redact("x" * 500)) == 200
+
+
+# Regressions of the review of bb3263e (specs/011-youtube/review-corrections-prompt.md).
+
+
+def test_r011_01_video_reports_send_sort_and_max_results():
+    google = FakeGoogle(strict_video_sort=True)
+    reports = tool.probe_channel(google, ACCESS, NOW, digest_key=b"k")["video_reports"]
+    assert reports["video_filter_catalog"]["outcome"] == "rows"
+    assert reports["video_and_content_type"]["outcome"] == "rows"
+    assert "video_filter_two_metrics" not in reports
+    # The unsorted variant records that this answer needs sort and maxResults.
+    assert reports["video_filter_unsorted"]["status"] == 400
+
+
+def test_r011_02_id_limits_use_distinct_ids_and_say_whether_they_are_conclusive():
+    google = FakeGoogle(uploads=60)
+    evidence = tool.probe_channel(google, ACCESS, NOW, digest_key=b"k")
+    _clean(json.dumps(evidence))
+    for name in ("videos_id_limit", "batch_get_stats_id_limit"):
+        assert evidence[name]["50"] == {
+            "ids_sent": 50,
+            "distinct_ids": 50,
+            "outcome": "ok",
+            "returned": 50,
+            "conclusive": True,
+        }
+        refused = evidence[name]["51"]
+        assert refused["ids_sent"] == 51 and refused["distinct_ids"] == 51
+        assert refused["outcome"] == "error" and refused["reasons"] == ["invalidFilters"]
+        assert refused["conclusive"] is True and "<id>" in refused["message"]
+    # batchGetStats is sent with its required part parameter.
+    stats_calls = [url for _, url, _, _ in google.requests if "videos:batchGetStats" in url]
+    assert stats_calls and all("part=" in url for url in stats_calls)
+    assert any("part=statistics" in url for url in stats_calls)
+
+
+def test_r011_03_a_surviving_slot_b_is_provisional_until_checked_again(tmp_path, capsys):
+    a, b = tool.SLOTS["a"], tool.SLOTS["b"]
+    env = _env(tmp_path, f"{a[0]}={REFRESH}\n{b[0]}={REFRESH_B}\n")
+    google = FakeGoogle(revocation_delay=600)
+    argv = ["--env-file", str(env), "revoke-test", "--confirm"]
+    assert tool.main(argv, google, sleep=lambda seconds: None) == 0
+    folder = tmp_path / "local-data" / "youtube-feasibility"
+    (path,) = folder.glob("revoke-test-*.json")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    assert record["wait_seconds"] == tool.REVOCATION_WAIT
+    assert record["b_survives_revocation_of_a"] is True
+    assert record["conclusion"] == "provisional"
+    output = capsys.readouterr().out
+    assert "provisional" in output and "check-access --slot b" in output
+    assert dotenv_values(env)[b[0]] == REFRESH_B
+    google.clock += 1800
+    later = ["--env-file", str(env), "check-access", "--slot", "b"]
+    assert tool.main(later, google) == 0
+    (check,) = folder.glob("check-access-*.json")
+    assert json.loads(check.read_text(encoding="utf-8"))["error"] == "invalid_grant"
+
+
+@pytest.mark.parametrize("command", ["probe", "authorize"])
+def test_r011_04_a_probe_without_an_answer_still_writes_what_it_read(
+    tmp_path, monkeypatch, command
+):
+    a = tool.SLOTS["a"]
+    env = _env(tmp_path, f"{a[0]}={REFRESH}\n" if command == "probe" else "")
+    monkeypatch.setattr(tool.secrets, "token_urlsafe", lambda size=32: f"fixed-{size}")
+    receiver = StubReceiver(f"/connectors/oauth/callback?state=fixed-24&code={CODE}")
+    argv = ["--env-file", str(env), command] + (["--no-browser"] if command == "authorize" else [])
+    assert tool.main(argv, FakeGoogle(fail_at_get=12), receiver) == 0
+    (path,) = (tmp_path / "local-data" / "youtube-feasibility").glob("probe-*.json")
+    evidence = json.loads(path.read_text(encoding="utf-8"))
+    assert evidence["stopped"] == "no_answer"
+    assert sum(evidence["calls"].values()) == 12
+    assert evidence["channel"]["outcome"] == "ok"
+    outcomes = json.dumps(evidence)
+    assert outcomes.count('"no_answer"') == 2  # the call without an answer, and stopped
+    assert "not_requested" in outcomes
+
+
+def test_r011_05_public_items_are_compared_only_when_the_inventory_fits_one_batch():
+    many = tool.probe_channel(FakeGoogle(uploads=60), ACCESS, NOW, digest_key=b"k")["videos"]
+    assert many["public_items_equal_video_count"] is None
+    assert many["public_items_comparison_skipped"] == "inventory_not_read_in_one_batch"
+    few = tool.probe_channel(FakeGoogle(uploads=20), ACCESS, NOW, digest_key=b"k")["videos"]
+    assert few["public_items_equal_video_count"] is True
+    assert "public_items_comparison_skipped" not in few
+
+
+def test_r011_06_max_calls_is_accepted_after_the_command(tmp_path, monkeypatch):
+    a = tool.SLOTS["a"]
+    env = _env(tmp_path, f"{a[0]}={REFRESH}\n")
+    google = FakeGoogle()
+    base = ["--env-file", str(env)]
+    folder = tmp_path / "local-data" / "youtube-feasibility"
+
+    def calls_of_latest_probe():
+        latest = sorted(folder.glob("probe-*.json"))[-1]
+        return sum(json.loads(latest.read_text(encoding="utf-8"))["calls"].values())
+
+    assert tool.main([*base, "probe", "--max-calls", "3"], google) == 0
+    assert calls_of_latest_probe() == 3
+    assert tool.main([*base, "--max-calls", "5", "probe"], google) == 0
+    assert calls_of_latest_probe() == 5
+    monkeypatch.setattr(tool.secrets, "token_urlsafe", lambda size=32: f"fixed-{size}")
+    receiver = StubReceiver(f"/connectors/oauth/callback?state=fixed-24&code={CODE}")
+    argv = [*base, "authorize", "--no-browser", "--max-calls", "2"]
+    assert tool.main(argv, google, receiver) == 0
+    assert calls_of_latest_probe() == 2
+
+
+def test_r011_09_the_receiver_refuses_a_port_that_is_in_use():
+    first = tool.CallbackReceiver("127.0.0.1", 0, "/cb")
+    try:
+        with pytest.raises(tool.FeasibilityFailed):
+            tool.CallbackReceiver("127.0.0.1", first.port, "/cb")
+    finally:
+        first.server.server_close()
+
+
+def test_r011_09_the_receiver_does_not_reuse_addresses_on_windows(monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "win32")
+    receiver = tool.CallbackReceiver("127.0.0.1", 0, "/cb")
+    try:
+        sock = receiver.server.socket
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
+    finally:
+        receiver.server.server_close()

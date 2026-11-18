@@ -77,3 +77,31 @@ Scope: D-058 decision D16.
 | Scopes (D2) | Both scopes are needed | The Analytics streams work with `yt-analytics.readonly` alone, and the Data API streams need `youtube.readonly` | No change: D2 installs a connection only with both scopes, because the inventory and the snapshot need the Data API. Installing with the Analytics streams only remains the documented alternative. |
 
 Remaining in 011-B (owner steps of the [checklist](feasibility-checklist.md)): partial consent (F1), PKCE (F2), the console quota readings (F7, F11), the next-day stability probe (F8), the 7-day refresh check (F3), and the access-ending checks F12 and F13 last, then `forget`.
+
+## 011-B review corrections (2026-11-18)
+
+Scope: D-059, within D-058, from the [review corrections prompt](review-corrections-prompt.md).
+
+- **Head at the start.** The independent review covered `bb3263e`. When the corrections started, the branch head was `7d66822`, which adds two later commits: `39c894f`, the first-run evidence with the history-probe correction, and `7d66822`, the F6 evidence. Both were kept, and no owner change was found. The corrections apply to the current tool. Each regression was run against temporary checkouts of `bb3263e` and of `7d66822`, outside the repository and removed afterwards.
+- **Official page re-read.** The `videos:batchGetStats` reference was re-read on 2026-11-18. It documents `GET https://www.googleapis.com/youtube/v3/videos:batchGetStats` with a required comma-separated `id`, a required `part` (`contentDetails`, `id`, `snippet`, `statistics`) and no stated ID limit. The first run's call without `part` was nevertheless answered with 200, as recorded above. The tool now sends `part`.
+
+| Finding | Correction | Regression (`tests/test_youtube_feasibility.py`) | At `bb3263e` and `7d66822` |
+|---|---|---|---|
+| R011-01 | The filtered video reports are sent with `sort=-views` and `maxResults=200`, the fallback included, and an unsorted `video_filter_unsorted` variant records whether these are required. | `test_r011_01_video_reports_send_sort_and_max_results` | fails: the filtered report is refused (`error`) |
+| R011-02 | `videos.list` and `videos:batchGetStats` each get a 50-ID control and a 51-ID request, with IDs distinct where the uploads allow. Both record `ids_sent`, `distinct_ids` and `conclusive`. | `test_r011_02_id_limits_use_distinct_ids_and_say_whether_they_are_conclusive` | fails: no distinct-ID check (`KeyError`) |
+| R011-03 | `revoke-test` records `wait_seconds`, and a surviving slot b is marked `provisional` in the evidence and the printed message, with slot b kept for `check-access --slot b` at least 30 minutes later. | `test_r011_03_a_surviving_slot_b_is_provisional_until_checked_again` | fails: no `wait_seconds` or conclusion |
+| R011-04 | `Probe.get` catches a missing answer, stops with `no_answer`, and the probe evidence is still written, for `probe` and for `authorize`. | `test_r011_04_a_probe_without_an_answer_still_writes_what_it_read[probe]` and `[authorize]` | fail: exit code 1 and no evidence |
+| R011-05 | The public items are compared with `videoCount` only when every upload was read in one batch. Otherwise the result is `null`, with the reason in `public_items_comparison_skipped`. | `test_r011_05_public_items_are_compared_only_when_the_inventory_fits_one_batch` | fails: 60 public uploads report `false` |
+| R011-06 | `--max-calls` is also accepted after `authorize` and `probe` (`argparse.SUPPRESS` default), and the module docstring and checklist document it. | `test_r011_06_max_calls_is_accepted_after_the_command` | fails: `SystemExit: 2` |
+| R011-07 | The plan's slice 2 names the existing project `connectapp` (D-057). | Documentation | n/a |
+| R011-08 | Checklist Part D step 8 deletes `local-data\youtube-feasibility` once this summary is recorded. | Documentation | n/a |
+| R011-09 | The receiver's server class leaves `SO_REUSEADDR` off on Windows and sets `SO_EXCLUSIVEADDRUSE`. | `test_r011_09_the_receiver_refuses_a_port_that_is_in_use`, `test_r011_09_the_receiver_does_not_reuse_addresses_on_windows` | fail: a second receiver bound the busy port, and `SO_REUSEADDR` was 1 |
+
+| Command (from `backend/`, project `.venv`) | Result |
+|---|---|
+| `python -m pytest -q tests/test_youtube_feasibility.py` | **24 passed** (15 earlier tests, some updated to the corrected answers, and 9 regressions) |
+| The 9 regressions (`-k r011`) against temporary checkouts of `bb3263e` and of `7d66822` | **9 failed** at each, for the reasons in the table |
+| `python -m pytest -m "not integration" -q` | **572 passed**, 328 deselected |
+| `python -m ruff check .` and `python -m ruff format --check .` | All checks passed; 142 files formatted |
+
+The integration suite was not run, because these corrections change no shared code, migration or setting. No live Google call was made for the corrections.

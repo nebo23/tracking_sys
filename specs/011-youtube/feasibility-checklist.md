@@ -12,14 +12,14 @@ The questions are those of [entry review section 7](entry-review.md#7-feasibilit
 | F2 | Does the Web client accept PKCE `S256`, and does it refuse a wrong verifier? | `authorize --pkce`, then `authorize --pkce-wrong-verifier` (Part D step 3). |
 | F3 | Does refresh work, and does it fail after 7 days in Testing? | `refresh` at any time, then again more than 7 days after `authorize`. |
 | F4 | What does `channels.list?mine=true` return, and how is a channel chosen? | `probe` records the item count, the statistics fields and their types, the hidden-subscriber flag and the uploads playlist. The owner notes which account or channel Google offered at consent. |
-| F5 | Does the uploads playlist list private and unlisted videos? What is the ID limit? Does `fields` work, and how do hidden likes and disabled comments show? | `probe` records privacy counts of the uploads, the statistics present per video, whether titles came back despite `fields`, a 51-ID request, and `batchGetStats`. |
+| F5 | Does the uploads playlist list private and unlisted videos? What is the ID limit? Does `fields` work, and how do hidden likes and disabled comments show? | `probe` records privacy counts of the uploads, the statistics present per video, and whether titles came back despite `fields`. It sends `videos.list` and `videos:batchGetStats` (with its required `part`) 50 and then 51 IDs, distinct where the uploads allow. Each records `ids_sent`, `distinct_ids` and `conclusive`: a refusal is conclusive, while an acceptance is conclusive only with 51 distinct IDs. |
 | F6 | Does `reports.query` work with `yt-analytics.readonly` alone? | `authorize --scopes analytics-only --slot b` (Part D step 2). |
 | F7 | How many units do calls record, where does `batchGetStats` count, and what do quota errors look like? | `probe` counts calls per API. The owner reads the console quota pages (Part E). |
 | F8 | Which is the last day returned, are days without activity zero rows or missing, do recent days change, and is the whole catalog accepted? | `probe` records the first and last day offsets, missing days, zero-view days and the column headers. A second `probe` a day later compares keyed digests of each day (Part D step 4). |
-| F9 | Does the `video` dimension work with a multi-ID filter and with `creatorContentType`, and how does the top-200 report behave? | `probe` records row counts and content-type values for each report. |
+| F9 | Does the `video` dimension work with a multi-ID filter and with `creatorContentType`, and how does the top-200 report behave? | `probe` records row counts and content-type values for each report. The filtered reports are sent with `sort=-views` and `maxResults=200`, and one unsorted variant shows whether those are required. |
 | F10 | How far back does data go, and what does a start date before YouTube existed do? | `probe` reads 30-day windows ending 90 to 3,650 days back, a total from 2005-02-14, monthly totals since 2008-07-01 (first-of-month dates), and the days of the earliest month with views. |
 | F11 | What Analytics API quota does the console show? | The owner reads it (Part E). |
-| F12 | Does revoking one consent's token end another consent of the same account? | `revoke-test --confirm` with two stored consents (Part D step 6). It ends access. |
+| F12 | Does revoking one consent's token end another consent of the same account? | `revoke-test --confirm` with two stored consents (Part D step 6). It ends access. A slot b that still works after the wait is provisional until `check-access --slot b` at least 30 minutes later. |
 | F13 | What does a refresh answer after the owner removes access in the Google account? | `check-access` after removal (Part D step 7). |
 | F14 | What do an invalid token and insufficient scopes return? | `probe` sends one invalid-token request to each API. The analytics-only consent of F6 shows insufficient scopes. |
 
@@ -55,7 +55,7 @@ C:\Code\Tracking-system\.venv\Scripts\python.exe -m app.youtube_feasibility --en
 3. The browser shows "The YouTube feasibility check received the answer". There is nothing to paste.
 4. The tool exchanges the code, stores the refresh token in `.env` without showing it, reads the channel and writes redacted evidence to `C:\Code\Tracking-system\local-data\youtube-feasibility\`.
 
-`probe` repeats the reads at any time with the stored token. `--max-calls` (default 120) bounds the number of reads, and the tool also stops at any quota or rate-limit answer.
+`probe` repeats the reads at any time with the stored token. `--max-calls N` (default 120) bounds the number of reads. It can be given before the command name or after `authorize` and `probe`, for example `probe --max-calls 50`. The tool also stops at any quota or rate-limit answer. If Google stops answering, the probe stops with `no_answer` and still writes what it read.
 
 ## Part D: follow-up steps
 
@@ -66,12 +66,15 @@ C:\Code\Tracking-system\.venv\Scripts\python.exe -m app.youtube_feasibility --en
 5. **Refresh (F3):** run `refresh` now, and again more than 7 days after `authorize`.
 6. **Shared grant (F12, ends access):**
    1. Store two full consents with `authorize --no-probe` and `authorize --slot b --no-probe`.
-   2. Run `revoke-test --confirm`, which revokes slot a and checks slot b.
+   2. Run `revoke-test --confirm`, which revokes slot a and checks slot b after a short wait (`wait_seconds`).
+   3. If slot b still works, the answer is provisional, because a revocation may take some time to take full effect. Run `check-access --slot b` again at least 30 minutes later before drawing a conclusion.
 7. **Access removal (F13):**
    1. Run `authorize --no-probe` again.
    2. Remove the app's access in the Google Account under Security, Third-party apps and services (myaccount.google.com/connections, formerly /permissions).
    3. Run `check-access`.
-8. **Clean-up:** run `forget` to remove the stored tokens from `.env`.
+8. **Clean-up:**
+   1. Run `forget` to remove the stored tokens from `.env`.
+   2. Once Claude's summary is recorded in [the 011 evidence](evidence.md), delete the folder `C:\Code\Tracking-system\local-data\youtube-feasibility` with its evidence files and `digest-key` (D-010).
 
 ## Part E: console readings (owner)
 

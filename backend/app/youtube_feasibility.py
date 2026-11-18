@@ -2,13 +2,16 @@
 
     python -m app.youtube_feasibility authorize [--scopes all|analytics-only] [--slot a|b]
                                                 [--pkce | --pkce-wrong-verifier] [--no-browser]
-    python -m app.youtube_feasibility probe [--slot a|b]
+                                                [--no-probe] [--max-calls N]
+    python -m app.youtube_feasibility probe [--slot a|b] [--max-calls N]
     python -m app.youtube_feasibility refresh [--slot a|b]
     python -m app.youtube_feasibility check-access [--slot a|b]
     python -m app.youtube_feasibility revoke-test --confirm
     python -m app.youtube_feasibility forget
 
 Every command takes --env-file PATH (default: the project's .env) before the command name.
+--max-calls (default 120) bounds the reads of a probe; it may be given before the command name
+or after authorize and probe.
 
 It establishes, with the owner's Google Cloud project in Testing and one owner-controlled
 channel, what Google's OAuth 2.0 web server flow, the YouTube Data API v3 and the YouTube
@@ -36,6 +39,7 @@ import http.server
 import json
 import re
 import secrets
+import socket
 import sys
 import threading
 import time
@@ -236,6 +240,21 @@ class Receiver(Protocol):
     def wait(self, timeout: float) -> str: ...
 
 
+# An HTTP server that owns its port (R011-09). http.server.HTTPServer sets SO_REUSEADDR, and
+# on Windows that lets a second socket bind a port that is already in use, so the tool could
+# listen next to a running API server while Google's answer reached the API. CPython's
+# socket.create_server leaves SO_REUSEADDR off on Windows for the same reason; here it is off
+# and SO_EXCLUSIVEADDRUSE is on, so a busy port is refused.
+class _LoopbackServer(http.server.HTTPServer):
+    def server_bind(self) -> None:
+        if sys.platform == "win32":
+            self.allow_reuse_address = False
+            exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+            if exclusive is not None:
+                self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
+
+
 # Listens on the loopback redirect address and keeps the first request to its path. Other
 # paths, such as a browser's favicon request, get 404 and the wait continues. Request lines
 # carry the authorization code, so nothing is logged.
@@ -263,7 +282,7 @@ class CallbackReceiver:
                 return
 
         try:
-            self.server = http.server.HTTPServer((host, port), Handler)
+            self.server = _LoopbackServer((host, port), Handler)
         except OSError:
             raise FeasibilityFailed(
                 "The redirect port is in use; stop the API server and run the command again."
@@ -385,14 +404,16 @@ def _age_days(timestamp: Any, now: datetime) -> int | None:
 
 
 # Read-only probe session: counts calls per API, remembers the identifiers it has seen so
-# that they never reach the evidence, and stops reading on a quota or rate-limit answer or
-# when the call budget is spent.
+# that they never reach the evidence, and stops reading on a quota or rate-limit answer, when
+# the call budget is spent, or when Google does not answer (R011-04), so that the evidence of
+# what was read is still written.
 class Probe:
     def __init__(self, transport: Transport, access_token: str, max_calls: int) -> None:
         self.transport, self._token, self.max_calls = transport, access_token, max_calls
         self.calls = {"data": 0, "analytics": 0, "invalid_token": 0}
         self.stopped: str | None = None
         self.known: set[str] = set()
+        self._unanswered = False
 
     def __repr__(self) -> str:
         return f"Probe(calls={self.calls})"
@@ -406,14 +427,23 @@ class Probe:
             return None
         self.calls[api] += 1
         bearer = token if token is not None else self._token
-        reply = self.transport("GET", url, None, {"Authorization": f"Bearer {bearer}"})
+        try:
+            reply = self.transport("GET", url, None, {"Authorization": f"Bearer {bearer}"})
+        except FeasibilityFailed:
+            self.stopped, self._unanswered = "no_answer", True
+            return None
         reasons = set(error_summary(reply.body).get("reasons") or [])
         if token is None and (reply.status == 429 or reasons & STOP_REASONS):
             self.stopped = "quota_or_rate_limit"
         return reply
 
+    # The outcome of a call that did not succeed. The call that got no answer is reported as
+    # such; the calls skipped after it are not_requested.
     def failure(self, reply: Reply | None) -> dict[str, Any]:
         if reply is None:
+            if self._unanswered:
+                self._unanswered = False
+                return {"outcome": "no_answer"}
             return {"outcome": "not_requested"}
         return {"outcome": "error", "status": reply.status, **error_summary(reply.body, self.known)}
 
@@ -499,9 +529,43 @@ def _probe_uploads(probe: Probe, uploads: str) -> tuple[dict[str, Any], list[str
     return {"uploads": record}, ids
 
 
-# F5: videos.list with a fields filter that leaves out titles, the 51-ID limit, and the
-# batchGetStats method with its own quota bucket.
-def _probe_videos(probe: Probe, ids: list[str], public_count: Any, now: datetime) -> dict[str, Any]:
+# Up to `count` distinct IDs from the uploads, repeated in order when the channel has fewer.
+def _limit_ids(ids: list[str], count: int) -> list[str]:
+    distinct = list(dict.fromkeys(ids))
+    return [distinct[index % len(distinct)] for index in range(count)] if distinct else []
+
+
+# The ID-limit check of one method (F5, R011-02): 50 IDs as the control, then 51. A refusal
+# (400) is conclusive; an acceptance is conclusive only when every ID sent was distinct,
+# because a server may merge repeated IDs and so answer fewer than were sent.
+def _id_limit(probe: Probe, resource: str, part: str, ids: list[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for count in (50, 51):
+        sent = _limit_ids(ids, count)
+        reply = probe.get("data", _data_url(resource, {"part": part, "id": ",".join(sent)}))
+        record: dict[str, Any] = {"ids_sent": len(sent), "distinct_ids": len(set(sent))}
+        if _ok(reply):
+            record |= {
+                "outcome": "ok",
+                "returned": len(reply.body.get("items") or []),
+                "conclusive": len(set(sent)) == len(sent),
+            }
+        else:
+            record |= {
+                **probe.failure(reply),
+                "conclusive": reply is not None and reply.status == 400,
+            }
+        out[str(count)] = record
+    return out
+
+
+# F5: videos.list with a fields filter that leaves out titles, the ID limits of videos.list
+# and videos:batchGetStats (GET with part and a comma-separated id, as its reference page
+# states, in its own quota bucket). The public items are compared with the channel's
+# videoCount only when every upload was read in one batch (R011-05).
+def _probe_videos(
+    probe: Probe, ids: list[str], public_count: Any, now: datetime, complete: bool = True
+) -> dict[str, Any]:
     if not ids:
         return {"videos": {"outcome": "no_videos"}}
     batch = ids[:VIDEO_BATCH]
@@ -540,6 +604,14 @@ def _probe_videos(probe: Probe, ids: list[str], public_count: Any, now: datetime
             if age is not None:
                 ages.append(age)
         public = privacy.get("public", 0)
+        if not complete or len(ids) > VIDEO_BATCH:
+            skipped: str | None = "inventory_not_read_in_one_batch"
+        elif len(items) != len(batch):
+            skipped = "videos_missing_from_answer"
+        elif not isinstance(public_count, str):
+            skipped = "video_count_missing"
+        else:
+            skipped = None
         result["videos"] = {
             "outcome": "ok",
             "requested": len(batch),
@@ -551,23 +623,17 @@ def _probe_videos(probe: Probe, ids: list[str], public_count: Any, now: datetime
             "age_days_range": [min(ages), max(ages)] if ages else None,
             "title_returned": any("title" in (item.get("snippet") or {}) for item in items),
             "public_items_equal_video_count": (
-                str(public) == public_count if isinstance(public_count, str) else None
+                str(public) == public_count if skipped is None else None
             ),
         }
+        if skipped is not None:
+            result["videos"]["public_items_comparison_skipped"] = skipped
     else:
         result["videos"] = probe.failure(reply)
-    # The same ID repeated 50 and 51 times: the first is the control, so a refusal of the
-    # second is due to the count rather than to repeated IDs.
-    for count in (50, 51):
-        reply = probe.get(
-            "data", _data_url("videos", {"part": "id", "id": ",".join([batch[0]] * count)})
-        )
-        result[f"videos_{count}_ids"] = (
-            {"outcome": "ok", "returned": len(reply.body.get("items") or [])}
-            if _ok(reply)
-            else probe.failure(reply)
-        )
-    stats = probe.get("data", _data_url("videos:batchGetStats", {"id": ",".join(batch)}))
+    result["videos_id_limit"] = _id_limit(probe, "videos", "id", ids)
+    stats = probe.get(
+        "data", _data_url("videos:batchGetStats", {"part": "statistics", "id": ",".join(batch)})
+    )
     if _ok(stats):
         result["batch_get_stats"] = {
             "outcome": "ok",
@@ -577,6 +643,7 @@ def _probe_videos(probe: Probe, ids: list[str], public_count: Any, now: datetime
         }
     else:
         result["batch_get_stats"] = probe.failure(stats)
+    result["batch_get_stats_id_limit"] = _id_limit(probe, "videos:batchGetStats", "id", ids)
     return result
 
 
@@ -839,14 +906,21 @@ def _probe_density(probe: Probe, today: date) -> dict[str, Any]:
 
 
 # F9: per-video lifetime reports by filter, with the content type, the top-200 report, and
-# the channel by content type.
+# the channel by content type. Video reports are sent with sort and maxResults, which entry
+# review YT-13 records as required (R011-01); one unsorted variant shows whether they are.
 def _probe_video_reports(probe: Probe, ids: list[str], today: date) -> dict[str, Any]:
     end = today.isoformat()
     out: dict[str, Any] = {}
     if ids:
         sample = ids[:VIDEO_BATCH]
         video_filter = "video==" + ",".join(sample)
-        lifetime = {"startDate": DOCUMENTED_START, "endDate": end, "filters": video_filter}
+        lifetime = {
+            "startDate": DOCUMENTED_START,
+            "endDate": end,
+            "filters": video_filter,
+            "sort": "-views",
+            "maxResults": "200",
+        }
         reply = probe.get(
             "analytics",
             _analytics_url({**lifetime, "metrics": ",".join(CATALOG), "dimensions": "video"}),
@@ -877,6 +951,15 @@ def _probe_video_reports(probe: Probe, ids: list[str], today: date) -> dict[str,
             ),
             len(sample),
             "creatorContentType",
+        )
+        unsorted = {key: lifetime[key] for key in ("startDate", "endDate", "filters")}
+        out["video_filter_unsorted"] = _table(
+            probe,
+            probe.get(
+                "analytics",
+                _analytics_url({**unsorted, "metrics": "views", "dimensions": "video"}),
+            ),
+            len(sample),
         )
     else:
         out["video_filter_catalog"] = {"outcome": "no_videos"}
@@ -926,7 +1009,7 @@ def _probe_invalid_token(probe: Probe, today: date) -> dict[str, Any]:
     for api, url in urls.items():
         reply = probe.get("invalid_token", url, token="invalid-feasibility-token")
         out[api] = (
-            {"outcome": "not_requested"}
+            probe.failure(None)
             if reply is None
             else {"status": reply.status, **error_summary(reply.body, probe.known)}
         )
@@ -955,7 +1038,13 @@ def probe_channel(
     if uploads:
         uploads_record, ids = _probe_uploads(probe, uploads)
         evidence |= uploads_record
-        evidence |= _probe_videos(probe, ids, public_count, now)
+        listing = uploads_record["uploads"]
+        complete = (
+            listing.get("outcome") == "ok"
+            and not listing.get("more_pages")
+            and "later_page" not in listing
+        )
+        evidence |= _probe_videos(probe, ids, public_count, now, complete)
     evidence |= _probe_day_report(probe, today, digest_key or secrets.token_bytes(32), previous)
     evidence |= _probe_history(probe, today)
     evidence |= _probe_video_reports(probe, ids, today)
@@ -1110,14 +1199,18 @@ def main(
     authorize.add_argument("--no-browser", action="store_true", help="Print the URL only.")
     authorize.add_argument("--no-probe", action="store_true", help="Do not read the channel.")
     authorize.add_argument("--timeout", type=int, default=CALLBACK_TIMEOUT)
+    subcommands = {"authorize": authorize}
     for name, text in (
         ("probe", "Read the channel with the stored refresh token."),
         ("refresh", "Refresh the stored token (F3)."),
         ("check-access", "Refresh after removing access in the Google account (F13)."),
     ):
-        commands.add_parser(name, help=text).add_argument(
-            "--slot", choices=sorted(SLOTS), default="a"
-        )
+        subcommands[name] = commands.add_parser(name, help=text)
+        subcommands[name].add_argument("--slot", choices=sorted(SLOTS), default="a")
+    # --max-calls is also accepted after the commands that read the channel (R011-06); the
+    # suppressed default keeps the value given before the command, or the default.
+    for name in ("authorize", "probe"):
+        subcommands[name].add_argument("--max-calls", type=int, default=argparse.SUPPRESS)
     revoke_test = commands.add_parser(
         "revoke-test", help="Revoke slot a and check slot b (F12). Ends access."
     )
@@ -1243,6 +1336,9 @@ def _authorize(options, config, env_file, output, now, transport, receiver_facto
 
 # F12: whether revoking one consent's refresh token also ends another consent of the same
 # account. It ends access for the account in the whole project, so it needs --confirm.
+# Google says a revocation may take some time to take full effect (entry review G-1), so a
+# slot b that still works after the wait is only a provisional answer (R011-03): slot b is
+# kept, and check-access --slot b at least 30 minutes later decides.
 def _revoke_test(options, config, env_file, output, transport, sleep) -> int:
     if not options.confirm:
         raise FeasibilityFailed(
@@ -1257,20 +1353,29 @@ def _revoke_test(options, config, env_file, output, transport, sleep) -> int:
             "revoke-test needs refresh tokens in slots a and b: authorize twice, the second "
             "time with --slot b."
         )
-    record: dict[str, Any] = {}
+    record: dict[str, Any] = {"wait_seconds": REVOCATION_WAIT}
     _, record["b_before"] = refresh_access(transport, config, second)
     record["revoke_a"] = revoke(transport, first)
     sleep(REVOCATION_WAIT)
     _, record["a_after"] = refresh_access(transport, config, first)
     access_b, record["b_after"] = refresh_access(transport, config, second)
-    record["b_survives_revocation_of_a"] = access_b is not None
+    survived = access_b is not None
+    record["b_survives_revocation_of_a"] = survived
+    record["conclusion"] = "provisional" if survived else "final"
     for name in SLOTS["a"]:
         unset_key(env_file, name)
-    if access_b is None:
+    if not survived:
         for name in SLOTS["b"]:
             unset_key(env_file, name)
     path = write_evidence(output, "revoke-test", record)
-    print(f"Slot b still usable after revoking slot a: {access_b is not None}; evidence in {path}")
+    if survived:
+        print(
+            f"Slot b still worked {REVOCATION_WAIT} seconds after slot a was revoked. This is "
+            "provisional: run check-access --slot b again at least 30 minutes later before "
+            f"drawing a conclusion. Evidence in {path}"
+        )
+    else:
+        print(f"Slot b stopped working when slot a was revoked (final); evidence in {path}")
     return 0
 
 
