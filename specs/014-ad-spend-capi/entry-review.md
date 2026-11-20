@@ -113,7 +113,7 @@ Read on 2026-11-20 and 2026-11-21 by the implementing model (Phase 0 of the [imp
 | V-17 | Confirmed | v27.0 is the latest Graph and Marketing API version (introduced 4 November 2026, available until a date not yet set). | The adapters use v27.0. |
 | V-18 | Confirmed | `ad_id={{ad.id}}`, `adset_id={{adset.id}}` and `campaign_id={{campaign.id}}` are available in an ad's URL parameters, together with name, placement and site source parameters. They are not supported for collection ads on Instagram placements. | D11 unchanged. Credit from ads that cannot carry the parameters is reported as unmatched. |
 
-None of these facts changes one of D1-D14. V-14 changes the delivery permission, which the V-14 row of section 2.3 assigns to recording; V-9 triggers the consequence that D8 already states; and V-7 leaves D12's conditional callbacks unused. The Phase 1 design note (`design-014.md`) applies the parameters.
+None of these facts changes one of D1-D14. V-14 changes the delivery permission, which the V-14 row of section 2.3 assigns to recording; V-9 triggers the consequence that D8 already states; and V-7 leaves D12's conditional callbacks unused. The [design note](design-014.md) applies the parameters.
 
 ## 3. Starting point
 
