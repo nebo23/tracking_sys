@@ -1,0 +1,195 @@
+# Specification 014 entry review: advertising spend and conversion delivery (Meta)
+
+Prepared: 2026-11-20 on `claude/gallant-cray-b16xwk` from merged `main` at `6283935` (PR 11; Spec 011 merged). Authority: D-063, preparation only. Status: **proposal**. D-063 records three owner choices of 2026-11-20: Specs 012 and 013 are deferred, Meta is the initial advertising provider, and the completion uses synthetic Meta-shaped providers and fixture tests only. Decisions D1-D14 in section 6 are recommendations for the owner; their approval is to be recorded as D-064. This preparation contains no application code, migration or dependency, and it makes no Meta call. The [implementation handoff](implementation-prompt.md) carries the approved decisions to completion and a pull request.
+
+## 1. Scope
+
+[Spec 014](spec.md) asks for one advertising platform: ingest spend with campaign and ad identifiers, deliver conversions through an outbox, and reconcile deduplication, consent and errors. Its acceptance criteria:
+
+1. **AC1.** Rerunning spend ingestion does not duplicate totals and handles revisions, time zones and currencies.
+2. **AC2.** Only verified conversions with the required consent enter the delivery outbox; a browser signal alone does not prove payment.
+3. **AC3.** Retries do not create a semantically duplicate conversion; provider rejections have recorded resolution paths without endless retry loops.
+4. **AC4.** ROAS identifies its model, period and currency; zero spend does not produce a misleading infinite value.
+
+Specification 003 obligations (D-025): check consent and tombstones at enqueue and again at the delivery claim (enforcement points E4 and E5 of the [003 design](../003-privacy-data-policy/design.md)), with the Meta row re-verified, and verify 003 cases C2, C3 and C5 and outbound replay blocking end to end. The LinkedIn and Google Ads conversion rows stay stale: they govern features that this specification does not build.
+
+Source features: PDF-058 (ad spend ingestion, MVP), PDF-059 (Conversion API sync, MVP), PDF-062 (ad-level ROAS, MVP) and the limited ROAS of PDF-055 ([feature register](../../docs/product/feature-register.md)).
+
+## 2. Sources
+
+### 2.1 Official pages could not be read in this preparation
+
+On 2026-11-20 the preparation environment could not read `developers.facebook.com` or `www.facebook.com`. The network policy refused both hosts. After a separate environment allowed them, the page-reading tool still failed to resolve them. No Meta page was read for this review. An earlier research round had the same gap: "Meta CAPI and Ads Insights pages returned rate-limit or login barriers" ([platform notes](../../research_notes/market-and-feasibility/platforms.md)).
+
+Section 2.2 lists what the repository already records. Section 2.3 lists the provider facts this design assumes. Phase 0 of the handoff verifies them against the official pages before any code relies on them. Each assumption below is marked as such; none is evidence.
+
+### 2.2 Recorded sources
+
+| ID | Source | Recorded finding | Where recorded |
+|---|---|---|---|
+| S-61 | [Meta Platform Terms](https://developers.facebook.com/terms/) (updated 2026-02-03) | Delete as soon as reasonably possible when no longer necessary, or on a user, client or Meta request. Platform Data includes derived and aggregated data. Tech Providers keep each client's data separate and protect tokens. | [Privacy sources](../../research_notes/privacy-data-policy/sources.md); the `meta.platform_data` rule, re-verified on 2026-11-17 by 010-C |
+| S-67 | [Meta Business Tools Terms](https://www.facebook.com/legal/terms/businesstools) (effective 2025-11-03) | Hash contact information before transmission; Meta deletes it after matching. Verifiable consent where required. No data about children under 13 or sensitive categories. Processor and joint-controller roles. | Privacy sources; the `meta.conversions_api` rule (stale) |
+| S-68 | [CAPI customer information parameters](https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters) | SHA-256 for `em`, `ph`, `fn`, `ln`, `db`, `ge`, `ct`, `st`, `zp` and `country`. Never hash the IP address, user agent, `fbc` or `fbp`. Phone digits include the country code. | Same |
+| S-69 | [Data processing options](https://developers.facebook.com/docs/marketing-apis/data-processing-options) | Per-event Limited Data Use for 14 listed US states | Same |
+| S-70 | [CAPI server event parameters](https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/server-event) | Events up to 7 days old; one older event fails the request; `event_id` deduplication | Same |
+| IG-1 | [Instagram Platform overview](https://developers.facebook.com/docs/instagram-platform/overview) (read 2026-11-17) | Standard Access covers accounts the app owns or manages. Advanced Access, through App Review and Business Verification, is needed for other accounts. | [Spec 010 entry review](../010-instagram/entry-review.md) |
+| E-010 | 010-C live evidence (2026-11-17) | Graph API `v27.0`. Throttling answers carry codes 4, 17, 32, 613, 80001 or 80002, or HTTP 429, and an `x-app-usage` header. | [Spec 010 evidence](../010-instagram/evidence.md); [connector guide](../../docs/engineering/connectors.md) |
+
+The S rows are research notes of 2026-11-03, not a re-verification. D-025 requires 014 to re-verify the `meta.conversions_api` row before the live feature runs.
+
+### 2.3 Facts to verify in Phase 0
+
+The pages are on `developers.facebook.com` unless stated. "Record" means: add the page, its date and the finding to section 2.4, and apply a parameter-level difference in the design note.
+
+| ID | Page | Assumption used by this design | If the page differs |
+|---|---|---|---|
+| V-1 | Marketing API Insights; ad account insights reference | Daily spend per ad comes from `GET /act_{id}/insights` with `level=ad`, `time_increment=1` and an explicit `time_range`. Fields include `spend`, `impressions`, `clicks`, `account_currency`, `date_start`, `date_stop`, `campaign_id`, `adset_id` and `ad_id`. Pages use cursors, and asynchronous report runs exist for large requests. | Record. If no daily ad-level read exists, D4 goes back to the owner. |
+| V-2 | Insights fields; ad account reference; Meta's currency list | Daily rows follow the ad account's time zone. `spend` is a decimal string in the currency's major unit. The ad account exposes `currency`, `timezone_name` and `account_status`. | Record. Rows in another zone change D4 and go to the owner. |
+| V-3 | Ad account reference | An account's currency and time zone are stable. If they can change, D4 keeps each fact with the values it was read under. | Record |
+| V-4 | Insights best practices | Reported spend can still change for some days after a day ends. The design re-reads 28 days, provisionally. | Use the documented window; record. |
+| V-5 | Insights limits | Insights reach back about 37 months, and some breakdowns or unique metrics less | Use the documented limit; record. |
+| V-6 | Marketing API rate limiting; Graph API Business Use Case limits | Throttling is signalled by error codes and usage headers, with an estimated time to regain access | Map to `rate_limited` with the documented wait. |
+| V-7 | Marketing API authorization and access levels; permission reference; Facebook Login for Business; system users | `ads_read` reads insights. Standard (development) access covers ad accounts of people with a role on the app. Other businesses' accounts need Advanced Access through App Review, Business Verification and possibly Tech Provider status. Facebook Login for Business issues business integration system user tokens. Whether the deauthorize and data deletion callbacks of 010 apply. | Record. A different access route changes D12 and goes to the owner. |
+| V-8 | Conversions API, using the API | `POST /{dataset_id}/events` takes a `data` array and an optional `test_event_code`, and answers `events_received`, `messages` and `fbtrace_id`. One invalid event fails the whole request (S-70). | Record |
+| V-9 | Server event parameters | `event_name`, `event_time` (Unix seconds, at most 7 days old for website events), `action_source`, `user_data` and `event_id`. Website events also need `event_source_url` and `client_user_agent`. | If `client_user_agent` is required, D8's stated consequence applies. |
+| V-10 | Customer information parameters; fbp and fbc | Hashing follows S-68. `fbc` is `fb.1.<creation time in milliseconds>.<fbclid>` and may be built from the `fbclid` of a landing URL. | Record. A stricter rule for building `fbc` goes to the owner. |
+| V-11 | Custom data | A `Purchase` needs `value` and `currency`. There is no refund event for a delivered purchase. | Record. A refund mechanism changes D6 and goes to the owner. |
+| V-12 | Deduplicate pixel and server events | Meta deduplicates events with the same `event_name` and `event_id` in one dataset within 48 hours, repeated server events included | If repeated server events are not deduplicated, D9 goes back to the owner. |
+| V-13 | Conversions API errors | Invalid parameters, expired events, invalid tokens, permission errors and throttling have distinct codes | Map them to the D9 classes; record. |
+| V-14 | Conversions API access tokens | Sending needs `ads_management` on the dataset through the app, or a token generated for the dataset in Events Manager | Changes D12's delivery permission; record. |
+| V-15 | Data processing options | `data_processing_options`, `data_processing_options_country` and `data_processing_options_state` per event (S-69) | Not used under J1 (D7); record. |
+| V-16 | Business Tools Terms (`www.facebook.com`); Platform Terms | S-61 and S-67 still apply, including any duty of a platform that sends data for advertisers | Update the two rules of D12; record. |
+| V-17 | Graph API changelog | `v27.0` is current or has a known successor and deprecation date | Set the adapter's version; record. |
+| V-18 | Ads URL parameters (Meta Business Help Center) | Dynamic URL parameters `{{campaign.id}}`, `{{adset.id}}` and `{{ad.id}}` can be added to an ad's website URL | If not, D11's join rule goes back to the owner. |
+
+### 2.4 Official sources read in Phase 0
+
+To be completed by the handoff (section 4 of the [implementation prompt](implementation-prompt.md)): one row per page with the URL, the date read, any last-updated date, and for each V row whether it was confirmed, corrected or not read.
+
+## 3. Starting point
+
+| Area | What exists | Where |
+|---|---|---|
+| Connector runtime (009 to 011) | Connections with single-use OAuth state, session binding and sealed tokens; reconnect and teardown; runs, checkpoints and attempt fencing; usage reservations; coverage and records reads; webhooks. 010 added streams, product types, provisional marking and Meta signed requests. 011 added day zones, quota buckets, inventory streams, allow-listed attributes, the non-additive marker and the operator purge. The day zone is declared per provider, not per connection. | `backend/app/connectors/`, `backend/app/services/connectors.py`, [connector guide](../../docs/engineering/connectors.md) |
+| Records read | `GET .../connections/{id}/records` returns stored metrics to any reader with `client:read`. | Connector guide, 009-C |
+| Revenue ledger (007-A) | In-memory calculation. Only confirmed captures and settlements post a sale. Purchase signals and manual declarations never enter verified totals. Net amounts are integer minor units per original currency. `Money.parse` reads a decimal string exactly and refuses extra digits. No persistence: 007-B is open. | `backend/app/ledger/` |
+| Attribution (008-A) | In-memory First Click, Last Click and Linear over synthetic journeys with a 30-day inclusive window. Campaign touches come first. A touch carries `source`, `campaign_ref`, `content_ref` and `link_ref`. Credit amounts are in the sale's currency, and revisions carry signed differences. No persistence. | `backend/app/attribution/` |
+| Consent and tombstones (003-B) | `require_all` for E2 to E6 under J1 strict opt-in; `admission` with subject tombstones and replay keys (`event_id`, `idempotency_key`, `provider_object`). GPC denies `sale_or_share`, `ads.measurement` and `ads.personalization`. | `backend/app/privacy/consent.py`, `backend/app/privacy/deletion.py` |
+| Provider rules | `meta.platform_data` is current (review due 2027-11-17). `meta.conversions_api` is stale (S-67 to S-70). No rule covers Marketing API spend data. | `backend/app/privacy/providers.py` |
+| Collection (004, 005) | Click identifiers (`fbclid` and others) are kept only with attribution consent; `utm_*` with analytics consent. No email, phone, name, address, IP address or user agent is collected. | [Event collection guide](../../docs/engineering/event-collection.md) |
+| Access | Roles Owner, Admin, Analyst and ClientViewer; permissions `client:read`, `finance:read` (with the explicit financial grant) and `events:write`; read and ingest service keys | `backend/app/services/access.py` |
+| Meta app | The owner's development-mode app uses Instagram Login (010-B, 010-C). Marketing API access needs Facebook Login (for Business), a different login product, which is not configured. | [Spec 010 evidence](../010-instagram/evidence.md) |
+| Baseline checks | At `5ccb87a` (tree of the PR 11 merge, apart from the D-062 record): 608 unit tests passed; 343 integration tests passed and 3 browser journeys were skipped; ruff clean | [Spec 011 evidence](../011-youtube/evidence.md) |
+
+## 4. Gaps and constraints
+
+- **G1. No persisted verified sales.** 007-B is open. The outbox therefore takes its candidates from a source interface. In 014 that source is the 007-A calculation over synthetic evidence; when 007-B exists, its journal replaces it. The outbox itself is persisted.
+- **G2. No identity.** 006 is designed but not implemented. The converting person, their collection subjects and their click identifiers come from synthetic journeys, as in 008-A.
+- **G3. Few match keys.** Without email, phone, IP address or user agent, the only meaningful key is `fbc`, built from a consented `fbclid`. Match rates will be low until 006 and a later owner decision add identifiers. If website events require `client_user_agent` (V-9), no live website purchase can be delivered until the owner decides how browser fields may be obtained (D8).
+- **G4. Joining spend and revenue.** Spend is reported per Meta ad; attribution credit is reported per touch. A join needs touches that carry Meta IDs (D11).
+- **G5. Per-account day zone.** Meta reports days in each ad account's time zone; the runtime declares one day zone per provider (D4).
+- **G6. Live access is gated.** Facebook Login for Business, App Review, Business Verification, possibly Tech Provider status, and an HTTPS callback (020) stand between the adapter and any customer account (V-7). D-063 keeps all live use out of this completion.
+
+## 5. Proposed slices
+
+1. **014-A, spend ingestion (synthetic).** A `synthetic_meta_ads` provider (development SQLite state, as the other synthetic providers), spend connections per ad account, dedicated spend tables, per-connection day zones, re-reads and the spend read route. Migration `0017`.
+2. **014-B, conversion delivery (synthetic).** A `synthetic_meta_capi` provider that receives events, deduplicates them and can fail on demand; delivery connections per dataset; destinations; the outbox with E4 and E5; the worker's delivery step; acknowledgements; and the destination and delivery routes. Migration `0018`.
+3. **014-C, ROAS calculation contract.** In memory, over stored spend facts and 008-A runs (D11).
+4. **014-D, live Meta adapters with fixture tests.** `meta_ads` and `meta_capi`, off by default, registered only while their rules are current. Migration `0019` admits them. An in-memory Graph serves the tests; nothing contacts Meta.
+
+Follow-ups after the pull request (section 8): owner-operated live checks (014-E), Meta's review and verification steps (014-F), and the dependent work of 006, 007-B, 016, 018 and 020.
+
+## 6. Decisions for the owner (D1-D14)
+
+| ID | Decision | Recommendation | Alternative |
+|---|---|---|---|
+| D1 | Order and scope of the completion | Complete 014-A, 014-B, 014-C and 014-D in that order on one branch, against synthetic providers and fixtures only (D-063). Push after each verified slice (D-051), and open one pull request against `main` at the end (D-063). | Stop after 014-C and leave the live adapters to a later slice. |
+| D2 | Connection model | Two connection kinds of one Meta integration, so read and write access never share a token. **Spend connections** (`meta_ads`, one per ad account `act_<digits>`) request read access only. **Delivery connections** (`meta_capi`, one per dataset) request the delivery permission only. The connect request names the ad account or dataset. After the code exchange the adapter checks that the grant can read that account or dataset, and records its currency and time zone; otherwise the connect ends with `account_unavailable`. A reconnect must return the same account (009). Several clients may connect different accounts of one grant holder, each with its own tokens and data (009). A browser list of accessible accounts waits for 018. | One connection kind holding read and delivery permissions, or a second step that lists accessible accounts and lets an Owner or Admin pick one. |
+| D3 | Storage of advertising data | Dedicated tables instead of `connector_records`, whose read route needs only `client:read`. Proposed: `ad_accounts` (one per spend connection: account ID, currency, time zone, status, observed time); `ad_objects` (campaigns, ad sets and ads with parent IDs, effective status and name, refreshed on each inventory read); and `ad_spend_facts`. A fact has one row per connection, ad and account-local date: spend in integer minor units of the account currency, impressions, clicks, a provisional mark, a revision count, first and last observed times, the source run and the adapter version. The unique key (connection, ad, date) makes a re-read update rather than add. Names are advertiser business data, not personal data, and are purged with the connection. | Store spend as JSONB in `connector_records` and filter the records route by permission. |
+| D4 | Spend synchronization | Streams `account` (daily snapshot), `ad_objects` (inventory) and `ad_daily` (insights at ad level, one row per ad and day, in the account's time zone). **Day zone:** the runtime takes the day zone of a spend connection from its `account` snapshot (an extension of the per-provider zone). **Windows:** 90 days at connect; backfill up to the provider's limit (V-5); windows split into pages of at most 7 days, so no asynchronous report job is needed. **Re-reads:** each incremental run re-reads the last 28 days (V-4), and those days are provisional. **Amounts:** spend is read with `Money.parse` into minor units. The exponent comes from an allow-listed currency table checked against ISO 4217 and Meta's currency list (V-2). A value with extra decimal places, or a currency outside the table, is not stored; it is counted as `unparseable_amount` or `unsupported_currency`. **Absent rows:** within a window the provider reports as complete, an ad without a row had no reported spend that day; no zero row is stored. **Changes:** deleted and archived ads keep their facts. A changed account currency or time zone is recorded, and no read sums facts of different currencies. | Re-read only on backfill; or use asynchronous report runs. |
+| D5 | Provider limits | Meta's throttling answers (V-6; the codes 010-C recorded) defer a run by the documented wait, otherwise 15 minutes, as in 010-C. The per-connection daily allocation counts pages. Permission errors are `forbidden` and token errors follow 009 (one refresh, then `reconnect_required`). | Per-endpoint budgets from the usage headers. |
+| D6 | Which conversions are delivered | Only verified sales: a posted 007-A transaction whose sale evidence is a confirmed capture or settlement. Purchase signals and manual declarations never enter the outbox (AC2), and leads wait for 006. **Event:** the destination's event name, `Purchase` by default; a custom name such as `VerifiedPurchase` when the site's pixel already sends `Purchase`, because pixel and server events cannot share an event ID here. **Fields:** `event_time` is the authoritative sale instant, never the send time. The value is the sale's verified net in its original currency at claim time. **Reversals:** a sale fully refunded or charged back before the claim is cancelled. A refund after delivery is not sent (V-11); ROAS uses the ledger's net. No `order_id` is sent (data minimization; `event_id` deduplicates). | Send the captured value without later netting, or send `order_id`. |
+| D7 | Consent, tombstones and GPC | **E4 at enqueue and E5 in the claiming transaction** (`FOR UPDATE SKIP LOCKED`): `ads.measurement` and `sale_or_share` must both be granted for the converting subjects under J1, and the subject and replay tombstones (`event_id` and the sale operation) must admit the delivery (`admission`). **Snapshot:** enqueue stores the consent basis (record IDs) and the policy version. **At the claim:** a denial suppresses the delivery as `blocked` and destroys its payload (C3). **GPC** denies both purposes, so it suppresses (the C5 suppression branch). **LDU** waits for a US market profile (Q-003). | Require `ads.measurement` only and send LDU-flagged events when `sale_or_share` is not granted (needs V-15 and a market profile). |
+| D8 | Match keys | Send only `fbc`, built from an `fbclid` collected under attribution consent, with the time it was first received (V-10). Nothing else is sent: no email, phone, name, address, IP address, user agent or `external_id` (004 collects none, and an `external_id` matches nothing without a shared browser identifier). A conversion without `fbc` is not enqueued (`no_match_key`) and is counted. The delivery contract keeps optional browser fields for a future approved source and never hashes them. If V-9 confirms that website events require `client_user_agent`, website conversions are refused at enqueue as `provider_field_missing`. Live website delivery then waits for an owner decision on browser fields, which the handoff presents and does not implement. | Retain the converting click's user agent under `ads.measurement` until delivery now (amends 004 D1 and D4), or also send a keyed `external_id`. |
+| D9 | Outbox behavior | **Key:** one row per destination and sale, unique on a deterministic `event_id` (a keyed digest of client, destination and sale operation). A repeated enqueue is a no-op, and every attempt sends the same ID (V-12). **Payload:** sealed under the D-025 keyring and destroyed when the delivery ends. **Sending:** one event per request, validated locally first (age, required fields, value and currency). **Retries:** retryable answers (5xx, network, throttling, an `events_received` other than 1) retry at most 5 times, 30 seconds doubling to 15 minutes. No attempt is made after the event's age limit less 1 hour; the delivery is then `expired`. **Rejections:** a permanent answer ends the delivery as `rejected` with a closed class. `configuration` (token, permission or dataset): an Owner or Admin may requeue it after the repair, at most 3 times, with the same event ID. `payload` (an invalid parameter): it may only be dismissed. An exhausted retry budget is `undeliverable`. **Tokens:** an invalid token makes the delivery connection `reconnect_required` (009); its deliveries wait and expire at their deadline. **Records:** each attempt stores an acknowledgement (time, outcome class, `events_received` and the provider trace ID). **Concurrency:** the worker claims with a lease and fences writes by attempt, as sync runs are fenced. | Batches of up to N events with split-and-retry after a whole-request rejection. |
+| D10 | Destinations, routes and permissions | **Destination:** one per delivery connection, with the dataset, the event name, an optional test event code, and an enabled flag that is off by default. Disabling a destination cancels its queued deliveries. **Roles:** Owner and Admin create, enable, disable, requeue and dismiss, each with an audit event. Members with client visibility see destination status without amounts. Spend facts and delivery lists with values need `finance:read`. Read service keys follow their grants, and ingest keys have no access. **Routes (additive, in the OpenAPI snapshot):** create, list and update destinations; list, requeue and dismiss deliveries; read spend. No route ever returns an identifier, payload or provider trace ID. | No HTTP routes in 014; service functions only, with routes in 016 and 018. |
+| D11 | ROAS contract | **Scope:** an in-memory contract for one client, one spend connection, a period of account-local dates and one 008-A model version. It returns rows per ad, rolled up per ad set and campaign. **Values:** each row has the period's spend and the verified net credited to touches that reference the ad, for sales whose authoritative instant falls in the period (conversion-date basis). ROAS is credited net divided by spend, only when spend is above zero and both are in one currency. Otherwise there is no value, with reason `zero_spend` or `currency_mismatch`. Spend above zero with no credited revenue gives 0. **Labels:** each row names its model, version, window, period, currency and basis, and whether its spend is complete or provisional. **Join:** touches match ads only through Meta's dynamic URL parameters (V-18): `utm_source=meta`, `utm_campaign={{campaign.id}}` and `utm_content={{ad.id}}`, never by name. Unmatched credit is reported separately. **Never:** models are not added together and amounts are not converted between currencies. Read routes belong to 016. | Touch-date basis (credit counted on the click date), which stays open until the attribution window closes. |
+| D12 | Live adapters | **Adapters:** `meta_ads` and `meta_capi` in `app.connectors.meta_ads`, using Facebook Login for Business, Insights reads and the Conversions API sender over the standard library, as the Instagram adapter does. **Settings:** off by default (`TRACKING_CONNECTOR_META_ADS_ENABLED`), with their own app ID, app secret and login configuration ID, separate from the Instagram settings. **Registration:** only while `meta.platform_data`, a new `meta.marketing_api` rule and the re-verified `meta.conversions_api` rule are current. **Permissions:** `ads_read` for spend connections; the delivery permission (V-14, `ads_management` assumed) for delivery connections only. **Callbacks:** the 010 deauthorize and data deletion callbacks are reused if V-7 confirms that Facebook Login for Business sends them. **Tests:** fixtures with an in-memory Graph; no live call. | One permission set on every Meta connection. |
+| D13 | Data classes and retention (development, provisional) | **Spend data:** ad accounts, ad objects and spend facts are kept while the connection is active, at most 730 days after the spend date, and purged at disconnect (as 010 and 011). **Destinations:** until deleted. **Payloads:** destroyed when their delivery ends. **Delivery rows:** they hold neither identifiers nor payloads; with their acknowledgements, `tracking_lifecycle` deletes them 30 days after the delivery ends. **Registry:** every new table and column is registered in `app.data_policy`. No production retention is approved (Q-012). | Keep delivery rows for the 13 months of the 004 event retention. |
+| D14 | Migrations and dependencies | Three additive revisions after `0016`, each with a downgrade that refuses existing state as `0016` does: `0017` (spend tables, the account named by the connect request, provider `synthetic_meta_ads`), `0018` (destinations, deliveries and acknowledgements, provider `synthetic_meta_capi`, runtime and lifecycle grants) and `0019` (admits `meta_ads` and `meta_capi`). Tested on the disposable PostgreSQL service only. No new dependency. | One migration for the whole specification. |
+
+## 7. Verification plan
+
+The handoff turns each case into at least one test. A mutation check accompanies each safeguard marked (M): remove the safeguard and show that its test fails.
+
+### 7.1 Spend (014-A, AC1)
+
+| Case | Expected |
+|---|---|
+| T-01 | Reading the same window twice gives the same facts and totals. (M: unique key) |
+| T-02 | A value changed inside the re-read window replaces the old one; the revision count rises and totals reflect the new value only. |
+| T-03 | Account-local days are correct across a daylight-saving change, with a 23-hour and a 25-hour day. |
+| T-04 | Currencies with exponents 0, 2 and 3 parse exactly. Extra decimal places give `unparseable_amount`; an unlisted currency gives `unsupported_currency`. Neither is rounded or stored. (M) |
+| T-05 | After a change of account currency, earlier facts keep their currency and no read sums the two. (M) |
+| T-06 | Deleted and archived ads keep their facts; the inventory refreshes names and status. |
+| T-07 | Throttling defers the run; a permission error is `forbidden`; an invalid token leads to one refresh, then `reconnect_required`. |
+| T-08 | A connect naming an account the grant cannot read ends with `account_unavailable`; a reconnect to another account is refused. |
+| T-09 | Two agencies with two clients each: spend reads need `finance:read`; `client:read` sees no amounts; service keys follow their grants. (M) |
+| T-10 | A disconnect purges accounts, objects and facts. |
+
+### 7.2 Delivery (014-B, AC2, AC3, 003 C2, C3, C5, replay)
+
+| Case | Expected |
+|---|---|
+| T-20 | Only posted confirmed captures or settlements are enqueued; purchase signals and manual declarations never are. (M) |
+| T-21 | C2: `ads.measurement` denied gives no outbox row, and the refusal is counted. |
+| T-22 | `sale_or_share` not granted gives no outbox row. |
+| T-23 | C3: a withdrawal after enqueue makes the claim suppress the delivery as `blocked`; the payload is destroyed and nothing is sent. (M: the recheck at the claim) |
+| T-24 | C5: a GPC signal suppresses. |
+| T-25 | A subject tombstone blocks at enqueue and at the claim. A replay of a sale or event ID known before a deletion is blocked. (M) |
+| T-26 | A repeated enqueue leaves one row. A retry sends the same `event_id`, and the synthetic receiver counts one event. (M) |
+| T-27 | Retryable failures back off and stop after 5 attempts (`undeliverable`). No attempt is made after the age limit less 1 hour (`expired`). `event_time` is never moved. (M: attempt cap, deadline) |
+| T-28 | A `configuration` rejection can be requeued by an Owner or Admin at most 3 times with the same event ID and an audit event. A `payload` rejection can only be dismissed. Nothing loops automatically. |
+| T-29 | A sale fully refunded before the claim is cancelled. A partial refund sends the net. The value matches the ledger's minor units in the original currency. |
+| T-30 | Two workers: one claims and sends. After a lease expires, the next attempt is fenced; a superseded attempt writes nothing. A crash after sending re-sends the same `event_id`. |
+| T-31 | An invalid token makes the delivery connection `reconnect_required`; its deliveries wait, resume after reconnection, and otherwise expire. |
+| T-32 | Disabling a destination cancels its queued deliveries and destroys their payloads. |
+| T-33 | A test event code, when set, is sent with each event; the synthetic receiver keeps test events apart. |
+| T-34 | Isolation: deliveries never cross clients; values need `finance:read`; no route or log contains `fbc`, `fbclid`, a payload or a trace ID. (M) |
+| T-35 | A website conversion without a field that its action source requires is refused at enqueue as `provider_field_missing`. A conversion without `fbc` is refused as `no_match_key`. |
+
+### 7.3 ROAS (014-C, AC4)
+
+| Case | Expected |
+|---|---|
+| T-40 | Rows per ad, ad set and campaign for each model separately, each naming its model, version, window, period, currency and basis. |
+| T-41 | Zero spend gives no value with `zero_spend`, never an infinite or very large number. (M) |
+| T-42 | Spend above zero with no credited revenue gives 0. |
+| T-43 | A currency mismatch gives no value with `currency_mismatch`; nothing is converted. (M) |
+| T-44 | Provisional or incomplete spend days are marked on the row. |
+| T-45 | Credit from touches without the URL convention, or for another account, is reported as unmatched, never matched by name. |
+| T-46 | A refund after the sale lowers the credited net through the 008-A revision, and ROAS changes with it. |
+| T-47 | Period boundaries follow the account's zone; a sale at 23:30 local time falls on the local date. |
+
+### 7.4 Live adapters (014-D)
+
+| Case | Expected |
+|---|---|
+| T-50 | Neither adapter is registered unless enabled and configured with current rules; a stale or overdue rule removes it. (M) |
+| T-51 | Fixtures cover Insights parsing (pages, decimal strings, zones, throttling codes and errors), CAPI request building (`fbc` never hashed, no field outside D8), answers and error classes, the authorization URL with the login configuration, the exchange, and the recorded scopes. |
+| T-52 | A delivery connection without the delivery permission is refused (`scopes_missing`); a spend connection never requests it. |
+| T-53 | The suite makes no network call. |
+
+## 8. Out of scope and follow-ups
+
+- **014-E, live read-only check.** The owner's Meta app with Facebook Login for Business and the Marketing API, and an ad account the owner controls. Meta redirects only to registered HTTPS URIs (010-C), so a browser connect waits for HTTPS hosting (020) unless a feasibility tool like the Instagram one is approved.
+- **014-F, live test delivery.** Test events with a test event code to an owner dataset. This writes to Meta and needs its own approval.
+- **014-G, Meta review.** App Review for `ads_read` and the delivery permission, Business Verification, Tech Provider status if required, the Data Use Checkup, and HTTPS hosting with the callbacks (020).
+- **Owner decisions held back:** browser fields for website events if V-9 requires them (D8), and email or phone match keys after 006.
+- **Dependent work:** the 007-B journal as the persisted conversion source; 006 identity; ROAS read routes and reports (016); destination and ad account screens (018), which wait for the owner's brief, design and brand identity (D-039); production scheduling of the worker (020).
+- **Later providers:** Google Ads, and LinkedIn Ads with Spec 012.
+- **Excluded:** budgets, bids and campaign edits; audiences and Customer Match; Meta-reported conversion values as revenue (they are never summed with verified sales, see [platform notes](../../research_notes/market-and-feasibility/platforms.md)); creative analytics (021).
+
+## 9. Owner decisions
+
+D-063 (2026-11-20) defers Specs 012 and 013 and starts this specification with Meta as the initial advertising provider. The completion runs against synthetic providers and fixtures only, and the implementing model opens a pull request for review once its work is verified. D1-D14 above await the owner's approval, which is to be recorded as D-064 before implementation.

@@ -1,5 +1,5 @@
 # Plan: 014-ad-spend-capi
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Draft. This plan does not authorize implementation or dependency selection. D-063 starts the preparation with Meta as the initial provider; the [entry review](entry-review.md) proposes slices 014-A to 014-D and decisions D1-D14 for the owner's approval.
 
 ## Expected outcome
 Select an initial advertising platform; ingest spend and campaign/ad identifiers, deliver conversions through an outbox, and reconcile deduplication, consent, and errors.

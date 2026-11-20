@@ -1,5 +1,5 @@
 # Tasks: 014-ad-spend-capi
-Status: Not completed; this is a review checklist, not an implementation instruction.
+Status: Not completed; this is a review checklist, not an implementation instruction. Preparation under D-063: the [entry review](entry-review.md) and the [implementation handoff](implementation-prompt.md).
 
 - [ ] Approve the scope and sources for advertising spend and conversion delivery.
 - [ ] Resolve Q-001, Q-004, Q-010, Q-012; initial advertising provider and record the owner decision.
