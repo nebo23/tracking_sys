@@ -1,5 +1,5 @@
 # 014-ad-spend-capi — Advertising spend and conversion delivery
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29. Preparation under D-063 (2026-11-20): Meta is the initial advertising provider, and the completion uses synthetic providers and fixture tests only. See the [entry review](entry-review.md), whose decisions D1-D14 await the owner's approval (D-064), and the [implementation handoff](implementation-prompt.md).
+Status: The [entry review](entry-review.md) (D-063, 2026-11-20) is decided: D1-D14 as recommended by D-064, which authorizes implementation under the [implementation handoff](implementation-prompt.md). Meta is the initial advertising provider, and the completion uses synthetic providers and fixture tests only. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 PDF-058,059,062. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

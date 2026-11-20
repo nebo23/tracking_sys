@@ -1,6 +1,6 @@
 # Specification 014 entry review: advertising spend and conversion delivery (Meta)
 
-Prepared: 2026-11-20 on `claude/gallant-cray-b16xwk` from merged `main` at `6283935` (PR 11; Spec 011 merged). Authority: D-063, preparation only. Status: **proposal**. D-063 records three owner choices of 2026-11-20: Specs 012 and 013 are deferred, Meta is the initial advertising provider, and the completion uses synthetic Meta-shaped providers and fixture tests only. Decisions D1-D14 in section 6 are recommendations for the owner; their approval is to be recorded as D-064. This preparation contains no application code, migration or dependency, and it makes no Meta call. The [implementation handoff](implementation-prompt.md) carries the approved decisions to completion and a pull request.
+Prepared: 2026-11-20 on `claude/gallant-cray-b16xwk` from merged `main` at `6283935` (PR 11; Spec 011 merged). Authority: D-063 (preparation) and D-064 (approval). Status: **approved**. D-063 records three owner choices of 2026-11-20: Specs 012 and 013 are deferred, Meta is the initial advertising provider, and the completion uses synthetic Meta-shaped providers and fixture tests only. On the same day D-064 approved decisions D1-D14 of section 6 as recommended. This preparation contains no application code, migration or dependency, and it makes no Meta call. The [implementation handoff](implementation-prompt.md) carries the approved decisions to completion and a pull request.
 
 ## 1. Scope
 
@@ -192,4 +192,4 @@ The handoff turns each case into at least one test. A mutation check accompanies
 
 ## 9. Owner decisions
 
-D-063 (2026-11-20) defers Specs 012 and 013 and starts this specification with Meta as the initial advertising provider. The completion runs against synthetic providers and fixtures only, and the implementing model opens a pull request for review once its work is verified. D1-D14 above await the owner's approval, which is to be recorded as D-064 before implementation.
+D-063 (2026-11-20) defers Specs 012 and 013 and starts this specification with Meta as the initial advertising provider. The completion runs against synthetic providers and fixtures only, and the implementing model opens a pull request for review once its work is verified. On 2026-11-20 D-064 approved D1-D14 above as recommended and authorized the implementation under the handoff. Phase 0 verifies the provider facts V-1 to V-18; a fact that changes a decision goes back to the owner first, as D-054 did.

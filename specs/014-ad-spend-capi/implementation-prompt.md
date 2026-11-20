@@ -3,12 +3,12 @@
 Work in the owner's local repository, for example in a worktree `C:\Code\Tracking-system\.worktrees\spec-014-ad-spend-capi`. Use a new branch `codex/spec-014-ad-spend-capi` (D-023). Fetch `claude/gallant-cray-b16xwk` and create the branch from `origin/claude/gallant-cray-b16xwk`, which holds this preparation on top of merged `main` at `6283935`. If `main` has meanwhile received this preparation, branch from `main` instead. If your session requires another branch name, create that branch from the same commit.
 
 Before editing:
-- Verify that `git log --oneline 6283935..HEAD` lists only the D-063 preparation commits and any later owner commits.
+- Verify that `git log --oneline 6283935..HEAD` lists only the D-063 and D-064 preparation commits and any later owner commits.
 - Verify that the working tree is clean, and preserve every owner change.
 
 Read:
 - `AGENTS.md` and `README.md`;
-- D-051, D-062, D-063 and, once recorded, D-064 in `docs/planning/decisions.md`;
+- D-051, D-062, D-063 and D-064 in `docs/planning/decisions.md`;
 - every file in `specs/014-ad-spend-capi/`, in particular the [entry review](entry-review.md) sections 2 to 8.
 
 Use the 009 runtime and the 010 and 011 work as the pattern:
@@ -26,7 +26,7 @@ Communicate with the owner in Arabic, and write project files, code comments and
 ## Authority
 
 - **D-063 (owner, 2026-11-20).** Specs 012 and 013 are deferred and stay unchanged. Meta is the initial advertising provider. Spec 014 is completed against synthetic Meta-shaped providers and fixture tests only. After successful verification you push and open a pull request against `main` for review, without a further upload request. The merge remains the owner's decision.
-- **D-064.** The owner's approval of decisions D1-D14 of the entry review. Phase 0 checks that it is recorded before any implementation.
+- **D-064 (owner, 2026-11-20).** Approves decisions D1-D14 of the entry review as recommended and authorizes this implementation. Phase 0 confirms that it is recorded before any implementation.
 - **Amendments.** Phase 0 reads the official pages behind V-1 to V-18.
   - A fact that changes a decision goes to the owner first, as D-054 did, and the work that depends on it waits.
   - A fact that changes only a parameter (a window, a code, a field name) is applied and recorded.
