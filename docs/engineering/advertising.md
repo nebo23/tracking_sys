@@ -69,12 +69,14 @@ Disabling a destination cancels its open deliveries (`destination_disabled`) and
 | Admission after a deletion | `subject_objected`, `no_consent_after_deletion` |
 
 A delivery keeps:
-- a deterministic event ID (a keyed digest of client, destination and sale operation, so every attempt sends the same ID);
+- a deterministic event ID, so every attempt sends the same ID (see the delivery key below);
 - the event time (the authoritative sale instant, never moved), the deadline, and the value in minor units of the sale's currency;
 - the consent basis (consent record IDs) and the policy version;
 - a payload sealed under the D-025 keyring (the `fbc`, the subject references and the replay keys), destroyed when the delivery ends.
 
-A repeated enqueue is a no-op. While a delivery waits, a changed net updates its value and a net of zero cancels it (`sale_reversed`). A delivered sale is never resent, and a later refund is not sent (V-11).
+**Delivery key (D9 as amended by D-065).** A sale reaches a dataset at most once. Its event ID is the SHA-256 digest of a length-prefixed encoding of the domain `conversion-event:v2`, the client, the dataset (the delivery connection's account at enqueue), the source account and the sale operation. It uses no destination and no secret, so a reconnection of the dataset, a second destination of it or a rotation of `TRACKING_AUTH_SECRET` never gives the sale a second ID there. At most one delivery per client and event ID holds that ID, enforced by the partial unique index `uq_conversion_deliveries_event`. The one exception is a delivery cancelled before any attempt because its destination was disabled or its connection ended, which never reached Meta: the sale may then be enqueued again through the re-enabled destination or a new destination of the same dataset, with the same event ID. A delivery cancelled after an attempt keeps the ID, because that attempt may have reached Meta.
+
+A repeated enqueue is otherwise a no-op (`unchanged`). For the same destination, while a delivery waits, a changed net updates its value and a net of zero cancels it (`sale_reversed`). A delivered sale is never resent, through any destination, and a later refund is not sent (V-11).
 
 **States.**
 
@@ -94,7 +96,7 @@ A repeated enqueue is a no-op. While a delivery waits, a changed net updates its
 
 ## Worker step
 `python -m app.connector_worker` runs, after the connector teardowns, scheduling and syncs, one bounded delivery step (`run_deliveries`). It prints counts only:
-1. It expires deliveries whose deadline has passed.
+1. It expires deliveries whose deadline has passed, which needs no key and destroys their payloads. Claims need both the token keyring and the tombstone keyring (`TRACKING_TOMBSTONE_KEYRING`, `TRACKING_TOMBSTONE_KEYRING_ACTIVE`). Without either, the step stops here and reports `"not_configured": 1` next to the expired count; the command still prints every step's counts and exits 0 (R014-02).
 2. It claims at most 10 deliveries. Each claim takes a due delivery of an enabled destination, an active delivery connection of a registered delivery provider and an active agency and client, with `FOR UPDATE SKIP LOCKED`.
 3. In the claiming transaction it takes the client's privacy lock and repeats E5 (tombstones and consent) from the payload. A denial makes the delivery `blocked` and destroys the payload.
 4. It validates the event locally (value, currency and the action source's fields) and sends it with no lock held. `user_data` carries `fbc` only, never hashed.
@@ -102,7 +104,7 @@ A repeated enqueue is a no-op. While a delivery waits, a changed net updates its
 6. Retryable answers (5xx, network, throttling, an `events_received` other than 1) retry after 30 seconds doubling to 15 minutes, or the provider's wait, at most 5 attempts in a cycle and never after the deadline.
 7. An invalid token makes the delivery connection `reconnect_required`. Its deliveries wait for the reconnect and otherwise expire.
 
-A crash after a send repeats the same event ID on the next attempt; Meta keeps the first copy within 48 hours (V-12). The step is not a scheduler: deliveries move only when the command runs (production scheduling is 020).
+A crash after a send repeats the same event ID on the next attempt; Meta keeps the first copy within 48 hours (V-12). Every send of a sale to a dataset carries that same ID, and once a delivery has been attempted no other delivery of the sale is created for the dataset. The step is not a scheduler: deliveries move only when the command runs (production scheduling is 020).
 
 ## Lifecycle
 `python -m app.lifecycle`, as `tracking_lifecycle`, deletes spend facts 730 days after their spend date, and ended deliveries with their acknowledgements 30 days after they end. Spend accounts, objects and facts are also purged when their connection's disconnect completes. These are provisional development periods (D13); no production retention is approved (Q-012).

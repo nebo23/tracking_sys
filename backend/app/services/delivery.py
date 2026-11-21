@@ -17,16 +17,23 @@ source requires; website events need client_user_agent, which is never collected
 refused as provider_field_missing (V-9). Under the client's privacy lock (004), admission with
 the subject and replay tombstones and require_all of ads.measurement and sale_or_share for every
 subject must allow it; GPC denies both purposes. A refusal stores nothing and is counted. An
-admitted sale becomes one delivery per enabled destination with a deterministic event ID (a
-keyed digest of client, destination and sale operation), the consent basis and policy version,
-and a payload sealed under the D-025 keyring (fbc, subject references, replay keys), destroyed
-when the delivery ends. A repeated enqueue is a no-op, a changed net updates a delivery not yet
-sent, and a net of zero cancels it (sale_reversed). A delivered sale is never sent again.
+admitted sale becomes one delivery per enabled destination with a deterministic event ID, the
+consent basis and policy version, and a payload sealed under the D-025 keyring (fbc, subject
+references, replay keys), destroyed when the delivery ends. The event ID is derived only from
+the client, the dataset and the sale (D-065), and at most one delivery per client and event ID
+holds it, so a sale reaches a dataset at most once, through any destination or connection and
+across secret rotations. The one exception is a delivery cancelled before any attempt because
+its destination was disabled or its connection ended, which never reached Meta: the sale may be
+enqueued again through a re-enabled or new destination of the same dataset, with the same event
+ID. A repeated enqueue is otherwise a no-op; for the same destination, a changed net updates a
+delivery not yet sent, and a net of zero cancels it (sale_reversed). A delivered sale is never
+sent again.
 
-Worker (run_deliveries). Overdue deliveries expire first. A claim takes a due delivery of an
-enabled destination, an active delivery connection of a registered delivery provider and an
-active agency and client, FOR UPDATE SKIP LOCKED, takes the client's privacy lock and repeats E5
-from the payload in the same transaction. A denial blocks the delivery and destroys the payload.
+Worker (run_deliveries). Overdue deliveries expire first. Without the token or tombstone
+keyring the pass then stops and reports not_configured (R014-02). A claim takes a due delivery
+of an enabled destination, an active delivery connection of a registered delivery provider and
+an active agency and client, FOR UPDATE SKIP LOCKED, takes the client's privacy lock and repeats
+E5 from the payload in the same transaction. A denial blocks the delivery and destroys the payload.
 Otherwise the attempt counter rises, a 2-minute lease starts, and the event is validated
 locally and sent with no lock held. The result is written only while the delivery is still
 sending under the same attempt, locking the connection before the delivery like the teardown;
@@ -38,6 +45,7 @@ keeps the payload for an audited requeue, at most 3 times; an invalid parameter 
 the delivery. Answers and logs never contain fbc, fbclid, a payload, the event ID or a trace ID.
 """
 
+import hashlib
 import json
 import re
 from collections.abc import Callable, Iterable, Mapping
@@ -46,7 +54,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, select, tuple_, update
+from sqlalchemy import Engine, select, text, tuple_, update
 from sqlalchemy.orm import Session
 
 from app.advertising.currencies import decimal_text
@@ -64,6 +72,7 @@ from app.models import (
 )
 from app.models.delivery import (
     ACTION_SOURCES,
+    HOLDS_EVENT,
     ConversionAcknowledgement,
     ConversionDelivery,
     ConversionDestination,
@@ -77,7 +86,7 @@ from app.privacy.token_secrets import (
     open_secret,
     seal,
 )
-from app.security import keyed_digest, now_utc
+from app.security import now_utc
 from app.services.access import ScopedAccess
 from app.services.collection import _tombstones, consent_view, lock_client, require_tombstone_keys
 from app.services.connectors import (
@@ -104,6 +113,7 @@ LEASE = timedelta(minutes=2)
 # Values are sent as JSON numbers; below 10**15 minor units every value is exact as a float.
 MAX_VALUE_MINOR = 10**15
 PAYLOAD_KIND = "conversion_payload"
+EVENT_DOMAIN = "conversion-event:v2"
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 FBCLID = re.compile(r"[A-Za-z0-9_-]{1,512}")
 SUBJECT_REF = re.compile(r"[0-9a-f]{64}")
@@ -307,11 +317,17 @@ def privacy(
     return Decision(True, "granted"), tuple(sorted(set(basis)))
 
 
-def event_id_of(
-    settings: Settings, client_id: UUID, destination_id: UUID, scope: LedgerScope, operation: str
-) -> str:
-    message = "\0".join((str(client_id), str(destination_id), scope.source_account_id, operation))
-    return keyed_digest(settings, "conversion-event", message)
+# The event ID of a sale in one dataset (D9 as amended by D-065): the SHA-256 hex digest of a
+# length-prefixed encoding of the domain, the client ID, the dataset ID, the source account and
+# the sale operation. It depends on no destination, connection or secret, so a reconnection, a
+# new destination or a secret rotation gives the sale the same ID in the same dataset. It is
+# not a secret, but it is never returned by a route or written to a log.
+def event_id_of(client_id: UUID, dataset: str, source_account: str, operation: str) -> str:
+    parts = (EVENT_DOMAIN, str(client_id), dataset, source_account, operation)
+    message = b"".join(
+        len(encoded).to_bytes(4, "big") + encoded for encoded in (part.encode() for part in parts)
+    )
+    return hashlib.sha256(message).hexdigest()
 
 
 def _context(row: ConversionDelivery) -> SecretContext:
@@ -351,8 +367,8 @@ def _client_active(session: Session, agency_id: UUID, client_id: UUID) -> bool:
     return agency == "active" and client == "active"
 
 
-# A repeated enqueue of a sale already in the outbox: a delivery not yet sent follows the
-# current net; anything else is left as it is.
+# A repeated enqueue of a sale already in the outbox for the same destination: a delivery not
+# yet sent follows the current net; anything else is left as it is.
 def _follow(row: ConversionDelivery, candidate: SaleCandidate, now: datetime) -> str:
     waiting = row.ended_at is None and row.status in {"queued", "rejected"}
     if not waiting:
@@ -369,7 +385,6 @@ def _follow(row: ConversionDelivery, candidate: SaleCandidate, now: datetime) ->
 
 def _enqueue_one(
     engine: Engine,
-    settings: Settings,
     keys: TombstoneKeyring,
     keyring: LocalKeyring,
     candidate: SaleCandidate,
@@ -382,40 +397,44 @@ def _enqueue_one(
             lock_client(session, scope.client_id)
         if not _client_active(session, scope.agency_id, scope.client_id):
             return ["client_inactive"]
-        destinations = list(
-            session.scalars(
-                select(ConversionDestination)
-                .join(
-                    ConnectorConnection,
-                    ConnectorConnection.id == ConversionDestination.connection_id,
-                )
-                .where(
-                    ConversionDestination.agency_id == scope.agency_id,
-                    ConversionDestination.client_id == scope.client_id,
-                    ConversionDestination.enabled.is_(True),
-                    ConnectorConnection.status.in_(LIVE),
-                )
-                .order_by(ConversionDestination.created_at, ConversionDestination.id)
+        destinations = session.execute(
+            select(ConversionDestination, ConnectorConnection.external_account_id)
+            .join(
+                ConnectorConnection,
+                ConnectorConnection.id == ConversionDestination.connection_id,
             )
-        )
+            .where(
+                ConversionDestination.agency_id == scope.agency_id,
+                ConversionDestination.client_id == scope.client_id,
+                ConversionDestination.enabled.is_(True),
+                ConnectorConnection.status.in_(LIVE),
+                ConnectorConnection.external_account_id.is_not(None),
+            )
+            .order_by(ConversionDestination.created_at, ConversionDestination.id)
+        ).all()
         if not destinations:
             return ["no_destination"]
         results: list[str] = []
         checked: tuple[str | None, tuple[UUID, ...]] | None = None
-        for destination in destinations:
+        for destination, dataset in destinations:
             event_id = event_id_of(
-                settings, scope.client_id, destination.id, scope, candidate.transaction_id
+                scope.client_id, dataset, scope.source_account_id, candidate.transaction_id
             )
+            # The client's privacy lock serializes enqueues; the partial unique index backs it.
             existing = session.scalar(
                 select(ConversionDelivery)
                 .where(
-                    ConversionDelivery.destination_id == destination.id,
+                    ConversionDelivery.client_id == scope.client_id,
                     ConversionDelivery.event_id == event_id,
+                    text(HOLDS_EVENT),
                 )
                 .with_for_update()
             )
             if existing is not None:
-                results.append(_follow(existing, candidate, now))
+                # A sale reaches a dataset at most once: another destination of the same dataset,
+                # or a later connection to it, leaves the delivery as it is.
+                same = existing.destination_id == destination.id
+                results.append(_follow(existing, candidate, now) if same else "unchanged")
                 continue
             if checked is None:
                 reason = refusal(candidate, now)
@@ -490,7 +509,7 @@ def enqueue_conversions(
     keyring, keys = require_keys(settings), require_tombstone_keys(settings)
     counts: dict[str, int] = {}
     for candidate in candidates:
-        for outcome in _enqueue_one(engine, settings, keys, keyring, candidate, now):
+        for outcome in _enqueue_one(engine, keys, keyring, candidate, now):
             counts[outcome] = counts.get(outcome, 0) + 1
     return counts
 
@@ -771,7 +790,10 @@ def _attempt(
 
 
 # One bounded delivery pass: expire overdue deliveries, then claim and send at most `limit`.
-# Returns outcome counts only. A fixed `now` (tests) is used for every step.
+# Returns outcome counts only. A fixed `now` (tests) is used for every step. Claims need the
+# token keyring (payloads, access tokens) and the tombstone keyring (E5); without either, the
+# pass still expires overdue deliveries, which needs no key and destroys their payloads, claims
+# nothing and reports not_configured instead of failing the worker command (R014-02).
 def run_deliveries(
     engine: Engine,
     settings: Settings,
@@ -783,7 +805,6 @@ def run_deliveries(
     providers = tuple(sorted(name for name, item in registry.items() if item.capability.delivery))
     if not providers:
         return {}
-    keyring, keys = require_keys(settings), require_tombstone_keys(settings)
 
     def clock() -> datetime:
         return now if now is not None else now_utc()
@@ -792,6 +813,10 @@ def run_deliveries(
     expired = expire_overdue(engine, clock())
     if expired:
         counts["expired"] = expired
+    keyring, keys = settings.token_keys(), settings.tombstone_keys()
+    if keyring is None or keys is None:
+        counts["not_configured"] = 1
+        return counts
     for _ in range(limit):
         claimed = _claim(engine, keyring, keys, providers, clock())
         if claimed is None:

@@ -2,7 +2,7 @@
 Status: 009-A (connection lifecycle) is implemented locally under D-048, and 009-B (synchronization), 009-C (coverage and provenance) and 009-D (provider webhooks) under D-049, against a synthetic provider. 010-A (D-053) adds an Instagram-shaped synthetic provider and the runtime extensions it needs; see [Instagram-shaped providers](#instagram-shaped-providers-010-a). 010-C (D-055) adds the live Instagram Login adapter; see [Live Instagram adapter](#live-instagram-adapter-010-c). 011-A (D-058, D-060) adds a YouTube-shaped synthetic provider and its runtime extensions, and 011-C the live YouTube adapter; see [YouTube providers](#youtube-providers-011-a-and-011-c). 014 (D-063, D-064) adds the Meta-shaped advertising providers and their runtime extensions; see [Advertising providers](#advertising-providers-014) and the [advertising guide](advertising.md). Every other real provider rule in `app.privacy.providers` stays blocking until its own specification (012-013) re-verifies it. Native `tracking_sys` has received none of the connector migrations (0009 to 0019).
 
 ## Configuration
-Connectors need the D-025 token keyring of the [event collection guide](event-collection.md) (`TRACKING_TOKEN_KEYRING`, `TRACKING_TOKEN_KEYRING_ACTIVE`). Routes answer `503 connector_not_configured` while it is blank.
+Connectors need the D-025 token keyring of the [event collection guide](event-collection.md) (`TRACKING_TOKEN_KEYRING`, `TRACKING_TOKEN_KEYRING_ACTIVE`). Routes answer `503 connector_not_configured` while it is blank. The worker's conversion delivery step (014-B) also needs the tombstone keyring (`TRACKING_TOMBSTONE_KEYRING`, `TRACKING_TOMBSTONE_KEYRING_ACTIVE`); without either keyring it only expires overdue deliveries and reports `"delivery": {"not_configured": 1}`, and the command still runs every other step and exits 0 (R014-02).
 
 | Setting | Meaning |
 |---|---|
@@ -158,5 +158,5 @@ D-064 adds four providers, documented in the [advertising guide](advertising.md)
 - **Named account.** A connect names its ad account or dataset (`account`), which is stored on the OAuth transaction and described by the adapter after the exchange; a grant that cannot read it ends with `account_unavailable`, and a reconnect names the connection's own account.
 - **Per-connection day zone.** A spend connection's days follow its account's time zone, stored on the connection (`day_zone`) and refreshed by the `account` stream.
 - **Advertising storage.** Spend streams store their pages in `ad_accounts`, `ad_objects` and `ad_spend_facts` under the fence of the checkpoint, never in `connector_records`.
-- **Delivery providers.** A delivery provider declares no streams and is never synchronized; the worker command adds a bounded delivery step.
+- **Delivery providers.** A delivery provider declares no streams and is never synchronized; the worker command adds a bounded delivery step, which needs the token and tombstone keyrings and otherwise reports `not_configured` (see [Configuration](#configuration)).
 - **Teardown.** The disconnect purge also removes spend rows, cancels open deliveries and disables the destination.

@@ -1,9 +1,10 @@
 """Specification 014 migrations, privileges and retention on disposable PostgreSQL (D-064 D13).
 
 Each revision upgrades on the disposable service only, its downgrade refuses populated state,
-the runtime and lifecycle roles hold only the column privileges the design lists, and the
-lifecycle runner removes spend facts 730 days after their spend date. No case touches the
-owner's native tracking_sys database.
+the runtime and lifecycle roles hold only the column privileges the design lists, the
+lifecycle runner removes spend facts 730 days after their spend date, and at most one
+delivery per client and event ID holds that ID (D-065). No case touches the owner's native
+tracking_sys database.
 """
 
 from datetime import UTC, date, datetime, timedelta
@@ -13,6 +14,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
@@ -279,3 +281,103 @@ def test_0019_admits_and_protects_the_live_meta_providers(world):
         with pytest.raises(RuntimeError, match="Refuse to remove live Meta connector state"):
             command.downgrade(CONFIG, "0018_conversion_delivery")
         assert _version(world.db) == head
+
+
+def _capi_destination(world, account: str) -> tuple:
+    with Session(world.db.migration, expire_on_commit=False) as session, session.begin():
+        connection = ConnectorConnection(
+            id=uuid4(),
+            agency_id=world.a,
+            client_id=world.a1,
+            provider="synthetic_meta_capi",
+            external_account_id=account,
+            status="active",
+            generation=1,
+            created_by_membership_id=world.owner_a,
+        )
+        session.add(connection)
+        session.flush()
+        destination = ConversionDestination(
+            id=uuid4(),
+            agency_id=world.a,
+            client_id=world.a1,
+            connection_id=connection.id,
+            created_by_membership_id=world.owner_a,
+        )
+        session.add(destination)
+    return connection.id, destination.id
+
+
+def _delivery(world, target, event_id, *, status="queued", reason=None, attempts=0):
+    connection_id, destination_id = target
+    now = datetime.now(UTC)
+    ended = status != "queued"
+    material = {
+        "kek_id": "synthetic",
+        "wrap_nonce": b"n",
+        "wrapped_dek": b"d",
+        "nonce": b"n",
+        "ciphertext": b"c",
+    }
+    return ConversionDelivery(
+        id=uuid4(),
+        agency_id=world.a,
+        client_id=world.a1,
+        destination_id=destination_id,
+        connection_id=connection_id,
+        event_id=event_id,
+        event_name="Purchase",
+        action_source="system_generated",
+        event_time=now - timedelta(hours=1),
+        deadline=now + timedelta(days=6),
+        currency="USD",
+        currency_exponent=2,
+        value_minor=100,
+        status=status,
+        reason=reason,
+        attempts=attempts,
+        consent_basis=[],
+        policy_version="003-B.1",
+        delivered_at=now if status == "delivered" else None,
+        ended_at=now if ended else None,
+        **({} if ended else material),
+    )
+
+
+def _insert(world, *rows) -> None:
+    with Session(world.db.migration) as session, session.begin():
+        for row in rows:
+            session.add(row)
+            session.flush()
+
+
+def test_0018_one_delivery_per_client_and_event_id(world):
+    # R014-01 (d), D-065: the database refuses a second delivery with the same client and event
+    # ID under any destination. Only a delivery cancelled before any attempt because its
+    # destination was disabled or its connection ended does not hold the ID.
+    first, second = _capi_destination(world, "880001"), _capi_destination(world, "880002")
+    _insert(world, _delivery(world, first, "a" * 64, status="delivered", attempts=1))
+    with pytest.raises(IntegrityError, match="uq_conversion_deliveries_event"):
+        _insert(world, _delivery(world, second, "a" * 64))
+    _insert(
+        world,
+        _delivery(world, first, "b" * 64, status="cancelled", reason="destination_disabled"),
+        _delivery(world, second, "b" * 64, status="cancelled", reason="connection_ended"),
+        _delivery(world, second, "b" * 64),
+    )
+    for event_id, reason, attempts in (
+        ("c" * 64, "connection_ended", 1),
+        ("d" * 64, "destination_disabled", 2),
+        ("e" * 64, "sale_reversed", 0),
+    ):
+        _insert(
+            world,
+            _delivery(world, first, event_id, status="cancelled", reason=reason, attempts=attempts),
+        )
+        with pytest.raises(IntegrityError, match="uq_conversion_deliveries_event"):
+            _insert(world, _delivery(world, second, event_id))
+    with Session(world.db.migration) as session:
+        held = session.scalars(
+            select(ConversionDelivery.status).where(ConversionDelivery.event_id == "b" * 64)
+        ).all()
+    assert sorted(held) == ["cancelled", "cancelled", "queued"]

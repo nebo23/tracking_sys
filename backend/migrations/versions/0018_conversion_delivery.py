@@ -8,14 +8,20 @@ Specification 014-B (D-064 decisions D6 to D10, D13 and D14; design in
 specs/014-ad-spend-capi/design-014.md). Adds three client-scoped tables whose references are
 composite (agency_id, client_id, ...) keys: conversion_destinations (one per delivery
 connection, disabled by default), conversion_deliveries (one per destination and verified sale,
-unique on a deterministic event ID, with the consent basis, the closed state and reason, the
-attempt fence and a sealed payload present exactly until the delivery ends) and
+with a deterministic event ID per client, dataset and sale, the consent basis, the closed state
+and reason, the attempt fence and a sealed payload present exactly until the delivery ends) and
 conversion_acknowledgements (one per attempt). Audit events accept the destination and delivery
 actions. Connections, webhook deliveries and data deletion requests accept the provider
 synthetic_meta_capi. tracking_app may insert and update only the state, schedule, value,
 payload and time columns, and may never delete; tracking_lifecycle may delete ended deliveries
 and their acknowledgements and read only the columns that needs. The downgrade refuses
 populated 014-B state.
+
+D-065 amended this unmerged revision in place (review finding R014-01): a partial unique index
+allows at most one delivery per client and event ID, except deliveries cancelled before any
+attempt because their destination was disabled or their connection ended. It replaces the
+earlier unique key on destination and event ID, which let a reconnection deliver a sale twice.
+Only disposable databases ever applied the earlier form.
 """
 
 from collections.abc import Sequence
@@ -126,6 +132,12 @@ OUTCOMES = (
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
 EVENT_NAME = "^[A-Za-z][A-Za-z0-9_]{0,39}$"
 TEST_CODE = "^[A-Za-z0-9]{1,32}$"
+# Rows that hold their event ID (D-065): all but a delivery cancelled before any attempt because
+# its destination was disabled or its connection ended.
+HOLDS_EVENT = (
+    "NOT (status = 'cancelled' AND attempts = 0 "
+    "AND COALESCE(reason, '') IN ('destination_disabled', 'connection_ended'))"
+)
 # Children before parents.
 TABLES = ("conversion_acknowledgements", "conversion_deliveries", "conversion_destinations")
 DELIVERY_UPDATES = (
@@ -318,7 +330,13 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f(f"pk_{table}")),
         sa.UniqueConstraint("agency_id", "client_id", "id", name="uq_conversion_deliveries_scope"),
-        sa.UniqueConstraint("destination_id", "event_id", name="uq_conversion_deliveries_event"),
+    )
+    op.create_index(
+        "uq_conversion_deliveries_event",
+        table,
+        ["client_id", "event_id"],
+        unique=True,
+        postgresql_where=sa.text(HOLDS_EVENT),
     )
     op.create_index(
         "ix_conversion_deliveries_open",

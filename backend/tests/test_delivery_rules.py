@@ -1,19 +1,25 @@
 """Pure parts of 014-B conversion delivery (specification 014-B, D-064 decisions D6, D8, D9).
 
 The fbc match key, the deadline, the refusal order at enqueue, the error classes and retry
-delays, the delivery capability, and the synthetic receiver's validation, deduplication and
-test events. No database and no network.
+delays, the delivery capability, the synthetic receiver's validation, deduplication and test
+events, the event ID derivation of D-065 and the delivery step without a keyring (R014-02).
+No database and no network.
 """
 
+import base64
+import hashlib
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import SecretStr
 
 from app.attribution import SaleState
 from app.connectors.contracts import ErrorKind, ProviderError
 from app.connectors.synthetic_meta_capi import CAPABILITY, SyntheticMetaCapiProvider
 from app.ledger import Currency, LedgerScope
+from app.services import delivery as delivery_service
 from app.services.delivery import (
     MAX_VALUE_MINOR,
     ClickIdentifier,
@@ -21,9 +27,11 @@ from app.services.delivery import (
     SyntheticJourney,
     _classify,
     deadline_of,
+    event_id_of,
     fbc,
     match_key,
     refusal,
+    run_deliveries,
 )
 
 SALE = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
@@ -226,3 +234,53 @@ def test_receiver_failure_script(tmp_path):
         ).events_received
         == 1
     )
+
+
+def test_event_id_depends_only_on_client_dataset_and_sale():
+    # D-065 (R014-01): the SHA-256 hex digest of a length-prefixed encoding of the domain, the
+    # client, the dataset, the source account and the sale operation; no destination, no secret.
+    client = UUID(int=2)
+    parts = (b"conversion-event:v2", str(client).encode(), b"880001", b"acct", b"sale-1")
+    expected = hashlib.sha256(b"".join(len(p).to_bytes(4, "big") + p for p in parts)).hexdigest()
+    assert event_id_of(client, "880001", "acct", "sale-1") == expected
+    others = {
+        event_id_of(UUID(int=3), "880001", "acct", "sale-1"),
+        event_id_of(client, "880002", "acct", "sale-1"),
+        event_id_of(client, "880001", "acct-2", "sale-1"),
+        event_id_of(client, "880001", "acct", "sale-2"),
+        # The length prefixes keep shifted boundaries apart.
+        event_id_of(client, "88000", "1acct", "sale-1"),
+    }
+    assert len(others) == 5 and expected not in others
+
+
+def test_delivery_step_without_a_keyring_reports_not_configured(settings, monkeypatch):
+    # R014-02: with a delivery provider registered but the tombstone or token keyring missing,
+    # the step still expires overdue deliveries, claims nothing and reports not_configured.
+    expired = []
+
+    def expire(engine, now):
+        expired.append(now)
+        return 2 if len(expired) > 1 else 0
+
+    def claim(*arguments, **keywords):
+        raise AssertionError("claimed without keyrings")
+
+    monkeypatch.setattr(delivery_service, "expire_overdue", expire)
+    monkeypatch.setattr(delivery_service, "_claim", claim)
+    registry = {"synthetic_meta_capi": SimpleNamespace(capability=CAPABILITY)}
+    token_key = base64.urlsafe_b64encode(b"k" * 32).decode().rstrip("=")
+    tokens_only = settings.model_copy(
+        update={"token_keyring": SecretStr(f"k1:{token_key}"), "token_keyring_active": "k1"}
+    )
+    assert tokens_only.token_keys() is not None and tokens_only.tombstone_keys() is None
+    assert run_deliveries(None, tokens_only, registry, now=SALE) == {"not_configured": 1}
+    assert settings.token_keys() is None
+    assert run_deliveries(None, settings, registry, now=SALE) == {
+        "expired": 2,
+        "not_configured": 1,
+    }
+    assert expired == [SALE, SALE]
+    # Without a delivery provider the step does nothing at all.
+    assert run_deliveries(None, settings, {}, now=SALE) == {}
+    assert len(expired) == 2

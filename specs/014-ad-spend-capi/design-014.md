@@ -1,6 +1,6 @@
 # 014 design: advertising spend and conversion delivery (Meta)
 
-Prepared: 2026-11-21 on `codex/spec-014-ad-spend-capi`. Authority: D-063 and D-064 (D1-D14 of the [entry review](entry-review.md) as recommended). The Phase 0 source verification is in [entry review section 2.4](entry-review.md#24-official-sources-read-in-phase-0). This note applies its parameter-level results, adds no dependency and makes no Meta call. Migrations `0017` to `0019` run only on the disposable PostgreSQL service of `backend/tests/README.md`. No frontend changes.
+Prepared: 2026-11-21 on `codex/spec-014-ad-spend-capi`. Authority: D-063 and D-064 (D1-D14 of the [entry review](entry-review.md) as recommended). The Phase 0 source verification is in [entry review section 2.4](entry-review.md#24-official-sources-read-in-phase-0). This note applies its parameter-level results, adds no dependency and makes no Meta call. D-065 (2026-11-21) amended the D9 delivery key and the worker's delivery step after Claude's review of PR 12; sections 5.2, 5.3, 7 and 8 record it. Migrations `0017` to `0019` run only on the disposable PostgreSQL service of `backend/tests/README.md`. No frontend changes.
 
 ## 1. Parameters applied from Phase 0
 
@@ -126,7 +126,9 @@ It answers `events_received`, `messages` and an `fbtrace_id`, and counts one eve
 
 **`conversion_destinations`**: `connection_id` (unique; a `meta_capi`-kind connection of the client), `event_name` (default `Purchase`, `^[A-Za-z][A-Za-z0-9_]{0,39}$`), `test_event_code` (`^[A-Za-z0-9]{1,32}$` or null), `enabled` (default false), `created_by_membership_id`, `created_at`, `updated_at`. The dataset is the connection's external account; it is not copied.
 
-**`conversion_deliveries`**: `destination_id`, `connection_id`, `event_id` (64 hex; unique per destination), `event_name`, `action_source`, `event_time`, `deadline`, `currency`, `currency_exponent`, `value_minor` (bigint, above 0), `status`, `reason`, `rejection_class`, `attempts`, `retries`, `requeues` (0-3), `not_before`, `lease_expires_at`, `consent_basis` (consent record IDs), `policy_version`, the sealed payload (`kek_id`, `wrap_nonce`, `wrapped_dek`, `nonce`, `ciphertext`), `created_at`, `updated_at`, `delivered_at`, `ended_at`. Checks: closed statuses and reasons; `rejection_class` set exactly for `rejected` and `dismissed`; the payload present exactly while `ended_at` is null; `deadline > event_time`.
+**`conversion_deliveries`**: `destination_id`, `connection_id`, `event_id` (64 hex; see the delivery key below), `event_name`, `action_source`, `event_time`, `deadline`, `currency`, `currency_exponent`, `value_minor` (bigint, above 0), `status`, `reason`, `rejection_class`, `attempts`, `retries`, `requeues` (0-3), `not_before`, `lease_expires_at`, `consent_basis` (consent record IDs), `policy_version`, the sealed payload (`kek_id`, `wrap_nonce`, `wrapped_dek`, `nonce`, `ciphertext`), `created_at`, `updated_at`, `delivered_at`, `ended_at`. Checks: closed statuses and reasons; `rejection_class` set exactly for `rejected` and `dismissed`; the payload present exactly while `ended_at` is null; `deadline > event_time`.
+
+**Delivery key (D9 as amended by D-065).** The partial unique index `uq_conversion_deliveries_event` on (`client_id`, `event_id`) covers every delivery except one with `status = 'cancelled' AND attempts = 0 AND reason IN ('destination_disabled', 'connection_ended')`, which never reached Meta. Because the event ID is derived from the client, the dataset and the sale (section 5.3), a sale reaches a dataset at most once, through any destination or connection of that dataset. Ended deliveries are deleted 30 days after they end (section 5.6), longer than the 7-day age limit after which a sale is refused as `too_old`, so the key holds for as long as a sale can be enqueued. Review finding R014-01 replaced the earlier unique key on (`destination_id`, `event_id`), which let a reconnection or a rotation of the auth secret deliver a sale twice; `0018` was amended in place, as only disposable databases had applied it.
 
 **`conversion_acknowledgements`**: `delivery_id`, `attempt`, `occurred_at`, `outcome` (`accepted`, `count_mismatch`, `retryable`, `rate_limited`, `unauthorized`, `configuration`, `payload`), `provider_code` (the adapter's closed code), `events_received`, `trace_id`. Unique (delivery, attempt).
 
@@ -175,10 +177,15 @@ Closed reasons:
 6. The value fits the exact range (`value_out_of_range`).
 7. Under the client's privacy lock (004), `admission` with the subject and replay tombstones, and `require_all({ads.measurement, sale_or_share})` for every subject. GPC denies both purposes.
 
-A refusal stores nothing and is counted in the returned counts. An admitted candidate inserts the delivery with its deterministic event ID (a keyed digest of client, destination and sale operation), the consent basis (the latest record IDs of both purposes for every subject), the policy version and the sealed payload. The payload holds `fbc`, the subject references and the replay keys; it is sealed under the D-025 keyring with the delivery as its context. A repeated enqueue is a no-op. While a delivery is queued, a changed net updates its value, and a net of zero cancels it (`sale_reversed`). A delivered sale is never resent; a later refund is not sent (V-11).
+**Event ID (D9 as amended by D-065).** The SHA-256 hex digest of the length-prefixed encoding (4-byte big-endian length, then the UTF-8 bytes) of the domain `conversion-event:v2`, the client ID, the dataset ID (the delivery connection's external account at enqueue), the source account and the sale operation. It uses no destination, connection or secret, so a reconnection, a new destination or a rotation of `TRACKING_AUTH_SECRET` gives the sale the same ID in the same dataset, and Meta's deduplication applies to every send of it. The ID is not a secret, but it is never returned by a route or written to a log.
+
+**Existing deliveries.** Before the checks, the enqueue looks for a delivery of the same client and event ID that holds the key (section 5.2), under the client's privacy lock. If it belongs to the current destination and is still waiting (`queued`, or `rejected` with the `configuration` class), it follows the sale: a changed net updates its value and a net of zero cancels it (`sale_reversed`). Any other existing delivery, including one of another destination of the same dataset or of an earlier connection to it, leaves the outcome `unchanged`. A delivery cancelled before any attempt because its destination was disabled or its connection ended does not hold the key, so the sale may be enqueued again through the re-enabled destination or a new destination of the same dataset, with the same event ID.
+
+A refusal stores nothing and is counted in the returned counts. An admitted candidate inserts the delivery with its deterministic event ID, the consent basis (the latest record IDs of both purposes for every subject), the policy version and the sealed payload. The payload holds `fbc`, the subject references and the replay keys; it is sealed under the D-025 keyring with the delivery as its context. A repeated enqueue is otherwise a no-op. A delivered sale is never resent, through any destination; a later refund is not sent (V-11).
 
 **Worker (`run_deliveries`, in `python -m app.connector_worker`).**
-- It first expires overdue deliveries.
+- It first expires overdue deliveries, which needs no key and destroys their payloads.
+- Claims need both the token keyring (payloads and access tokens) and the tombstone keyring (E5). When a delivery provider is registered but either keyring is not configured, the step claims nothing and reports `not_configured` with the expired count, and the command still exits 0 with every step's counts (R014-02).
 - It then claims at most `limit` deliveries. A claim takes a queued delivery that is due, or a sending delivery whose lease expired, of an enabled destination, an active delivery connection and an active agency and client, `FOR UPDATE SKIP LOCKED`.
 - In the same transaction it takes the client's privacy lock and repeats E5 from the payload's subject references and replay keys. A denial makes the delivery `blocked` and destroys the payload. Otherwise it increments `attempts`, sets a 2-minute lease and opens the connection's token.
 - The event is validated locally and sent with no lock held.
@@ -270,6 +277,8 @@ The integration cases run on the disposable service; the unit cases need no data
 | T-51 | `tests/test_connector_meta.py` (Insights parsing, request building, answers, errors, authorization and exchange) against `tests/meta_graph.py` |
 | T-52 | `tests/test_connector_meta.py::test_delivery_scope_required`, `tests/integration/test_conversion_delivery.py::test_delivery_connect_needs_ads_read` |
 | T-53 | `tests/test_connector_meta.py::test_suite_makes_no_network_call` |
+| R014-01 (M), D-065 | `test_conversion_delivery.py::test_reconnection_never_delivers_a_sale_twice`, `::test_secret_rotation_never_delivers_a_sale_twice`, `::test_sale_cancelled_before_any_attempt_is_enqueued_again_with_its_event_id`, `test_ad_migrations.py::test_0018_one_delivery_per_client_and_event_id`, `tests/test_delivery_rules.py::test_event_id_depends_only_on_client_dataset_and_sale` |
+| R014-02 (M) | `tests/integration/test_connectors.py::test_worker_command_without_the_tombstone_keyring_reports_not_configured`, `::test_disconnect_through_worker_command_isolates_other_clients` (both keyrings set explicitly), `tests/test_delivery_rules.py::test_delivery_step_without_a_keyring_reports_not_configured` |
 
 The migration tests (`tests/integration/test_ad_migrations.py`) cover each upgrade, each refused downgrade and the privileges. The existing data-policy schema test covers the registry of every new table and column.
 
@@ -288,3 +297,6 @@ Each safeguard is disabled in turn, its tests are rerun, and the source is resto
 10. The `finance:read` check on the delivery list: T-34.
 11. The zero-spend rule and the currency rule of ROAS: T-41, T-43.
 12. The rule check in `build_providers`: T-50.
+13. The per-destination delivery key of `f00d997` (lookup and unique key by destination): R014-01 (a) and (d).
+14. The auth secret in the event ID: R014-01 (b).
+15. The `not_configured` guard of the delivery step: R014-02.

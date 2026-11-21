@@ -193,12 +193,103 @@ Skipped tests are reported as skipped, not as passed: the three browser journeys
 
 ## Decisions and amendments
 
-D1-D14 apply as approved by D-064. No fact of Phase 0 changed a decision, so none went back to the owner. The parameter-level corrections applied (design note, section 1):
+D1-D14 apply as approved by D-064, with the D9 delivery key amended by D-065 after Claude's review of PR 12 (see [Claude's review of PR 12 and the corrections](#claudes-review-of-pr-12-and-the-corrections-d-065)). No fact of Phase 0 changed a decision, so none went back to the owner. The parameter-level corrections applied (design note, section 1):
 - **V-14.** The delivery permission is `ads_read`; the V-14 row of entry review section 2.3 assigns this to recording. The read and delivery separation of D2 therefore rests on separate connections and tokens, not on different permissions.
 - **V-7.** Login for Business tokens have no refresh, so an invalid token makes a connection `reconnect_required` at once instead of after one refresh (T-07). No revocation endpoint and no callbacks are documented, so revocation is `unsupported` and no signed requests are declared.
 - **V-9.** The consequence that D8 states applies: website conversions are refused as `provider_field_missing`.
 - **V-8.** One invalid event no longer fails a whole batch; this does not affect D9, which sends one event per request.
 - **V-2, V-4, V-5, V-6, V-10, V-17.** The currency allow-list, the 28-day provisional window, the 730-day backfill bound (D13), the throttling codes and wait, the `fbc` form and Graph `v27.0`.
+
+## Claude's review of PR 12 and the corrections (D-065)
+
+Claude reviewed PR 12 at `f00d997` on 2026-11-21 in an independent environment (Python 3.13, PostgreSQL 16.15). Its results there:
+- ruff check and format: clean;
+- unit suite: 700 passed, and the OpenAPI snapshot failed;
+- integration suite: 381 passed, 3 skipped, and two failed: the PostgreSQL 18 version assertion of `test_postgres.py` and `test_disconnect_through_worker_command_isolates_other_clients` (R014-02).
+
+**Environment notes.** Two of those failures come from that environment, not from Spec 014, and also fail at `main` there: the OpenAPI snapshot, because Python 3.13 renames the 413 and 422 phrases, and the PostgreSQL 18 version assertion of `test_postgres.py`. Nothing was changed for them. The corrections below were verified on the project environment (Python 3.12 `.venv`, PostgreSQL 18 disposable service).
+
+D-065 (2026-11-21) authorized correcting the two findings with regressions that fail at `f00d997`, and amended the D9 delivery key. The handoff is in [review-corrections-prompt.md](review-corrections-prompt.md).
+
+### R014-01: one sale could be counted twice in one dataset
+
+At `f00d997` the event ID was an HMAC under `TRACKING_AUTH_SECRET` of the client, the destination and the sale. Deliveries were unique only on (`destination_id`, `event_id`). A reconnection of the same dataset makes a new connection and destination, and a rotation of the secret changes the HMAC. Either way, a repeated enqueue of a delivered sale (for example a partial refund within the 7 days) inserted and sent a second delivery with a new event ID. The synthetic receiver then counted the sale twice in dataset 880001, and Meta, which deduplicates identical event IDs only, would do the same (against AC3).
+
+The correction (D9 as amended by D-065):
+- **Event ID.** `event_id_of(client_id, dataset, source_account, operation)` is the SHA-256 hex digest of a length-prefixed encoding (4-byte big-endian length, then UTF-8) of `conversion-event:v2`, the client ID, the dataset ID (the delivery connection's account at enqueue), the source account and the sale operation. It uses no destination and no secret, and it is never returned by a route or logged.
+- **Uniqueness.** Migration `0018`, amended in place on this unmerged branch, replaces the unique key on (`destination_id`, `event_id`) with the partial unique index `uq_conversion_deliveries_event` on (`client_id`, `event_id`). The index excludes only rows with `status = 'cancelled' AND attempts = 0 AND reason IN ('destination_disabled', 'connection_ended')`. The model declares the same index (`HOLDS_EVENT`).
+- **Lookup.** The enqueue looks up a delivery of the same client and event ID with the same predicate, under the client's privacy lock. It follows it (`_follow`) only when it belongs to the current destination and is still waiting; otherwise the outcome is `unchanged`.
+- **Cancelled before any attempt.** Such a sale may be enqueued again through the re-enabled destination or a new destination of the same dataset, with the same event ID.
+
+### R014-02: the worker command failed without the tombstone keyring
+
+At `f00d997` the worker command always ran the delivery step, and the step required the tombstone keyring whenever a delivery provider was registered, which the synthetic state always does. With the documented connector configuration (the token keyring only), `python -m app.connector_worker` exited 1 with `CollectionError: collection_not_configured`. This happened after the teardown, scheduling and sync work had committed, and the command printed no counts. The test passed in the original runs only because the runner's environment supplied `TRACKING_TOMBSTONE_KEYRING`.
+
+The correction: when a delivery provider is registered but the token or tombstone keyring is not configured, `run_deliveries` still expires overdue deliveries (no key needed; their payloads are destroyed), claims nothing and returns the expired count with `"not_configured": 1`. The command exits 0 with every step's counts. The worker-command tests set both tombstone keyring variables explicitly, so they no longer depend on the developer's environment or `.env`. The [connector guide](../../docs/engineering/connectors.md) (Configuration) and the [advertising guide](../../docs/engineering/advertising.md) state that the delivery step needs both keyrings.
+
+### Regressions
+
+| Regression | Test | At `f00d997` | At the corrected head |
+|---|---|---|---|
+| 1. R014-01 (a), reconnection | `tests/integration/test_conversion_delivery.py::test_reconnection_never_delivers_a_sale_twice` | Failed: the repeated enqueue answered `{"queued": 1}`, not `{"unchanged": 1}`. A probe that continued past it got `{"delivered": 1}`, two delivery rows and two counted events in dataset 880001. | Passed: `{"unchanged": 1}`, also for a partial refund; the step sends nothing; one counted event |
+| 2. R014-01 (b), rotation | `test_conversion_delivery.py::test_secret_rotation_never_delivers_a_sale_twice` | Failed: `{"queued": 1}`, not `{"unchanged": 1}`. The probe got `{"delivered": 1}`, two rows and two counted events. | Passed: `{"unchanged": 1}`, one row, one counted event |
+| 3. R014-01 (c), cancelled before any attempt | `test_conversion_delivery.py::test_sale_cancelled_before_any_attempt_is_enqueued_again_with_its_event_id` | Failed: the new delivery's event ID differed from the cancelled row's | Passed: `{"queued": 1}` with the same event ID through the new destination and again through the re-enabled destination; one delivered and one counted event; a later enqueue is `unchanged` |
+| 4. R014-01 (d), database constraint | `tests/integration/test_ad_migrations.py::test_0018_one_delivery_per_client_and_event_id` | Failed: `DID NOT RAISE IntegrityError`; a second delivery with the same event ID under another destination was accepted | Passed: refused for a delivered row and for rows cancelled after an attempt or as `sale_reversed`; accepted only after rows cancelled before any attempt with `destination_disabled` or `connection_ended` |
+| 5. R014-02, blank tombstone keyring | `tests/integration/test_connectors.py::test_worker_command_without_the_tombstone_keyring_reports_not_configured` | Failed: exit 1 with `CollectionError: collection_not_configured` | Passed: exit 0 with `{"teardown": {"disconnected": 1}, "schedule": {}, "sync": {}, "delivery": {"not_configured": 1}}` |
+| 5. R014-02, both keyrings set explicitly | `test_connectors.py::test_disconnect_through_worker_command_isolates_other_clients` | Passed (`"delivery": {}`), as expected: only the environment changed | Passed (`"delivery": {}`) |
+| 5. R014-02, unit case | `tests/test_delivery_rules.py::test_delivery_step_without_a_keyring_reports_not_configured` | Failed: `CollectionError: collection_not_configured` | Passed: `{"not_configured": 1}`, with the expired count when there is one; nothing claimed |
+| D-065 event ID, unit case | `tests/test_delivery_rules.py::test_event_id_depends_only_on_client_dataset_and_sale` | Failed: `TypeError` (the old signature takes the settings and the destination) | Passed |
+
+At `f00d997` the regressions ran on a `git archive` checkout outside the repository, with the four changed test modules copied in, on a fresh disposable database migrated by that checkout. The two-count probe (`test_probe_r014_01.py`) existed only in that checkout. The database was then downgraded to `0016` with that checkout's migrations, so the corrected `0018` was applied for the runs below. The checkout was removed afterwards.
+
+### Changed expectations
+
+- `event_id_of(client_id, dataset, source_account, operation)` replaces `event_id_of(settings, client_id, destination_id, scope, operation)` (D-065); no earlier test called it directly.
+- `test_disconnect_through_worker_command_isolates_other_clients` runs the command through the new helper `_worker_command`, which sets both tombstone keyring variables explicitly. Its expected output is unchanged (`"delivery": {}`).
+- No other expectation changed.
+
+### Commands and counts
+
+From `backend/` with the project `.venv` (Python 3.12.4) on 2026-11-21:
+
+```powershell
+..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m ruff format --check .
+..\.venv\Scripts\python.exe -m pytest -m "not integration" -q
+# Disposable PostgreSQL 18 (Compose project tracking-014-test on 127.0.0.1:56433, see the
+# environment note below), through a runner that drops inherited TRACKING_/PG/PYTHON variables
+# and loads synthetic credentials:
+python run_db_56433.py . pytest -m integration -q -rs
+python run_db_56433.py <f00d997 checkout>\backend pytest <the new regressions>
+python mutations_d065.py   # from the worktree root
+```
+
+| Check | Result |
+|---|---|
+| Ruff check | All checks passed |
+| Ruff format | 177 files already formatted |
+| Unit suite | 703 passed, 391 deselected (701 before; two new cases) |
+| Integration suite | 388 passed, 3 skipped (the Spec 005 browser journeys, which need `TRACKING_RUN_BROWSER_TESTS=1`), 703 deselected; no failure and no warning (383 before; five new cases) |
+| OpenAPI snapshot (`tests/test_contract.py`) | Passed; `contracts/openapi.json` is unchanged, as no route changed |
+| New regressions at `f00d997` | 7 of 8 failed with the reasons above; the explicit-keyring worker case passed there, as expected |
+| New regressions at the corrected head | 8 of 8 passed |
+| Mutation checks | Caught 3 of 3 (below); every source restored byte for byte |
+
+**Environment note: the database port.** On 2026-11-21 Windows had reserved the TCP port range 55351-55450 (IPv4 and IPv6), which includes the documented port 55433, so Docker could not publish the disposable service there, and releasing the reservation needs administrator rights. With the owner's instruction to complete the work, the same disposable PostgreSQL 18 service (database `tracking_foundation_test` on `127.0.0.1`, synthetic credentials) ran on port 56433. Only during the runs, the port number in the guard of `backend/tests/integration/conftest.py` (and of the `f00d997` checkout) was changed from 55433 to 56433. Afterwards the file was restored byte for byte: its SHA-256 (`336b8dd7...`) and its Git blob (`79c541a`) match the committed version, and this correction does not change it. The guard's purpose, that integration tests never reach the owner's native `tracking_sys`, was kept: only the disposable container listened on that port.
+
+### Mutation checks
+
+| Mutation | Regressions run | Result |
+|---|---|---|
+| The per-destination delivery key of `f00d997`: the lookup by destination, and `0018` unique on (`destination_id`, `event_id`); the database downgraded to `0016` before and after | 1 and 4 | Caught: both failed |
+| The auth secret in the event ID (a keyed digest over the new ID) | 2 | Caught |
+| The `not_configured` guard removed | 5 and its unit case | Caught: both failed |
+
+### Review notes (follow-ups, unchanged)
+
+- **N1.** The `system_generated` default of `SyntheticJourney.action_source`.
+- **N2.** Absent `impressions` and `clicks` are stored as 0.
+- **N3.** The fixed limit of 10 deliveries per worker pass.
 
 ## Limitations
 
@@ -212,8 +303,8 @@ D1-D14 apply as approved by D-064. No fact of Phase 0 changed a decision, so non
   - the numeric form of the configuration ID.
 - **Website conversions** cannot be delivered until the owner decides how browser fields may be obtained (D8). Match rates with `fbc` alone will be low.
 - **Conversion source.** It is the in-memory 007-A calculation or journal with synthetic journeys; 007-B and 006 replace it. Sale-level provider-object tombstones arrive with 007-B; replay blocking in 014 covers the subject tokens and the 004 event IDs a conversion references.
-- **Event IDs** are keyed with `TRACKING_AUTH_SECRET`. Rotating it changes the IDs of deliveries not yet enqueued, so a sale re-enqueued across a rotation within 48 hours could be counted twice.
-- **Cancellation while sending.** A delivery cancelled while an attempt is in flight (a destination disabled, a connection torn down) may still reach Meta; that attempt's result is not recorded.
+- **Event IDs and the delivery key (corrected under D-065).** A sale's event ID is derived only from the client, the dataset and the sale, and at most one delivery per client and event ID holds it. A reconnection of the dataset, a second destination of it or a rotation of `TRACKING_AUTH_SECRET` therefore never sends the sale to that dataset again, at any time: Meta deduplicates identical event IDs only within 48 hours (V-12), and the outbox prevents every later second send. The cost runs the other way. A delivery that ended without a confirmed send after at least one attempt (cancelled during or after an attempt, dismissed, undeliverable or expired) keeps the ID, so the sale is not sent to that dataset again and may be missing there. Only a delivery cancelled before any attempt because its destination was disabled or its connection ended releases the ID. A sale sent to two datasets has a different ID in each and is counted once in each. The earlier text of this limitation ("within 48 hours", "deliveries not yet enqueued") understated the defect that review finding R014-01 found.
+- **Cancellation while sending.** A delivery cancelled while an attempt is in flight (a destination disabled, a connection torn down) may still reach Meta; that attempt's result is not recorded. It keeps its event ID, so the sale is never sent to the dataset a second time.
 - **Age limit.** It is 7 days for every action source, although Meta advises up to 62 days for physical store events.
 - **Values** are sent as JSON numbers, exact only below 10^15 minor units; larger values are refused at enqueue.
 - **No routes for ROAS** (016), **no destination or account screens** (018, D-039), and **no production scheduling** of the worker (020).

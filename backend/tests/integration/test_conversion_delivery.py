@@ -4,17 +4,19 @@ Uses the synthetic lab of connector_support with the Meta-shaped synthetic recei
 builds next to the other synthetic providers, and real 004 consent, events and erasure through
 the API, so the 003 cases C2, C3 and C5 and outbound replay blocking run end to end. Verified
 sales come from the 007-A ledger; the journeys (person, subjects and clicks) are synthetic, as
-006 is not implemented. Cases T-20 to T-35 of the entry review section 7.2 and T-52. No case
-contacts Meta.
+006 is not implemented. Cases T-20 to T-35 of the entry review section 7.2, T-52, and the
+regressions of review finding R014-01 (D-065). No case contacts Meta.
 """
 
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
 import pytest
 from connector_support import make_lab
+from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -795,3 +797,92 @@ def test_disconnect_ends_deliveries(capi):
     assert [(item["id"], item["enabled"]) for item in listed] == [(str(target), False)]
     with Session(w.db.migration) as session:
         assert session.scalar(select(func.count()).select_from(ConversionDelivery)) == 1
+
+
+# --- Review corrections (D-065) ---------------------------------------------------------------
+
+
+def _reconnect_dataset(lab, connection):
+    # Disconnect the delivery connection, run the worker teardown, then connect the same dataset
+    # again, which makes a new connection, and enable the new connection's destination.
+    w = lab.w
+    assert lab.disconnect("owner_a", w.a, w.a1, connection).status_code == 202
+    assert lab.worker(registry=lab.registry)["teardown"] == {"disconnected": 1}
+    again = _connect(lab, "owner_a", w.a, w.a1)
+    assert isinstance(again, UUID) and again != connection
+    return again, _destination(lab, "owner_a", w.a, w.a1, again)
+
+
+def test_reconnection_never_delivers_a_sale_twice(capi):
+    # R014-01 (a): after the delivery connection of a delivered sale is disconnected and the
+    # same dataset is connected again with a new destination, a repeated enqueue of the sale,
+    # such as a partial refund within the 7 days, leaves the delivery as it is (D-065).
+    w = capi.w
+    connection, _, token = _setup(capi)
+    records, journeys = _sale(capi, token)
+    candidates = _candidates(records, journeys)
+    assert _enqueue(capi, candidates) == {"queued": 1}
+    assert _deliver(capi) == {"delivered": 1}
+    (first,) = _rows(capi)
+    _reconnect_dataset(capi, connection)
+    assert _enqueue(capi, candidates) == {"unchanged": 1}
+    refund = _evidence(
+        w.a,
+        w.a1,
+        "refund-1",
+        amount=3000,
+        kind=OperationKind.REFUND,
+        classification=EvidenceClass.CONFIRMED_ADJUSTMENT,
+        parent="sale-1",
+    )
+    refunded = candidates_from_ledger(calculate([*records, refund]), journeys)
+    assert _enqueue(capi, refunded) == {"unchanged": 1}
+    assert _deliver(capi) == {}
+    assert [row.id for row in _rows(capi)] == [first.id]
+    assert len(capi.capi.received(DATASET)) == 1
+    assert capi.capi.counted(DATASET) == [("Purchase", first.event_id)]
+
+
+def test_secret_rotation_never_delivers_a_sale_twice(capi):
+    # R014-01 (b): the event ID uses no secret, so after a rotation of the auth secret the same
+    # sale for the same destination stays one delivery and one counted event (D-065).
+    _, _, token = _setup(capi)
+    candidates = _candidates(*_sale(capi, token))
+    assert _enqueue(capi, candidates) == {"queued": 1}
+    assert _deliver(capi) == {"delivered": 1}
+    rotated = capi.config.model_copy(update={"auth_secret": SecretStr(secrets.token_hex(32))})
+    assert rotated.auth_secret.get_secret_value() != capi.config.auth_secret.get_secret_value()
+    assert enqueue_conversions(capi.w.db.runtime, rotated, candidates) == {"unchanged": 1}
+    assert _deliver(capi) == {}
+    (row,) = _rows(capi)
+    assert capi.capi.counted(DATASET) == [("Purchase", row.event_id)]
+
+
+def test_sale_cancelled_before_any_attempt_is_enqueued_again_with_its_event_id(capi):
+    # R014-01 (c): a delivery cancelled before any attempt because its connection ended or its
+    # destination was disabled never reached Meta. The sale may be enqueued again through a new
+    # destination of the same dataset, or the re-enabled destination, with the same event ID,
+    # and is delivered and counted once (D-065).
+    w = capi.w
+    connection, _, token = _setup(capi)
+    candidates = _candidates(*_sale(capi, token))
+    assert _enqueue(capi, candidates) == {"queued": 1}
+    _, target = _reconnect_dataset(capi, connection)
+    (ended,) = _rows(capi)
+    assert (ended.status, ended.reason, ended.attempts) == ("cancelled", "connection_ended", 0)
+    assert _enqueue(capi, candidates) == {"queued": 1}
+    (queued,) = _rows(capi, status="queued")
+    assert (queued.destination_id, queued.event_id) == (target, ended.event_id)
+    base = f"/agencies/{w.a}/clients/{w.a1}/conversion-destinations/{target}"
+    for enabled in (False, True):
+        response = capi.browser("owner_a").patch(base, json={"enabled": enabled})
+        assert response.status_code == 200, response.text
+    disabled = _rows(capi, reason="destination_disabled")[0]
+    assert (disabled.status, disabled.attempts) == ("cancelled", 0)
+    assert _enqueue(capi, candidates) == {"queued": 1}
+    assert _rows(capi, status="queued")[0].event_id == ended.event_id
+    assert _deliver(capi) == {"delivered": 1}
+    assert capi.capi.counted(DATASET) == [("Purchase", ended.event_id)]
+    # The delivered sale now holds its event ID.
+    assert _enqueue(capi, candidates) == {"unchanged": 1}
+    assert len(_rows(capi)) == 3

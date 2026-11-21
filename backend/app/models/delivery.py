@@ -1,8 +1,10 @@
 """Conversion destinations, the delivery outbox and acknowledgements (specification 014-B).
 
-D-064 decisions D7, D9, D10 and D13. Every table is scoped by agency and client; a delivery
-references its destination and its delivery connection through composite (agency_id, client_id,
-...) keys, so it can never point at another client's destination or connection. Delivery rows
+D-064 decisions D7, D9, D10 and D13, with the D9 delivery key amended by D-065. Every table is
+scoped by agency and client; a delivery references its destination and its delivery connection
+through composite (agency_id, client_id, ...) keys, so it can never point at another client's
+destination or connection. A sale has one event ID per dataset, and at most one delivery per
+client and event ID holds it (HOLDS_EVENT), whatever the destination or connection. Delivery rows
 hold no person identifier: the match key, the subject references and the replay keys live only
 in the sealed payload, which is destroyed when the delivery ends. tracking_lifecycle deletes
 ended deliveries and their acknowledgements 30 days after they end. Reference queries below are
@@ -100,10 +102,21 @@ OUTCOMES = (
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
 EVENT_NAME = "^[A-Za-z][A-Za-z0-9_]{0,39}$"
 TEST_CODE = "^[A-Za-z0-9]{1,32}$"
+# Cancellation reasons that, with no attempt made, mean the delivery never reached Meta.
+UNSENT = ("destination_disabled", "connection_ended")
 
 
 def _values(items: tuple[str, ...]) -> str:
     return ", ".join(f"'{item}'" for item in items)
+
+
+# The rows that hold their event ID (D-065): every delivery except one cancelled before any
+# attempt because its destination was disabled or its connection ended, which never reached
+# Meta. At most one holder may exist per client and event ID, so a sale reaches a dataset at
+# most once; the enqueue looks up an existing delivery with the same predicate.
+HOLDS_EVENT = (
+    f"NOT (status = 'cancelled' AND attempts = 0 AND COALESCE(reason, '') IN ({_values(UNSENT)}))"
+)
 
 
 def _time(nullable: bool = True, *, default: bool = False) -> Any:
@@ -146,11 +159,13 @@ class ConversionDestination(Base):
     updated_at: Mapped[datetime] = _time(False, default=True)
 
 
-# One verified sale for one destination (D9): a deterministic event ID, the event time (the
-# authoritative sale instant, never moved), the deadline (the 7-day age limit less 1 hour), the
-# value in minor units of the sale's currency, the consent basis and policy version of the
-# enqueue (D7), the state with its closed reason, the attempt fence and the retry, requeue and
-# lease state, and the sealed payload while the delivery has not ended.
+# One verified sale for one destination (D9 as amended by D-065): a deterministic event ID
+# derived from the client, the dataset and the sale, unique per client among the rows that hold
+# it (HOLDS_EVENT), the event time (the authoritative sale instant, never moved), the deadline
+# (the 7-day age limit less 1 hour), the value in minor units of the sale's currency, the
+# consent basis and policy version of the enqueue (D7), the state with its closed reason, the
+# attempt fence and the retry, requeue and lease state, and the sealed payload while the
+# delivery has not ended.
 # SELECT id, destination_id, event_name, action_source, event_time, deadline, currency,
 #        value_minor, status, reason, rejection_class, attempts, retries, requeues,
 #        not_before, created_at, delivered_at, ended_at
@@ -170,7 +185,6 @@ class ConversionDelivery(Base):
         ),
         ForeignKeyConstraint(*CONNECTION_FK),
         UniqueConstraint("agency_id", "client_id", "id", name="uq_conversion_deliveries_scope"),
-        UniqueConstraint("destination_id", "event_id", name="uq_conversion_deliveries_event"),
         CheckConstraint(f"status IN ({_values(STATUSES)})", name="valid_status"),
         CheckConstraint(f"reason IS NULL OR reason IN ({_values(REASONS)})", name="valid_reason"),
         CheckConstraint(f"action_source IN ({_values(ACTION_SOURCES)})", name="valid_source"),
@@ -208,6 +222,13 @@ class ConversionDelivery(Base):
             "value_minor > 0 AND currency_exponent BETWEEN 0 AND 8 AND attempts >= 0 "
             "AND retries >= 0 AND requeues BETWEEN 0 AND 3",
             name="valid_counters",
+        ),
+        Index(
+            "uq_conversion_deliveries_event",
+            "client_id",
+            "event_id",
+            unique=True,
+            postgresql_where=text(HOLDS_EVENT),
         ),
         Index(
             "ix_conversion_deliveries_open",
