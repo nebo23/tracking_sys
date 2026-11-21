@@ -1,5 +1,5 @@
 # Tasks: 015-business-integrations
-Status: Not completed; this is a review checklist, not an implementation instruction.
+Status: Not completed; this is a review checklist, not an implementation instruction. First round in preparation under D-066: the [entry review](entry-review.md) and the [implementation handoff](implementation-prompt.md).
 
 - [ ] Approve the scope and sources for forms, bookings, payments, crm, and whatsapp.
 - [ ] Resolve Q-002, Q-003, Q-010; select providers before implementation and record the owner decision.

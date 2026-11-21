@@ -1,5 +1,5 @@
 # 015-business-integrations — Forms, bookings, payments, CRM, and WhatsApp
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: First round in preparation under D-066 (2026-11-21): Paymob payments and the CSV and manual fallback, against a synthetic Paymob-shaped sender and fixture tests only. See the [entry review](entry-review.md), whose decisions D1-D15 await the owner's approval (D-067), and the [implementation handoff](implementation-prompt.md). Bookings, CRM and WhatsApp are later rounds. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 PDF-008,009,047,049,050,051,052,090; IDEA-03,12 candidates. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -25,7 +25,7 @@ Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md), [006-id
 
 Specification 003 obligations (D-025): apply consent, collection minimization, and tombstone admission to imported subjects (E6), and keep payment data within the payment-processor row.
 
-Open decisions: Q-002, Q-003, Q-010; select providers before implementation. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: Q-002, Q-003, Q-010; select providers before implementation. The first payment provider is Paymob (D-066); the providers of the later rounds are not selected. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
 Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.

@@ -1,5 +1,5 @@
 # Plan: 015-business-integrations
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Draft plan. D-066 starts the first round (Paymob payments and the CSV and manual fallback); the [entry review](entry-review.md) proposes slices 015-A to 015-C and decisions D1-D15 for the owner's approval, and the [implementation handoff](implementation-prompt.md) governs the work once D-067 approves them.
 
 ## Expected outcome
 Select one integration for each approved workflow; map booking, payment, CRM, and WhatsApp events, with a defined import/manual fallback.
