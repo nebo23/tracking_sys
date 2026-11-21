@@ -103,3 +103,32 @@ Fixed during verification: the lifecycle predicate first read `EXISTS (SELECT * 
 | `finance:read` on the delivery list (T-34) | `client:read` in the route and the service | Caught: `test_isolation_and_no_identifiers_in_answers` |
 
 Caught 7 of 7.
+
+## 014-C: ROAS contract
+
+**Scope (D11).** `app/advertising/roas.py` is a pure contract with no route. For one client, one spend connection, a period of account-local dates and one 008-A model version:
+- It returns rows per ad, ad set and campaign, each naming its model, version, window, period, currency and the `conversion_date` basis.
+- Revenue is the verified net credited to touches that carry Meta's dynamic URL parameters (`source` `meta`, the campaign ID and the ad ID, V-18). Credit of any other touch, or for another account's ad, is reported as unmatched per currency; names never join.
+- ROAS is an exact fraction with a 4-decimal string. Zero spend has no value (`zero_spend`), and spend or credit in more than one currency has none either (`currency_mismatch`). Spend without credit gives 0.
+- Each row's spend is marked `complete`, `provisional` or `incomplete`.
+- Runs of another model version or client are refused.
+
+**Tests.**
+- `tests/test_advertising_roas.py`: T-40 to T-47 with constructed facts and real 008-A runs on 007-A transactions.
+- `tests/integration/test_roas.py`: the same cases over spend facts stored by the 014-A synthetic sync and read back from `ad_spend_facts` on the disposable service, under each of First Click, Last Click and Linear. The spend lab of `test_ad_spend.py` became a shared builder (`make_ads_lab`).
+
+**Verification of 014-C** (2026-11-21):
+- ruff clean;
+- unit suite: 680 passed;
+- `tests/integration/test_roas.py` and `tests/integration/test_ad_spend.py`: 14 passed.
+
+The full integration suite runs again with 014-D and in Phase 6.
+
+**Mutation checks of 014-C.**
+
+| Safeguard (case) | Mutation | Result |
+|---|---|---|
+| Zero-spend rule (T-41) | Removed | Caught: `test_zero_spend_has_no_value` and `test_zero_spend_currency_mismatch_and_spend_states` |
+| Currency rule (T-43) | Removed | Caught: `test_currency_mismatch_has_no_value` and `test_zero_spend_currency_mismatch_and_spend_states` |
+
+Caught 2 of 2.

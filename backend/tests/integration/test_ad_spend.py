@@ -42,8 +42,9 @@ def route_clock(monkeypatch):
     monkeypatch.setattr("app.api.advertising.now_utc", lambda: CLOCK)
 
 
-@pytest.fixture
-def ads(authenticated_world, api, tmp_path):
+# The connector lab with the Meta-shaped spend provider and two defined ad accounts; shared with
+# the ROAS tests (014-C).
+def make_ads_lab(authenticated_world, api, tmp_path):
     lab = make_lab(authenticated_world, api, tmp_path)
     state = lab.state.with_name(lab.state.stem + "-meta-ads" + lab.state.suffix)
     lab.meta = SyntheticMetaAdsProvider(state)
@@ -52,6 +53,11 @@ def ads(authenticated_world, api, tmp_path):
         lab.meta.define_account(account, currency=currency, zone=zone, name=f"Ads {account}")
         _inventory(lab, account)
     return lab
+
+
+@pytest.fixture
+def ads(authenticated_world, api, tmp_path):
+    return make_ads_lab(authenticated_world, api, tmp_path)
 
 
 def _inventory(lab, account, first=START, spend="10.00"):
