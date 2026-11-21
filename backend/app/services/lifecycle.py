@@ -55,6 +55,7 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    Booking,
     CollectedEvent,
     CollectionSubject,
     ConnectorConnection,
@@ -63,9 +64,12 @@ from app.models import (
     ConnectorWebhookDelivery,
     ConversionAcknowledgement,
     ConversionDelivery,
+    CrmDeal,
     EventDiagnostic,
     ExternalIdentity,
     IngestionSourceSecret,
+    IntegrationDelivery,
+    IntegrationSourceSecret,
     MailOutbox,
     OAuthTransaction,
     PasswordCredential,
@@ -226,6 +230,22 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     def revenue_imports(cutoff: datetime) -> ColumnElement[bool]:
         return RevenueImport.committed_at < before(settings.revenue_import_retention_days, cutoff)
 
+    # 015-D (D-068 E9): integration deliveries after 30 days, retired integration secrets,
+    # and bookings and CRM deals 395 days after their last update.
+    def integration_deliveries(cutoff: datetime) -> ColumnElement[bool]:
+        return IntegrationDelivery.received_at < before(
+            settings.integration_delivery_retention_days, cutoff
+        )
+
+    def integration_secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return IntegrationSourceSecret.retires_at < cutoff
+
+    def bookings(cutoff: datetime) -> ColumnElement[bool]:
+        return Booking.updated_at < before(settings.booking_retention_days, cutoff)
+
+    def deals(cutoff: datetime) -> ColumnElement[bool]:
+        return CrmDeal.updated_at < before(settings.deal_retention_days, cutoff)
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -356,6 +376,20 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             "payment_source_secrets", PaymentSourceSecret, PaymentSourceSecret.id, payment_secrets
         ),
         Target("revenue_imports", RevenueImport, RevenueImport.id, revenue_imports),
+        Target(
+            "integration_deliveries",
+            IntegrationDelivery,
+            IntegrationDelivery.id,
+            integration_deliveries,
+        ),
+        Target(
+            "integration_source_secrets",
+            IntegrationSourceSecret,
+            IntegrationSourceSecret.id,
+            integration_secrets,
+        ),
+        Target("bookings", Booking, Booking.id, bookings),
+        Target("crm_deals", CrmDeal, CrmDeal.id, deals),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

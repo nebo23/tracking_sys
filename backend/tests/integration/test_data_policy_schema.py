@@ -31,7 +31,7 @@ def test_migrated_schema_matches_registry(db):
     # 014-A adds ad_accounts, ad_objects and ad_spend_facts (0017); 014-B adds the
     # destination, delivery and acknowledgement tables (0018); 015-A adds revenue_evidence
     # (0020), 015-B the payment source, secret and diagnostic tables (0021) and 015-C
-    # revenue_imports (0022).
-    assert len(schema) == 55
+    # revenue_imports (0022); 015-D the integration, booking and CRM tables (0023, 0024).
+    assert len(schema) == 62
     assert len(references) == 10
     assert registry_problems(schema, [tuple(row) for row in references]) == []

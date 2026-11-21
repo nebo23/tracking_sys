@@ -16,7 +16,9 @@ the Conversions API, Marketing API, Login for Business and permission pages of e
 section 2.4. Specification 015-B (D-067) re-verified the payment processor row and added the
 Paymob Accept row on 2026-11-21 against Paymob's callback, HMAC, transaction, refund, void,
 capture, intention, credential and security pages, Paymob's terms and PCI SSC FAQ 1154 of
-entry review section 2.4. No row implies provider app approval or review access.
+entry review section 2.4, and specification 015-D (D-068) added the Cal.com webhooks row on
+2026-11-21 against Cal.com's webhook pages of the second-round entry review. No row implies
+provider app approval or review access.
 """
 
 from dataclasses import dataclass
@@ -264,6 +266,24 @@ RULES: tuple[ProviderRule, ...] = (
         "outbound call; whether a merchant may direct callbacks carrying the last four digits to "
         "this platform under Paymob's terms is reviewed before live intake (Q-012)",
         ("V-1", "V-2", "V-3", "V-4", "V-7", "V-8", "V-9", "V-11", "V-12", "V-13"),
+        "015",
+        REVERIFIED_015,
+        RuleStatus.CURRENT,
+        REVIEW_015,
+    ),
+    ProviderRule(
+        "cal_com",
+        "calcom.webhooks",
+        "booking.record",
+        "Booking IDs, event type, schedule and status only, 13 months after the last update "
+        "(D-068 E9); no attendee, answer, note or meeting link",
+        "Workspace deletion (017); the source is disabled to stop intake; subject erasure clears "
+        "the link",
+        "HMAC-SHA256 webhooks (x-cal-signature-256) under the client's write-only secret, over "
+        "HTTPS (020)",
+        "The client's own Cal.com account and webhook; no Cal.com API key and no outbound call; "
+        "a booking is never revenue",
+        ("W-1", "W-2", "W-3", "W-4"),
         "015",
         REVERIFIED_015,
         RuleStatus.CURRENT,

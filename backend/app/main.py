@@ -20,6 +20,8 @@ from app.api.connectors import provider_router as connector_provider_router
 from app.api.connectors import router as connectors_router
 from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
+from app.api.integrations import callback_router as integration_callback_router
+from app.api.integrations import router as integrations_router
 from app.api.links import redirect_router
 from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
@@ -38,6 +40,7 @@ from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
 from app.services.declarations import DeclarationRefused
 from app.services.google import GoogleOIDC
+from app.services.integrations import IntegrationError
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
 from app.services.tenancy import AccessDenied, MembershipConflict
@@ -99,7 +102,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "development provider, status, sync requests, and disconnection. "
             "Revenue and payments (specification 015): the client ledger derived from "
             "stored evidence, Paymob sources with signed processed callbacks, and CSV "
-            "imports and manual declarations of unverified revenue."
+            "imports and manual declarations of unverified revenue, Cal.com bookings and "
+            "CRM stage changes through signed integration sources."
         ),
         lifespan=lifespan,
         responses={
@@ -168,6 +172,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def declaration_error(request: Request, error: DeclarationRefused) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
+    # Integration failures (specification 015-D) carry a fixed public code; never a secret.
+    @application.exception_handler(IntegrationError)
+    async def integration_error(request: Request, error: IntegrationError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
     # Managed-host or hostname conflicts (specification 005) carry a fixed code.
     @application.exception_handler(LinkConflict)
     async def link_conflict(request: Request, error: LinkConflict) -> JSONResponse:
@@ -226,6 +235,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(revenue_router)
     application.include_router(payments_router)
     application.include_router(payment_callback_router)
+    application.include_router(integrations_router)
+    application.include_router(integration_callback_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
     application.include_router(connector_provider_router)

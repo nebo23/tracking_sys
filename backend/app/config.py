@@ -191,6 +191,12 @@ class Settings(DatabaseSettings):
     # the API and sealed under the token keyring; none belongs in .env. Spec 015 makes no call
     # to Paymob.
     payments_paymob_enabled: bool = False
+    # Bookings and CRM (specification 015-D, D-068 E2, E5 and E11). The Cal.com source kind
+    # stays off unless enabled and usable only while the calcom.webhooks rule is current; the
+    # provider-neutral signed webhook kind stays off unless enabled. Signing secrets are
+    # entered or issued through the API and sealed under the token keyring.
+    integrations_calcom_enabled: bool = False
+    integrations_webhook_enabled: bool = False
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -485,6 +491,11 @@ class LifecycleSettings(DatabaseSettings):
     # Revenue import records (D-067 D14): 13 months (395 days) after the commit; the declared
     # evidence stays.
     revenue_import_retention_days: int = Field(default=395, ge=0, le=395)
+    # 015-D (D-068 E9, provisional development values): integration deliveries 30 days after
+    # receipt; bookings and CRM deals 13 months (395 days) after their last update.
+    integration_delivery_retention_days: int = Field(default=30, ge=0, le=30)
+    booking_retention_days: int = Field(default=395, ge=0, le=395)
+    deal_retention_days: int = Field(default=395, ge=0, le=395)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

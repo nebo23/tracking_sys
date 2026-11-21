@@ -6,10 +6,12 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Per-route exceptions to the default bound (specification 015, D-067 decision D13): the Paymob
-# processed callback up to 64 KiB, and the CSV preview and commit up to 2 MiB. Each entry is a
+# processed callback and the 015-D booking and CRM callbacks (D-068) up to 64 KiB, and the CSV
+# preview and commit up to 2 MiB. Each entry is a
 # method, a full-path pattern and a limit in bytes; every other route keeps the default.
 ROUTE_LIMITS: tuple[tuple[str, re.Pattern[str], int], ...] = (
     ("POST", re.compile(r"/payments/paymob/callback/[^/]+"), 65536),
+    ("POST", re.compile(r"/integrations/(?:cal-com|webhook)/[^/]+"), 65536),
     (
         "POST",
         re.compile(r"/agencies/[^/]+/clients/[^/]+/revenue-imports/(?:preview|[0-9a-f]{64})"),

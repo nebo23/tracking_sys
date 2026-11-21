@@ -46,10 +46,18 @@ from app.models.connectors import (
     ConnectorUsageRecord,
     ConnectorWebhookDelivery,
 )
+from app.models.crm import CrmDeal, CrmStageRule
 from app.models.delivery import (
     ConversionAcknowledgement,
     ConversionDelivery,
     ConversionDestination,
+)
+from app.models.integrations import (
+    Booking,
+    BookingEvent,
+    IntegrationDelivery,
+    IntegrationSource,
+    IntegrationSourceSecret,
 )
 from app.models.links import (
     LinkCampaign,
@@ -125,4 +133,11 @@ __all__ = [
     "PaymentSourceSecret",
     "RevenueEvidence",
     "RevenueImport",
+    "Booking",
+    "BookingEvent",
+    "CrmDeal",
+    "CrmStageRule",
+    "IntegrationDelivery",
+    "IntegrationSource",
+    "IntegrationSourceSecret",
 ]

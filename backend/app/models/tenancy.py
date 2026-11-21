@@ -203,7 +203,9 @@ class AuditEvent(Base):
             "'connector.disconnect_requested', 'destination.created', 'destination.updated', "
             "'delivery.requeued', 'delivery.dismissed', 'payment_source.created', "
             "'payment_source.updated', 'payment_source.secret_replaced', "
-            "'revenue_import.committed', 'revenue.declared')",
+            "'revenue_import.committed', 'revenue.declared', 'integration.created', "
+            "'integration.updated', 'integration.secret_replaced', 'crm_rule.created', "
+            "'crm_rule.updated')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -211,7 +213,7 @@ class AuditEvent(Base):
             "'source', 'form', 'deletion_request', 'campaign', 'content_reference', "
             "'utm_template', 'destination_origin', 'domain', 'link', 'connection', "
             "'destination', 'delivery', 'payment_source', 'revenue_import', "
-            "'revenue_evidence')",
+            "'revenue_evidence', 'integration_source', 'crm_rule')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),
