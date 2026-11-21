@@ -31,6 +31,7 @@ from paymob_callbacks import (
     transaction,
     void,
 )
+from pydantic import SecretStr
 from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
@@ -534,3 +535,23 @@ def test_lifecycle_deletes_diagnostics_and_retired_secrets(
         assert session.scalar(select(func.count()).select_from(RevenueEvidence)) == 2
     assert pay.send(sale(), OTHER_SECRET).status_code == 200
     assert next_id() > 0
+
+
+def test_unreadable_bodies_and_a_missing_keyring_reveal_nothing(pay):
+    # T-19: a deeply nested body gets the same 401 as any unverifiable callback, and without the
+    # token keyring known and unknown keys alike answer 503 before any source lookup.
+    nested = b'{"type": "TRANSACTION", "obj": ' + b"[" * 30_000 + b"]" * 30_000 + b"}"
+    response = pay.public.post(pay.path, content=nested, params={"hmac": "ab" * 64})
+    assert (response.status_code, response.json()) == (401, {"error": "invalid_signature"})
+    unkeyed = pay.config.model_copy(
+        update={"token_keyring": SecretStr(""), "token_keyring_active": ""}
+    )
+    client = pay.api.new_client(unkeyed)
+    unknown = "/payments/paymob/callback/ppk_" + "C" * 43
+    for path in (pay.path, unknown):
+        response = pay.send(sale(), path=path, client=client)
+        assert (response.status_code, response.json()) == (
+            503,
+            {"error": "collection_not_configured"},
+        )
+    assert _evidence(pay.w) == [] and _diagnostics(pay.w) == []

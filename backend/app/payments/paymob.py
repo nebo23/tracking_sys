@@ -163,7 +163,9 @@ def signature(secret: str, item: Mapping[str, Any], fields: Iterable[str]) -> st
 def parse_body(body: bytes) -> tuple[str, Mapping[str, Any]]:
     try:
         payload = json.loads(body)
-    except (ValueError, UnicodeDecodeError) as error:
+    # A body nested too deeply for the decoder raises RecursionError; like any other unreadable
+    # body it cannot be verified.
+    except (ValueError, UnicodeDecodeError, RecursionError) as error:
         raise Unverifiable("invalid_body") from error
     if not isinstance(payload, dict) or not isinstance(payload.get("obj"), dict):
         raise Unverifiable("invalid_body")

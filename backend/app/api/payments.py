@@ -21,6 +21,7 @@ from app.api.schemas import ErrorResponse, Input, Output
 from app.payments.paymob import Unverifiable, verify
 from app.security import now_utc
 from app.services.auth import enforce_rate_limit
+from app.services.collection import require_token_keys
 from app.services.payments import (
     PaymentError,
     PaymentSourceAdmin,
@@ -198,6 +199,8 @@ def paymob_callback(
     peer = request.client.host if request.client else "unknown"
     _limit(request, "paymob-peer", peer)
     _limit(request, "paymob-key", public_key[:100])
+    # A missing keyring answers 503 before the source lookup, for known and unknown keys alike.
+    require_token_keys(settings)
     source = live_source(session, public_key)
     if source is None:
         raise PaymentError("invalid_signature", 401)

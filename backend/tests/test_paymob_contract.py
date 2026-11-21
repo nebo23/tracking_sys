@@ -242,3 +242,10 @@ def test_rules_gate(settings, monkeypatch):
         item = providers.rule(rule_id)
         assert item.status is providers.RuleStatus.CURRENT and item.data_class == "revenue.evidence"
         assert (item.verified_at, item.review_due_at) == (today, date(2027, 11, 21))
+
+
+def test_deeply_nested_body_cannot_be_verified():
+    # A body nested beyond the decoder's depth is unverifiable (401), never a server error.
+    nested = b'{"type": "TRANSACTION", "obj": ' + b"[" * 60_000 + b"]" * 60_000 + b"}"
+    with pytest.raises(Unverifiable):
+        verify(nested, "ab" * 64, [TEST_SECRET])
