@@ -1,5 +1,5 @@
 # 015-business-integrations — Forms, bookings, payments, CRM, and WhatsApp
-Status: First round in preparation under D-066 (2026-11-21): Paymob payments and the CSV and manual fallback, against a synthetic Paymob-shaped sender and fixture tests only. See the [entry review](entry-review.md), whose decisions D1-D15 await the owner's approval (D-067), and the [implementation handoff](implementation-prompt.md). Bookings, CRM and WhatsApp are later rounds. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: First round in implementation under D-066 and D-067 (2026-11-21): Paymob payments and the CSV and manual fallback, against a synthetic Paymob-shaped sender and fixture tests only. See the [entry review](entry-review.md), whose decisions D1-D15 and amendment A1 D-067 approves, and the [implementation handoff](implementation-prompt.md). Bookings, CRM and WhatsApp are later rounds. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
 
 ## Sources
 PDF-008,009,047,049,050,051,052,090; IDEA-03,12 candidates. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

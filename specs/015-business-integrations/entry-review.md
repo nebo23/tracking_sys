@@ -1,11 +1,11 @@
 # Specification 015 entry review: payments (Paymob) and the CSV and manual fallback
 
-Prepared: 2026-11-21 on `claude/gallant-cray-b16xwk` from merged `main` at `73efae9` (PR 12; Spec 014 merged). Authority: D-066, preparation only. Status: **proposal**. D-066 records the owner's choices of 2026-11-21 for this first round of Spec 015:
+Prepared: 2026-11-21 on `claude/gallant-cray-b16xwk` from merged `main` at `73efae9` (PR 12; Spec 014 merged). Authority: D-066; D1-D15 and amendment A1 approved by D-067 (2026-11-21). Status: **approved**. D-066 records the owner's choices of 2026-11-21 for this first round of Spec 015:
 - it covers payments and the CSV and manual fallback; bookings, CRM, WhatsApp and the other workflows are later rounds;
 - Paymob is the first payment provider;
 - the round runs against a synthetic Paymob-shaped sender and fixture tests only.
 
-Decisions D1-D15 in section 6 are recommendations for the owner; their approval is to be recorded as D-067. This preparation contains no application code, migration or dependency. It makes no call to Paymob and involves no real payment. The [implementation handoff](implementation-prompt.md) carries the approved decisions to completion and a pull request.
+Decisions D1-D15 in section 6 were recommendations for the owner; D-067 approves them as recommended, with amendment A1 (section 2.5). This preparation contains no application code, migration or dependency. It makes no call to Paymob and involves no real payment. The [implementation handoff](implementation-prompt.md) carries the approved decisions to completion and a pull request.
 
 ## 1. Scope of this round
 
@@ -202,4 +202,4 @@ The handoff turns each case into at least one test. A mutation check accompanies
 
 ## 9. Owner decisions
 
-D-066 (2026-11-21) merges Spec 014 and starts this round with the scope, provider and synthetic mode above. D1-D15 await the owner's approval, which is to be recorded as D-067 before implementation.
+D-066 (2026-11-21) merges Spec 014 and starts this round with the scope, provider and synthetic mode above. D-067 (2026-11-21) approves D1-D15 as recommended, together with amendment A1 of section 2.5: a callback whose `is_live` is not true posts nothing and is counted as `test_mode`. It authorizes 015-A to 015-C under the [implementation handoff](implementation-prompt.md) and a pull request against `main` after successful verification. Merge, the live Paymob check, the later rounds, native migration and deployment remain separate decisions.
