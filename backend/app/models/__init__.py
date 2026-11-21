@@ -60,7 +60,7 @@ from app.models.links import (
     ManagedLink,
 )
 from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
-from app.models.revenue import RevenueEvidence
+from app.models.revenue import RevenueEvidence, RevenueImport
 from app.models.tenancy import (
     Agency,
     AgencyMembership,
@@ -124,4 +124,5 @@ __all__ = [
     "PaymentSource",
     "PaymentSourceSecret",
     "RevenueEvidence",
+    "RevenueImport",
 ]

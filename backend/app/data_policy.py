@@ -502,6 +502,16 @@ CLASSES: dict[str, DataClass] = {
             "015",
         ),
         DataClass(
+            "revenue.import_record",
+            "One committed transaction CSV file: the file's SHA-256 digest, row counts, the "
+            "committing membership and the commit time; the file itself is never kept.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Deleted 13 months (395 days) after the commit (D-067 D14).",
+            "015",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1721,6 +1731,34 @@ TABLES: dict[str, TablePolicy] = {
             ),
         },
         (_row(APPROVED, "D-067", "Deleted by tracking_lifecycle 30 days after receipt (D14)."),),
+    ),
+    "revenue_imports": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "committed_by_membership_id",
+            ),
+            **_same(
+                "revenue.import_record",
+                "file_digest",
+                "total_rows",
+                "stored_rows",
+                "duplicate_rows",
+                "rejected_rows",
+                "committed_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-067",
+                "Deleted by tracking_lifecycle 395 days after the commit (D14); the declared "
+                "evidence stays for the life of the workspace.",
+            ),
+        ),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

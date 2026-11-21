@@ -71,6 +71,7 @@ from app.models import (
     PasswordCredential,
     PaymentCallbackDiagnostic,
     PaymentSourceSecret,
+    RevenueImport,
     StoredConsentRecord,
     User,
     VerificationChallenge,
@@ -221,6 +222,10 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     def payment_secrets(cutoff: datetime) -> ColumnElement[bool]:
         return PaymentSourceSecret.retires_at < cutoff
 
+    # Revenue import records (D-067 D14): 13 months (395 days) after the commit.
+    def revenue_imports(cutoff: datetime) -> ColumnElement[bool]:
+        return RevenueImport.committed_at < before(settings.revenue_import_retention_days, cutoff)
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -350,6 +355,7 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target(
             "payment_source_secrets", PaymentSourceSecret, PaymentSourceSecret.id, payment_secrets
         ),
+        Target("revenue_imports", RevenueImport, RevenueImport.id, revenue_imports),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

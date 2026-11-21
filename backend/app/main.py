@@ -36,6 +36,7 @@ from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
+from app.services.declarations import DeclarationRefused
 from app.services.google import GoogleOIDC
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
@@ -97,7 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Connectors (specification 009-A): OAuth connection lifecycle with a synthetic "
             "development provider, status, sync requests, and disconnection. "
             "Revenue and payments (specification 015): the client ledger derived from "
-            "stored evidence, and Paymob sources with signed processed callbacks."
+            "stored evidence, Paymob sources with signed processed callbacks, and CSV "
+            "imports and manual declarations of unverified revenue."
         ),
         lifespan=lifespan,
         responses={
@@ -158,6 +160,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # payload.
     @application.exception_handler(PaymentError)
     async def payment_error(request: Request, error: PaymentError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Refused CSV files and declarations (specification 015-C) carry a closed code and never
+    # echo a rejected value.
+    @application.exception_handler(DeclarationRefused)
+    async def declaration_error(request: Request, error: DeclarationRefused) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
     # Managed-host or hostname conflicts (specification 005) carry a fixed code.

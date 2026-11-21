@@ -20,6 +20,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Identity,
     Index,
+    Integer,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -125,3 +126,39 @@ class RevenueEvidence(Base):
     intake: Mapped[str] = mapped_column(String(16))
     intake_id: Mapped[UUID | None] = mapped_column(Uuid)
     content_digest: Mapped[str] = mapped_column(String(64))
+
+
+# One committed transaction CSV file of one client (specification 015-C, D8): the file's SHA-256
+# digest (the import ID, unique per client) and its row counts. The file is never kept. Deleted by
+# tracking_lifecycle 13 months (395 days) after the commit; its evidence rows stay (D14).
+# SELECT id, file_digest, total_rows, stored_rows, duplicate_rows, rejected_rows, committed_at
+# FROM public.revenue_imports
+# WHERE client_id = '00000000-0000-0000-0000-000000000003'::uuid
+# ORDER BY committed_at DESC LIMIT 100;
+class RevenueImport(Base):
+    __tablename__ = "revenue_imports"
+    __table_args__ = (
+        ForeignKeyConstraint(*CLIENT_FK),
+        ForeignKeyConstraint(
+            ["agency_id", "committed_by_membership_id"],
+            ["agency_memberships.agency_id", "agency_memberships.id"],
+        ),
+        UniqueConstraint("client_id", "file_digest", name="uq_revenue_imports_file"),
+        Index("ix_revenue_imports_committed_at", "committed_at"),
+        CheckConstraint("file_digest ~ '^[0-9a-f]{64}$'", name="valid_digest"),
+        CheckConstraint(
+            "total_rows BETWEEN 1 AND 10000 AND stored_rows >= 0 AND duplicate_rows >= 0 "
+            "AND rejected_rows >= 0 AND stored_rows + duplicate_rows + rejected_rows = total_rows",
+            name="valid_counts",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    agency_id: Mapped[UUID] = mapped_column(Uuid)
+    client_id: Mapped[UUID] = mapped_column(Uuid)
+    file_digest: Mapped[str] = mapped_column(String(64))
+    total_rows: Mapped[int] = mapped_column(Integer)
+    stored_rows: Mapped[int] = mapped_column(Integer)
+    duplicate_rows: Mapped[int] = mapped_column(Integer)
+    rejected_rows: Mapped[int] = mapped_column(Integer)
+    committed_by_membership_id: Mapped[UUID] = mapped_column(Uuid)
+    committed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

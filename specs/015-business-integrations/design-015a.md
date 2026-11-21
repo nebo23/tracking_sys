@@ -139,8 +139,8 @@ The HMAC secret is 16-256 printable ASCII characters without spaces. It is seale
 `POST /payments/paymob/callback/{public_key}?hmac=<128 hexadecimal>`, public. Steps:
 1. **Gate.** With the setting off or a rule stale or overdue: 503 `payments_unavailable`, before any lookup.
 2. **Rates.** The 004 trusted rate (`ingest_trusted_per_minute`) per peer address, then per public key as given (known or not), so a 429 reveals nothing about a source.
-3. **Source.** An active source of an active client and agency, by public key. Unknown, disabled or malformed: 401 `invalid_signature`.
-4. **Parse.** The bounded body as a JSON object with `type` and `obj`. Anything else: 401.
+3. **Source.** Without the token keyring, 503 `collection_not_configured` for every key, before the lookup. Then an active source of an active client and agency, by public key. Unknown, disabled or malformed: 401 `invalid_signature`.
+4. **Parse.** The bounded body as a JSON object with `type` and `obj`. Anything else, including a body nested beyond the decoder's depth: 401.
 5. **Verify.** For `TRANSACTION`, the string is the concatenation, in order, of `amount_cents`, `created_at`, `currency`, `error_occured`, `has_parent_transaction`, `id`, `integration_id`, `is_3d_secure`, `is_auth`, `is_capture`, `is_refunded`, `is_standalone_payment`, `is_voided`, `order.id`, `owner`, `pending`, `source_data.pan`, `source_data.sub_type`, `source_data.type`, `success` of `obj` (`order` and `source_data` are objects). For `TOKEN`: `card_subtype`, `created_at`, `email`, `id`, `masked_pan`, `merchant_id`, `order_id`, `token`. HMAC-SHA512 under each live secret of the source (current, and previous ones until `retires_at`), compared with `hmac.compare_digest`; every secret is tried. A missing field, a float, list or object value, or no match: 401, nothing stored.
 6. **Minimize (D6).** The verified object is reduced at once to `id`, `amount_cents`, `currency`, `created_at`, the flags `success`, `pending`, `error_occured`, `is_auth`, `is_capture`, `is_standalone_payment`, `has_parent_transaction`, `is_refund`, `is_void`, `is_live`, `parent_transaction`, `integration_id` and `order.id`. The full payload is dropped and never logged.
 7. **Map** (section 4.4), then under the revenue lock: append the evidence if any, and one diagnostic row.
@@ -244,3 +244,5 @@ Each safeguard is disabled in turn, its tests are rerun, and the source is resto
 6. The gate check of the callback and of source creation: T-20.
 7. The import idempotency (a repeated commit stores again): T-31.
 8. The unverified classification of declarations (`confirmed_capture`): T-32.
+9. The nesting guard of the body parser (a deeply nested body raised a server error): T-19.
+10. The keyring check before the source lookup (known and unknown keys answered differently without the keyring): T-19.

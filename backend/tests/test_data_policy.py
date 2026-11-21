@@ -31,8 +31,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
     # 43 application tables at 0016_youtube_provider, three more at 0017_ad_spend (014-A),
     # three more at 0018_conversion_delivery (014-B), one more at 0020_revenue_evidence
-    # (015-A), three more at 0021_payment_sources (015-B), plus alembic_version.
-    assert len(SCHEMA) == 54
+    # (015-A), three more at 0021_payment_sources (015-B), one more at 0022_revenue_imports
+    # (015-C), plus alembic_version.
+    assert len(SCHEMA) == 55
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -151,6 +152,8 @@ def test_only_recorded_decisions_are_presented_as_approved():
         # D-067 (015-B, D14): callback diagnostics after 30 days, replaced secrets once retired.
         ("payment_callback_diagnostics", "row", "D-067"),
         ("payment_source_secrets", "row", "D-067"),
+        # D-067 (015-C, D14): import records 13 months after the commit.
+        ("revenue_imports", "row", "D-067"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

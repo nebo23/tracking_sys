@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
-from app.models import PaymentSource, RevenueEvidence
+from app.models import PaymentSource, RevenueEvidence, RevenueImport
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
@@ -81,12 +81,18 @@ def test_0020_privileges(db):
 
 
 def test_0020_downgrade_refuses_evidence(world):
+    # Later revisions refuse their own intakes first, so the check starts at 0020.
     head = _version(world.db)
-    _evidence(world, "manual_entry")  # Paymob evidence is refused by 0021 first
-    with pytest.raises(RuntimeError, match="Refuse to remove stored revenue evidence"):
-        command.downgrade(CONFIG, "0019_meta_providers")
+    command.downgrade(CONFIG, "0020_revenue_evidence")
+    try:
+        _evidence(world, "manual_entry")
+        with pytest.raises(RuntimeError, match="Refuse to remove stored revenue evidence"):
+            command.downgrade(CONFIG, "0019_meta_providers")
+        assert _version(world.db) == "0020_revenue_evidence"
+        assert "revenue_evidence" in _tables(world.db)
+    finally:
+        command.upgrade(CONFIG, "head")
     assert _version(world.db) == head
-    assert "revenue_evidence" in _tables(world.db)
 
 
 def test_0020_downgrade_and_upgrade_when_empty(db):
@@ -202,6 +208,60 @@ def test_0021_downgrade_and_upgrade_when_empty(db):
     try:
         assert not _tables(db) & set(PAYMENT_TABLES)
         assert "revenue_evidence" in _tables(db)
+    finally:
+        command.upgrade(CONFIG, "head")
+    assert _version(db) == head
+
+
+def test_0022_privileges(db):
+    for privilege in ("SELECT", "INSERT"):
+        assert _privilege(db, "tracking_app", "revenue_imports", privilege)
+    for privilege in ("UPDATE", "DELETE", "TRUNCATE"):
+        assert not _privilege(db, "tracking_app", "revenue_imports", privilege)
+    assert _privilege(db, "tracking_lifecycle", "revenue_imports", "DELETE")
+    for column in ("id", "committed_at"):
+        assert _privilege(db, "tracking_lifecycle", "revenue_imports", "SELECT", column)
+    for column in ("file_digest", "client_id", "stored_rows"):
+        assert not _privilege(db, "tracking_lifecycle", "revenue_imports", "SELECT", column)
+
+
+def test_0022_downgrade_refuses_import_state(world):
+    head = _version(world.db)
+    with Session(world.db.migration) as session, session.begin():
+        session.add(
+            RevenueImport(
+                id=uuid4(),
+                agency_id=world.a,
+                client_id=world.a1,
+                file_digest="a" * 64,
+                total_rows=1,
+                stored_rows=1,
+                duplicate_rows=0,
+                rejected_rows=0,
+                committed_by_membership_id=world.owner_a,
+                committed_at=datetime(2026, 11, 21, tzinfo=UTC),
+            )
+        )
+    with pytest.raises(RuntimeError, match="Refuse to remove revenue import state"):
+        command.downgrade(CONFIG, "0021_payment_sources")
+    assert _version(world.db) == head
+    with world.db.migration.begin() as connection:
+        connection.execute(text("DELETE FROM revenue_imports"))
+    for intake in ("csv_import", "manual_entry"):
+        _evidence(world, intake)
+        with pytest.raises(RuntimeError, match="Refuse to remove revenue import state"):
+            command.downgrade(CONFIG, "0021_payment_sources")
+        assert _version(world.db) == head
+        with world.db.migration.begin() as connection:
+            connection.execute(text("DELETE FROM revenue_evidence"))
+
+
+def test_0022_downgrade_and_upgrade_when_empty(db):
+    head = _version(db)
+    command.downgrade(CONFIG, "0021_payment_sources")
+    try:
+        assert "revenue_imports" not in _tables(db)
+        assert {"revenue_evidence", "payment_sources"} <= _tables(db)
     finally:
         command.upgrade(CONFIG, "head")
     assert _version(db) == head

@@ -482,6 +482,9 @@ class LifecycleSettings(DatabaseSettings):
     # 015 (D-067 decision D14, provisional development values): Paymob callback diagnostics
     # 30 days after receipt; replaced payment source secrets are deleted once retired.
     payment_diagnostic_retention_days: int = Field(default=30, ge=0, le=30)
+    # Revenue import records (D-067 D14): 13 months (395 days) after the commit; the declared
+    # evidence stays.
+    revenue_import_retention_days: int = Field(default=395, ge=0, le=395)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13
