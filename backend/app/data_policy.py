@@ -397,6 +397,77 @@ CLASSES: dict[str, DataClass] = {
             "010",
         ),
         DataClass(
+            "advertising.account",
+            "Ad account of a spend connection: account ID, name, currency, time zone, status, "
+            "and the previous currency or time zone with the time of the change.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged when the connection's disconnect completes (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.object",
+            "Campaigns, ad sets and ads of a spend connection: IDs, parents, names and "
+            "effective statuses; advertiser business data, not personal data.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged when the connection's disconnect completes (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.spend",
+            "Daily ad-level spend in exact minor units of the reported currency, impressions "
+            "and clicks, with refusals, revisions, provisional marking and provenance.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged at disconnect; deleted 730 days after the spend date (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.destination",
+            "Conversion destination of a delivery connection: event name, optional test event "
+            "code, enabled flag, creator and times; no person data.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until deleted; disabled when its connection's disconnect completes (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.delivery_state",
+            "Delivery of one verified sale: deterministic event ID, event name, action source, "
+            "event time, deadline, value and currency, state, closed reason, counters, schedule, "
+            "consent basis record IDs and policy version; no match key or subject reference.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.DERIVED,
+            "Deleted 30 days after the delivery ends (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.sealed_payload",
+            "AES-GCM sealed delivery payload (fbc match key, subject references and replay keys) "
+            "with its wrapped data key and key ID.",
+            Sensitivity.HIGH,
+            Personal.PSEUDONYMOUS,
+            Provenance.DERIVED,
+            "Destroyed when the delivery ends (D-064 D9, D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.acknowledgement",
+            "Provider answer to one delivery attempt: time, outcome class, closed provider code, "
+            "events received and the provider trace ID, which is never returned or logged.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Deleted with its delivery, 30 days after the delivery ends (D-064 D13).",
+            "014",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1116,6 +1187,7 @@ TABLES: dict[str, TablePolicy] = {
                 "agent_approved_at",
                 "agent_disclosure",
             ),
+            "day_zone": "connector.account_reference",
         },
         (
             _row(
@@ -1161,6 +1233,7 @@ TABLES: dict[str, TablePolicy] = {
                 "agent_approved_at",
                 "agent_disclosure",
             ),
+            "requested_account": "connector.account_reference",
         },
         (_row(APPROVED, "D-048", "Deleted 1 day after consumption or expiry."),),
     ),
@@ -1327,6 +1400,195 @@ TABLES: dict[str, TablePolicy] = {
             ),
         },
         (_row(APPROVED, "D-049", "Deleted 7 days after receipt."),),
+    ),
+    "ad_accounts": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.account",
+                "account_id",
+                "name",
+                "currency",
+                "time_zone",
+                "account_status",
+                "previous_currency",
+                "currency_changed_at",
+                "previous_time_zone",
+                "time_zone_changed_at",
+                "observed_at",
+                "refreshed_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Kept while the connection is active and purged when its disconnect completes "
+                "(D13).",
+            ),
+        ),
+    ),
+    "ad_objects": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.object",
+                "object_id",
+                "level",
+                "campaign_id",
+                "adset_id",
+                "name",
+                "effective_status",
+                "first_observed_at",
+                "refreshed_at",
+                "source_run_id",
+                "adapter_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Kept while the connection is active and purged when its disconnect completes "
+                "(D13).",
+            ),
+        ),
+    ),
+    "ad_spend_facts": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.spend",
+                "ad_id",
+                "adset_id",
+                "campaign_id",
+                "spend_date",
+                "time_zone",
+                "currency",
+                "spend_minor",
+                "impressions",
+                "clicks",
+                "refusal",
+                "provisional_until",
+                "revisions",
+                "first_observed_at",
+                "last_observed_at",
+                "source_run_id",
+                "adapter_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Purged when the connection's disconnect completes; deleted by "
+                "tracking_lifecycle 730 days after the spend date at the latest (D13). No "
+                "production retention is approved (Q-012).",
+            ),
+        ),
+    ),
+    "conversion_destinations": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "connection_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "advertising.destination",
+                "event_name",
+                "test_event_code",
+                "enabled",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017; D-064",
+                "Kept until deleted; disabled when its connection's disconnect completes (D13). "
+                "Deletion and offboarding are 017 and 018.",
+            ),
+        ),
+    ),
+    "conversion_deliveries": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "destination_id",
+                "connection_id",
+            ),
+            **_same(
+                "advertising.sealed_payload",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same(
+                "advertising.delivery_state",
+                "event_id",
+                "event_name",
+                "action_source",
+                "event_time",
+                "deadline",
+                "currency",
+                "currency_exponent",
+                "value_minor",
+                "status",
+                "reason",
+                "rejection_class",
+                "attempts",
+                "retries",
+                "requeues",
+                "not_before",
+                "lease_expires_at",
+                "consent_basis",
+                "policy_version",
+                "created_at",
+                "updated_at",
+                "delivered_at",
+                "ended_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Deleted by tracking_lifecycle 30 days after the delivery ends (D13). No "
+                "production retention is approved (Q-012).",
+            ),
+            EndOfLifeRule(
+                "ciphertext",
+                APPROVED,
+                "D-064",
+                "The sealed payload is destroyed when the delivery ends: delivered, blocked, "
+                "cancelled, expired, rejected as payload, undeliverable or dismissed (D9).",
+            ),
+        ),
+    ),
+    "conversion_acknowledgements": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "delivery_id"),
+            **_same(
+                "advertising.acknowledgement",
+                "attempt",
+                "occurred_at",
+                "outcome",
+                "provider_code",
+                "events_received",
+                "trace_id",
+            ),
+        },
+        (_row(APPROVED, "D-064", "Deleted with its delivery, 30 days after it ends (D13)."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

@@ -176,6 +176,15 @@ class Settings(DatabaseSettings):
     connector_youtube_enabled: bool = False
     youtube_client_id: str = ""
     youtube_client_secret: SecretStr = SecretStr("")
+    # Meta Marketing API and Conversions API (specification 014-D, D-064 decision D12). The
+    # live meta_ads and meta_capi adapters stay off unless explicitly enabled with their own
+    # Meta app ID, app secret and Facebook Login for Business configuration ID from ignored
+    # .env, kept apart from the Instagram settings, and each is registered only while its
+    # provider rules are current. Spec 014 makes no live call (D-063).
+    connector_meta_ads_enabled: bool = False
+    meta_ads_app_id: str = ""
+    meta_ads_app_secret: SecretStr = SecretStr("")
+    meta_ads_config_id: str = ""
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -313,6 +322,25 @@ class Settings(DatabaseSettings):
                 raise ValueError("The YouTube connector requires its Web client ID and secret.")
             if client in {self.google_client_id, self.gmail_client_id}:
                 raise ValueError("The YouTube connector needs a client of its own.")
+        if self.connector_meta_ads_enabled:
+            app_id, config_id = self.meta_ads_app_id, self.meta_ads_config_id
+            secret = self.meta_ads_app_secret.get_secret_value()
+            if not (
+                app_id.isascii()
+                and app_id.isdigit()
+                and len(app_id) <= 32
+                and config_id.isascii()
+                and config_id.isdigit()
+                and len(config_id) <= 32
+                and secret.isascii()
+                and secret.isprintable()
+                and secret.strip() == secret
+                and 1 <= len(secret) <= 128
+            ):
+                raise ValueError(
+                    "The Meta advertising connectors require the app ID, secret and login "
+                    "configuration ID."
+                )
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.
@@ -440,6 +468,11 @@ class LifecycleSettings(DatabaseSettings):
     connector_provider_retention_days: dict[str, int] = Field(
         default_factory=lambda: {"synthetic_youtube": 730, "youtube": 730}
     )
+    # 014 (D-064 decision D13, provisional development values): spend facts at most 730 days
+    # after their spend date.
+    ad_spend_retention_days: int = Field(default=730, ge=0, le=730)
+    # Ended conversion deliveries and their acknowledgements 30 days after they end (D13).
+    delivery_retention_days: int = Field(default=30, ge=0, le=30)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

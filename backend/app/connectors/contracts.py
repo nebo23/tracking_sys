@@ -18,6 +18,11 @@ period after lost access, named quota buckets counted on the provider's local da
 stream windows, allow-listed record attributes with refresh times, inventory streams whose
 missing objects are confirmed gone and purged, a non-additive metric marker, and the agent
 approval a connect must carry.
+
+014-A and 014-B (D-064) add what advertising providers need: an account named by the connect
+request and described after the exchange (an ad account or a dataset), the day zone of each
+connection taken from its account, streams stored in the dedicated spend tables, and delivery
+providers that send conversion events and are never synchronized.
 """
 
 from collections.abc import Mapping
@@ -91,6 +96,9 @@ class StreamSpec:
     attributes: tuple[str, ...] = ()
     inventory: bool = False
     confirm_cost: Mapping[str, int] | None = None
+    # 014-A (D3): "advertising" stores the stream's pages in the spend tables, never in
+    # connector_records, whose read route needs only client:read.
+    storage: Literal["records", "advertising"] = "records"
 
 
 # A named daily quota bucket (011-A, D10): its unit, the provider-wide cap the runtime keeps
@@ -131,6 +139,10 @@ class QuotaBucket:
 # buckets replace the single unit and daily_quota (D10); day_zone is the zone of the
 # provider's days (D9). agent_disclosure is the disclosure version a connect must approve
 # (D13), and label_refresh_days the period after which an unrefreshed label is cleared (D11).
+# 014 (D-064): named_account means the connect request names the account (an "ad_account"
+# act_<digits> or a "dataset" ID), which the adapter describes after the exchange (D2);
+# connection_day_zone takes each connection's day zone from its account (D4); delivery marks a
+# provider that sends conversion events and declares no streams (D9).
 @dataclass(frozen=True)
 class Capability:
     provider: str
@@ -164,6 +176,9 @@ class Capability:
     day_zone: str | None = None
     agent_disclosure: str | None = None
     label_refresh_days: int | None = None
+    named_account: Literal["ad_account", "dataset"] | None = None
+    connection_day_zone: bool = False
+    delivery: bool = False
 
     def __post_init__(self) -> None:
         if self.authorization_check_days is not None and not self.buckets:
@@ -191,8 +206,10 @@ class Capability:
             return spec.data_delay_hours
         return self.data_delay_hours
 
-    # The declared streams, or the single stream of a 009 adapter.
+    # The declared streams, or the single stream of a 009 adapter; none for a delivery provider.
     def stream_specs(self) -> tuple[StreamSpec, ...]:
+        if self.delivery:
+            return ()
         return self.streams or (
             StreamSpec(self.stream, None, self.history_days, self.overlap_days),
         )
@@ -200,9 +217,11 @@ class Capability:
     def stream_spec(self, name: str) -> StreamSpec | None:
         return next((spec for spec in self.stream_specs() if spec.name == name), None)
 
+    # The first stream, or "" for a provider without streams (014-B delivery providers).
     @property
     def primary_stream(self) -> str:
-        return self.stream_specs()[0].name
+        specs = self.stream_specs()
+        return specs[0].name if specs else ""
 
     # The metrics a stream carries.
     def stream_metrics(self, stream: str) -> tuple[MetricSpec, ...]:
@@ -228,6 +247,26 @@ class TokenGrant:
 
     def __repr__(self) -> str:
         return f"TokenGrant(account={self.external_account_id!r}, scopes={self.scopes!r})"
+
+
+# The account a connect request named, as the adapter read it with the new grant (014, D2):
+# its provider ID, label, kind, day zone, and allow-listed attributes (currency, time zone and
+# status of an ad account).
+@dataclass(frozen=True)
+class AccountSnapshot:
+    account_id: str
+    label: str | None
+    kind: str
+    day_zone: str | None
+    attributes: Mapping[str, str | int | None] = field(default_factory=dict)
+
+
+# The provider's answer to one accepted conversion event (014-B, D9): how many events it
+# received and its trace ID, which is stored with the acknowledgement and never returned.
+@dataclass(frozen=True)
+class DeliveryAnswer:
+    events_received: int | None
+    trace_id: str | None
 
 
 # One provider object with its observed metrics. 010-A adds the media product type and, for a
@@ -349,3 +388,20 @@ class ConnectorProvider(Protocol):
     def confirm_deleted(
         self, access_token: str, *, stream: str, object_ids: tuple[str, ...]
     ) -> tuple[str, ...]: ...
+
+    # Describe the account a connect request named, with the newly exchanged token; raises
+    # ProviderError when the grant cannot read it (014, D2). Only adapters whose Capability
+    # declares named_account are called. Their fetch_page also receives account= and, with
+    # connection_day_zone, day_zone=.
+    def describe_account(self, access_token: str, account: str) -> AccountSnapshot: ...
+
+    # Send one conversion event to the dataset (014-B, D9); raises ProviderError on refusal.
+    # Only adapters whose Capability declares delivery are called.
+    def send_event(
+        self,
+        access_token: str,
+        *,
+        dataset: str,
+        event: Mapping[str, object],
+        test_event_code: str | None,
+    ) -> DeliveryAnswer: ...

@@ -4,13 +4,14 @@
 # and the readiness/model-agreement checks rely on. It covers the 002-A tenancy models, the
 # approved 002-B/C/D authentication and access models, the D-022 identity and verification
 # models, the D-027 event collection models, the D-033 managed-link models, and the D-048
-# connector lifecycle models.
+# connector lifecycle models, and the D-064 advertising models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
     ServiceClientGrant,
     ServiceCredential,
 )
+from app.models.advertising import AdAccount, AdObject, AdSpendFact
 from app.models.auth import (
     AuthRateLimit,
     AuthSession,
@@ -43,6 +44,11 @@ from app.models.connectors import (
     ConnectorTokenSecret,
     ConnectorUsageRecord,
     ConnectorWebhookDelivery,
+)
+from app.models.delivery import (
+    ConversionAcknowledgement,
+    ConversionDelivery,
+    ConversionDestination,
 )
 from app.models.links import (
     LinkCampaign,
@@ -105,4 +111,10 @@ __all__ = [
     "ConnectorTokenSecret",
     "ConnectorUsageRecord",
     "ConnectorWebhookDelivery",
+    "AdAccount",
+    "AdObject",
+    "AdSpendFact",
+    "ConversionAcknowledgement",
+    "ConversionDelivery",
+    "ConversionDestination",
 ]

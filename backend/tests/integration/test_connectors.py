@@ -237,6 +237,32 @@ def test_two_codes_for_one_client_account_keep_one_grant(lab):
     assert all(lab.provider.token_usable(t) for t in lab.tokens(k2).values())
 
 
+# Run python -m app.connector_worker as its own process, sharing only the database and the
+# provider file. Both tombstone keyring variables are set explicitly, blank when `tombstones` is
+# false, so the result never depends on the developer's environment or .env (R014-02).
+def _worker_command(lab, *, tombstones: bool = True) -> subprocess.CompletedProcess:
+    tombstone, tombstone_active = "", ""
+    if tombstones:
+        tombstone = lab.config.tombstone_keyring.get_secret_value()
+        tombstone_active = lab.config.tombstone_keyring_active
+    environment = {
+        **os.environ,
+        "TRACKING_TOKEN_KEYRING": lab.config.token_keyring.get_secret_value(),
+        "TRACKING_TOKEN_KEYRING_ACTIVE": lab.config.token_keyring_active,
+        "TRACKING_TOMBSTONE_KEYRING": tombstone,
+        "TRACKING_TOMBSTONE_KEYRING_ACTIVE": tombstone_active,
+        "TRACKING_CONNECTOR_SYNTHETIC_STATE": str(lab.state),
+    }
+    return subprocess.run(
+        [sys.executable, "-m", "app.connector_worker"],
+        cwd=BACKEND_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
 def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
     w = lab.w
     k1, k2, k3 = lab.fixtures()
@@ -255,26 +281,14 @@ def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
     assert lab.sync("owner_a", w.a, w.a1, k1).json() == {"error": "connection_not_active"}
 
     # The worker runs as its own process, sharing only the database and the provider file.
-    keyring = lab.config.token_keyring.get_secret_value()
-    environment = {
-        **os.environ,
-        "TRACKING_TOKEN_KEYRING": keyring,
-        "TRACKING_TOKEN_KEYRING_ACTIVE": lab.config.token_keyring_active,
-        "TRACKING_CONNECTOR_SYNTHETIC_STATE": str(lab.state),
-    }
-    completed = subprocess.run(
-        [sys.executable, "-m", "app.connector_worker"],
-        cwd=BACKEND_ROOT,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    completed = _worker_command(lab)
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
         "teardown": {"disconnected": 1},
         "schedule": {},
         "sync": {},
+        # 014-B: the worker command also runs a bounded delivery step.
+        "delivery": {},
     }
 
     body = lab.view("owner_a", w.a, w.a1, k1).json()
@@ -303,18 +317,12 @@ def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
     assert lab.provider.fetch_page(k3_tokens["access_token"]).records
     assert lab.sync("owner_a", w.a, w.a2, k2).status_code == 202
     assert lab.sync("owner_b", w.b, w.b1, k3).status_code == 202
-    completed = subprocess.run(
-        [sys.executable, "-m", "app.connector_worker"],
-        cwd=BACKEND_ROOT,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    completed = _worker_command(lab)
     assert json.loads(completed.stdout) == {
         "teardown": {},
         "schedule": {},
         "sync": {"succeeded": 2},
+        "delivery": {},
     }
     assert lab.records(k2) == 3 and lab.records(k3) == 3
 
@@ -340,6 +348,25 @@ def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
     )
     for token in [*k1_tokens.values(), *k2_tokens.values(), *k3_tokens.values()]:
         assert token not in haystack
+
+
+def test_worker_command_without_the_tombstone_keyring_reports_not_configured(lab):
+    # R014-02: the documented connector configuration needs the token keyring only. With the
+    # synthetic delivery provider registered and a blank tombstone keyring, the command still
+    # runs every step, exits 0 and reports the delivery step as not configured.
+    w = lab.w
+    k1, _, _ = lab.fixtures()
+    assert lab.worker()["sync"] == {"succeeded": 3}
+    assert lab.disconnect("owner_a", w.a, w.a1, k1).status_code == 202
+    completed = _worker_command(lab, tombstones=False)
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        "teardown": {"disconnected": 1},
+        "schedule": {},
+        "sync": {},
+        "delivery": {"not_configured": 1},
+    }
+    assert lab.view("owner_a", w.a, w.a1, k1).json()["status"] == "disconnected"
 
 
 class _Hooked(SyntheticProvider):

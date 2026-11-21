@@ -19,7 +19,9 @@ R004-04). Specification 009-A (D-048) adds connector OAuth transactions, deleted
 after consumption or expiry like sign-in transactions.
 Specification 011-A (D-058 decision D11) clears connector record attributes and account labels
 that were not refreshed for 30 days, keeping the statistics, and lets a provider keep its
-connector records for a shorter period than the global one.
+connector records for a shorter period than the global one. Specification 014 (D-064 decision
+D13) deletes advertising spend facts 730 days after their spend date, and ended conversion
+deliveries with their acknowledgements 30 days after they end.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -49,6 +51,7 @@ from sqlalchemy.orm import aliased
 
 from app.config import LifecycleSettings
 from app.models import (
+    AdSpendFact,
     AuthRateLimit,
     AuthSession,
     AuthToken,
@@ -58,6 +61,8 @@ from app.models import (
     ConnectorOAuthTransaction,
     ConnectorRecord,
     ConnectorWebhookDelivery,
+    ConversionAcknowledgement,
+    ConversionDelivery,
     EventDiagnostic,
     ExternalIdentity,
     IngestionSourceSecret,
@@ -182,6 +187,28 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             settings.connector_attribute_refresh_days, cutoff
         )
 
+    # Advertising spend facts (D-064 D13): 730 days after their account-local spend date.
+    def spend_facts(cutoff: datetime) -> ColumnElement[bool]:
+        return AdSpendFact.spend_date < before(settings.ad_spend_retention_days, cutoff).date()
+
+    # Conversion deliveries (D-064 D13): 30 days after they ended, acknowledgements first.
+    def ended_deliveries(cutoff: datetime) -> Any:
+        return select(ConversionDelivery.id).where(
+            ConversionDelivery.ended_at < before(settings.delivery_retention_days, cutoff)
+        )
+
+    def acknowledgements(cutoff: datetime) -> ColumnElement[bool]:
+        return ConversionAcknowledgement.delivery_id.in_(ended_deliveries(cutoff))
+
+    def deliveries(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            ConversionDelivery.ended_at < before(settings.delivery_retention_days, cutoff),
+            # Only the referencing column: the lifecycle role reads no other (0018).
+            ~select(ConversionAcknowledgement.delivery_id)
+            .where(ConversionAcknowledgement.delivery_id == ConversionDelivery.id)
+            .exists(),
+        )
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -294,6 +321,14 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             stale_labels,
             clear={"account_label": None, "account_label_refreshed_at": None},
         ),
+        Target("ad_spend_facts", AdSpendFact, AdSpendFact.id, spend_facts),
+        Target(
+            "conversion_acknowledgements",
+            ConversionAcknowledgement,
+            ConversionAcknowledgement.id,
+            acknowledgements,
+        ),
+        Target("conversion_deliveries", ConversionDelivery, ConversionDelivery.id, deliveries),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

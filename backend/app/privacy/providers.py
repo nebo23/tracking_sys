@@ -9,8 +9,11 @@ Login rows on 2026-11-17 against the Platform Terms and Developer Policies of 20
 Meta's data deletion callback documentation; they are current until their review date.
 Specification 011-C (D-060) re-verified the two YouTube rows on 2026-11-18 against the YouTube
 API Services Developer Policies (III.D.2, III.E.2 to III.E.4), the YouTube API Services Terms of
-Service (section 24.3) and the Google API Services User Data Policy of 2024-02-15. No row
-implies provider app approval or review access.
+Service (section 24.3) and the Google API Services User Data Policy of 2024-02-15. Specification
+014-D (D-064) re-verified the Meta Conversions API row and added the Meta Marketing API row on
+2026-11-20 against the Business Tools Terms of 2025-11-03, the Platform Terms of 2026-02-03 and
+the Conversions API, Marketing API, Login for Business and permission pages of entry review
+section 2.4. No row implies provider app approval or review access.
 """
 
 from dataclasses import dataclass
@@ -50,6 +53,9 @@ REVIEW_010 = date(2027, 11, 17)
 # Specification 011-C re-verification (D-060) and the annual review it sets.
 REVERIFIED_011 = date(2026, 11, 18)
 REVIEW_011 = date(2027, 11, 18)
+# Specification 014-D re-verification (D-064) and the annual review it sets.
+REVERIFIED_014 = date(2026, 11, 20)
+REVIEW_014 = date(2027, 11, 20)
 
 RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
@@ -87,15 +93,36 @@ RULES: tuple[ProviderRule, ...] = (
         "meta",
         "meta.conversions_api",
         "identity.provider_match_key",
-        "Events older than 7 days rejected; Meta deletes contact data after matching",
-        "Tombstone and consent check before send and replay",
-        "None",
-        "SHA-256 contact fields; never hash IP, user agent, fbc, fbp; verifiable consent; "
-        "Limited Data Use for listed US states; no sensitive or under-13 data",
-        ("S-67", "S-68", "S-69", "S-70"),
+        "Events older than 7 days rejected; Meta deletes contact information after matching "
+        "and may keep event data up to two years; payloads destroyed when a delivery ends",
+        "Consent and tombstone checks at enqueue and at the delivery claim (E4, E5) and "
+        "before any replay",
+        "None documented for Login for Business; token errors require reconnection",
+        "ads_read; fbc only, never hashed; no contact field, IP address or user agent; "
+        "website events need client_user_agent, which is not collected; agent authority for "
+        "each client; no sensitive or under-13 data; Limited Data Use not used under J1",
+        ("S-67", "S-68", "S-70", "V-8", "V-9", "V-10", "V-12", "V-14", "V-16"),
         "014",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_014,
+        RuleStatus.CURRENT,
+        REVIEW_014,
+    ),
+    ProviderRule(
+        "meta",
+        "meta.marketing_api",
+        "advertising.spend",
+        "While the connection is active and at most 730 days after the spend date "
+        "(D-064 D13); Platform Data deleted when no longer necessary",
+        "Disconnect purge; user, client or Meta request: as soon as reasonably possible",
+        "None documented for Login for Business; token errors require reconnection",
+        "ads_read; Limited Access covers ad accounts of people with a role on the app until "
+        "Full Access, App Review and Business Verification (014-G); each client's data kept "
+        "separate",
+        ("S-61", "V-1", "V-2", "V-4", "V-5", "V-6", "V-7", "V-16"),
+        "014",
+        REVERIFIED_014,
+        RuleStatus.CURRENT,
+        REVIEW_014,
     ),
     ProviderRule(
         "youtube",

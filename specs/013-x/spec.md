@@ -1,5 +1,5 @@
 # 013-x — X analytics
-Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; implementation is not approved. Level: L4. Prepared: 2026-10-28. English revision: 2026-10-29. Deferred by D-063 (2026-11-20): kept unchanged and not worked on until the owner resumes it; launch scope is unchanged (D-004, Q-001).
 
 ## Sources
 USER X/Twitter. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

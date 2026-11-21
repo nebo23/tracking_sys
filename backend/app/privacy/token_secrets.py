@@ -35,14 +35,16 @@ class SecretStatus(StrEnum):
 
 
 # Binding of one secret version. For a 004 webhook signing secret (D-027), connector_id holds
-# the ingestion source ID and kind is "webhook_signing".
+# the ingestion source ID and kind is "webhook_signing". For a 014-B conversion payload
+# (D-064 D9), connector_id holds the destination ID, secret_id the delivery ID and kind is
+# "conversion_payload".
 @dataclass(frozen=True)
 class SecretContext:
     agency_id: UUID
     client_id: UUID
     connector_id: UUID
     secret_id: UUID
-    kind: Literal["access_token", "refresh_token", "webhook_signing"]
+    kind: Literal["access_token", "refresh_token", "webhook_signing", "conversion_payload"]
     version: int
 
 

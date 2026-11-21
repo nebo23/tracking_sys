@@ -62,11 +62,23 @@ class AgentApproval(Input):
     disclosure: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
 
 
+# 014 (D2): an advertising connect names its ad account (act_<digits>) or dataset (<digits>).
 class ConnectInput(Input):
     provider: Literal[
-        "synthetic", "synthetic_instagram", "instagram", "synthetic_youtube", "youtube"
+        "synthetic",
+        "synthetic_instagram",
+        "instagram",
+        "synthetic_youtube",
+        "youtube",
+        "synthetic_meta_ads",
+        "synthetic_meta_capi",
+        "meta_ads",
+        "meta_capi",
     ]
     agent_approval: AgentApproval | None = None
+    account: str | None = Field(
+        default=None, min_length=1, max_length=32, pattern=r"^(act_)?[1-9][0-9]{0,19}$"
+    )
 
 
 class ReconnectInput(Input):
@@ -310,6 +322,7 @@ def connect(
         data.provider,
         browser.token,
         agent_disclosure=approval.disclosure if approval is not None else None,
+        account=data.account,
     )
     _binding_cookie(response, request.app.state.settings, binding)
     return AuthorizationURL(authorization_url=url)
