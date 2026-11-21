@@ -58,6 +58,7 @@ def live(authenticated_world, api, tmp_path, monkeypatch):
         "instagram",
         "synthetic_youtube",
         "synthetic_meta_ads",
+        "synthetic_meta_capi",
     }
     lab.public = api.new_client(lab.config)
     return lab

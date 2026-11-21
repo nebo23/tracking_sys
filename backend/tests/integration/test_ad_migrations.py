@@ -1,4 +1,4 @@
-"""Specification 014 migrations, privileges and retention on disposable PostgreSQL (D-064 D13, D14).
+"""Specification 014 migrations, privileges and retention on disposable PostgreSQL (D-064 D13).
 
 Each revision upgrades on the disposable service only, its downgrade refuses populated state,
 the runtime and lifecycle roles hold only the column privileges the design lists, and the
@@ -16,7 +16,13 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
-from app.models import AdSpendFact, ConnectorConnection
+from app.models import (
+    AdSpendFact,
+    ConnectorConnection,
+    ConversionAcknowledgement,
+    ConversionDelivery,
+    ConversionDestination,
+)
 from app.services.lifecycle import run_lifecycle
 
 pytestmark = pytest.mark.integration
@@ -152,3 +158,110 @@ def test_0017_downgrade_and_upgrade_when_empty(db):
     finally:
         command.upgrade(CONFIG, "head")
     assert _version(db) == head
+
+
+def test_0018_privileges(db):
+    app, lifecycle = "tracking_app", "tracking_lifecycle"
+    tables = ("conversion_destinations", "conversion_deliveries", "conversion_acknowledgements")
+    for table in tables:
+        assert _privilege(db, app, table, "SELECT") and _privilege(db, app, table, "INSERT")
+        assert not _privilege(db, app, table, "DELETE"), table
+    for column in ("status", "reason", "ciphertext", "value_minor", "attempts", "ended_at"):
+        assert _privilege(db, app, "conversion_deliveries", "UPDATE", column), column
+    # The event ID, event time, deadline, consent basis and keys never change after enqueue.
+    for column in ("event_id", "event_time", "deadline", "consent_basis", "client_id"):
+        assert not _privilege(db, app, "conversion_deliveries", "UPDATE", column), column
+    assert not _privilege(db, app, "conversion_acknowledgements", "UPDATE", "outcome")
+    assert _privilege(db, app, "conversion_destinations", "UPDATE", "enabled")
+    assert not _privilege(db, app, "conversion_destinations", "UPDATE", "connection_id")
+    for table in ("conversion_deliveries", "conversion_acknowledgements"):
+        assert _privilege(db, lifecycle, table, "DELETE"), table
+    assert _privilege(db, lifecycle, "conversion_deliveries", "SELECT", "ended_at")
+    assert _privilege(db, lifecycle, "conversion_acknowledgements", "SELECT", "delivery_id")
+    for column in ("value_minor", "ciphertext", "event_id"):
+        assert not _privilege(db, lifecycle, "conversion_deliveries", "SELECT", column), column
+    assert not _privilege(db, lifecycle, "conversion_acknowledgements", "SELECT", "trace_id")
+    assert not _privilege(db, lifecycle, "conversion_destinations", "SELECT")
+
+
+def _delivery_rows(world, ended_at):
+    connection = _spend_connection(world)
+    with Session(world.db.migration, expire_on_commit=False) as session, session.begin():
+        session.execute(
+            text(
+                "UPDATE connector_connections SET provider = 'synthetic_meta_capi' WHERE id = :id"
+            ),
+            {"id": connection.id},
+        )
+        destination = ConversionDestination(
+            id=uuid4(),
+            agency_id=world.a,
+            client_id=world.a1,
+            connection_id=connection.id,
+            created_by_membership_id=world.owner_a,
+        )
+        session.add(destination)
+        session.flush()
+        rows = []
+        for index, ended in enumerate(ended_at):
+            event_time = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=index)
+            delivery = ConversionDelivery(
+                id=uuid4(),
+                agency_id=world.a,
+                client_id=world.a1,
+                destination_id=destination.id,
+                connection_id=connection.id,
+                event_id=f"{index:064x}",
+                event_name="Purchase",
+                action_source="system_generated",
+                event_time=event_time,
+                deadline=event_time + timedelta(days=6, hours=23),
+                currency="USD",
+                currency_exponent=2,
+                value_minor=100,
+                status="delivered",
+                attempts=1,
+                consent_basis=[],
+                policy_version="003-B.1",
+                delivered_at=ended,
+                ended_at=ended,
+            )
+            session.add(delivery)
+            session.flush()
+            session.add(
+                ConversionAcknowledgement(
+                    id=uuid4(),
+                    agency_id=world.a,
+                    client_id=world.a1,
+                    delivery_id=delivery.id,
+                    attempt=1,
+                    outcome="accepted",
+                    events_received=1,
+                    trace_id="SYNTRACE",
+                )
+            )
+            rows.append(delivery.id)
+    return rows
+
+
+def test_lifecycle_deletes_ended_deliveries_after_30_days(
+    world, lifecycle_engine, lifecycle_settings
+):
+    now = datetime.now(UTC)
+    old, recent = _delivery_rows(world, [now - timedelta(days=31), now - timedelta(days=29)])
+    result = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert result["deleted"]["conversion_acknowledgements"] == 1
+    assert result["deleted"]["conversion_deliveries"] == 1
+    assert result["status"] == "completed"
+    with Session(world.db.migration) as session:
+        assert session.scalars(select(ConversionDelivery.id)).all() == [recent]
+        assert session.scalars(select(ConversionAcknowledgement.delivery_id)).all() == [recent]
+    assert old != recent
+
+
+def test_0018_downgrade_refuses_delivery_state(world):
+    head = _version(world.db)
+    _delivery_rows(world, [datetime.now(UTC)])
+    with pytest.raises(RuntimeError, match="Refuse to remove populated delivery state"):
+        command.downgrade(CONFIG, "0017_ad_spend")
+    assert _version(world.db) == head

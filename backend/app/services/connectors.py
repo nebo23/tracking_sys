@@ -89,7 +89,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.advertising import spend
+from app.advertising import outbox, spend
 from app.config import Settings
 from app.connectors.contracts import (
     UNAVAILABLE_REASONS,
@@ -106,6 +106,7 @@ from app.connectors.instagram import InstagramProvider
 from app.connectors.synthetic import SyntheticProvider
 from app.connectors.synthetic_instagram import SyntheticInstagramProvider
 from app.connectors.synthetic_meta_ads import SyntheticMetaAdsProvider
+from app.connectors.synthetic_meta_capi import SyntheticMetaCapiProvider
 from app.connectors.synthetic_youtube import SyntheticYouTubeProvider
 from app.connectors.youtube import YouTubeProvider
 from app.models import (
@@ -210,6 +211,9 @@ def build_providers(settings: Settings, today: date | None = None) -> dict[str, 
         )
         registry["synthetic_meta_ads"] = SyntheticMetaAdsProvider(
             state.with_name(state.stem + "-meta-ads" + state.suffix)
+        )
+        registry["synthetic_meta_capi"] = SyntheticMetaCapiProvider(
+            state.with_name(state.stem + "-meta-capi" + state.suffix)
         )
     if settings.connector_instagram_enabled and rules_allow("instagram", today or now_utc().date()):
         registry["instagram"] = InstagramProvider(
@@ -2408,6 +2412,7 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
             delete(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
         )
         spend.purge(session, connection.id)
+        outbox.end_connection(session, connection.id, now)
         _cancel_open_runs(session, connection.id, now, "connection_inactive")
         session.flush()
         completed = clock()

@@ -58,3 +58,48 @@ The first full integration run of 014-A found five failures, all expectations of
 | `finance:read` on the spend route (T-09) | `client:read` in the route and the service | Caught: `test_spend_reads_need_finance_access` |
 
 Caught 4 of 4.
+
+## 014-B: conversion delivery
+
+**Scope (D6 to D10, D13, D14).**
+- **Synthetic receiver.** `synthetic_meta_capi`, with the documented validation, `events_received`, deduplication by dataset, event name and event ID within 48 hours, and test events kept apart.
+- **Delivery connections.** One per dataset, requiring `ads_read` (V-14) and never synchronized.
+- **Destinations.** Disabled by default; Owner and Admin create, enable, disable and rename them, each with an audit event.
+- **Conversion source.** `candidates_from_ledger` and `candidates_from_feed` read the 007-A ledger, plus synthetic journeys.
+- **Enqueue.** E4 under the client's privacy lock: verified evidence, a net above zero, the deadline, the `fbc` match key, the action-source fields (website refused as `provider_field_missing`, V-9), replay and subject tombstones through `admission`, and `ads.measurement` with `sale_or_share`.
+- **Outbox.** Deterministic event IDs, the consent basis and policy version, and a sealed payload destroyed when the delivery ends.
+- **Worker step.** E5 in the claiming transaction (`FOR UPDATE SKIP LOCKED`), a 2-minute lease and attempt fence, and acknowledgements per attempt. Retries are capped at 5 attempts with a 30-second to 15-minute backoff, and the deadline is the age limit less 1 hour. Configuration rejections can be requeued at most 3 times; payload rejections can only be dismissed. An invalid token makes the connection `reconnect_required` and the delivery waits.
+- **Teardown and lifecycle.** The teardown cancels the connection's deliveries and disables its destination. The lifecycle runner deletes ended deliveries and their acknowledgements after 30 days.
+- **Routes and migration.** The destination and delivery routes, and migration `0018_conversion_delivery`.
+
+**Tests.**
+- `tests/integration/test_conversion_delivery.py`: T-20 to T-35, T-52 and the disconnect case. Consent records, events and erasure go through the 004 API, so C2 (T-21), C3 (T-23), C5 (T-24) and outbound replay blocking (T-25) run end to end on the disposable service.
+- `tests/integration/test_ad_migrations.py`: the `0018` privileges, its refused downgrade and the 30-day lifecycle deletion.
+- `tests/test_delivery_rules.py`: the `fbc` format, the deadline, the refusal order, the error classes and the synthetic receiver.
+
+Existing expectations updated: the registry sets, the table counts and approved rules, the known tables of the migration cycle, and the worker command's output, which now includes the delivery step (`test_connectors.py`).
+
+Fixed during verification: the lifecycle predicate first read `EXISTS (SELECT * ...)`, which the column-limited lifecycle role may not run. It now selects only `delivery_id`, and the role keeps its minimal privileges.
+
+**Verification of 014-B** (2026-11-21):
+
+| Check | Result |
+|---|---|
+| Ruff check and format | Clean (170 files) |
+| Unit suite | 671 passed, 382 deselected |
+| Integration suite on the disposable service | 378 passed, 3 skipped, 1 failed; the failure was the worker command's output expectation, updated and rerun: passed. 379 passed, 3 skipped in total |
+| OpenAPI snapshot | Regenerated; passing |
+
+**Mutation checks of 014-B.**
+
+| Safeguard (case) | Mutation | Result |
+|---|---|---|
+| Verified evidence at enqueue (T-20) | Check removed | Caught: `test_only_verified_sales_are_enqueued` and 3 refusal-order cases |
+| E5 recheck at the claim (T-23) | Recheck skipped | Caught: `test_c3_withdrawal_after_enqueue_blocks_at_claim` |
+| Replay tombstones (T-25) | Ignored | Caught: `test_tombstones_block_enqueue_claim_and_replay` |
+| Deterministic event ID (T-26) | A random part added | Caught: `test_repeated_enqueue_and_retry_keep_one_event` |
+| Attempt cap (T-27) | Raised to 50 | Caught: `test_attempt_cap_and_deadline` |
+| Deadline of a retry (T-27) | Ignored | Caught: `test_attempt_cap_and_deadline` |
+| `finance:read` on the delivery list (T-34) | `client:read` in the route and the service | Caught: `test_isolation_and_no_identifiers_in_answers` |
+
+Caught 7 of 7.

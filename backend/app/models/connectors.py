@@ -46,7 +46,7 @@ CONNECTION_FK = (
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
 PROVIDERS = (
     "provider IN ('synthetic', 'synthetic_instagram', 'instagram', 'synthetic_youtube', "
-    "'youtube', 'synthetic_meta_ads')"
+    "'youtube', 'synthetic_meta_ads', 'synthetic_meta_capi')"
 )
 # 011-A (D8): media product types of Instagram and YouTube.
 PRODUCT_TYPES = (

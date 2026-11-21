@@ -275,6 +275,8 @@ def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
         "teardown": {"disconnected": 1},
         "schedule": {},
         "sync": {},
+        # 014-B: the worker command also runs a bounded delivery step.
+        "delivery": {},
     }
 
     body = lab.view("owner_a", w.a, w.a1, k1).json()
@@ -315,6 +317,7 @@ def test_disconnect_through_worker_command_isolates_other_clients(lab, capfd):
         "teardown": {},
         "schedule": {},
         "sync": {"succeeded": 2},
+        "delivery": {},
     }
     assert lab.records(k2) == 3 and lab.records(k3) == 3
 

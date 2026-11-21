@@ -45,6 +45,11 @@ from app.models.connectors import (
     ConnectorUsageRecord,
     ConnectorWebhookDelivery,
 )
+from app.models.delivery import (
+    ConversionAcknowledgement,
+    ConversionDelivery,
+    ConversionDestination,
+)
 from app.models.links import (
     LinkCampaign,
     LinkContentReference,
@@ -109,4 +114,7 @@ __all__ = [
     "AdAccount",
     "AdObject",
     "AdSpendFact",
+    "ConversionAcknowledgement",
+    "ConversionDelivery",
+    "ConversionDestination",
 ]
