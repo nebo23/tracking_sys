@@ -3,8 +3,9 @@
 # Importing this package registers every mapped table in Base.metadata, which Alembic's env.py
 # and the readiness/model-agreement checks rely on. It covers the 002-A tenancy models, the
 # approved 002-B/C/D authentication and access models, the D-022 identity and verification
-# models, the D-027 event collection models, the D-033 managed-link models, and the D-048
-# connector lifecycle models, and the D-064 advertising models.
+# models, the D-027 event collection models, the D-033 managed-link models, the D-048
+# connector lifecycle models, the D-064 advertising models, and the D-067 revenue and
+# payment models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
@@ -58,6 +59,7 @@ from app.models.links import (
     LinkUtmTemplate,
     ManagedLink,
 )
+from app.models.revenue import RevenueEvidence
 from app.models.tenancy import (
     Agency,
     AgencyMembership,
@@ -117,4 +119,5 @@ __all__ = [
     "ConversionAcknowledgement",
     "ConversionDelivery",
     "ConversionDestination",
+    "RevenueEvidence",
 ]

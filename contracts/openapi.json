@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection.",
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue (specification 015): the client ledger derived from stored evidence.",
     "version": "0.5.0"
   },
   "paths": {
@@ -14336,6 +14336,140 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/revenue": {
+      "get": {
+        "tags": [
+          "Revenue"
+        ],
+        "summary": "Read Revenue",
+        "operationId": "read_revenue_agencies__agency_id__clients__client_id__revenue_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/connectors/oauth/callback": {
       "get": {
         "tags": [
@@ -16321,6 +16455,135 @@
         ],
         "title": "CoverageResponse"
       },
+      "DeclaredItem": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          },
+          "parent_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Operation Id"
+          },
+          "intake": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intake"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "kind",
+          "amount",
+          "currency",
+          "effective_at",
+          "parent_operation_id",
+          "intake",
+          "reason",
+          "source_reference"
+        ],
+        "title": "DeclaredItem"
+      },
+      "DeclaredRevenue": {
+        "properties": {
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "totals",
+          "items"
+        ],
+        "title": "DeclaredRevenue"
+      },
+      "DeclaredTotal": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "sales": {
+            "type": "string",
+            "title": "Sales"
+          },
+          "refunds": {
+            "type": "string",
+            "title": "Refunds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "sales",
+          "refunds"
+        ],
+        "title": "DeclaredTotal"
+      },
       "DeletionReceiptResponse": {
         "properties": {
           "url": {
@@ -17531,6 +17794,77 @@
         ],
         "title": "IssuedSource"
       },
+      "LedgerEntry": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "kind",
+          "amount",
+          "effective_at"
+        ],
+        "title": "LedgerEntry"
+      },
+      "LedgerTransaction": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "source_account_id": {
+            "type": "string",
+            "title": "Source Account Id"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          },
+          "net": {
+            "type": "string",
+            "title": "Net"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "source_account_id",
+          "currency",
+          "effective_at",
+          "net",
+          "entries"
+        ],
+        "title": "LedgerTransaction"
+      },
       "LinkInput": {
         "properties": {
           "slug": {
@@ -18184,6 +18518,57 @@
         ],
         "title": "PasswordReset"
       },
+      "PendingAdjustment": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "parent_operation_id": {
+            "type": "string",
+            "title": "Parent Operation Id"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "kind",
+          "parent_operation_id",
+          "amount",
+          "currency",
+          "effective_at",
+          "reason"
+        ],
+        "title": "PendingAdjustment"
+      },
       "ReadinessResponse": {
         "properties": {
           "status": {
@@ -18212,6 +18597,24 @@
         },
         "type": "object",
         "title": "Received"
+      },
+      "ReconciliationEntry": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason"
+        ],
+        "title": "ReconciliationEntry"
       },
       "ReconnectInput": {
         "properties": {
@@ -18430,6 +18833,43 @@
           "password"
         ],
         "title": "Registration"
+      },
+      "RevenueReport": {
+        "properties": {
+          "verified": {
+            "$ref": "#/components/schemas/VerifiedRevenue"
+          },
+          "declared": {
+            "$ref": "#/components/schemas/DeclaredRevenue"
+          },
+          "pending": {
+            "items": {
+              "$ref": "#/components/schemas/PendingAdjustment"
+            },
+            "type": "array",
+            "title": "Pending"
+          },
+          "reconciliation": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationEntry"
+            },
+            "type": "array",
+            "title": "Reconciliation"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verified",
+          "declared",
+          "pending",
+          "reconciliation",
+          "truncated"
+        ],
+        "title": "RevenueReport"
       },
       "Role": {
         "type": "string",
@@ -19499,6 +19939,73 @@
           "domain"
         ],
         "title": "VerificationResponse"
+      },
+      "VerifiedRevenue": {
+        "properties": {
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/VerifiedTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerTransaction"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "totals",
+          "transactions"
+        ],
+        "title": "VerifiedRevenue"
+      },
+      "VerifiedTotal": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "captured": {
+            "type": "string",
+            "title": "Captured"
+          },
+          "refunded": {
+            "type": "string",
+            "title": "Refunded"
+          },
+          "charged_back": {
+            "type": "string",
+            "title": "Charged Back"
+          },
+          "reversed": {
+            "type": "string",
+            "title": "Reversed"
+          },
+          "corrected": {
+            "type": "string",
+            "title": "Corrected"
+          },
+          "net": {
+            "type": "string",
+            "title": "Net"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "captured",
+          "refunded",
+          "charged_back",
+          "reversed",
+          "corrected",
+          "net"
+        ],
+        "title": "VerifiedTotal"
       }
     },
     "securitySchemes": {

@@ -30,8 +30,9 @@ USER_REFERENCES = [
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
     # 43 application tables at 0016_youtube_provider, three more at 0017_ad_spend (014-A),
-    # three more at 0018_conversion_delivery (014-B), plus alembic_version.
-    assert len(SCHEMA) == 50
+    # three more at 0018_conversion_delivery (014-B), one more at 0020_revenue_evidence
+    # (015-A), plus alembic_version.
+    assert len(SCHEMA) == 51
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():

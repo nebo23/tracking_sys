@@ -24,6 +24,7 @@ from app.api.links import redirect_router
 from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
 from app.api.public_cors import PlatformCors, PublicCollectionCors
+from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
 from app.config import Settings
@@ -91,7 +92,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "destination origins, custom domains, managed links, safe redirects, and a "
             "non-mutating public consent-state read for the website tracker. "
             "Connectors (specification 009-A): OAuth connection lifecycle with a synthetic "
-            "development provider, status, sync requests, and disconnection."
+            "development provider, status, sync requests, and disconnection. "
+            "Revenue (specification 015): the client ledger derived from stored evidence."
         ),
         lifespan=lifespan,
         responses={
@@ -203,6 +205,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(redirect_router)
     application.include_router(connectors_router)
     application.include_router(advertising_router)
+    application.include_router(revenue_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
     application.include_router(connector_provider_router)

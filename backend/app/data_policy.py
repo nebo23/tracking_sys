@@ -468,6 +468,20 @@ CLASSES: dict[str, DataClass] = {
             "014",
         ),
         DataClass(
+            "revenue.evidence",
+            "Received revenue evidence of one client: delivery and operation IDs, source "
+            "account, kind, evidence class, amount in minor units and currency, effective and "
+            "receipt times, parent operation, intake provenance, content digest and, for "
+            "declarations, the reason and source reference; no card, billing, shipping or "
+            "customer data (D-067 D6).",
+            Sensitivity.HIGH,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Kept for the life of the client workspace; legal retention pending Q-012 and Q-003 "
+            "(D-067 D14).",
+            "015",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1589,6 +1603,40 @@ TABLES: dict[str, TablePolicy] = {
             ),
         },
         (_row(APPROVED, "D-064", "Deleted with its delivery, 30 days after it ends (D13)."),),
+    ),
+    "revenue_evidence": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id"),
+            "actor": "account.reference",
+            **_same(
+                "revenue.evidence",
+                "sequence",
+                "delivery_id",
+                "source_account_id",
+                "operation_id",
+                "kind",
+                "classification",
+                "currency",
+                "currency_exponent",
+                "amount_minor",
+                "effective_at",
+                "received_at",
+                "parent_operation_id",
+                "reason",
+                "source_reference",
+                "intake",
+                "intake_id",
+                "content_digest",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-067; 017",
+                "Append-only; kept for the life of the client workspace (D14). Deletion with the "
+                "workspace belongs to 017 and 018; legal retention is pending Q-012 and Q-003.",
+            ),
+        ),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},
