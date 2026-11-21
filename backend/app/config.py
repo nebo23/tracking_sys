@@ -440,6 +440,9 @@ class LifecycleSettings(DatabaseSettings):
     connector_provider_retention_days: dict[str, int] = Field(
         default_factory=lambda: {"synthetic_youtube": 730, "youtube": 730}
     )
+    # 014 (D-064 decision D13, provisional development values): spend facts at most 730 days
+    # after their spend date.
+    ad_spend_retention_days: int = Field(default=730, ge=0, le=730)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

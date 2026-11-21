@@ -29,8 +29,9 @@ USER_REFERENCES = [
 
 def test_every_mapped_column_is_classified_with_a_row_rule():
     assert registry_problems(SCHEMA, USER_REFERENCES) == []
-    # 42 application tables at 0012_connector_webhooks plus alembic_version.
-    assert len(SCHEMA) == 44
+    # 43 application tables at 0016_youtube_provider, three more at 0017_ad_spend (014-A), plus
+    # alembic_version.
+    assert len(SCHEMA) == 47
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -138,6 +139,10 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("connector_checkpoints", "row", "D-049"),
         # D-049 (009-D): webhook delivery records are deleted 7 days after receipt.
         ("connector_webhook_deliveries", "row", "D-049"),
+        # D-064 (014-A, D13): spend rows leave with the disconnect, facts after 730 days.
+        ("ad_accounts", "row", "D-064"),
+        ("ad_objects", "row", "D-064"),
+        ("ad_spend_facts", "row", "D-064"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

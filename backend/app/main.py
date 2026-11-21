@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.api.advertising import router as advertising_router
 from app.api.auth import router as auth_router
 from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
@@ -201,6 +202,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(links_router)
     application.include_router(redirect_router)
     application.include_router(connectors_router)
+    application.include_router(advertising_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
     application.include_router(connector_provider_router)

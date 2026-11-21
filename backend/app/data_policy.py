@@ -397,6 +397,36 @@ CLASSES: dict[str, DataClass] = {
             "010",
         ),
         DataClass(
+            "advertising.account",
+            "Ad account of a spend connection: account ID, name, currency, time zone, status, "
+            "and the previous currency or time zone with the time of the change.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged when the connection's disconnect completes (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.object",
+            "Campaigns, ad sets and ads of a spend connection: IDs, parents, names and "
+            "effective statuses; advertiser business data, not personal data.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged when the connection's disconnect completes (D-064 D13).",
+            "014",
+        ),
+        DataClass(
+            "advertising.spend",
+            "Daily ad-level spend in exact minor units of the reported currency, impressions "
+            "and clicks, with refusals, revisions, provisional marking and provenance.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Purged at disconnect; deleted 730 days after the spend date (D-064 D13).",
+            "014",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1116,6 +1146,7 @@ TABLES: dict[str, TablePolicy] = {
                 "agent_approved_at",
                 "agent_disclosure",
             ),
+            "day_zone": "connector.account_reference",
         },
         (
             _row(
@@ -1161,6 +1192,7 @@ TABLES: dict[str, TablePolicy] = {
                 "agent_approved_at",
                 "agent_disclosure",
             ),
+            "requested_account": "connector.account_reference",
         },
         (_row(APPROVED, "D-048", "Deleted 1 day after consumption or expiry."),),
     ),
@@ -1327,6 +1359,92 @@ TABLES: dict[str, TablePolicy] = {
             ),
         },
         (_row(APPROVED, "D-049", "Deleted 7 days after receipt."),),
+    ),
+    "ad_accounts": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.account",
+                "account_id",
+                "name",
+                "currency",
+                "time_zone",
+                "account_status",
+                "previous_currency",
+                "currency_changed_at",
+                "previous_time_zone",
+                "time_zone_changed_at",
+                "observed_at",
+                "refreshed_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Kept while the connection is active and purged when its disconnect completes "
+                "(D13).",
+            ),
+        ),
+    ),
+    "ad_objects": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.object",
+                "object_id",
+                "level",
+                "campaign_id",
+                "adset_id",
+                "name",
+                "effective_status",
+                "first_observed_at",
+                "refreshed_at",
+                "source_run_id",
+                "adapter_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Kept while the connection is active and purged when its disconnect completes "
+                "(D13).",
+            ),
+        ),
+    ),
+    "ad_spend_facts": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "connection_id"),
+            **_same(
+                "advertising.spend",
+                "ad_id",
+                "adset_id",
+                "campaign_id",
+                "spend_date",
+                "time_zone",
+                "currency",
+                "spend_minor",
+                "impressions",
+                "clicks",
+                "refusal",
+                "provisional_until",
+                "revisions",
+                "first_observed_at",
+                "last_observed_at",
+                "source_run_id",
+                "adapter_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-064",
+                "Purged when the connection's disconnect completes; deleted by "
+                "tracking_lifecycle 730 days after the spend date at the latest (D13). No "
+                "production retention is approved (Q-012).",
+            ),
+        ),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

@@ -50,15 +50,22 @@ quota answer defers the run to the next reset. Incremental windows overlap by lo
 Records keep only allow-listed attributes with their refresh time, the label is refreshed from
 the provider, and objects missing from a complete inventory read are confirmed gone and purged
 from every stream. A connect carries the agent approval its provider requires.
+
+014-A (D-064) adds advertising providers. A connect names its ad account; after the exchange
+the adapter describes it with the new grant, and a grant that cannot read it ends the connect
+with account_unavailable. The connection keeps the account's day zone, incremental windows
+overlap in that zone, and the pages of advertising streams are stored in the spend tables
+under the same fence as the checkpoint. The disconnect purge removes them.
 """
 
 import base64
 import hashlib
 import hmac
 import logging
+import re
 import zlib
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
@@ -82,9 +89,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.advertising import spend
 from app.config import Settings
 from app.connectors.contracts import (
     UNAVAILABLE_REASONS,
+    AccountSnapshot,
     Capability,
     ConnectorProvider,
     ErrorKind,
@@ -96,6 +105,7 @@ from app.connectors.contracts import (
 from app.connectors.instagram import InstagramProvider
 from app.connectors.synthetic import SyntheticProvider
 from app.connectors.synthetic_instagram import SyntheticInstagramProvider
+from app.connectors.synthetic_meta_ads import SyntheticMetaAdsProvider
 from app.connectors.synthetic_youtube import SyntheticYouTubeProvider
 from app.connectors.youtube import YouTubeProvider
 from app.models import (
@@ -198,6 +208,9 @@ def build_providers(settings: Settings, today: date | None = None) -> dict[str, 
         registry["synthetic_youtube"] = SyntheticYouTubeProvider(
             state.with_name(state.stem + "-youtube" + state.suffix)
         )
+        registry["synthetic_meta_ads"] = SyntheticMetaAdsProvider(
+            state.with_name(state.stem + "-meta-ads" + state.suffix)
+        )
     if settings.connector_instagram_enabled and rules_allow("instagram", today or now_utc().date()):
         registry["instagram"] = InstagramProvider(
             settings.instagram_app_id, settings.instagram_app_secret.get_secret_value()
@@ -221,6 +234,18 @@ def provider_for(registry: Mapping[str, ConnectorProvider], name: str) -> Connec
     if provider is None:
         raise ConnectorError("provider_unavailable", 404)
     return provider
+
+
+# The form of an account a connect request names (014, D2).
+ACCOUNT_FORMS = {
+    "ad_account": re.compile(r"act_[1-9][0-9]{0,19}"),
+    "dataset": re.compile(r"[1-9][0-9]{0,19}"),
+}
+
+
+def valid_account(capability: Capability, account: str | None) -> bool:
+    form = ACCOUNT_FORMS.get(capability.named_account or "")
+    return form is not None and isinstance(account, str) and form.fullmatch(account) is not None
 
 
 def require_keys(settings: Settings) -> LocalKeyring:
@@ -493,6 +518,7 @@ class ConnectorAdmin(TenancyService):
         session_token: str,
         connection_id: UUID | None = None,
         agent_disclosure: str | None = None,
+        account: str | None = None,
     ) -> tuple[str, str]:
         actor = self._manager(agency_id, write=True)
         self._client(agency_id, client_id, active=True)
@@ -506,6 +532,16 @@ class ConnectorAdmin(TenancyService):
         required = provider.capability.agent_disclosure
         if required is not None and agent_disclosure != required:
             raise ConnectorError("agent_approval_required", 422)
+        # 014 (D2): a connect names its account; a reconnect names the connection's own.
+        if provider.capability.named_account is None:
+            if account is not None:
+                raise ConnectorError("invalid_account", 422)
+        elif connection_id is not None:
+            if account is not None and account != connection.external_account_id:
+                raise ConnectorError("invalid_account", 422)
+            account = connection.external_account_id
+        elif not valid_account(provider.capability, account):
+            raise ConnectorError("invalid_account", 422)
         require_keys(self.settings)
         raw_state, binding = new_token(), new_token()
         self.session.add(
@@ -522,6 +558,7 @@ class ConnectorAdmin(TenancyService):
                 expires_at=now_utc() + timedelta(seconds=TRANSACTION_SECONDS),
                 agent_approved_at=now_utc() if required is not None else None,
                 agent_disclosure=required,
+                requested_account=account,
             )
         )
         self.session.flush()
@@ -573,7 +610,7 @@ class ConnectorAdmin(TenancyService):
         if connection.status != "active":
             raise ConnectorError("connection_not_active", 409)
         names = stream_names(self.registry.get(connection.provider))
-        stream = stream or names[0]
+        stream = stream or (names[0] if names else "")
         if stream not in names:
             raise ConnectorError("invalid_stream", 422)
         existing = self.session.scalar(
@@ -626,6 +663,7 @@ class _Authorization:
     purpose: Purpose
     agent_approved_at: datetime | None = None
     agent_disclosure: str | None = None
+    requested_account: str | None = None
 
 
 # Lock the transaction by state digest, require the matching session-bound binding, no prior
@@ -666,6 +704,7 @@ def _consume(
             "connect" if item.purpose == "connect" else "reconnect",
             item.agent_approved_at,
             item.agent_disclosure,
+            item.requested_account,
         )
 
 
@@ -740,6 +779,7 @@ def _install(
     session_token: str,
     streams: tuple[str, ...] = ("objects",),
     capability: Capability | None = None,
+    snapshot: AccountSnapshot | None = None,
 ) -> ConnectorConnection:
     tenancy, member = _initiator(session, settings, authorization, session_token, write=True)
     now = now_utc()
@@ -784,6 +824,12 @@ def _install(
     if authorization.agent_approved_at is not None:
         connection.agent_approved_at = authorization.agent_approved_at
         connection.agent_disclosure = authorization.agent_disclosure
+    # 014 (D2, D4): the described account's day zone, and an ad account's snapshot.
+    if snapshot is not None:
+        connection.day_zone = snapshot.day_zone
+        if capability is not None and capability.named_account == "ad_account":
+            if not spend.store_snapshot(session, connection, snapshot, now):
+                raise ConnectorError("account_unavailable", 409)
     session.add(
         _new_secret(
             keyring,
@@ -875,6 +921,31 @@ def _grant_shared(engine: Engine, provider: ConnectorProvider, grant: TokenGrant
         return _account_shared(session, provider.capability.provider, grant.external_account_id)
 
 
+# Describe the account the connect named with the newly exchanged grant (014, D2). A grant that
+# cannot read it, an account the adapter reports under another ID, or an unusable answer ends
+# the connect with account_unavailable; a temporary failure with provider_unavailable.
+def _describe(
+    provider: ConnectorProvider, grant: TokenGrant, account: str | None
+) -> AccountSnapshot:
+    if not valid_account(provider.capability, account):
+        raise ConnectorError("account_unavailable", 409)
+    assert account is not None
+    try:
+        snapshot = provider.describe_account(grant.access_token, account)
+    except ProviderError as error:
+        if error.kind in {ErrorKind.RETRYABLE, ErrorKind.RATE_LIMITED}:
+            raise ConnectorError("provider_unavailable", 503) from None
+        raise ConnectorError("account_unavailable", 409) from None
+    if snapshot.account_id != account:
+        raise ConnectorError("account_unavailable", 409)
+    if provider.capability.connection_day_zone:
+        try:
+            ZoneInfo(snapshot.day_zone or "")
+        except (ValueError, KeyError):
+            raise ConnectorError("account_unavailable", 409) from None
+    return snapshot
+
+
 # Complete a provider callback. Raises ConnectorError with a callback code on any refusal.
 def complete_authorization(
     engine: Engine,
@@ -902,11 +973,20 @@ def complete_authorization(
             "provider_unavailable" if unavailable else "connection_failed", 400
         ) from None
     capability = provider.capability
+    snapshot: AccountSnapshot | None = None
     try:
         if grant.refusal is not None:
             raise ConnectorError("account_unavailable", 409)
         if capability.require_all_scopes and not set(capability.scopes) <= set(grant.scopes):
             raise ConnectorError("scopes_missing", 400)
+        if capability.named_account is not None:
+            snapshot = _describe(provider, grant, authorization.requested_account)
+            grant = replace(
+                grant,
+                external_account_id=snapshot.account_id,
+                account_label=snapshot.label,
+                account_kind=snapshot.kind,
+            )
         if authorization.purpose == "reconnect":
             _settle_previous(
                 engine, settings, keyring, provider, authorization, grant, session_token or ""
@@ -921,6 +1001,7 @@ def complete_authorization(
                 session_token or "",
                 stream_names(provider),
                 capability,
+                snapshot,
             )
             result = CallbackResult(authorization.purpose, connection.id)
     except Exception as error:
@@ -1062,6 +1143,9 @@ class _Claim:
     adapter_version: str | None = None
     refresh_mode: str = "refresh_token"
     access_refreshed_at: datetime | None = None
+    # 014-A (D2, D4): the connection's named account and day zone.
+    account: str | None = None
+    day_zone: str | None = None
 
 
 # Lock the claimed run and report this attempt's ownership: "owned" while the run is running
@@ -1370,9 +1454,11 @@ def _claim(
                 ConnectorCheckpoint.stream == stream,
             )
         )
+        zone = provider.capability.day_zone if provider is not None else None
+        if provider is not None and provider.capability.connection_day_zone:
+            zone = connection.day_zone
         if run.attempt == 0 and run.kind == "incremental":
             watermark = checkpoint.complete_through if checkpoint is not None else None
-            zone = provider.capability.day_zone if provider is not None else None
             if watermark is not None and spec is not None and zone is not None:
                 watermark = local_days_before(watermark, spec.overlap_days, zone)
             elif watermark is not None and spec is not None:
@@ -1408,6 +1494,8 @@ def _claim(
                     provider.capability.refresh_mode if provider is not None else "refresh_token"
                 ),
                 access_refreshed_at=access.last_refreshed_at,
+                account=connection.external_account_id,
+                day_zone=zone,
             ),
             False,
         )
@@ -1600,7 +1688,19 @@ def _store_page(
         if reason is not None or connection is None:
             _finish(session, claim, "canceled", now, reason or "fenced")
             return "discarded"
-        for record in page.records:
+        advertising = spec is not None and spec.storage == "advertising"
+        if advertising:
+            context = spend.PageContext(
+                claim.agency_id,
+                claim.client_id,
+                claim.connection_id,
+                claim.run_id,
+                claim.adapter_version,
+                claim.stream,
+                claim.day_zone,
+            )
+            spend.store_page(session, connection, context, page, now)
+        for record in () if advertising else page.records:
             attributes = {
                 name: value for name, value in record.attributes.items() if name in allowed
             }
@@ -1815,6 +1915,17 @@ def _renewal_due(capability: Capability, claim: _Claim, now: datetime) -> bool:
     )
 
 
+# The named account and day zone an advertising adapter reads with (014-A, D2, D4); other
+# adapters receive neither.
+def _account_arguments(capability: Capability, claim: _Claim) -> dict[str, str | None]:
+    arguments: dict[str, str | None] = {}
+    if capability.named_account is not None:
+        arguments["account"] = claim.account
+    if capability.connection_day_zone:
+        arguments["day_zone"] = claim.day_zone
+    return arguments
+
+
 # Read the claimed run's window page by page from its resume cursor. Every data call, refresh
 # included, is first reserved against the usage limits and settled with its outcome. The
 # clock is read at each step rather than once per claim (R009-11): a deferral counts from the
@@ -1867,6 +1978,7 @@ def _execute(
                 cursor=cursor,
                 since=claim.since,
                 until=claim.until,
+                **_account_arguments(capability, claim),
             )
         except ProviderError as error:
             _settle(engine, usage, error.kind.value, clock())
@@ -2295,6 +2407,7 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
         session.execute(
             delete(ConnectorRecord).where(ConnectorRecord.connection_id == connection.id)
         )
+        spend.purge(session, connection.id)
         _cancel_open_runs(session, connection.id, now, "connection_inactive")
         session.flush()
         completed = clock()
@@ -2309,7 +2422,7 @@ def _finalize(engine: Engine, connection_id: UUID, clock: Callable[[], datetime]
         )
         connection.destruction_status = connection.purge_status = "done"
         connection.external_account_id = connection.account_label = None
-        connection.account_kind = None
+        connection.account_kind = connection.day_zone = None
         connection.account_label_refreshed_at = connection.grant_expires_at = None
         connection.status, connection.disconnected_at = "disconnected", completed
         connection.teardown_lease_until, connection.updated_at = None, completed

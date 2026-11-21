@@ -45,7 +45,8 @@ CONNECTION_FK = (
 )
 MATERIAL = ("kek_id", "wrap_nonce", "wrapped_dek", "nonce", "ciphertext")
 PROVIDERS = (
-    "provider IN ('synthetic', 'synthetic_instagram', 'instagram', 'synthetic_youtube', 'youtube')"
+    "provider IN ('synthetic', 'synthetic_instagram', 'instagram', 'synthetic_youtube', "
+    "'youtube', 'synthetic_meta_ads')"
 )
 # 011-A (D8): media product types of Instagram and YouTube.
 PRODUCT_TYPES = (
@@ -177,6 +178,9 @@ class ConnectorConnection(Base):
     # members as agents, and the disclosure version approved. Kept after a disconnect.
     agent_approved_at: Mapped[datetime | None] = _time()
     agent_disclosure: Mapped[str | None] = mapped_column(String(64))
+    # 014-A (D4): the day zone of the connection's account, for providers whose days follow
+    # each account; cleared by the purge.
+    day_zone: Mapped[str | None] = mapped_column(String(64))
 
 
 # Single-use connect or reconnect authorization bound to the initiating membership, client,
@@ -223,6 +227,8 @@ class ConnectorOAuthTransaction(Base):
     # 011-A (D13): the agent approval the request carried, copied to the connection.
     agent_approved_at: Mapped[datetime | None] = _time()
     agent_disclosure: Mapped[str | None] = mapped_column(String(64))
+    # 014 (D2): the ad account or dataset the connect request named, checked after the exchange.
+    requested_account: Mapped[str | None] = mapped_column(String(32))
 
 
 # Sealed access or refresh token versions of one connection (TokenSecretReference, D-025).

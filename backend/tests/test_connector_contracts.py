@@ -128,6 +128,7 @@ def test_settings_fail_closed(settings, tmp_path):
         "synthetic",
         "synthetic_instagram",
         "synthetic_youtube",
+        "synthetic_meta_ads",
     }
     base = {"database_password": "synthetic", "_env_file": None}
     with pytest.raises(ValidationError):

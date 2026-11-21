@@ -255,11 +255,16 @@ def test_011c_migration_downgrade_refuses_live_youtube_state(live):
     lab, w = live, live.w
     assert _connect(lab, w.a1)["result"] == "connected"
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
+
+    def version():
+        with w.db.migration.connect() as connection:
+            return connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+
+    head = version()
     with pytest.raises(RuntimeError, match="Refuse to remove live YouTube connector state"):
         command.downgrade(config, "0015_youtube_runtime")
-    with w.db.migration.connect() as connection:
-        version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0016_youtube_provider"
+    # The refused downgrade leaves every revision in place, the 014 revisions included.
+    assert version() == head
 
 
 def _events(captured: str, name: str) -> list[dict]:

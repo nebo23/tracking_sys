@@ -13061,6 +13061,216 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/ad-spend": {
+      "get": {
+        "tags": [
+          "Advertising"
+        ],
+        "summary": "Read Ad Spend",
+        "operationId": "read_ad_spend_agencies__agency_id__clients__client_id__ad_spend_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Since"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Until"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ad",
+                "adset",
+                "campaign"
+              ],
+              "type": "string",
+              "default": "ad",
+              "title": "Level"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32,
+                  "pattern": "^[1-9][0-9]{0,31}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/connectors/oauth/callback": {
       "get": {
         "tags": [
@@ -14415,7 +14625,8 @@
               "synthetic_instagram",
               "instagram",
               "synthetic_youtube",
-              "youtube"
+              "youtube",
+              "synthetic_meta_ads"
             ],
             "title": "Provider"
           },
@@ -14428,6 +14639,20 @@
                 "type": "null"
               }
             ]
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1,
+                "pattern": "^(act_)?[1-9][0-9]{0,19}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
           }
         },
         "additionalProperties": false,
@@ -17144,6 +17369,320 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SourceUpdate"
+      },
+      "SpendAccount": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "time_zone": {
+            "type": "string",
+            "title": "Time Zone"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "previous_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Currency"
+          },
+          "currency_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Changed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "currency",
+          "time_zone",
+          "status",
+          "previous_currency",
+          "currency_changed_at"
+        ],
+        "title": "SpendAccount"
+      },
+      "SpendCoverage": {
+        "properties": {
+          "covered_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered From"
+          },
+          "complete_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complete Through"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_synced",
+              "partial",
+              "complete"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "covered_from",
+          "complete_through",
+          "state"
+        ],
+        "title": "SpendCoverage"
+      },
+      "SpendRefusals": {
+        "properties": {
+          "unparseable_amount": {
+            "type": "integer",
+            "title": "Unparseable Amount"
+          },
+          "unsupported_currency": {
+            "type": "integer",
+            "title": "Unsupported Currency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unparseable_amount",
+          "unsupported_currency"
+        ],
+        "title": "SpendRefusals"
+      },
+      "SpendReport": {
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpendAccount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign"
+            ],
+            "title": "Level"
+          },
+          "since": {
+            "type": "string",
+            "format": "date",
+            "title": "Since"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "title": "Until"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/SpendTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SpendRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After"
+          },
+          "provisional_dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Provisional Dates"
+          },
+          "refused": {
+            "$ref": "#/components/schemas/SpendRefusals"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/SpendCoverage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connection_id",
+          "account",
+          "level",
+          "since",
+          "until",
+          "totals",
+          "rows",
+          "next_after",
+          "provisional_dates",
+          "refused",
+          "coverage"
+        ],
+        "title": "SpendReport"
+      },
+      "SpendRow": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "spend": {
+            "type": "string",
+            "title": "Spend"
+          },
+          "spend_minor": {
+            "type": "integer",
+            "title": "Spend Minor"
+          },
+          "impressions": {
+            "type": "integer",
+            "title": "Impressions"
+          },
+          "clicks": {
+            "type": "integer",
+            "title": "Clicks"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name",
+          "currency",
+          "spend",
+          "spend_minor",
+          "impressions",
+          "clicks",
+          "provisional"
+        ],
+        "title": "SpendRow"
+      },
+      "SpendTotal": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "spend": {
+            "type": "string",
+            "title": "Spend"
+          },
+          "spend_minor": {
+            "type": "integer",
+            "title": "Spend Minor"
+          },
+          "impressions": {
+            "type": "integer",
+            "title": "Impressions"
+          },
+          "clicks": {
+            "type": "integer",
+            "title": "Clicks"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "spend",
+          "spend_minor",
+          "impressions",
+          "clicks",
+          "days"
+        ],
+        "title": "SpendTotal"
       },
       "StreamCoverage": {
         "properties": {
