@@ -15692,7 +15692,9 @@
               "synthetic_youtube",
               "youtube",
               "synthetic_meta_ads",
-              "synthetic_meta_capi"
+              "synthetic_meta_capi",
+              "meta_ads",
+              "meta_capi"
             ],
             "title": "Provider"
           },

@@ -72,6 +72,8 @@ class ConnectInput(Input):
         "youtube",
         "synthetic_meta_ads",
         "synthetic_meta_capi",
+        "meta_ads",
+        "meta_capi",
     ]
     agent_approval: AgentApproval | None = None
     account: str | None = Field(

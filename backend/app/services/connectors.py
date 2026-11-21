@@ -103,6 +103,7 @@ from app.connectors.contracts import (
     TokenGrant,
 )
 from app.connectors.instagram import InstagramProvider
+from app.connectors.meta_ads import MetaAdsProvider, MetaCapiProvider
 from app.connectors.synthetic import SyntheticProvider
 from app.connectors.synthetic_instagram import SyntheticInstagramProvider
 from app.connectors.synthetic_meta_ads import SyntheticMetaAdsProvider
@@ -185,6 +186,8 @@ CALLBACK_ERRORS = frozenset(
 LIVE_RULES = {
     "instagram": ("meta.platform_data", "instagram.login_api"),
     "youtube": ("youtube.authorized_analytics", "youtube.other_data"),
+    "meta_ads": ("meta.platform_data", "meta.marketing_api"),
+    "meta_capi": ("meta.platform_data", "meta.conversions_api"),
 }
 
 
@@ -194,8 +197,9 @@ def rules_allow(provider: str, today: date) -> bool:
 
 
 # The adapters this process may use: the development synthetic providers when their state
-# file is configured, and the live Instagram (010-C, D-055) and YouTube (011-C, D-060) adapters
-# when each is enabled and configured and its provider rules are current. A rule that becomes
+# file is configured, and the live Instagram (010-C, D-055), YouTube (011-C, D-060) and Meta
+# advertising (014-D, D-064) adapters when each is enabled and configured and its provider
+# rules are current. A rule that becomes
 # due for review takes effect when the registry is next built, at the API's or worker's next
 # start.
 def build_providers(settings: Settings, today: date | None = None) -> dict[str, ConnectorProvider]:
@@ -223,6 +227,16 @@ def build_providers(settings: Settings, today: date | None = None) -> dict[str, 
         registry["youtube"] = YouTubeProvider(
             settings.youtube_client_id, settings.youtube_client_secret.get_secret_value()
         )
+    # 014-D (D-064 D12): the Meta advertising adapters, each only while its rules are current.
+    if settings.connector_meta_ads_enabled:
+        meta = (
+            settings.meta_ads_app_id,
+            settings.meta_ads_app_secret.get_secret_value(),
+            settings.meta_ads_config_id,
+        )
+        for name, adapter in (("meta_ads", MetaAdsProvider), ("meta_capi", MetaCapiProvider)):
+            if rules_allow(name, today or now_utc().date()):
+                registry[name] = adapter(*meta)
     return registry
 
 

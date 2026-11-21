@@ -117,15 +117,18 @@ def test_destroying_a_reference_removes_the_ciphertext():
 def test_connector_rules_block_their_features_until_reverified():
     today = date(2026, 11, 4)
     connector_rules = [rule for rule in providers.RULES if rule.provider != "google"]
-    assert len(connector_rules) == 11
+    assert len(connector_rules) == 12
     # Specification 010-C (D-055) re-verified the Meta platform data and Instagram Login rows,
-    # and 011-C (D-060) the two YouTube rows; every other connector row stays stale and
-    # blocking until its own specification.
+    # 011-C (D-060) the two YouTube rows, and 014-D (D-064) the Meta Conversions API row and the
+    # new Meta Marketing API row; every other connector row stays stale and blocking until its
+    # own specification.
     reviews = {
         "meta.platform_data": (date(2026, 11, 17), date(2027, 11, 17)),
         "instagram.login_api": (date(2026, 11, 17), date(2027, 11, 17)),
         "youtube.authorized_analytics": (date(2026, 11, 18), date(2027, 11, 18)),
         "youtube.other_data": (date(2026, 11, 18), date(2027, 11, 18)),
+        "meta.conversions_api": (date(2026, 11, 20), date(2027, 11, 20)),
+        "meta.marketing_api": (date(2026, 11, 20), date(2027, 11, 20)),
     }
     reverified = set(reviews)
     assert {rule.rule_id for rule in connector_rules if rule.rule_id not in reverified} == {

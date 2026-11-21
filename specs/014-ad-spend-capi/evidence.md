@@ -132,3 +132,35 @@ The full integration suite runs again with 014-D and in Phase 6.
 | Currency rule (T-43) | Removed | Caught: `test_currency_mismatch_has_no_value` and `test_zero_spend_currency_mismatch_and_spend_states` |
 
 Caught 2 of 2.
+
+## 014-D: live adapters with fixture tests
+
+**Scope (D12, D14).** `app/connectors/meta_ads.py` provides `MetaAdsProvider` (`meta_ads`) and `MetaCapiProvider` (`meta_capi`) over the standard library, with Graph API `v27.0` (V-17):
+- **Authorization.** The Facebook Login for Business dialog with the configuration ID, `response_type=code` and `override_default_response_type=true`, and no `scope` (V-7). The code exchange is followed by `debug_token` with the app token, and the granted permissions are recorded.
+- **Tokens.** No expiry and no refresh. Revocation is `unsupported`, and no signed requests are declared (V-7).
+- **Spend reads.** The ad account node, the campaigns, ad sets and ads edges with `cursors.after`, and daily ad-level insights in windows of at most 7 days (V-1 to V-5).
+- **Delivery.** The Conversions API sender sends one event per request with `user_data` = `{fbc}` only, never hashed, and strips any field outside D8 (V-8 to V-12).
+- **Error mapping.** That of V-6 and V-13. A usage header at 90 percent or more defers the run before Meta throttles.
+- **Settings.** `TRACKING_CONNECTOR_META_ADS_ENABLED` (default false), `TRACKING_META_ADS_APP_ID`, `TRACKING_META_ADS_APP_SECRET` and `TRACKING_META_ADS_CONFIG_ID`. When enabled, they require a numeric app ID, a non-blank secret and a numeric configuration ID, separate from the Instagram settings. They are listed blank in `.env.example`.
+- **Rules.** `meta.conversions_api` is re-verified, and `meta.marketing_api` (data class `advertising.spend`, registered in `app.data_policy`) is added. Both were verified on 2026-11-20 against the pages of section 2.4, with the review due 2027-11-20. `LIVE_RULES` requires `meta.platform_data` with `meta.marketing_api` for `meta_ads`, and with `meta.conversions_api` for `meta_capi`.
+- **Migration.** `0019_meta_providers` admits both providers; its downgrade refuses their state.
+
+**Tests.**
+- `tests/test_connector_meta.py` against the in-memory Graph `tests/meta_graph.py`:
+  - T-50: registration needs the setting, the configuration and current rules; a stale or overdue rule removes the adapter.
+  - T-51: the authorization URL, the exchange with `debug_token`, the account and inventory pages, insights parsing (decimal strings, local days, windows, cursors), eleven error classes, the usage-header deferral, and Conversions API request building (no field outside D8, `fbc` unhashed, the test event code).
+  - T-52: `ads_read` is required and nothing more is asked.
+  - T-53: an autouse guard fails any socket or `urlopen` use, and the default transport is shown to be the only network path.
+- `tests/integration/test_ad_migrations.py`: the `0019` downgrade refusal for both providers.
+- `test_privacy_secrets_restore.py`: updated for the two re-verified rows.
+
+**Verification of 014-D** (2026-11-21):
+
+| Check | Result |
+|---|---|
+| Ruff check and format | Clean |
+| Unit suite | 700 passed, 385 deselected |
+| Integration suite on the disposable service | 383 passed, 3 skipped (the browser journeys), 701 deselected; one pydantic `UnsupportedFieldAttributeWarning` from the existing 002 test `test_concurrent_invitation_acceptance_creates_one_membership`, unrelated to 014 |
+| OpenAPI snapshot | Regenerated; passing |
+
+**Mutation check of 014-D.** The rule check in `build_providers` was removed (`if True:`). Caught by `test_registration_needs_settings_and_current_rules`: 1 of 1.

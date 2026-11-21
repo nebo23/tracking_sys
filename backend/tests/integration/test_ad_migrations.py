@@ -265,3 +265,17 @@ def test_0018_downgrade_refuses_delivery_state(world):
     with pytest.raises(RuntimeError, match="Refuse to remove populated delivery state"):
         command.downgrade(CONFIG, "0017_ad_spend")
     assert _version(world.db) == head
+
+
+def test_0019_admits_and_protects_the_live_meta_providers(world):
+    head = _version(world.db)
+    connection = _spend_connection(world)
+    for provider in ("meta_ads", "meta_capi"):
+        with Session(world.db.migration) as session, session.begin():
+            session.execute(
+                text("UPDATE connector_connections SET provider = :provider WHERE id = :id"),
+                {"provider": provider, "id": connection.id},
+            )
+        with pytest.raises(RuntimeError, match="Refuse to remove live Meta connector state"):
+            command.downgrade(CONFIG, "0018_conversion_delivery")
+        assert _version(world.db) == head
