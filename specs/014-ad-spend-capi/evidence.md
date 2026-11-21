@@ -164,3 +164,67 @@ Caught 2 of 2.
 | OpenAPI snapshot | Regenerated; passing |
 
 **Mutation check of 014-D.** The rule check in `build_providers` was removed (`if True:`). Caught by `test_registration_needs_settings_and_current_rules`: 1 of 1.
+
+## Phase 6: final verification
+
+At `2b9c6d6`, whose backend tree is the one under review (the later records commit changes documentation only). From `backend/` with the project `.venv` on 2026-11-21:
+
+```powershell
+..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m ruff format --check .
+..\.venv\Scripts\python.exe -m pytest -m "not integration" -q
+# Disposable PostgreSQL 18 (Compose project tracking-014-test on 127.0.0.1:55433), through a
+# runner that drops inherited TRACKING_/PG/PYTHON variables and loads synthetic credentials:
+python run_db.py . pytest -m integration -q -rs
+python mutations_014.py a b c d   # from the worktree root
+```
+
+| Check | Result |
+|---|---|
+| Ruff check | All checks passed |
+| Ruff format | 177 files already formatted |
+| Unit suite | 701 passed, 386 deselected |
+| Integration suite | 383 passed, 3 skipped (the Spec 005 browser journeys), 701 deselected; no failure and no warning |
+| OpenAPI snapshot (`tests/test_contract.py`) | Passed; `contracts/openapi.json` includes the spend, destination and delivery routes |
+| New regressions | All pass within the suites above. 014-A: 11 integration, 4 migration and lifecycle, and 30 unit cases. 014-B: 18 integration, 3 migration and lifecycle, and 33 unit cases. 014-C: 3 integration and 9 unit cases. 014-D: 21 unit cases and 1 migration case. |
+| Mutation checks | Caught 14 of 14 (four of 014-A, seven of 014-B, two of 014-C, one of 014-D); every source restored byte for byte |
+
+Skipped tests are reported as skipped, not as passed: the three browser journeys of Spec 005 need `TRACKING_RUN_BROWSER_TESTS=1` with installed browsers and are outside 014.
+
+## Decisions and amendments
+
+D1-D14 apply as approved by D-064. No fact of Phase 0 changed a decision, so none went back to the owner. The parameter-level corrections applied (design note, section 1):
+- **V-14.** The delivery permission is `ads_read`; the V-14 row of entry review section 2.3 assigns this to recording. The read and delivery separation of D2 therefore rests on separate connections and tokens, not on different permissions.
+- **V-7.** Login for Business tokens have no refresh, so an invalid token makes a connection `reconnect_required` at once instead of after one refresh (T-07). No revocation endpoint and no callbacks are documented, so revocation is `unsupported` and no signed requests are declared.
+- **V-9.** The consequence that D8 states applies: website conversions are refused as `provider_field_missing`.
+- **V-8.** One invalid event no longer fails a whole batch; this does not affect D9, which sends one event per request.
+- **V-2, V-4, V-5, V-6, V-10, V-17.** The currency allow-list, the 28-day provisional window, the 730-day backfill bound (D13), the throttling codes and wait, the `fbc` form and Graph `v27.0`.
+
+## Limitations
+
+- **Documentation only.** The live adapters are built from documentation and tested against an in-memory Graph. Details that no readable page settled stay unverified until 014-E:
+  - whether insights at ad level include deleted or archived ads by default;
+  - the dataset node read (`GET /<dataset>?fields=id,name`);
+  - whether the business integration system user exchange accepts `redirect_uri` (the manual flow requires it; the Login for Business sample omits it);
+  - the `events_received` and `fbtrace_id` answer fields, taken from the S-70 research;
+  - Conversions API-specific error subcodes;
+  - the exact layouts of the usage headers;
+  - the numeric form of the configuration ID.
+- **Website conversions** cannot be delivered until the owner decides how browser fields may be obtained (D8). Match rates with `fbc` alone will be low.
+- **Conversion source.** It is the in-memory 007-A calculation or journal with synthetic journeys; 007-B and 006 replace it. Sale-level provider-object tombstones arrive with 007-B; replay blocking in 014 covers the subject tokens and the 004 event IDs a conversion references.
+- **Event IDs** are keyed with `TRACKING_AUTH_SECRET`. Rotating it changes the IDs of deliveries not yet enqueued, so a sale re-enqueued across a rotation within 48 hours could be counted twice.
+- **Cancellation while sending.** A delivery cancelled while an attempt is in flight (a destination disabled, a connection torn down) may still reach Meta; that attempt's result is not recorded.
+- **Age limit.** It is 7 days for every action source, although Meta advises up to 62 days for physical store events.
+- **Values** are sent as JSON numbers, exact only below 10^15 minor units; larger values are refused at enqueue.
+- **No routes for ROAS** (016), **no destination or account screens** (018, D-039), and **no production scheduling** of the worker (020).
+- **No native migration.** `0017` to `0019` ran only on the disposable service; native `tracking_sys` has none of the migrations after `0004_identity`.
+
+## Follow-ups
+
+- **014-E.** A read-only live spend check with the owner's Meta app (Facebook Login for Business and the Marketing API) and an ad account the owner controls, confirming the unverified details above. A browser connect needs a registered HTTPS redirect (020) or an approved feasibility tool.
+- **014-F.** Test events to an owner dataset with a test event code. This writes to Meta and needs its own approval.
+- **014-G.** App Review for `ads_read`, Business Verification, Tech Provider status if required, the Data Use Checkup, and HTTPS hosting with the redirect (020). The client's authority as principal for the Business Tools Terms (V-16) belongs to that onboarding.
+- **Owner decisions.** Browser fields for website events (D8, V-9), and email or phone match keys after 006.
+- **Dependent work.** The 007-B journal as the persisted conversion source; ROAS read routes and reports (016); destination and account screens (018); production scheduling (020).
+- **Later providers.** Google Ads, and LinkedIn Ads with Spec 012 when the owner resumes it.
+- **Separate decisions.** Native `tracking_sys` migration (`0005` to `0019` and the lifecycle role) and deployment.
