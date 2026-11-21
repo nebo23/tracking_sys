@@ -185,6 +185,12 @@ class Settings(DatabaseSettings):
     meta_ads_app_id: str = ""
     meta_ads_app_secret: SecretStr = SecretStr("")
     meta_ads_config_id: str = ""
+    # Paymob payments (specification 015-B, D-067 decision D12). The Paymob source type stays
+    # off unless explicitly enabled, and it is usable only while the payments.processor_records
+    # and paymob.accept provider rules are current. Merchant HMAC secrets are entered through
+    # the API and sealed under the token keyring; none belongs in .env. Spec 015 makes no call
+    # to Paymob.
+    payments_paymob_enabled: bool = False
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -473,6 +479,9 @@ class LifecycleSettings(DatabaseSettings):
     ad_spend_retention_days: int = Field(default=730, ge=0, le=730)
     # Ended conversion deliveries and their acknowledgements 30 days after they end (D13).
     delivery_retention_days: int = Field(default=30, ge=0, le=30)
+    # 015 (D-067 decision D14, provisional development values): Paymob callback diagnostics
+    # 30 days after receipt; replaced payment source secrets are deleted once retired.
+    payment_diagnostic_retention_days: int = Field(default=30, ge=0, le=30)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

@@ -482,6 +482,26 @@ CLASSES: dict[str, DataClass] = {
             "015",
         ),
         DataClass(
+            "payment.source",
+            "Paymob payment source of one client: provider, region, name, status, the public key "
+            "of its callback URL, creator and times; no card or customer data.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017); disabled to stop intake (D-067 D14).",
+            "015",
+        ),
+        DataClass(
+            "payment.callback_diagnostic",
+            "One verified Paymob callback: source, a digest of the received signature, receipt "
+            "time and a closed outcome and reason; no payload.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Deleted 30 days after receipt (D-067 D14).",
+            "015",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1637,6 +1657,70 @@ TABLES: dict[str, TablePolicy] = {
                 "workspace belongs to 017 and 018; legal retention is pending Q-012 and Q-003.",
             ),
         ),
+    ),
+    "payment_sources": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "payment.source",
+                "provider",
+                "region",
+                "name",
+                "status",
+                "public_key",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-067; 017",
+                "Kept until workspace deletion (017); a source is disabled to stop intake (D14).",
+            ),
+        ),
+    ),
+    "payment_source_secrets": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "credential.sealed_secret",
+                "version",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same("credential.lifecycle", "created_at", "retires_at"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-067",
+                "A replaced secret retires 24 hours later and is then deleted by "
+                "tracking_lifecycle (D14).",
+            ),
+        ),
+    ),
+    "payment_callback_diagnostics": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "payment.callback_diagnostic",
+                "delivery_digest",
+                "received_at",
+                "outcome",
+                "reason",
+            ),
+        },
+        (_row(APPROVED, "D-067", "Deleted by tracking_lifecycle 30 days after receipt (D14)."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

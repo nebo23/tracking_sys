@@ -59,6 +59,7 @@ from app.models.links import (
     LinkUtmTemplate,
     ManagedLink,
 )
+from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
 from app.models.revenue import RevenueEvidence
 from app.models.tenancy import (
     Agency,
@@ -119,5 +120,8 @@ __all__ = [
     "ConversionAcknowledgement",
     "ConversionDelivery",
     "ConversionDestination",
+    "PaymentCallbackDiagnostic",
+    "PaymentSource",
+    "PaymentSourceSecret",
     "RevenueEvidence",
 ]

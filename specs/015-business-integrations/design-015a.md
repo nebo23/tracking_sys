@@ -181,17 +181,18 @@ A posting also needs `amount_cents` a positive integer, a currency with exponent
 
 | Case | Test |
 |---|---|
-| T-10 (M) | `tests/integration/test_paymob.py::test_signed_callback_is_accepted`, `::test_invalid_signatures_store_nothing`; `tests/test_paymob.py::test_documented_hmac_string` |
+| T-10 (M) | `tests/integration/test_paymob.py::test_signed_callback_is_accepted`, `::test_invalid_signatures_store_nothing`; `tests/test_paymob_contract.py::test_documented_hmac_string` |
 | T-11 | `test_paymob.py::test_previous_secret_accepted_for_24_hours` |
 | T-12 (M) | `test_paymob.py::test_repeated_callback_counts_once` |
 | T-13 | `test_paymob.py::test_refund_before_sale_and_every_order` |
-| T-14 (M) | `test_paymob.py::test_states_follow_the_mapping`; `tests/test_paymob.py::test_mapping_table` |
+| T-14 (M) | `test_paymob.py::test_states_follow_the_mapping`; `tests/test_paymob_contract.py::test_mapping_table` |
 | T-15 | `test_paymob.py::test_unmapped_state_is_counted_and_answered` |
 | T-16 (M) | `test_paymob.py::test_no_card_or_customer_field_is_stored_logged_or_returned` |
 | T-17 | `test_paymob.py::test_response_redirect_is_never_evidence` |
 | T-18 | `test_paymob.py::test_body_bounds` |
 | T-19 | `test_paymob.py::test_unknown_and_disabled_sources_answer_like_invalid_signatures` |
-| T-20 (M) | `test_paymob.py::test_gate_and_rules`; `tests/test_paymob.py::test_rules_gate` |
+| T-20 (M) | `test_paymob.py::test_gate_and_rules`; `tests/test_paymob_contract.py::test_rules_gate` |
+| Unit cases | `tests/test_paymob_contract.py` (pure verification, minimization and mapping; named apart from the integration module) |
 | T-21 | `test_paymob.py::test_rates_per_source_and_peer` |
 | A1 | `test_paymob.py::test_test_mode_posts_nothing` |
 | Sources | `test_paymob.py::test_source_routes_permissions_and_audit` |
@@ -203,9 +204,9 @@ A posting also needs `amount_cents` a positive integer, a currency with exponent
 
 UTF-8 (an initial byte order mark is ignored), comma separated, quoted as RFC 4180 (`csv` module), header row first. Required columns: `operation_id`, `kind`, `amount`, `currency`, `effective_at`. Optional columns: `parent_operation_id`, `source_reference`, `reason`. Order is free. At most 2 MiB and 10,000 data rows.
 
-**File refusals** (422, nothing returned per row): `invalid_encoding`, `invalid_csv`, `empty_file`, `missing_column`, `duplicate_column`, `unknown_column`, `personal_data_column` (a header that names, after lowercasing and removing spaces, hyphens and underscores, `name`, `firstname`, `lastname`, `fullname`, `customer`, `email`, `mail`, `phone`, `mobile`, `telephone`, `address`, `street`, `city` or `postcode`, or contains `email`, `phone` or `address`), `too_many_rows`. A larger body is answered 413 by the boundary.
+**File refusals** (422, nothing returned per row): `file_too_large` (a defence behind the 413 of the boundary), `invalid_encoding`, `invalid_csv`, `empty_file`, `missing_column`, `duplicate_column`, `unknown_column`, `personal_data_column` (a header that names, after lowercasing and removing spaces, hyphens and underscores, `name`, `firstname`, `lastname`, `fullname`, `customer`, `email`, `mail`, `phone`, `mobile`, `telephone`, `address`, `street`, `city` or `postcode`, or contains `email`, `phone` or `address`), `too_many_rows`. A larger body is answered 413 by the boundary.
 
-**Row error codes** (closed; a row may carry several): `wrong_field_count`, `formula_cell` (a cell beginning with `=`, `+`, `-`, `@`, a tab or a carriage return), `missing_value`, `invalid_operation_id` (1-128 printable characters), `invalid_kind` (`sale` or `refund`), `invalid_amount` (a positive decimal in major units with at most the currency's exponent of decimals), `unsupported_currency` (the 014 allow list), `invalid_time` (ISO 8601 with an offset, not after the receipt time plus one day), `invalid_parent` (required for a refund, absent for a sale, not equal to the operation), `value_too_long` (reason above 1,024 or source reference above 256 characters), `prohibited_value` (a card number, email address or phone number in the reason or source reference), `duplicate_row` (an operation ID already used by an earlier row of the file).
+**Row error codes** (closed; a row may carry several): `wrong_field_count`, `formula_cell` (a cell beginning with `=`, `+`, `-`, `@`, a tab or a carriage return), `missing_value`, `invalid_operation_id` (1-128 printable characters), `invalid_kind` (`sale` or `refund`), `invalid_amount` (a positive decimal in major units with at most the currency's exponent of decimals), `unsupported_currency` (the 014 allow list), `invalid_time` (ISO 8601 with an offset, not after the receipt time plus one day), `invalid_parent` (required for a refund, absent for a sale, not equal to the operation), `value_too_long` (reason above 1,024 or source reference above 256 characters), `invalid_text` (a non-printable character in the reason or source reference), `prohibited_value` (a card number, an email address or a phone number in international form in the reason or source reference), `duplicate_row` (an operation ID already used by an earlier row of the file).
 
 ### 5.2 Flow and records
 

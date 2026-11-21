@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
-from app.models import RevenueEvidence
+from app.models import PaymentSource, RevenueEvidence
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
@@ -82,7 +82,7 @@ def test_0020_privileges(db):
 
 def test_0020_downgrade_refuses_evidence(world):
     head = _version(world.db)
-    _evidence(world)
+    _evidence(world, "manual_entry")  # Paymob evidence is refused by 0021 first
     with pytest.raises(RuntimeError, match="Refuse to remove stored revenue evidence"):
         command.downgrade(CONFIG, "0019_meta_providers")
     assert _version(world.db) == head
@@ -128,3 +128,80 @@ def test_0020_checks_refuse_invalid_rows(world, column, value):
             connection.execute(
                 text(f"UPDATE revenue_evidence SET {column} = :value"), {"value": value}
             )
+
+
+PAYMENT_TABLES = ("payment_sources", "payment_source_secrets", "payment_callback_diagnostics")
+
+
+def test_0021_privileges(db):
+    for table in PAYMENT_TABLES:
+        for privilege in ("SELECT", "INSERT"):
+            assert _privilege(db, "tracking_app", table, privilege), (table, privilege)
+        assert not _privilege(db, "tracking_app", table, "DELETE"), table
+        assert not _privilege(db, "tracking_app", table, "TRUNCATE"), table
+    for column in ("name", "status", "updated_at"):
+        assert _privilege(db, "tracking_app", "payment_sources", "UPDATE", column)
+    for column in ("public_key", "client_id", "provider", "region"):
+        assert not _privilege(db, "tracking_app", "payment_sources", "UPDATE", column)
+    assert _privilege(db, "tracking_app", "payment_source_secrets", "UPDATE", "retires_at")
+    for column in ("ciphertext", "version", "source_id"):
+        assert not _privilege(db, "tracking_app", "payment_source_secrets", "UPDATE", column)
+    assert not _privilege(db, "tracking_app", "payment_callback_diagnostics", "UPDATE")
+    lifecycle = {
+        "payment_source_secrets": ("id", "retires_at"),
+        "payment_callback_diagnostics": ("id", "received_at"),
+    }
+    for table, columns in lifecycle.items():
+        assert _privilege(db, "tracking_lifecycle", table, "DELETE")
+        for column in columns:
+            assert _privilege(db, "tracking_lifecycle", table, "SELECT", column)
+    assert not _privilege(
+        db, "tracking_lifecycle", "payment_source_secrets", "SELECT", "ciphertext"
+    )
+    assert not _privilege(
+        db, "tracking_lifecycle", "payment_callback_diagnostics", "SELECT", "delivery_digest"
+    )
+    assert not _privilege(db, "tracking_lifecycle", "payment_sources", "SELECT")
+    assert not _privilege(db, "tracking_lifecycle", "payment_sources", "DELETE")
+
+
+def _source(world) -> None:
+    with Session(world.db.migration) as session, session.begin():
+        session.add(
+            PaymentSource(
+                id=uuid4(),
+                agency_id=world.a,
+                client_id=world.a1,
+                provider="paymob",
+                region="egypt",
+                name="Synthetic",
+                status="active",
+                public_key="ppk_" + "A" * 43,
+                created_by_membership_id=world.owner_a,
+            )
+        )
+
+
+def test_0021_downgrade_refuses_payment_state(world):
+    head = _version(world.db)
+    _source(world)
+    with pytest.raises(RuntimeError, match="Refuse to remove payment source state"):
+        command.downgrade(CONFIG, "0020_revenue_evidence")
+    assert _version(world.db) == head
+    with world.db.migration.begin() as connection:
+        connection.execute(text("DELETE FROM payment_sources"))
+    _evidence(world, "paymob")
+    with pytest.raises(RuntimeError, match="Refuse to remove payment source state"):
+        command.downgrade(CONFIG, "0020_revenue_evidence")
+    assert _version(world.db) == head
+
+
+def test_0021_downgrade_and_upgrade_when_empty(db):
+    head = _version(db)
+    command.downgrade(CONFIG, "0020_revenue_evidence")
+    try:
+        assert not _tables(db) & set(PAYMENT_TABLES)
+        assert "revenue_evidence" in _tables(db)
+    finally:
+        command.upgrade(CONFIG, "head")
+    assert _version(db) == head

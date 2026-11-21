@@ -69,6 +69,8 @@ from app.models import (
     MailOutbox,
     OAuthTransaction,
     PasswordCredential,
+    PaymentCallbackDiagnostic,
+    PaymentSourceSecret,
     StoredConsentRecord,
     User,
     VerificationChallenge,
@@ -209,6 +211,16 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             .exists(),
         )
 
+    # Paymob callback diagnostics (D-067 D14): 30 days after receipt.
+    def payment_diagnostics(cutoff: datetime) -> ColumnElement[bool]:
+        return PaymentCallbackDiagnostic.received_at < before(
+            settings.payment_diagnostic_retention_days, cutoff
+        )
+
+    # Replaced payment source secrets once retired, 24 hours after replacement (D-067 D14).
+    def payment_secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return PaymentSourceSecret.retires_at < cutoff
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -329,6 +341,15 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             acknowledgements,
         ),
         Target("conversion_deliveries", ConversionDelivery, ConversionDelivery.id, deliveries),
+        Target(
+            "payment_callback_diagnostics",
+            PaymentCallbackDiagnostic,
+            PaymentCallbackDiagnostic.id,
+            payment_diagnostics,
+        ),
+        Target(
+            "payment_source_secrets", PaymentSourceSecret, PaymentSourceSecret.id, payment_secrets
+        ),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

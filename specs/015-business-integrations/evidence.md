@@ -46,3 +46,37 @@ Existing expectations updated: the table counts (`test_data_policy.py`, `test_da
 |---|---|---|
 | M1: the exact-redelivery key also covers the row ID | T-02 `test_exact_redelivery_is_stored_once` | Caught: three stored rows instead of one stored and two duplicates |
 | M2: the revenue route checks `client:read` instead of `finance:read` | T-03 `test_revenue_read_needs_finance_access` | Caught: the analyst read answered 200 instead of 403 |
+
+## 015-B: Paymob payments
+
+**Scope (D3 to D7, D10, D12 to D14, A1).**
+- `payment_sources`, `payment_source_secrets` and `payment_callback_diagnostics` (migration `0021_payment_sources`), with the `payment_source.*` audit actions.
+- Owner and Admin routes to create, list, rename, disable or re-activate a source and to replace its merchant HMAC secret, which is sealed under the D-025 keyring (kind `paymob_hmac`), never returned, and kept valid for 24 hours after a replacement.
+- `POST /payments/paymob/callback/{public_key}`: the gate first, then the per-peer and per-key rates (applied to any key, known or not), the source, the bounded JSON body and the documented HMAC-SHA512 against every live secret in constant time; one 401 answer for every unverifiable callback; 200 for every verified one.
+- Minimization to the allowed fields at once, the D5 mapping with A1 (`test_mode`) and the signed-flag agreement of note N1, the D7 delivery ID, and one diagnostic row per verified callback.
+- `RequestBoundary` with per-route limits: 64 KiB for the callback and 2 MiB for the CSV routes, a declared `Content-Length` above the limit refused before reading, and 16 KiB everywhere else.
+- `TRACKING_PAYMENTS_PAYMOB_ENABLED` (default false), the re-verified `payments.processor_records` rule and the new `paymob.accept` rule (current from 2026-11-21, review 2027-11-21), and the lifecycle deletion of diagnostics after 30 days and of retired secrets.
+- The synthetic sender `tests/paymob_callbacks.py`.
+
+**Tests.**
+- `tests/test_paymob_contract.py`: the documented example string of the HMAC page (T-10), verification with current and previous secrets, altered fields and unsupported bodies, card token callbacks, minimization (T-16), the mapping table (T-14) and unmapped states (T-15), the parent re-sent after a refund or void, Cairo local time and offsets (V-7), and the rules gate (T-20).
+- `tests/integration/test_paymob.py`: T-10 to T-21, A1, the source routes with permissions and audit events, and the lifecycle deletion.
+- `tests/integration/test_revenue_migrations.py`: the `0021` privileges and its refused and empty downgrades.
+
+Existing expectations updated: the table counts, the known tables of `test_postgres.py`, the cleanup order, the approved data-policy rules (`test_data_policy.py`) and the reverified provider rules (`test_privacy_secrets_restore.py`).
+
+**Verification of 015-B** (from `backend/` with the project `.venv`, 2026-11-21):
+- `python -m ruff check .` and `python -m ruff format --check .`: clean.
+- `python -m pytest -m "not integration" -q`: 723 passed, 426 deselected.
+- The integration suite on the disposable service: 423 passed and 3 skipped (the browser journeys).
+- `contracts/openapi.json` regenerated; its contract test passes.
+
+**Mutation checks (015-B).**
+
+| Mutation | Tests | Result |
+|---|---|---|
+| M1: the exact-redelivery key also covers the row ID, through the callback | T-12 `test_repeated_callback_counts_once` | Caught: the repeated sale was stored three times |
+| M3: the HMAC comparison accepts any signature | T-10 `test_invalid_signatures_store_nothing`, `test_verify_accepts_current_and_previous_secrets_only` | Caught: an invalid signature answered 200 |
+| M4: the failed and pending rules removed from the mapping | T-14 `test_states_follow_the_mapping`, `test_mapping_table` | Caught: failed and pending transactions posted |
+| M5: the raw payload kept and the source data in the source reference | T-16 `test_no_card_or_customer_field_is_stored_logged_or_returned`, `test_minimize_keeps_only_allowed_fields` | Caught: the brand reached a stored source reference |
+| M6: the gate always open | T-20 `test_gate_and_rules`, `test_rules_gate` | Caught: a source was created with the setting off |

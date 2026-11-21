@@ -13,7 +13,10 @@ Service (section 24.3) and the Google API Services User Data Policy of 2024-02-1
 014-D (D-064) re-verified the Meta Conversions API row and added the Meta Marketing API row on
 2026-11-20 against the Business Tools Terms of 2025-11-03, the Platform Terms of 2026-02-03 and
 the Conversions API, Marketing API, Login for Business and permission pages of entry review
-section 2.4. No row implies provider app approval or review access.
+section 2.4. Specification 015-B (D-067) re-verified the payment processor row and added the
+Paymob Accept row on 2026-11-21 against Paymob's callback, HMAC, transaction, refund, void,
+capture, intention, credential and security pages, Paymob's terms and PCI SSC FAQ 1154 of
+entry review section 2.4. No row implies provider app approval or review access.
 """
 
 from dataclasses import dataclass
@@ -56,6 +59,9 @@ REVIEW_011 = date(2027, 11, 18)
 # Specification 014-D re-verification (D-064) and the annual review it sets.
 REVERIFIED_014 = date(2026, 11, 20)
 REVIEW_014 = date(2027, 11, 20)
+# Specification 015-B re-verification (D-067) and the annual review it sets.
+REVERIFIED_015 = date(2026, 11, 21)
+REVIEW_015 = date(2027, 11, 21)
 
 RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
@@ -231,15 +237,37 @@ RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
         "payments",
         "payments.processor_records",
-        "financial.record",
-        "Provider IDs, brand, last four digits, and expiry only",
-        "Subject deletion detaches identifiers (decision 11)",
-        "Webhook signature or HMAC verification",
-        "Never PAN, CVC, or raw card posting",
-        ("S-89", "S-90", "S-91"),
+        "revenue.evidence",
+        "Provider transaction, order and integration IDs, amounts, currencies, states and times "
+        "only, for the life of the client workspace (D-067 D14); no card, billing, shipping or "
+        "customer field and no raw payload",
+        "Subject deletion detaches identifiers (decision 11); workspace deletion (017)",
+        "Webhook signature or HMAC verification before anything is stored",
+        "Never a PAN or masked PAN, brand, last four digits, expiry, CVC, token or raw card "
+        "posting; no sensitive authentication data after authorization (PCI DSS 3.3.1)",
+        ("S-89", "S-90", "S-91", "V-1", "V-2", "V-12", "V-13"),
         "015",
-        RESEARCHED,
-        STALE,
+        REVERIFIED_015,
+        RuleStatus.CURRENT,
+        REVIEW_015,
+    ),
+    ProviderRule(
+        "paymob",
+        "paymob.accept",
+        "revenue.evidence",
+        "Minimized transaction evidence for the life of the client workspace; callback "
+        "diagnostics 30 days; replaced HMAC secrets 24 hours (D-067 D14)",
+        "Workspace deletion (017); the source is disabled to stop intake",
+        "HMAC-SHA512 processed callbacks over HTTPS (020) to a per-source URL; the response "
+        "redirect is never evidence; the merchant's HMAC secret is sealed and never returned",
+        "Region egypt; the merchant's own HMAC secret per client; no Paymob API key and no "
+        "outbound call; whether a merchant may direct callbacks carrying the last four digits to "
+        "this platform under Paymob's terms is reviewed before live intake (Q-012)",
+        ("V-1", "V-2", "V-3", "V-4", "V-7", "V-8", "V-9", "V-11", "V-12", "V-13"),
+        "015",
+        REVERIFIED_015,
+        RuleStatus.CURRENT,
+        REVIEW_015,
     ),
     ProviderRule(
         "google",
