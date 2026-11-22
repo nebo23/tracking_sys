@@ -32,7 +32,11 @@ from app.services.delivery import (
 )
 
 router = APIRouter(tags=["Advertising"])
-ObjectId = Annotated[str, Query(min_length=1, max_length=32, pattern=r"^[1-9][0-9]{0,31}$")]
+# The position after which a spend page starts: "<object ID>:<currency>" of the previous page's
+# last row, with an empty object ID for facts without one (review finding R010).
+SpendCursor = Annotated[
+    str, Query(min_length=4, max_length=36, pattern=r"^(?:[1-9][0-9]{0,31})?:[A-Z]{3}$")
+]
 
 
 class SpendAccount(Output):
@@ -90,7 +94,7 @@ class SpendReport(Output):
 
 
 # Spend of one spend connection for account-local dates since..until (inclusive, at most 366
-# days), at the ad, ad set or campaign level, with rows paged by object ID.
+# days), at the ad, ad set or campaign level, with rows paged by object ID and currency.
 @router.get("/agencies/{agency_id}/clients/{client_id}/ad-spend", response_model=SpendReport)
 def read_ad_spend(
     agency_id: UUID,
@@ -101,7 +105,7 @@ def read_ad_spend(
     since: Annotated[date, Query()],
     until: Annotated[date, Query()],
     level: Annotated[Literal["ad", "adset", "campaign"], Query()] = "ad",
-    after: ObjectId | None = None,
+    after: SpendCursor | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> SpendReport:
     access = resolve_scope(session, principal, agency_id, client_id, "finance:read")

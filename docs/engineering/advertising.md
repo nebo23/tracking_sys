@@ -28,6 +28,8 @@ After the code exchange the adapter describes the named account with the new gra
   - the refused facts per reason;
   - the coverage of the daily stream.
 
+  Rows are grouped by object and currency: each fact keeps the currency it was reported in (D4), so one object can have a row per currency, and an object ID missing at the level read groups as `object_id: null`. Rows come in pages of `limit` (1-500, default 100) ordered by object ID and then currency. `next_after` is `"<object ID>:<currency>"` of the last row (an empty object ID for the missing one), passed back as `after`; it is null on the last page. Every (object, currency) row is reached exactly once (review finding R010; the earlier object-only cursor skipped an object's second currency). The totals always cover the whole period.
+
   Spend is never stored in `connector_records`, so the `client:read` records route of a spend connection returns nothing.
 
 ## ROAS (014-C)

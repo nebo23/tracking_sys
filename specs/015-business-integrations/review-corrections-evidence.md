@@ -214,3 +214,20 @@ The independent partial review of `a291bb6` ([report](../../reports/spec-015-cor
 - Unit: `test_whatsapp_contract.py`, 5 passed.
 - Integration: the three WhatsApp regressions with `test_whatsapp.py`, 17 passed in 36.77 s.
 - Mutations: R009-a (membership test without the type check) is caught by the new application case and the unit cases. R009-b (the unbounded `fromtimestamp`) is caught by the timestamp regression, which answers 500 again on this Windows workstation, and by the unit cases.
+
+### R010 P2 (Spec 014): Spend pages follow the complete grouping key
+
+**Root cause.** `read_spend` groups rows by (object ID, currency) and sorts them by that pair, but its cursor and filter used the object ID alone. With two currencies for one ad and `limit=1`, the first page ended at `(111, EGP)` with cursor `111`, and the filter `object_id > 111` skipped `(111, USD)`. D-064 D4 deliberately keeps each fact's reported currency after an account currency change, so this is a supported stored state. Facts without an ad set or campaign ID also produced the cursor `""`, which the route's object-ID parameter could not accept.
+
+**Correction.** No schema change; existing facts keep their currencies.
+- The cursor is the last row's complete key, `"<object ID>:<currency>"`, with an empty object ID for a missing one.
+- The next page starts strictly after that pair in the same tuple order as the sort.
+- The route validates the cursor's format (`^(?:[1-9][0-9]{0,31})?:[A-Z]{3}$`). An old object-only cursor is refused, which is safe because no client of the unreleased API exists.
+- Totals, the financial permission and the row contents are unchanged. The OpenAPI snapshot and the advertising guide are updated.
+
+**Tests.** The regression passes. New case `test_ad_spend.py::test_spend_pages_follow_object_and_currency`: six facts with two currencies for one ad, a fact without an ad set or campaign, and one without a campaign. At the ad, ad set and campaign levels, limit-1 traversal reaches every (object, currency) group exactly once in order, including the missing-ID groups. The totals (EGP 160, USD 570) are equal on every page; the final page has no cursor; a page after the last cursor is empty; a full page matches the traversal. Seven malformed cursors are refused, and a reader without the financial grant is refused.
+
+**Results.**
+- Integration: the regression with `test_ad_spend.py` and `test_roas.py`, 16 passed in 28.64 s.
+- Unit: `test_advertising_spend.py` and `test_advertising_roas.py`, 39 passed; `test_contract.py` passes with the regenerated snapshot.
+- Mutation: R010-a (filter on the object ID only) is caught by the regression.
