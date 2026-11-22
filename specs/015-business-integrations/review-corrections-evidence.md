@@ -231,3 +231,27 @@ The independent partial review of `a291bb6` ([report](../../reports/spec-015-cor
 - Integration: the regression with `test_ad_spend.py` and `test_roas.py`, 16 passed in 28.64 s.
 - Unit: `test_advertising_spend.py` and `test_advertising_roas.py`, 39 passed; `test_contract.py` passes with the regenerated snapshot.
 - Mutation: R010-a (filter on the object ID only) is caught by the regression.
+
+### R011 P2 (Spec 010): The Instagram day cursor stays stable across midnight
+
+**Root cause.** `_account_page` built the list of UTC days from a start that `fetch_page` recomputes from the current time on every page (`max(since, now - 729 days)`). The cursor was a numeric offset into that list. After a UTC midnight the list started one day later, so the same offset pointed one day further: the regression read 2024-11-22, then 2024-11-24. This is the Spec 010 follow-up already recorded from R011-15 (YouTube) in the [010 evidence](../010-instagram/evidence.md).
+
+**Correction.** The adapter only; the Instagram API calls and the token and access follow-ups are unchanged, and nothing called Meta.
+- The cursor is `day:<first day>:<next day>`, both ISO dates (`day_cursor`, `parse_day_cursor`). The first day is fixed by the first page and is the start of the read's gapless coverage; the next day is absolute.
+- Each page recomputes the history limit (the day of `now - 729 days`). When the next day is still within it, that day is read, so one midnight changes nothing.
+- When a long deferral has left the next day behind the limit, those days can no longer be read. The read continues at the limit and reports `covered_from` from there, instead of claiming the skipped days, as the reasoning of the YouTube correction does for a moving bound.
+- The end still follows the latest complete day. A malformed or old-format cursor is a permanent `invalid_cursor`; no stored cursor of the old format exists outside disposable databases.
+
+**Tests.** The regression passes. New file `tests/test_connector_instagram_day_cursor.py`, each page using a new provider object so the cursor alone carries the position:
+- `test_one_midnight_continues_with_the_next_day`: November 22 to 25 without a gap, covered from the 22nd.
+- `test_several_midnights_restart_coverage_at_the_history_limit`: after three days, continue at the 25th, covered from the 25th.
+- `test_resume_within_the_limit_keeps_the_fixed_first_day`: the first day is kept, and the end moves to the newly complete day.
+- `test_an_exhausted_window_ends_the_read`: an exhausted window ends the read with truthful watermarks.
+- `test_malformed_cursors_are_refused`: eight shapes, including the old offset format.
+
+The existing adapter, feasibility and Instagram runtime tests pass unchanged.
+
+**Results.**
+- Unit: the new file with the regression, 13 passed; `test_connector_instagram_adapter.py`, `test_instagram_feasibility.py` and the regression, 41 passed.
+- Integration: `test_connector_instagram.py` and `test_connector_instagram_login.py`, 11 passed in 19.51 s.
+- Mutations: R011-a (the offset applied to a day list recomputed from now) is caught by the regression, and R011-b (no coverage restart behind the limit) by the several-midnights case.
