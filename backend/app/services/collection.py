@@ -312,9 +312,24 @@ def consent_view(session: Session, subject: CollectionSubject, now: datetime) ->
     return ConsentView(states, latest)
 
 
+# Clear the booking links of one subject (015-D, D-068 E4): both columns at once.
+def detach_bookings(session: Session, client_id: UUID, subject_id: UUID) -> int:
+    return session.execute(
+        update(Booking)
+        .where(Booking.client_id == client_id, Booking.subject_id == subject_id)
+        .values(subject_id=None, linked_at=None)
+    ).rowcount
+
+
 # Record explicit consent choices (D-027 decision 3). Without a token, a request that grants a
 # purpose creates the subject and returns its token once; one that grants nothing stores
 # nothing. Each record passes the 003 ConsentRecord contract before it is stored.
+# A booking is linked to a subject only while its attribution consent is granted (D-068 E4,
+# review finding R003). An attribution choice that is not a grant detaches the subject's
+# bookings, and so does a grant made while attribution was not granted (after an expiry, a
+# withdrawal or a denial): a link survives only an uninterrupted grant, and a new grant restores
+# nothing until a booking delivery carries the token again. Both run under the privacy lock that
+# booking intake takes, so a link and a withdrawal are applied in their commit order.
 def record_consent(
     session: Session,
     agency_id: UUID,
@@ -337,6 +352,13 @@ def record_consent(
                 session, agency_id, client_id, now.date(), "consent", "rejected", "unknown_subject"
             )
             raise CollectionError("unknown_subject", 422)
+        attribution = choices.get(Purpose.ATTRIBUTION)
+        if attribution is not None and (
+            attribution is not ConsentState.GRANTED
+            or consent_view(session, subject, now).states[Purpose.ATTRIBUTION]
+            is not ConsentState.GRANTED
+        ):
+            detach_bookings(session, client_id, subject.id)
     elif ConsentState.GRANTED not in choices.values():
         count(session, agency_id, client_id, now.date(), "consent", "suppressed", "nothing_granted")
         unknown = {purpose: ConsentState.UNKNOWN for purpose in PURPOSES}
@@ -660,11 +682,7 @@ def erase_subject(
             )
         )
     session.flush()
-    detached = session.execute(
-        update(Booking)
-        .where(Booking.client_id == client_id, Booking.subject_id == subject.id)
-        .values(subject_id=None, linked_at=None)
-    ).rowcount
+    detached = detach_bookings(session, client_id, subject.id)
     session.execute(delete(CollectedEvent).where(CollectedEvent.subject_id == subject.id))
     session.execute(delete(StoredConsentRecord).where(StoredConsentRecord.subject_id == subject.id))
     session.execute(delete(CollectionSubject).where(CollectionSubject.id == subject.id))

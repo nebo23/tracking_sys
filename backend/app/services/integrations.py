@@ -6,7 +6,11 @@ source takes the secret the client set in Cal.com; a signed webhook source recei
 issued once by the platform. Secrets are sealed under the D-025 keyring and never returned again.
 
 A verified delivery is recorded under the client's 004 privacy lock, because a booking may be
-linked to a collection subject (E4): the lock orders the link with erasure. The delivery's digest
+linked to a collection subject (E4): the lock orders the link with erasure and consent changes.
+A link is effective only while the subject's attribution consent is granted (review finding
+R003): app.services.collection.record_consent detaches the subject's bookings when that consent
+is withdrawn or denied, or granted again after a lapse, and every read below counts a stored
+link only while the consent is granted now, which also covers an expiry. The delivery's digest
 makes a repeated delivery a no-op, and a booking's state is derived from its minimal events, so
 any delivery order gives the same result. Nothing here writes revenue evidence. Nothing here
 calls a provider.
@@ -21,8 +25,8 @@ from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.orm import Session
 
 from app.advertising.currencies import decimal_text
@@ -36,11 +40,13 @@ from app.models import (
     Booking,
     BookingEvent,
     ClientWorkspace,
+    CollectionSubject,
     CrmDeal,
     CrmStageRule,
     IntegrationDelivery,
     IntegrationSource,
     IntegrationSourceSecret,
+    StoredConsentRecord,
 )
 from app.privacy.consent import ConsentState, Purpose
 from app.privacy.providers import feature_allowed, rule
@@ -400,6 +406,50 @@ def _link(session: Session, booking: Booking, token: str, received: datetime) ->
     return "linked"
 
 
+# The subjects of one client whose attribution consent is granted at `now`: the latest
+# attribution record per subject, by receipt time and then ID exactly as
+# app.privacy.consent.current_state orders them, is a grant that has not expired (R003).
+def granted_subjects(client_id: UUID, now: datetime) -> Select:
+    latest = (
+        select(
+            StoredConsentRecord.subject_id,
+            StoredConsentRecord.state,
+            StoredConsentRecord.expires_at,
+        )
+        .where(
+            StoredConsentRecord.client_id == client_id,
+            StoredConsentRecord.purpose == Purpose.ATTRIBUTION.value,
+        )
+        .ext(distinct_on(StoredConsentRecord.subject_id))
+        .order_by(
+            StoredConsentRecord.subject_id,
+            StoredConsentRecord.received_at.desc(),
+            StoredConsentRecord.id.desc(),
+        )
+        .subquery()
+    )
+    return select(latest.c.subject_id).where(
+        latest.c.state == ConsentState.GRANTED.value,
+        or_(latest.c.expires_at.is_(None), latest.c.expires_at > now),
+    )
+
+
+# Whether one subject's attribution consent is granted at `now` (the 003 evaluation).
+def _granted(session: Session, subject_id: UUID, now: datetime) -> bool:
+    subject = session.get(CollectionSubject, subject_id)
+    return (
+        subject is not None
+        and consent_view(session, subject, now).states[Purpose.ATTRIBUTION] is ConsentState.GRANTED
+    )
+
+
+# Whether a booking's stored link is effective now: its subject's attribution is granted.
+def effective_link(client_id: UUID, now: datetime) -> ColumnElement[bool]:
+    return and_(
+        Booking.subject_id.is_not(None), Booking.subject_id.in_(granted_subjects(client_id, now))
+    )
+
+
 def _apply_booking(
     session: Session, source: IntegrationSource, event: Event, received: datetime
 ) -> str | None:
@@ -436,7 +486,12 @@ def _apply_booking(
                 .where(BookingEvent.booking_id == other.id)
                 .values(booking_id=booking.id)
             )
-            if booking.subject_id is None and other.subject_id is not None:
+            # A link moves with the merged events only while it is effective (R003).
+            if (
+                booking.subject_id is None
+                and other.subject_id is not None
+                and _granted(session, other.subject_id, received)
+            ):
                 booking.subject_id, booking.linked_at = other.subject_id, other.linked_at
             other.subject_id = other.linked_at = None
             other.status, other.reschedule_count, other.updated_at = "merged", 0, received
@@ -517,7 +572,10 @@ def receive_booking(
 
 
 # Bookings of one client for client:read readers (E10): totals by status and the newest bookings.
+# A booking counts as linked only while its subject's attribution consent is granted now (R003).
 def bookings_view(session: Session, agency_id: UUID, client_id: UUID) -> dict[str, Any]:
+    now = session.scalar(select(func.clock_timestamp()))
+    linked_now = effective_link(client_id, now)
     scope = (
         Booking.agency_id == agency_id,
         Booking.client_id == client_id,
@@ -528,11 +586,12 @@ def bookings_view(session: Session, agency_id: UUID, client_id: UUID) -> dict[st
         select(Booking.status, func.count()).where(*scope).group_by(Booking.status)
     ):
         totals[status] = number
-    linked = session.scalar(
-        select(func.count()).select_from(Booking).where(*scope, Booking.subject_id.is_not(None))
-    )
-    rows = session.scalars(
-        select(Booking).where(*scope).order_by(Booking.updated_at.desc(), Booking.id).limit(500)
+    linked = session.scalar(select(func.count()).select_from(Booking).where(*scope, linked_now))
+    rows = session.execute(
+        select(Booking, linked_now.label("linked"))
+        .where(*scope)
+        .order_by(Booking.updated_at.desc(), Booking.id)
+        .limit(500)
     )
     return {
         "totals": {**totals, "linked": linked},
@@ -545,10 +604,10 @@ def bookings_view(session: Session, agency_id: UUID, client_id: UUID) -> dict[st
                 "start_at": row.start_at,
                 "end_at": row.end_at,
                 "reschedule_count": row.reschedule_count,
-                "linked": row.subject_id is not None,
+                "linked": bool(effective),
                 "updated_at": row.updated_at,
             }
-            for row in rows
+            for row, effective in rows
         ],
     }
 

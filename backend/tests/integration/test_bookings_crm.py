@@ -704,3 +704,197 @@ def test_lifecycle_expiry_detaches_a_newer_booking_from_an_old_subject(
     again = run_lifecycle(lifecycle_engine, lifecycle_settings)
     assert again["status"] == "completed"
     assert again["deleted"]["booking_links"] == again["deleted"]["collection_subjects"] == 0
+
+
+# --- Review finding R003 (D-069): booking links follow the current attribution consent -------
+
+
+def _consent(w, token, state, client_id=None):
+    with Session(w.db.runtime) as session, session.begin():
+        record_consent(
+            session,
+            w.a,
+            client_id or w.a1,
+            source=ConsentSource.API,
+            notice_sha256=NOTICE,
+            choices={Purpose.ATTRIBUTION: state},
+            subject_token=token,
+            captured_at=None,
+            recheck=lambda: None,
+        )
+
+
+def _linked(lab):
+    w = lab.w
+    report = lab.browser("owner_a").get(f"/agencies/{w.a}/clients/{w.a1}/bookings").json()
+    flags = sorted(item["linked"] for item in report["bookings"])
+    assert report["totals"]["linked"] == sum(flags)
+    return report["totals"]["linked"]
+
+
+def _stored_links(w):
+    return sum(1 for item in _links(w).values() if item[1])
+
+
+def _expire(w, token):
+    with Session(w.db.runtime) as session:
+        subject_id = find_subject(session, w.a1, token).id
+    with Session(w.db.migration) as session, session.begin():
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.subject_id == subject_id)
+            .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+
+
+def test_withdrawal_detaches_and_a_new_grant_restores_nothing(lab):
+    # R003: a withdrawal removes the link at once; later and replayed deliveries cannot restore
+    # it while consent is withdrawn; a new grant alone restores nothing, and only a later
+    # delivery that carries the token again links under the new grant.
+    w = lab.w
+    token = _subject(w, {Purpose.ATTRIBUTION: ConsentState.GRANTED})
+    first = uid()
+    created = calcom("BOOKING_CREATED", first, subject_token=token)
+    assert lab.cal(created).status_code == 200
+    assert (_linked(lab), _stored_links(w)) == (1, 1)
+    _consent(w, token, ConsentState.WITHDRAWN)
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+    moved = uid()
+    later = calcom(
+        "BOOKING_RESCHEDULED",
+        moved,
+        previous=first,
+        subject_token=token,
+        created_at="2026-11-10T10:00:00.000Z",
+    )
+    assert lab.cal(later).status_code == 200
+    assert _outcomes(w)[-1] == ("applied", "consent_missing")
+    recorded = len(_outcomes(w))
+    assert lab.cal(created).status_code == 200  # an exact replay is a no-op duplicate
+    assert len(_outcomes(w)) == recorded
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+    _consent(w, token, ConsentState.GRANTED)
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+    assert lab.cal(created).status_code == 200  # a replay after the grant is still a no-op
+    assert len(_outcomes(w)) == recorded
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+    again = calcom(
+        "BOOKING_RESCHEDULED",
+        uid(),
+        previous=moved,
+        subject_token=token,
+        created_at="2026-11-10T11:00:00.000Z",
+    )
+    assert lab.cal(again).status_code == 200
+    assert _outcomes(w)[-1] == ("applied", "linked")
+    assert (_linked(lab), _stored_links(w)) == (1, 1)
+    # A denial also detaches.
+    _consent(w, token, ConsentState.DENIED)
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+
+
+def test_expiry_stops_the_link_and_a_renewal_after_the_lapse_restores_nothing(lab):
+    # R003: an expired grant stops counting at once on every read; renewing it after the lapse
+    # detaches the old link instead of reviving it; a renewal before expiry keeps the link.
+    w = lab.w
+    lapsed = _subject(w, {Purpose.ATTRIBUTION: ConsentState.GRANTED})
+    renewed = _subject(w, {Purpose.ATTRIBUTION: ConsentState.GRANTED})
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=lapsed)).status_code == 200
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=renewed)).status_code == 200
+    assert (_linked(lab), _stored_links(w)) == (2, 2)
+    _consent(w, renewed, ConsentState.GRANTED)  # renewal before expiry: continuous
+    _expire(w, lapsed)
+    assert (_linked(lab), _stored_links(w)) == (1, 2)
+    _consent(w, lapsed, ConsentState.GRANTED)  # renewal after the lapse
+    assert (_linked(lab), _stored_links(w)) == (1, 1)
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=lapsed)).status_code == 200
+    assert (_linked(lab), _stored_links(w)) == (2, 2)
+
+
+def test_a_merge_never_carries_an_ineffective_link(lab):
+    # R003: when a later event joins two chains, the link of the later chain moves to the
+    # earlier one only while its subject's consent is granted.
+    w = lab.w
+    for expire in (False, True):
+        token = _subject(w, {Purpose.ATTRIBUTION: ConsentState.GRANTED})
+        original, replacement = uid(), uid()
+        assert lab.cal(calcom("BOOKING_CREATED", original)).status_code == 200
+        cancelled = calcom(
+            "BOOKING_CANCELLED",
+            replacement,
+            subject_token=token,
+            created_at="2026-11-10T12:00:00.000Z",
+        )
+        assert lab.cal(cancelled).status_code == 200
+        if expire:
+            _expire(w, token)
+        joined = calcom(
+            "BOOKING_RESCHEDULED",
+            replacement,
+            previous=original,
+            created_at="2026-11-10T11:00:00.000Z",
+        )
+        assert lab.cal(joined).status_code == 200
+        assert _outcomes(w)[-1] == ("applied", "merged")
+        with Session(w.db.runtime) as session:
+            subject_id = find_subject(session, w.a1, token).id
+        with Session(w.db.migration) as session:
+            holders = session.scalars(
+                select(Booking.status).where(Booking.subject_id == subject_id)
+            ).all()
+        assert holders == ([] if expire else ["cancelled"]), (expire, holders)
+    assert (_linked(lab), _stored_links(w)) == (1, 1)
+
+
+def test_withdrawal_and_a_delivery_serialize_on_the_privacy_lock(lab):
+    # R003: a withdrawal and a booking delivery for the same subject take the client's privacy
+    # lock, so neither order can leave a link after a committed withdrawal.
+    from concurrent.futures import ThreadPoolExecutor
+
+    from test_collection import wait_for_blocked_lock
+
+    from app.services.integrations import body_digest, live_source, receive_booking
+
+    w = lab.w
+    granted = {Purpose.ATTRIBUTION: ConsentState.GRANTED}
+    # The withdrawal holds the lock; the delivery waits, then finds the consent withdrawn.
+    token = _subject(w, granted)
+    with Session(w.db.runtime) as session:
+        session.begin()
+        record_consent(
+            session,
+            w.a,
+            w.a1,
+            source=ConsentSource.API,
+            notice_sha256=NOTICE,
+            choices={Purpose.ATTRIBUTION: ConsentState.WITHDRAWN},
+            subject_token=token,
+            captured_at=None,
+            recheck=lambda: None,
+        )
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(
+                lab.cal, calcom("BOOKING_CREATED", uid(), subject_token=token)
+            )
+            wait_for_blocked_lock(w.db)
+            assert not pending.done()
+            session.commit()
+            assert pending.result(timeout=10).status_code == 200
+    assert _outcomes(w)[-1] == ("applied", "consent_missing")
+    assert (_linked(lab), _stored_links(w)) == (0, 0)
+    # The delivery holds the lock and links; the withdrawal waits, then detaches the link.
+    other = _subject(w, granted)
+    body = calcom("BOOKING_CREATED", uid(), subject_token=other)
+    raw, _ = signed_calcom(body)
+    with Session(w.db.runtime) as session:
+        session.begin()
+        key = lab.calcom["callback_path"].rsplit("/", 1)[-1]
+        source = live_source(session, "cal_com", key)
+        assert receive_booking(session, source, body, body_digest(raw)) == "applied"
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(_consent, w, other, ConsentState.WITHDRAWN)
+            wait_for_blocked_lock(w.db)
+            assert not pending.done()
+            session.commit()
+            pending.result(timeout=10)
+    assert (_linked(lab), _stored_links(w)) == (0, 0)

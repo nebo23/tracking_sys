@@ -71,3 +71,24 @@ The existing T-10 to T-21 and A1 cases, including duplicates, every delivery ord
 - Integration: the regression with `test_bookings_crm.py`, `test_integration_migrations.py`, `test_collection.py` and `test_lifecycle.py`, 90 passed in 140.16 s.
 - Baseline proof: the new lifecycle and erasure cases, copied into the `db750d1` archive, fail there (lifecycle `CheckViolation`; erasure `409 state_conflict`).
 - Mutations: R002-a (erasure detach removed) and R002-b (lifecycle clearing removed) are caught.
+
+### R003 P1: Booking links follow the current attribution consent
+
+**Root cause.** `_link` checked consent only when it created a link, and `bookings_view` counted any stored `subject_id`. A withdrawal or an expiry therefore left a booking attributable, and a chain merge copied a stored link without a check. D-068 E4 requires a link only while attribution consent is granted.
+
+**Correction.** No schema change.
+- Withdrawal and denial: `record_consent`, under the client privacy lock that booking intake also takes, detaches the subject's bookings (both columns) when attribution is withdrawn or denied.
+- Grant after a lapse: it also detaches them when attribution is granted while it was not granted before (expired, withdrawn, denied or unknown). A stored link therefore survives only an uninterrupted grant, and a new grant restores nothing until a later delivery carries the token and the required evidence again.
+- Reads: `bookings_view` computes `totals.linked` and each row's `linked` from one rule, `effective_link`: the subject's latest attribution record (receipt time, then ID, as `app.privacy.consent.current_state`) is an unexpired grant. This covers an expiry with no consent change, and records removed by the lifecycle.
+- Merges: a chain merge carries a link only while its subject's consent is granted.
+- Other readers: the booking reads are the only reader of the relation (no attribution or delivery path consumes bookings yet), and erasure and expiry clear it (R002).
+
+**Tests.** The regression passes. New cases in `test_bookings_crm.py`:
+- `test_withdrawal_detaches_and_a_new_grant_restores_nothing`: an immediate detach; a later delivery while withdrawn records `consent_missing`; exact replays before and after a new grant are no-ops; the new grant alone restores nothing; a later delivery with the token links again; a denial detaches.
+- `test_expiry_stops_the_link_and_a_renewal_after_the_lapse_restores_nothing`: an expired grant stops counting on reads; a renewal after the lapse detaches instead of reviving; a renewal before expiry keeps the link.
+- `test_a_merge_never_carries_an_ineffective_link`: both the granted and the expired case.
+- `test_withdrawal_and_a_delivery_serialize_on_the_privacy_lock`: concurrency in both orders, with the waiting transaction detected through `pg_locks`. A withdrawal holding the lock makes the delivery record `consent_missing`; a delivery holding the lock is detached by the waiting withdrawal.
+
+**Results.**
+- Integration: both regressions with `test_bookings_crm.py` and `test_collection.py`, 71 passed in 141.23 s.
+- Mutations: R003-a (consent-change detach removed), R003-b (read-time rule removed) and R003-c (merge check removed) are caught.
