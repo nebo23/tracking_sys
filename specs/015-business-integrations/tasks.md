@@ -5,8 +5,8 @@ Status: Implemented under D-066 to D-068, with open review corrections under D-0
 
 - [x] Save the review report and reusable regression patch in the repository.
 - [x] Prepare the per-finding correction handoff and tracker under D-069.
-- [ ] Reproduce every R001-R011 case at `db750d1` in an isolated disposable environment.
-- [ ] Resolve concrete decisions needed by the selected fixes without blocking independent work.
+- [x] Reproduce every R001-R011 case at `db750d1` in an isolated disposable environment ([evidence](review-corrections-evidence.md#baseline-reproduction-at-db750d1)).
+- [x] Resolve concrete decisions needed by the selected fixes without blocking independent work (D-070).
 - [ ] Correct and verify all eleven findings, retaining regression and adjacent-case coverage.
 - [ ] Reconcile A1 documentation and explicitly record A2/A3 repository follow-ups.
 - [ ] Run final suites and re-read all eleven findings against the final code.

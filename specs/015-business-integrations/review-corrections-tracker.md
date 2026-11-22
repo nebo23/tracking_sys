@@ -2,7 +2,7 @@
 
 Prepared on 2026-11-22 under D-069. Source: [review report](../../reports/specs-001-015-review-2026-11-22.md), reviewed commit `db750d1b728f2ca352a999afe71c92a1b10730e1`. Execution instructions: [correction handoff](review-corrections-prompt.md). The report's IDs R001-R011 are cross-specification review IDs, not renumberings of historical R010/R011 specification findings.
 
-All findings below are **OPEN** at preparation. The application has not been corrected by this documentation handoff. The baseline failures were observed in the review; the implementer must reproduce them and record the final results.
+All findings were **OPEN** at preparation. On 2026-11-22 the implementer reproduced all thirteen regression cases at `db750d1` in an isolated archive against the disposable PostgreSQL service (12 integration failures in 25.95 s and the Instagram failure, each at its intended assertion; [evidence](review-corrections-evidence.md#baseline-reproduction-at-db750d1)). D-070 decided the R001, R004 and schema questions the same day.
 
 ## Required closure evidence
 
@@ -10,17 +10,17 @@ Allowed status values: `OPEN`, `REPRODUCED`, `AWAITING_DECISION`, `FIXED_PENDING
 
 | ID | Priority and affected spec | Baseline observation | Regression suffix after `test_review_` | Status | Fix commit and final evidence |
 |---|---|---|---|---|---|
-| R001 | P1 / 015 payments | Same signature permits test-to-live promotion and refund retargeting | `test_payment_cannot_become_verified_with_same_signature`; `refund_cannot_be_retargeted_with_same_signature` | OPEN | Pending; authenticate environment and parent relationship |
-| R002 | P1 / 015 with 003/004 | Subject deletion violates `ck_bookings_valid_link` | `linked_booking_does_not_block_subject_erasure` | OPEN | Pending; explicit erasure and lifecycle expiry |
-| R003 | P1 / 015 with 003/004 | Linked total stays 1 after consent withdrawal | `booking_link_stops_on_withdrawal` | OPEN | Pending; withdrawal, expiry and consumers |
-| R004 | P1 / 015 WhatsApp | Unproven external number claim routes a signed message to the claimant | `whatsapp_number_requires_ownership_before_routing` | OPEN | Pending; trusted ownership binding and valid enrollment |
-| R005 | P2 / 015 payments | Malformed callback type returns 500 rather than 401 | `malformed_unsigned_callback_stays_401` | OPEN | Pending; malformed and valid callback types |
-| R006 | P2 / 015 bookings | Two independent sources produce one booking | `two_booking_sources_do_not_merge_local_identifiers` | OPEN | Pending; identities, cancellation and reschedule isolation |
-| R007 | P2 / 015 CRM | Same event history gives different payment-verification states | `crm_payment_evidence_survives_out_of_order_events` | OPEN | Pending; stage and optional-field ordering |
-| R008 | P2 / 015 CRM | 501 open deals are reported as 500 | `crm_totals_cover_more_than_500_deals` | OPEN | Pending; full aggregates and complete detail traversal |
-| R009 | P2 / 015 WhatsApp | Malformed source type or timestamp rejects a valid sibling with 500 | `whatsapp_malformed_message_does_not_discard_valid_batch` (two cases) | OPEN | Pending; per-item isolation and storage-error handling |
-| R010 | P2 / 014 advertising | Limit-1 pagination loses the second currency for the same object | `ad_spend_pagination_preserves_both_currencies` | OPEN | Pending; complete grouping cursor |
-| R011 | P2 / 010 Instagram | Midnight resume returns November 24 after November 22 | `instagram_cursor_does_not_skip_day_at_midnight` | OPEN | Pending; stable day cursor and truthful coverage |
+| R001 | P1 / 015 payments | Same signature permits test-to-live promotion and refund retargeting | `test_payment_cannot_become_verified_with_same_signature`; `refund_cannot_be_retargeted_with_same_signature` | REPRODUCED | Pending; authenticate environment and parent relationship |
+| R002 | P1 / 015 with 003/004 | Subject deletion violates `ck_bookings_valid_link` | `linked_booking_does_not_block_subject_erasure` | REPRODUCED | Pending; explicit erasure and lifecycle expiry |
+| R003 | P1 / 015 with 003/004 | Linked total stays 1 after consent withdrawal | `booking_link_stops_on_withdrawal` | REPRODUCED | Pending; withdrawal, expiry and consumers |
+| R004 | P1 / 015 WhatsApp | Unproven external number claim routes a signed message to the claimant | `whatsapp_number_requires_ownership_before_routing` | REPRODUCED | Pending; trusted ownership binding and valid enrollment |
+| R005 | P2 / 015 payments | Malformed callback type returns 500 rather than 401 | `malformed_unsigned_callback_stays_401` | REPRODUCED | Pending; malformed and valid callback types |
+| R006 | P2 / 015 bookings | Two independent sources produce one booking | `two_booking_sources_do_not_merge_local_identifiers` | REPRODUCED | Pending; identities, cancellation and reschedule isolation |
+| R007 | P2 / 015 CRM | Same event history gives different payment-verification states | `crm_payment_evidence_survives_out_of_order_events` | REPRODUCED | Pending; stage and optional-field ordering |
+| R008 | P2 / 015 CRM | 501 open deals are reported as 500 | `crm_totals_cover_more_than_500_deals` | REPRODUCED | Pending; full aggregates and complete detail traversal |
+| R009 | P2 / 015 WhatsApp | Malformed source type or timestamp rejects a valid sibling with 500 | `whatsapp_malformed_message_does_not_discard_valid_batch` (two cases) | REPRODUCED | Pending; per-item isolation and storage-error handling |
+| R010 | P2 / 014 advertising | Limit-1 pagination loses the second currency for the same object | `ad_spend_pagination_preserves_both_currencies` | REPRODUCED | Pending; complete grouping cursor |
+| R011 | P2 / 010 Instagram | Midnight resume returns November 24 after November 22 | `instagram_cursor_does_not_skip_day_at_midnight` | REPRODUCED | Pending; stable day cursor and truthful coverage |
 
 The regression patch contains twelve integration cases and one unit case. R001 has two cases; R009 has two parameter values. Additional adjacent cases are specified in the handoff and should appear in the correction evidence.
 
@@ -30,9 +30,9 @@ This table identifies decision risks, not pre-approved designs. Add a row only w
 
 | Area | Decision to resolve if required | Current state |
 |---|---|---|
-| R001 | Trustworthy environment/parent evidence and any change from callback-only verification | No new protocol selected by this handoff |
-| R004 | Actor and evidence that authorize a provider-number-to-client binding | No new onboarding/security policy selected by this handoff |
-| Schema | Exact necessary changes to unmerged integration migrations or a corrective migration; populated upgrade and role grants | No new schema selected by this handoff |
+| R001 | Trustworthy environment/parent evidence and any change from callback-only verification | Decided by D-070 (2026-11-22): declared live integration IDs per source, and refund/void binding to the signed order ID; callback-only verification is kept and the shared order is confirmed by the live check |
+| R004 | Actor and evidence that authorize a provider-number-to-client binding | Decided by D-070: a registration is a pending claim; a platform operator verifies one claim per number with `python -m app.whatsapp_binding` after an out-of-band check in Meta Business Manager; revocation and transfer go through the operator |
+| Schema | Exact necessary changes to unmerged integration migrations or a corrective migration; populated upgrade and role grants | Decided by D-070: amend `0021`, `0023`, `0024` and `0025` in place on disposable PostgreSQL only (R001, R002, R004, R006, R007) |
 
 ## Repository follow-ups
 
