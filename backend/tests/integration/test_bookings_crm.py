@@ -31,14 +31,18 @@ from app.models import (
     AuditEvent,
     Booking,
     BookingEvent,
+    CollectionSubject,
     CrmDeal,
     IntegrationDelivery,
     IntegrationSourceSecret,
     RevenueEvidence,
+    StoredConsentRecord,
+    StoredTombstone,
 )
 from app.privacy import providers
 from app.privacy.consent import ConsentSource, ConsentState, Purpose
-from app.services.collection import record_consent
+from app.privacy.deletion import RequesterKind
+from app.services.collection import CollectionError, erase_subject, find_subject, record_consent
 from app.services.lifecycle import run_lifecycle
 from app.services.revenue import append_evidence, lock_revenue
 
@@ -523,3 +527,180 @@ def test_lifecycle_deletes_bookings_deals_deliveries_and_secrets(
     with Session(w.db.migration) as session:
         assert session.scalar(select(func.count()).select_from(BookingEvent)) == 1
     assert lab.cal(calcom("BOOKING_CREATED", uid()), secret=OTHER_CALCOM_SECRET).status_code == 200
+
+
+# --- Review finding R002 (D-069, D-070): subject erasure and expiry with linked bookings ------
+
+
+def _client_subject(w, client_id, choices):
+    with Session(w.db.runtime) as session, session.begin():
+        return record_consent(
+            session,
+            w.a,
+            client_id,
+            source=ConsentSource.API,
+            notice_sha256=NOTICE,
+            choices=choices,
+            subject_token=None,
+            captured_at=None,
+            recheck=lambda: None,
+        ).subject_token
+
+
+def _links(w):
+    with Session(w.db.migration) as session:
+        return {
+            row.id: (row.client_id, row.subject_id is not None, row.linked_at is not None)
+            for row in session.scalars(select(Booking))
+        }
+
+
+def test_erasure_detaches_linked_bookings_and_blocks_replay(lab):
+    # R002: erasing a linked subject completes; its bookings stay with both link columns
+    # cleared and the booking store recorded; other subjects and clients keep their links; the
+    # erased token never links again.
+    w = lab.w
+    granted = {Purpose.ATTRIBUTION: ConsentState.GRANTED}
+    token = _client_subject(w, w.a1, granted)
+    kept = _client_subject(w, w.a1, granted)
+    foreign = _client_subject(w, w.a2, granted)
+    other_source = lab.create("cal_com", client_id=w.a2, secret=CALCOM_SECRET).json()["source"]
+    first, second = uid(), uid()
+    assert lab.cal(calcom("BOOKING_CREATED", first, subject_token=token)).status_code == 200
+    assert lab.cal(calcom("BOOKING_CREATED", second, subject_token=token)).status_code == 200
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=kept)).status_code == 200
+    response = lab.cal(
+        calcom("BOOKING_CREATED", uid(), subject_token=foreign),
+        path=other_source["callback_path"],
+    )
+    assert response.status_code == 200
+    before = _links(w)
+    assert sorted(item[1:] for item in before.values()) == [(True, True)] * 4
+    erased = lab.browser("owner_a").post(
+        f"/agencies/{w.a}/clients/{w.a1}/deletion-requests", json={"subject_token": token}
+    )
+    assert erased.status_code == 201, erased.text
+    assert erased.json()["status"] == "completed"
+    assert erased.json()["target_outcomes"]["booking_links"] == "done"
+    after = _links(w)
+    assert set(after) == set(before)  # every booking is kept
+    assert sorted(after.values(), key=str) == sorted(
+        [(w.a1, False, False), (w.a1, False, False), (w.a1, True, True), (w.a2, True, True)],
+        key=str,
+    )
+    assert {row.status for row in _bookings(w)} == {"scheduled"}
+    with Session(w.db.migration) as session:
+        assert session.scalar(select(func.count()).select_from(CollectionSubject)) == 2
+        tombstones = session.scalars(
+            select(StoredTombstone.match_type).where(StoredTombstone.client_id == w.a1)
+        ).all()
+    assert tombstones == ["subject_token"]
+    # A later delivery that still carries the erased token cannot link, and the token cannot
+    # record consent again.
+    later = calcom(
+        "BOOKING_RESCHEDULED",
+        uid(),
+        previous=first,
+        subject_token=token,
+        created_at="2026-11-10T10:00:00.000Z",
+    )
+    assert lab.cal(later).status_code == 200
+    assert _outcomes(w)[-1] == ("applied", "subject_unknown")
+    assert sum(1 for item in _links(w).values() if item == (w.a1, True, True)) == 1
+    with Session(w.db.runtime) as session, session.begin():
+        with pytest.raises(CollectionError, match="unknown_subject"):
+            record_consent(
+                session,
+                w.a,
+                w.a1,
+                source=ConsentSource.API,
+                notice_sha256=NOTICE,
+                choices=granted,
+                subject_token=token,
+                captured_at=None,
+                recheck=lambda: None,
+            )
+    # An erasure of a subject without bookings reports the booking store as not applicable.
+    plain = _client_subject(w, w.a1, granted)
+    with Session(w.db.runtime) as session, session.begin():
+        request = erase_subject(
+            session,
+            lab.config,
+            w.a,
+            w.a1,
+            requester=RequesterKind.DATA_SUBJECT,
+            subject_token=plain,
+        )
+        assert request.target_outcomes["booking_links"] == "not_applicable"
+
+
+def test_failed_erasure_keeps_the_link(lab):
+    # R002: the detach is part of the erasure transaction; a rollback leaves the link, the
+    # subject and its consent in place and writes no tombstone.
+    w = lab.w
+    token = _subject(w, {Purpose.ATTRIBUTION: ConsentState.GRANTED})
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=token)).status_code == 200
+    with pytest.raises(RuntimeError, match="abort"):
+        with Session(w.db.runtime) as session, session.begin():
+            erase_subject(
+                session,
+                lab.config,
+                w.a,
+                w.a1,
+                requester=RequesterKind.DATA_SUBJECT,
+                subject_token=token,
+            )
+            raise RuntimeError("abort")
+    assert [item[1:] for item in _links(w).values()] == [(True, True)]
+    with Session(w.db.migration) as session:
+        assert session.scalar(select(func.count()).select_from(CollectionSubject)) == 1
+        assert session.scalar(select(func.count()).select_from(StoredTombstone)) == 0
+
+
+def test_lifecycle_expiry_detaches_a_newer_booking_from_an_old_subject(
+    lab, lifecycle_engine, lifecycle_settings
+):
+    # R002: a subject past its retention whose bookings are recent. The lifecycle run, as the
+    # restricted tracking_lifecycle role under the client's privacy lock, deletes the consent
+    # history, clears both link columns of each booking and deletes the subject; the bookings
+    # stay. A subject still in use keeps its link.
+    w = lab.w
+    granted = {Purpose.ATTRIBUTION: ConsentState.GRANTED}
+    old = _subject(w, granted)
+    active = _subject(w, granted)
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=old)).status_code == 200
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=old)).status_code == 200
+    assert lab.cal(calcom("BOOKING_CREATED", uid(), subject_token=active)).status_code == 200
+    with Session(w.db.runtime) as session:
+        old_id = find_subject(session, w.a1, old).id
+    long_ago = datetime.now(UTC) - timedelta(days=400)
+    with Session(w.db.migration) as session, session.begin():
+        session.execute(
+            update(CollectionSubject)
+            .where(CollectionSubject.id == old_id)
+            .values(created_at=long_ago, last_activity_at=long_ago)
+        )
+        session.execute(
+            update(StoredConsentRecord)
+            .where(StoredConsentRecord.subject_id == old_id)
+            .values(received_at=long_ago, expires_at=long_ago + timedelta(days=365))
+        )
+    result = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert result["status"] == "completed", result
+    deleted = result["deleted"]
+    assert (deleted["booking_links"], deleted["collection_subjects"]) == (2, 1)
+    assert deleted["consent_records"] == 1 and deleted["bookings"] == 0
+    links = _links(w)
+    assert len(links) == 3
+    assert sorted(item[1:] for item in links.values()) == [
+        (False, False),
+        (False, False),
+        (True, True),
+    ]
+    with Session(w.db.migration) as session:
+        assert session.get(CollectionSubject, old_id) is None
+        assert session.scalar(select(func.count()).select_from(CollectionSubject)) == 1
+    # A second run finds nothing more to do.
+    again = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert again["status"] == "completed"
+    assert again["deleted"]["booking_links"] == again["deleted"]["collection_subjects"] == 0

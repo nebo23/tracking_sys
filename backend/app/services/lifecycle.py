@@ -21,7 +21,11 @@ Specification 011-A (D-058 decision D11) clears connector record attributes and 
 that were not refreshed for 30 days, keeping the statistics, and lets a provider keep its
 connector records for a shorter period than the global one. Specification 014 (D-064 decision
 D13) deletes advertising spend facts 730 days after their spend date, and ended conversion
-deliveries with their acknowledgements 30 days after they end.
+deliveries with their acknowledgements 30 days after they end. A 015 booking can stay linked to a
+subject after the subject's own retention has run out; in the batch that deletes such a subject,
+booking_links first clears the booking's subject_id and linked_at together, and the subject is
+deleted only once no booking references it (review finding R002, D-070). The booking itself is
+kept until its own retention.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -316,12 +320,24 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             ),
         )
 
-    # A subject is deleted only after all its consent records, so a bounded batch never breaks
-    # the consent foreign key.
-    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+    # Idle subjects without consent records left: their consent history is gone.
+    def expiring(cutoff: datetime) -> ColumnElement[bool]:
         return and_(
             idle(cutoff),
             ~exists().where(StoredConsentRecord.subject_id == CollectionSubject.id),
+        )
+
+    # Bookings linked to an expiring subject: both link columns are cleared together, in the
+    # batch before the subject's deletion (R002). Only granted columns are read.
+    def booking_links(cutoff: datetime) -> ColumnElement[bool]:
+        return Booking.subject_id.in_(select(CollectionSubject.id).where(expiring(cutoff)))
+
+    # A subject is deleted only after all its consent records and booking links, so a bounded
+    # batch never breaks the consent foreign key or the bookings link constraint.
+    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            expiring(cutoff),
+            ~select(Booking.subject_id).where(Booking.subject_id == CollectionSubject.id).exists(),
         )
 
     return (
@@ -408,6 +424,14 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target(
             "consent_records", StoredConsentRecord, StoredConsentRecord.id, consent_records, True
         ),
+        Target(
+            "booking_links",
+            Booking,
+            Booking.id,
+            booking_links,
+            True,
+            clear={"subject_id": None, "linked_at": None},
+        ),
         Target("collection_subjects", CollectionSubject, CollectionSubject.id, subjects, True),
     )
 
@@ -442,6 +466,10 @@ def delete_client_batch(
     for target in scoped:
         condition = and_(target.model.client_id == client_id, target.eligible(cutoff))
         keys = select(target.key).where(condition).order_by(target.key).limit(size)
+        if target.clear is not None:
+            statement = update(target.model).where(target.key.in_(keys), condition)
+            counts[target.name] = connection.execute(statement.values(**target.clear)).rowcount
+            continue
         counts[target.name] = connection.execute(
             delete(target.model).where(target.key.in_(keys), condition)
         ).rowcount

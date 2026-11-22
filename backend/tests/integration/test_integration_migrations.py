@@ -107,14 +107,21 @@ def test_0023_and_0024_privileges(db):
     lifecycle = {
         "integration_source_secrets": ("id", "retires_at"),
         "integration_deliveries": ("id", "received_at"),
-        "bookings": ("id", "updated_at"),
+        "bookings": ("id", "updated_at", "client_id", "subject_id"),
         "crm_deals": ("id", "updated_at"),
     }
     for table, columns in lifecycle.items():
         assert _privilege(db, "tracking_lifecycle", table, "DELETE"), table
         for column in columns:
             assert _privilege(db, "tracking_lifecycle", table, "SELECT", column), (table, column)
-    assert not _privilege(db, "tracking_lifecycle", "bookings", "SELECT", "subject_id")
+    # R002 (D-070): the lifecycle role clears a booking's link columns together and nothing else.
+    for column in ("subject_id", "linked_at"):
+        assert _privilege(db, "tracking_lifecycle", "bookings", "UPDATE", column), column
+    for column in ("status", "start_at", "updated_at", "client_id", "provider", "event_type_ref"):
+        assert not _privilege(db, "tracking_lifecycle", "bookings", "UPDATE", column), column
+    for column in ("start_at", "end_at", "event_type_ref", "status", "linked_at"):
+        assert not _privilege(db, "tracking_lifecycle", "bookings", "SELECT", column), column
+    assert not _privilege(db, "tracking_lifecycle", "booking_events", "UPDATE")
     assert not _privilege(db, "tracking_lifecycle", "crm_deals", "SELECT", "payment_reference")
     for table in ("integration_sources", "crm_stage_rules", "booking_events"):
         assert not _privilege(db, "tracking_lifecycle", table, "DELETE"), table

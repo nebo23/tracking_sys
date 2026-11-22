@@ -18,7 +18,7 @@ A booking is a chain of provider booking IDs: a reschedule adds the new ID, a ca
 
 `GET /agencies/{a}/clients/{c}/bookings` (`client:read`) returns the totals by status, the linked count and the newest 500 bookings.
 
-**Lead links.** To link a booking to a visitor, the booking page carries the visitor's 004 subject token (`sbj_...`) in a hidden booking field named `ts_subject` (the signed webhook contract uses `booking.subject_token`). The booking is linked only while that subject's `attribution` consent is granted; otherwise the delivery records `subject_unknown` or `consent_missing`. The token is never stored, and erasing the subject removes the link. Person-level leads wait for 006.
+**Lead links.** To link a booking to a visitor, the booking page carries the visitor's 004 subject token (`sbj_...`) in a hidden booking field named `ts_subject` (the signed webhook contract uses `booking.subject_token`). The booking is linked only while that subject's `attribution` consent is granted; otherwise the delivery records `subject_unknown` or `consent_missing`. The token is never stored. Erasing the subject, or its lifecycle expiry, clears the link (both columns together) and keeps the booking (review finding R002). Person-level leads wait for 006.
 
 **Signed webhook bookings.** `{"type": "booking.created" | "booking.requested" | "booking.rescheduled" | "booking.cancelled" | "booking.rejected" | "booking.completed", "id": "<event id>", "occurred_at": "<ISO 8601 with offset>", "booking": {"id", "previous_id" (reschedules), "event_type", "start_at", "end_at", "subject_token"}}`. Use it for booking tools other than Cal.com, through an automation tool that can sign requests.
 

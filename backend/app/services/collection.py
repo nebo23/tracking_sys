@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, delete, exists, func, select, text
+from sqlalchemy import Engine, delete, exists, func, select, text, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,7 @@ from app.collection.keys import TombstoneKeyring
 from app.config import Settings
 from app.models import (
     Agency,
+    Booking,
     ClientWorkspace,
     CollectedEvent,
     CollectionForm,
@@ -588,7 +589,10 @@ def admit(
 
 # Erase one subject of a client in one transaction (D-027 decision 11): tombstones for the
 # subject token and every deleted event ID, then deletion of its events, consent records, and
-# subject row, with per-store outcomes. Returns None when no such subject exists.
+# subject row, with per-store outcomes. Returns None when no such subject exists. A 015 booking
+# linked to the subject is detached first, both fields at once, so the booking is kept without
+# the link and the bookings link constraint holds; the subject foreign key's SET NULL alone
+# would leave linked_at set and roll back the whole erasure (review finding R002).
 def erase_subject(
     session: Session,
     settings: Settings,
@@ -656,6 +660,11 @@ def erase_subject(
             )
         )
     session.flush()
+    detached = session.execute(
+        update(Booking)
+        .where(Booking.client_id == client_id, Booking.subject_id == subject.id)
+        .values(subject_id=None, linked_at=None)
+    ).rowcount
     session.execute(delete(CollectedEvent).where(CollectedEvent.subject_id == subject.id))
     session.execute(delete(StoredConsentRecord).where(StoredConsentRecord.subject_id == subject.id))
     session.execute(delete(CollectionSubject).where(CollectionSubject.id == subject.id))
@@ -664,6 +673,7 @@ def erase_subject(
         "consent_records": TargetStatus.DONE,
         "collection_subjects": TargetStatus.DONE,
         "event_diagnostics": TargetStatus.NOT_APPLICABLE,
+        "booking_links": TargetStatus.DONE if detached else TargetStatus.NOT_APPLICABLE,
     }
     final = deletion.outcome(targets)
     if final is None:

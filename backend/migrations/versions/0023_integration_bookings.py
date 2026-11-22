@@ -16,7 +16,10 @@ of the later chain into the earlier one and marks it merged). Audit events accep
 integration actions and the integration_source resource. tracking_app may insert and read,
 and update only the columns a state change needs; tracking_lifecycle may delete retired
 secrets, deliveries after 30 days and bookings 395 days after their last update, reading only
-their keys and times. The downgrade
+their keys and times. Amended in place under D-070 (review finding R002): tracking_lifecycle may
+also read a booking's client and subject and clear its subject_id and linked_at together, so
+that the expiry of a linked subject detaches the booking before the subject is deleted; it may
+not change any other booking column. The downgrade
 refuses any integration or booking state and any new audit action.
 """
 
@@ -98,7 +101,8 @@ LIFECYCLE_GRANTS = (
     "GRANT DELETE ON integration_source_secrets TO tracking_lifecycle",
     "GRANT SELECT (id, received_at) ON integration_deliveries TO tracking_lifecycle",
     "GRANT DELETE ON integration_deliveries TO tracking_lifecycle",
-    "GRANT SELECT (id, updated_at) ON bookings TO tracking_lifecycle",
+    "GRANT SELECT (id, updated_at, client_id, subject_id) ON bookings TO tracking_lifecycle",
+    "GRANT UPDATE (subject_id, linked_at) ON bookings TO tracking_lifecycle",
     "GRANT DELETE ON bookings TO tracking_lifecycle",
 )
 

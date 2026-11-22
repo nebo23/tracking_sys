@@ -1909,7 +1909,7 @@ TABLES: dict[str, TablePolicy] = {
                 APPROVED,
                 "D-068",
                 "Deleted by tracking_lifecycle 395 days after the last update (E9); erasing the "
-                "linked subject clears the link.",
+                "linked subject, or its lifecycle expiry, clears the link (R002, D-070).",
             ),
         ),
     ),

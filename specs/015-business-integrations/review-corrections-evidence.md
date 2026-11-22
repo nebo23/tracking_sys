@@ -49,3 +49,25 @@ The existing T-10 to T-21 and A1 cases, including duplicates, every delivery ord
 - Mutations: R001-a (integration check removed), R001-b (intake parent check removed) and R001-c (read-time hold removed) are each caught by a regression or a new case.
 
 **Remaining limits.** A merchant who lists a test integration as live makes its test payments count; that is the source owner's audited assertion. The live check confirms that test and live integration IDs differ and that a refund or void carries its sale's order ID; a refund whose order differs meanwhile stays visibly pending rather than adjusting a sale.
+
+### R002 P1: Booking detachment and subject deletion are atomic
+
+**Root cause.** `bookings.subject_id` references the subject with `ON DELETE SET NULL`, while `ck_bookings_valid_link` requires `subject_id` and `linked_at` to be null together. Deleting a linked subject nulled only `subject_id`, so the check failed and the whole erasure transaction rolled back. The lifecycle runner hit the same constraint when it deleted an expiring subject. At `db750d1` the new lifecycle case below aborted the run with `CheckViolation`, and the owner's erasure route answered `409 state_conflict`, both verified on the disposable database.
+
+**Correction.**
+- `erase_subject` clears `subject_id` and `linked_at` together, under the client privacy lock it already holds, before deleting the subject. The deletion request records the booking store as `booking_links` (`done`, or `not_applicable`). The runtime role already had this column update.
+- The lifecycle runner gains the client-scoped clearing target `booking_links`. In the batch that deletes an expiring subject (idle, without events or consent records), it clears both link columns of the subject's bookings. The subject is deleted only once no booking references it, so a bounded batch can never reach the constraint.
+- `tracking_lifecycle` receives `SELECT (id, updated_at, client_id, subject_id)` and `UPDATE (subject_id, linked_at)` on `bookings` (migration `0023` amended in place, D-070), and nothing else on that table.
+- The consistency constraint and the foreign key are unchanged; the foreign key stays a fail-closed backstop.
+
+**Tests.** The regression passes. New cases in `test_bookings_crm.py`:
+- `test_erasure_detaches_linked_bookings_and_blocks_replay`: the owner route with two linked bookings; another subject's and another client's links stay; every booking is kept; one tombstone; a later delivery with the erased token records `subject_unknown`; the token cannot record consent again; a subject without bookings reports `not_applicable`.
+- `test_failed_erasure_keeps_the_link`: a rolled-back erasure leaves the link, the subject and no tombstone.
+- `test_lifecycle_expiry_detaches_a_newer_booking_from_an_old_subject`: the real `tracking_lifecycle` role. Two recent bookings of a subject past retention are detached and kept, the subject and its consent are deleted, an active subject keeps its link, and a second run does nothing.
+
+`test_integration_migrations.py::test_0023_and_0024_privileges` checks the exact new grant. Two exact-value expectations in `test_collection.py` now include the new key with value `0` or `not_applicable`; the store is new, not a changed outcome.
+
+**Results.**
+- Integration: the regression with `test_bookings_crm.py`, `test_integration_migrations.py`, `test_collection.py` and `test_lifecycle.py`, 90 passed in 140.16 s.
+- Baseline proof: the new lifecycle and erasure cases, copied into the `db750d1` archive, fail there (lifecycle `CheckViolation`; erasure `409 state_conflict`).
+- Mutations: R002-a (erasure detach removed) and R002-b (lifecycle clearing removed) are caught.
