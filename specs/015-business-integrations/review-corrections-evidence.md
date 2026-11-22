@@ -151,3 +151,26 @@ The `wa` fixture now verifies its number through the operator function. `test_nu
 - Integration: the regression with `test_bookings_crm.py` and `test_integration_migrations.py`, 27 passed in 84.20 s.
 - Unit: `test_data_policy.py` and `test_integrations_contract.py`, 22 passed.
 - Mutation: R006-a (lookup by client and provider again) is caught by the regression (`1 == 2`).
+
+### R007 P2: CRM optional values are independent of delivery order
+
+**Root cause.** `receive_deal` discarded an older change entirely and applied optional values only with a newer stage. A 09:00 change with a payment reference followed by a 10:00 won change without one gave `won_verified`; the reverse order dropped the reference and gave `won_unverified`.
+
+**Contract.** The published contract already marks `amount`, `currency` and `payment_reference` optional, and the in-order behavior kept a supplied reference. The reviewed fix therefore keeps partial updates, so the public contract does not change, and makes them order-independent rather than adopting complete snapshots.
+
+**Correction** (migration `0024` amended in place, D-070).
+- `amount_at` and `payment_reference_at` record the occurrence time of the change that supplied the current value, with a check that each is null exactly when its value is.
+- The stage (with its pipeline and previous stage), the amount pair and the payment reference are each replaced only by a later change, compared on (occurrence time, value), so ties at the same instant resolve the same way in every order. The amount and currency are written together.
+- `updated_at` moves only when something changed. Stage changes still never write revenue evidence.
+
+**Tests.** The regression passes. New cases in `test_bookings_crm.py`:
+- `test_every_delivery_order_gives_the_same_deal`: four changes, two without optional values, in all 24 orders; one final state with the latest stage, the latest amount pair and the latest reference, shown as `won_verified` with the linked sale; the only revenue evidence is the synthetic sale.
+- `test_changes_at_the_same_instant_resolve_the_same_way`: same-instant ties in both orders, omitted values kept, and an older amount losing.
+- `test_the_latest_payment_reference_decides_verification`: a later non-matching reference wins in both orders.
+
+`test_0023_and_0024_privileges` checks the two new update grants.
+
+**Results.**
+- Integration: the regression with `test_bookings_crm.py` and `test_integration_migrations.py`, 30 passed in 107.11 s.
+- Unit: `test_data_policy.py` and `test_integrations_contract.py`, 22 passed.
+- Mutation: R007-a (optional values applied only with a newer stage) is caught by the regression.

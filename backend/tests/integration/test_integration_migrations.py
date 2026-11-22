@@ -85,7 +85,9 @@ def test_0023_and_0024_privileges(db):
             "amount_minor",
             "currency",
             "currency_exponent",
+            "amount_at",
             "payment_reference",
+            "payment_reference_at",
             "updated_at",
         },
     }

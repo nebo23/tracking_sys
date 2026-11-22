@@ -13,6 +13,10 @@ ledger. Audit events accept the crm_rule actions and resource. tracking_app may 
 and update only the rule outcome and status and the deal's stage columns; tracking_lifecycle may
 delete deals 395 days after their last update. The downgrade refuses any rule, deal or new audit
 action.
+
+Amended in place under D-070 (review finding R007): amount_at and payment_reference_at keep the
+occurrence time of the change that supplied the current amount and payment reference, so each
+optional value is the latest supplied one whatever the delivery order.
 """
 
 from collections.abc import Sequence
@@ -60,7 +64,9 @@ DEAL_UPDATES = (
     "amount_minor",
     "currency",
     "currency_exponent",
+    "amount_at",
     "payment_reference",
+    "payment_reference_at",
     "updated_at",
 )
 RUNTIME_GRANTS = (
@@ -150,7 +156,9 @@ def upgrade() -> None:
         sa.Column("amount_minor", sa.BigInteger(), nullable=True),
         sa.Column("currency", sa.String(length=3), nullable=True),
         sa.Column("currency_exponent", sa.SmallInteger(), nullable=True),
+        sa.Column("amount_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("payment_reference", sa.String(length=128), nullable=True),
+        sa.Column("payment_reference_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("first_received_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         _check(
@@ -168,6 +176,12 @@ def upgrade() -> None:
             "AND (currency IS NULL) = (currency_exponent IS NULL) "
             "AND (amount_minor IS NULL OR amount_minor > 0) "
             "AND (currency IS NULL OR currency ~ '^[A-Z]{3}$')",
+        ),
+        _check(
+            table,
+            "valid_value_times",
+            "(amount_minor IS NULL) = (amount_at IS NULL) "
+            "AND (payment_reference IS NULL) = (payment_reference_at IS NULL)",
         ),
         _client(table),
         sa.ForeignKeyConstraint(

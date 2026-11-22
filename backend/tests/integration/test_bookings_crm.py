@@ -988,3 +988,130 @@ def test_duplicates_and_out_of_order_chains_stay_within_one_source(lab):
     )
     sources = {str(row.source_id) for row in _bookings(w) if row.provider == "cal_com"}
     assert sources == {lab.calcom["id"], calcom_two["id"]}
+
+
+# --- Review finding R007 (D-069, D-070): CRM changes are order-independent partial updates ---
+
+
+def _deal_state(w, deal_ref):
+    with Session(w.db.migration) as session:
+        deal = session.scalars(select(CrmDeal).where(CrmDeal.deal_ref == deal_ref)).one()
+        return (
+            deal.pipeline,
+            deal.stage,
+            deal.previous_stage,
+            deal.stage_at,
+            deal.amount_minor,
+            deal.currency,
+            deal.amount_at,
+            deal.payment_reference,
+            deal.payment_reference_at,
+        )
+
+
+def _won_rule(lab):
+    w = lab.w
+    rules = f"/agencies/{w.a}/clients/{w.a1}/crm/stage-rules"
+    created = lab.browser("owner_a").post(
+        rules, json={"pipeline": "sales", "stage": "won", "outcome": "won"}
+    )
+    assert created.status_code == 201
+
+
+def test_every_delivery_order_gives_the_same_deal(lab):
+    # R007: four changes of one deal, two of which omit the optional values, delivered in all
+    # 24 orders, end in one state: the latest stage, the latest supplied amount (with its
+    # currency) and the latest supplied payment reference.
+    w = lab.w
+    _sale(w, "700000123")
+    _won_rule(lab)
+
+    def changes(ref):
+        return [
+            deal_event(ref, "new", occurred_at="2026-11-10T08:00:00Z", payment_reference="R-0"),
+            deal_event(
+                ref,
+                "paid",
+                occurred_at="2026-11-10T09:00:00Z",
+                amount="1500.00",
+                currency="EGP",
+                payment_reference="700000123",
+            ),
+            deal_event(ref, "won", occurred_at="2026-11-10T10:00:00Z", previous="paid"),
+            deal_event(
+                ref, "won", occurred_at="2026-11-10T11:00:00Z", amount="80.00", currency="USD"
+            ),
+        ]
+
+    states = set()
+    for number, order in enumerate(itertools.permutations(range(4))):
+        ref = f"P-{number:02d}"
+        bodies = changes(ref)
+        for index in order:
+            assert lab.hook(bodies[index]).status_code == 200
+        states.add(_deal_state(w, ref)[1:])
+    assert len(states) == 1
+    (state,) = states
+    assert state[:2] == ("won", None)  # the 11:00 change carried no previous stage
+    assert state[3:5] == (8_000, "USD") and state[6] == "700000123"
+    deals = _deals(lab, amounts=True).json()["deals"]
+    assert len(deals) == 24
+    assert {
+        (row["status"], row["amount"], row["currency"], row["linked_sale"]) for row in deals
+    } == {("won_verified", "80.00", "USD", "700000123")}
+    with Session(w.db.migration) as session:
+        assert session.scalar(select(func.count()).select_from(RevenueEvidence)) == 1
+
+
+def test_changes_at_the_same_instant_resolve_the_same_way(lab):
+    # R007: two changes with the same occurrence time but different values give the same deal
+    # in both orders; the amount and its currency never mix.
+    w = lab.w
+    first = deal_event(
+        "T-a",
+        "won",
+        occurred_at="2026-11-10T09:00:00Z",
+        amount="1500.00",
+        currency="EGP",
+        payment_reference="REF-A",
+    )
+    second = deal_event(
+        "T-a",
+        "lost",
+        occurred_at="2026-11-10T09:00:00Z",
+        amount="20.00",
+        currency="USD",
+        payment_reference="REF-B",
+    )
+    for ref, order in (("T-a", (first, second)), ("T-b", (second, first))):
+        for body in order:
+            item = dict(body, id=f"{body['id']}-{ref}", deal=dict(body["deal"], id=ref))
+            assert lab.hook(item).status_code == 200
+    assert _deal_state(w, "T-a")[1:] == _deal_state(w, "T-b")[1:]
+    _, stage, _, _, minor, code, _, reference, _ = _deal_state(w, "T-a")
+    assert (stage, minor, code, reference) == ("won", 2_000, "USD", "REF-B")
+    # A later change without optional values keeps them; an older one supplying them loses.
+    assert lab.hook(deal_event("T-a", "won", occurred_at="2026-11-10T10:00:00Z")).status_code == 200
+    older = deal_event(
+        "T-a", "won", occurred_at="2026-11-10T08:00:00Z", amount="9.00", currency="EGP"
+    )
+    assert lab.hook(dict(older, id="evt-older")).status_code == 200
+    assert _deal_state(w, "T-a")[4:6] == (2_000, "USD")
+
+
+def test_the_latest_payment_reference_decides_verification(lab):
+    # R007: a later change with another payment reference replaces an earlier matching one in
+    # either order, so the same history gives the same verification state.
+    w = lab.w
+    _sale(w, "700000123")
+    _won_rule(lab)
+    matching = deal_event(
+        "V", "won", occurred_at="2026-11-10T09:00:00Z", payment_reference="700000123"
+    )
+    other = deal_event("V", "won", occurred_at="2026-11-10T10:00:00Z", payment_reference="999")
+    for ref, order in (("V-1", (matching, other)), ("V-2", (other, matching))):
+        for body in order:
+            item = dict(body, id=f"{body['id']}-{ref}", deal=dict(body["deal"], id=ref))
+            assert lab.hook(item).status_code == 200
+    statuses = {row["deal_ref"]: row["status"] for row in _deals(lab).json()["deals"]}
+    assert statuses == {"V-1": "won_unverified", "V-2": "won_unverified"}

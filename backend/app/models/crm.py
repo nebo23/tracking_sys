@@ -64,6 +64,8 @@ class CrmStageRule(Base):
 
 
 # The latest known stage of one deal of one source, with an optional amount and payment reference.
+# Each optional value keeps the occurrence time of the change that supplied it (amount_at,
+# payment_reference_at), so the latest supplied value wins in any delivery order (R007).
 # SELECT deal_ref, pipeline, stage, stage_at, updated_at FROM public.crm_deals
 # WHERE client_id = '00000000-0000-0000-0000-000000000003'::uuid ORDER BY updated_at DESC LIMIT 100;
 class CrmDeal(Base):
@@ -94,6 +96,11 @@ class CrmDeal(Base):
             "AND (currency IS NULL OR currency ~ '^[A-Z]{3}$')",
             name="valid_amount",
         ),
+        CheckConstraint(
+            "(amount_minor IS NULL) = (amount_at IS NULL) "
+            "AND (payment_reference IS NULL) = (payment_reference_at IS NULL)",
+            name="valid_value_times",
+        ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -107,6 +114,8 @@ class CrmDeal(Base):
     amount_minor: Mapped[int | None] = mapped_column(BigInteger)
     currency: Mapped[str | None] = mapped_column(String(3))
     currency_exponent: Mapped[int | None] = mapped_column(SmallInteger)
+    amount_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payment_reference: Mapped[str | None] = mapped_column(String(128))
+    payment_reference_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -618,9 +618,19 @@ def bookings_view(session: Session, agency_id: UUID, client_id: UUID) -> dict[st
 # --- CRM stage changes (E5, E6) -------------------------------------------------------------
 
 
-# Record one verified deal stage change: a repeated delivery is a no-op; the latest change by
-# occurrence time is kept, so out-of-order deliveries end in the same deal (T-58). A stage change
-# never writes revenue evidence (E6).
+# Total orders of the parts of a deal change: the occurrence time first, then the values, so two
+# changes at the same instant resolve the same way in any delivery order (R007).
+def _stage_key(occurred_at: datetime, stage: str, pipeline: str, previous: str | None) -> tuple:
+    return (occurred_at, stage, pipeline, previous or "")
+
+
+# Record one verified deal stage change: a repeated delivery is a no-op. A change is a partial
+# update (review finding R007): it always carries the stage, and optionally the amount with its
+# currency and a payment reference. Each part keeps the value of the change with the latest
+# occurrence time that supplied it (ties broken by the value), and an omitted part keeps the
+# latest supplied value, so every delivery order of the same changes ends in the same deal
+# (T-58). The amount and its currency always move together. A stage change never writes revenue
+# evidence (E6).
 def receive_deal(
     session: Session, source: IntegrationSource, payload: Mapping[str, Any], digest: str
 ) -> str:
@@ -638,6 +648,8 @@ def receive_deal(
         .where(CrmDeal.source_id == source.id, CrmDeal.deal_ref == change.deal_ref)
         .with_for_update()
     )
+    incoming = _stage_key(change.occurred_at, change.stage, change.pipeline, change.previous_stage)
+    changed = False
     if deal is None:
         deal = CrmDeal(
             id=uuid4(),
@@ -648,22 +660,37 @@ def receive_deal(
             first_received_at=received,
         )
         session.add(deal)
-    elif (change.occurred_at, change.stage) <= (deal.stage_at, deal.stage):
-        return _record(session, source, digest, received, "applied", None)
-    deal.pipeline, deal.stage, deal.previous_stage = (
-        change.pipeline,
-        change.stage,
-        change.previous_stage,
-    )
-    deal.stage_at = change.occurred_at
-    if change.amount is not None:
-        deal.amount_minor = change.amount.minor
-        deal.currency = change.amount.currency.code
-        deal.currency_exponent = change.amount.currency.exponent
-    if change.payment_reference is not None:
-        deal.payment_reference = change.payment_reference
-    deal.updated_at = received
-    session.flush()
+    if deal.stage_at is None or incoming > _stage_key(
+        deal.stage_at, deal.stage, deal.pipeline, deal.previous_stage
+    ):
+        deal.pipeline, deal.stage, deal.previous_stage = (
+            change.pipeline,
+            change.stage,
+            change.previous_stage,
+        )
+        deal.stage_at = change.occurred_at
+        changed = True
+    amount = change.amount
+    if amount is not None and (
+        deal.amount_at is None
+        or (change.occurred_at, amount.currency.code, amount.minor)
+        > (deal.amount_at, deal.currency, deal.amount_minor)
+    ):
+        deal.amount_minor = amount.minor
+        deal.currency = amount.currency.code
+        deal.currency_exponent = amount.currency.exponent
+        deal.amount_at = change.occurred_at
+        changed = True
+    reference = change.payment_reference
+    if reference is not None and (
+        deal.payment_reference_at is None
+        or (change.occurred_at, reference) > (deal.payment_reference_at, deal.payment_reference)
+    ):
+        deal.payment_reference, deal.payment_reference_at = reference, change.occurred_at
+        changed = True
+    if changed:
+        deal.updated_at = received
+        session.flush()
     return _record(session, source, digest, received, "applied", None)
 
 
