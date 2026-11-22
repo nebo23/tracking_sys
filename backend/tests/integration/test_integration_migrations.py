@@ -200,9 +200,10 @@ def test_0025_privileges_and_downgrade(world):
             assert _privilege(db, "tracking_app", table, privilege), (table, privilege)
         for privilege in ("DELETE", "TRUNCATE"):
             assert not _privilege(db, "tracking_app", table, privilege), (table, privilege)
-    for column in ("name", "status", "updated_at"):
+    for column in ("name", "status", "verified_at", "updated_at"):
         assert _privilege(db, "tracking_app", "whatsapp_numbers", "UPDATE", column)
-    assert not _privilege(db, "tracking_app", "whatsapp_numbers", "UPDATE", "phone_number_id")
+    for column in ("phone_number_id", "client_id", "created_by_membership_id"):
+        assert not _privilege(db, "tracking_app", "whatsapp_numbers", "UPDATE", column), column
     assert not _privilege(db, "tracking_app", "whatsapp_messages", "UPDATE")
     assert _privilege(db, "tracking_lifecycle", "whatsapp_messages", "DELETE")
     for column in ("id", "received_at"):
@@ -218,7 +219,7 @@ def test_0025_privileges_and_downgrade(world):
                 client_id=world.a1,
                 phone_number_id="106540352242922",
                 name="Synthetic",
-                status="active",
+                status="pending",
                 created_by_membership_id=world.owner_a,
             )
         )

@@ -92,3 +92,29 @@ The existing T-10 to T-21 and A1 cases, including duplicates, every delivery ord
 **Results.**
 - Integration: both regressions with `test_bookings_crm.py` and `test_collection.py`, 71 passed in 141.23 s.
 - Mutations: R003-a (consent-change detach removed), R003-b (read-time rule removed) and R003-c (merge check removed) are caught.
+
+### R004 P1: WhatsApp numbers route only after a verified binding
+
+**Root cause.** An agency Owner's registration created an `active` routing entry for any unused numeric phone number ID. The number was unique across clients, and the authority checked was only the agency's own workspace authority. Every client's notifications reach the platform's one Meta app, so another agency that knew a business's ID could capture its authentic notifications and block the real owner's later registration.
+
+**Decision.** D-070: the registration is a claim, and a platform operator outside the agency roles verifies it after an out-of-band ownership check in Meta Business Manager. Revocation and transfer go through the operator; nothing calls Meta, and no message data is stored for the proof.
+
+**Correction** (migration `0025` amended in place).
+- `whatsapp_numbers` holds claims: `pending` (the registration default, routes nothing), `active` and `disabled` (verified, with `verified_at`, enforced by `ck_whatsapp_numbers_valid_verification`) and `revoked`.
+- The global uniqueness is replaced by two partial unique indexes: one verified binding per number, and one unrevoked claim per client and number.
+- `verify_claim` refuses a second verified binding (`number_already_bound`; a concurrent conflict on the index maps to the same code), and `revoke_claim` ends a claim or binding. The new operator command `python -m app.whatsapp_binding` exposes both with `list`, needs `--confirm`, and prints identifiers and states only.
+- Agencies may switch only a verified binding (`409 verification_required` for pending, `409 claim_revoked` for revoked). Routing still requires an active binding of an active client and agency. `tracking_app` may also update `verified_at`; operator actions are recorded on the claim row.
+
+**Tests.** The regression passes. New cases in `test_whatsapp.py`:
+- `test_unproven_claims_route_nothing_and_cannot_block_the_owner`: another agency's first claim routes nothing; the owner can still claim; neither agency can self-activate; only the operator's verification routes; a second verification fails.
+- `test_disabled_and_revoked_bindings_and_transfer`: disable and re-activate; revocation; transfer to another client's pending claim; stored messages keep their client; operator refusals; a re-claim after revocation.
+- `test_one_verified_binding_per_number_in_the_database`: the partial index and the verification check refuse direct writes.
+- `test_operator_command`: list, verify and revoke with closed errors; refused without `--confirm` or with a malformed ID.
+
+The `wa` fixture now verifies its number through the operator function. `test_numbers_permissions_audit_and_isolation` had asserted that a second client's registration of a registered number answers `409`. That was the defect, the global uniqueness that let a first claimant block the owner. The test now asserts the reviewed contract: the second client's claim is accepted as pending and routes nothing until verified, and only the same client's second claim answers `409`. `test_0025_privileges_and_downgrade` checks the `verified_at` grant.
+
+**Results.**
+- Integration: the regression with `test_whatsapp.py` and `test_integration_migrations.py`, 18 passed in 40.14 s.
+- Mutations: R004-a (pending claims route) is caught by the regression's assertion, and R004-b (agency self-activation) by the new owner-claim case.
+
+**Remaining limits.** Verification relies on the operator's out-of-band check. A provider-verified binding through Meta's own onboarding (Embedded Signup) needs live Meta access and app review and remains a later production option.

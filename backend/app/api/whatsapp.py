@@ -3,7 +3,10 @@
 The public webhook answers Meta's verification handshake only with the configured verify token,
 and accepts notifications signed with the Meta app secret (X-Hub-Signature-256); an invalid
 signature gets 401 and stores nothing, and every verified notification gets 200. Owner and Admin
-sessions register a client's phone number IDs, each audited. Readers with client:read see the
+sessions register a client's phone number IDs, each audited; a registration is a pending claim
+that routes nothing until the platform operator verifies it with python -m app.whatsapp_binding
+(D-070, review finding R004), and only a verified binding can be disabled or re-activated here.
+Readers with client:read see the
 client's message counts by referral, never a person field. While the setting is off or the rule
 is not current, the webhook answers 503 and numbers cannot be registered.
 """
@@ -51,9 +54,10 @@ class NumberView(Output):
     id: UUID
     phone_number_id: str
     name: str
-    status: str
+    status: Literal["pending", "active", "disabled", "revoked"]
     created_at: datetime
     updated_at: datetime
+    verified_at: datetime | None
 
 
 class Received(Output):

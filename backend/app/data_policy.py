@@ -1981,7 +1981,13 @@ TABLES: dict[str, TablePolicy] = {
                 "created_by_membership_id",
             ),
             **_same(
-                "whatsapp.number", "phone_number_id", "name", "status", "created_at", "updated_at"
+                "whatsapp.number",
+                "phone_number_id",
+                "name",
+                "status",
+                "created_at",
+                "updated_at",
+                "verified_at",
             ),
         },
         (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),

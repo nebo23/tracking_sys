@@ -36,7 +36,19 @@ A stage change never becomes revenue. Owners and Admins approve won and lost sta
 
 In the Meta app, the webhook URL is the API's HTTPS origin followed by `/integrations/whatsapp/webhook`, with the verify token, subscribed to the `messages` field. `GET` answers the handshake only for `hub.mode=subscribe` and the verify token. `POST` verifies `X-Hub-Signature-256` (401 otherwise) and accepts bodies up to 3 MiB.
 
-Owners and Admins register each client's WhatsApp Business phone number ID (`POST`, `GET`, `PATCH .../whatsapp-numbers`, audited). For every inbound message of a registered, active number, only the Click-to-WhatsApp referral is stored: the source type (`ad`, `post` or `other`), the ad ID and whether a click ID was present. A message without a referral is recorded as unknown. Phone numbers, names, sender IDs, message text, ad copy, media URLs and click IDs are never stored or logged, and no conversation is correlated with a person. Messages of unregistered numbers and status notifications store nothing; Meta's retries are deduplicated.
+Owners and Admins register each client's WhatsApp Business phone number ID (`POST`, `GET`, `PATCH .../whatsapp-numbers`, audited). **A registration is a claim, not a binding (D-070, review finding R004).** Every client's notifications reach the platform's one Meta app, and an agency's authority over its own workspace does not prove that it owns a provider number. A new registration therefore starts `pending` and routes nothing. Several clients may hold pending claims for one number, so a first claim by another agency neither captures the number's messages nor blocks the real owner; a client holds at most one unrevoked claim per number (`409` otherwise).
+
+The platform operator, who acts outside the agency roles, verifies a claim after checking out of band, in Meta Business Manager, that the number belongs to that client's WhatsApp Business Account and that the account was onboarded to the platform's Meta app:
+
+| Command | Effect |
+|---|---|
+| `python -m app.whatsapp_binding list [--status pending\|active\|disabled\|revoked\|all]` | JSON list of claims: claim, agency and client IDs, phone number ID, status and times |
+| `python -m app.whatsapp_binding verify --claim <uuid> --confirm` | The pending claim becomes the number's `active` binding with `verified_at`; refused (`number_already_bound`) while another binding of the number is verified |
+| `python -m app.whatsapp_binding revoke --claim <uuid> --confirm` | The claim or binding becomes `revoked` and routes nothing; the number is free for another verified binding |
+
+A number has at most one verified binding (a partial unique index). To move a number to another client, the operator revokes the current binding and then verifies the other client's pending claim; messages already stored keep their client. Agencies may switch only a verified binding between `active` and `disabled`; a pending claim answers `409 verification_required` and a revoked one `409 claim_revoked`. Operator actions are recorded on the claim (`status`, `verified_at`, `updated_at`), not in the agency audit log, whose actors are agency members. Nothing here calls Meta; a provider-verified binding through Meta's own onboarding is a later option for production.
+
+For every inbound message of a verified, active number, only the Click-to-WhatsApp referral is stored: the source type (`ad`, `post` or `other`), the ad ID and whether a click ID was present. A message without a referral is recorded as unknown. Phone numbers, names, sender IDs, message text, ad copy, media URLs and click IDs are never stored or logged, and no conversation is correlated with a person. Messages of unregistered numbers and status notifications store nothing; Meta's retries are deduplicated.
 
 `GET .../whatsapp/referrals?since=YYYY-MM-DD&until=YYYY-MM-DD` (`client:read`, UTC days, at most 92, default the last 30) returns the total, the unknown count and the counts per source type and ad ID.
 

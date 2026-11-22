@@ -5,6 +5,16 @@ phone number IDs, each audited. The Meta app secret and verify token are platfor
 never stored in the database. A verified notification records each inbound message of a
 registered, active number of an active client once, keeping only its referral; messages of
 unknown numbers are skipped. Nothing here calls Meta or correlates a conversation with a person.
+
+A registration is only a claim (D-070, review finding R004): every notification reaches the one
+shared Meta app, so an agency that knew another business's phone number ID could otherwise
+capture its messages, and the number's uniqueness then blocked the real owner. A claim starts
+pending and routes nothing. The platform operator, outside the agency roles, checks out of band
+that the number belongs to the client's WhatsApp Business Account and verifies the claim with
+python -m app.whatsapp_binding (verify_claim), which makes it active. Each number has at most
+one verified binding, so verifying another client's claim requires revoking the current binding
+first (transfer). Agencies may disable and re-activate only a verified binding; a pending or
+revoked claim stays as it is. Several clients may hold pending claims for one number.
 """
 
 from datetime import UTC, date, datetime, timedelta
@@ -13,6 +23,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -63,7 +74,7 @@ class WhatsappNumberAdmin(TenancyService):
             client_id=client_id,
             phone_number_id=phone_number_id,
             name=self._name(name),
-            status="active",
+            status="pending",
             created_by_membership_id=actor.id,
         )
         self.session.add(item)
@@ -107,6 +118,11 @@ class WhatsappNumberAdmin(TenancyService):
             raise AccessDenied()
         if status is not None and status not in {"active", "disabled"}:
             raise ValueError("Invalid number status.")
+        # Only a verified binding changes between active and disabled (D-070).
+        if status is not None and item.status == "pending":
+            raise WhatsappError("verification_required", 409)
+        if status is not None and item.status == "revoked":
+            raise WhatsappError("claim_revoked", 409)
         now = self._now()
         if status == "active" and item.status != "active":
             require_whatsapp(self.settings, now.date())
@@ -117,6 +133,65 @@ class WhatsappNumberAdmin(TenancyService):
         item.updated_at = now
         self._audit(agency_id, "whatsapp_number.updated", "whatsapp_number", item.id, client_id)
         return item
+
+
+# --- Platform operator binding (D-070) -------------------------------------------------------
+
+
+def _claim(session: Session, claim_id: UUID) -> WhatsappNumber:
+    item = session.scalar(
+        select(WhatsappNumber)
+        .where(WhatsappNumber.id == claim_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if item is None:
+        raise WhatsappError("claim_not_found", 404)
+    return item
+
+
+# Verify one pending claim after the operator's out-of-band ownership check: it becomes the
+# number's active binding. Another verified binding of the number refuses it (revoke it first);
+# the partial unique index enforces the same rule against a concurrent verification.
+def verify_claim(session: Session, claim_id: UUID) -> WhatsappNumber:
+    item = _claim(session, claim_id)
+    if item.status != "pending":
+        raise WhatsappError("claim_not_pending", 409)
+    holder = session.scalar(
+        select(WhatsappNumber.id).where(
+            WhatsappNumber.phone_number_id == item.phone_number_id,
+            WhatsappNumber.status.in_(("active", "disabled")),
+        )
+    )
+    if holder is not None:
+        raise WhatsappError("number_already_bound", 409)
+    now = session.scalar(select(func.clock_timestamp()))
+    item.status, item.verified_at, item.updated_at = "active", now, now
+    try:
+        session.flush()
+    except IntegrityError as error:  # a concurrent verification of the same number won
+        raise WhatsappError("number_already_bound", 409) from error
+    return item
+
+
+# Revoke a claim or a binding: it routes nothing from then on and frees the number for another
+# verified binding. Messages already stored keep their client until their own retention.
+def revoke_claim(session: Session, claim_id: UUID) -> WhatsappNumber:
+    item = _claim(session, claim_id)
+    if item.status == "revoked":
+        raise WhatsappError("claim_revoked", 409)
+    item.status = "revoked"
+    item.updated_at = session.scalar(select(func.clock_timestamp()))
+    session.flush()
+    return item
+
+
+# Claims for the operator's review, oldest first: identifiers, number, status and times only.
+def list_claims(session: Session, status: str | None = "pending") -> list[WhatsappNumber]:
+    query = select(WhatsappNumber).order_by(WhatsappNumber.created_at, WhatsappNumber.id)
+    if status is not None:
+        query = query.where(WhatsappNumber.status == status)
+    return list(session.scalars(query.limit(500)))
 
 
 def _numbers(session: Session, ids: set[str]) -> dict[str, WhatsappNumber]:

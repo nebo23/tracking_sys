@@ -5,13 +5,20 @@ Revises: 0024_crm_deals
 Created: 2026-11-21
 
 Specification 015-E (D-068 decisions E7 to E10 and E12; design in
-specs/015-business-integrations/design-015b.md). Adds whatsapp_numbers (a client's registered
+specs/015-business-integrations/design-015b.md). Adds whatsapp_numbers (a client's claim to a
 WhatsApp Business phone number ID) and whatsapp_messages (one row per inbound message with only
 its Click-to-WhatsApp referral: the source type, the ad ID and whether a click ID was present,
 keyed by a SHA-256 of the message ID). No column holds a phone number, name, sender ID, text or
 click ID. Audit events accept the whatsapp_number actions and resource. tracking_app may insert
-and read, and update a number's name, status and update time; tracking_lifecycle may delete
-messages 395 days after receipt. The downgrade refuses any number, message or new audit action.
+and read, and update a number's name, status, verification time and update time;
+tracking_lifecycle may delete messages 395 days after receipt. The downgrade refuses any number,
+message or new audit action.
+
+Amended in place under D-070 (review finding R004): an agency's registration is a pending claim
+that routes nothing, a platform operator verifies one claim per number (verified_at), and only a
+verified binding (active or disabled) is unique per phone number ID, so a first claim by another
+agency cannot capture the number or block its owner. A client holds at most one unrevoked claim
+per number.
 """
 
 from collections.abc import Sequence
@@ -25,6 +32,15 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 TABLES = ("whatsapp_messages", "whatsapp_numbers")
+# D-070 claim states: pending (claimed, routes nothing), active and disabled (verified by the
+# platform operator), revoked (ended by the operator).
+STATUSES = "'pending', 'active', 'disabled', 'revoked'"
+VERIFIED = "status IN ('active', 'disabled')"
+VERIFICATION = (
+    "(status = 'pending' AND verified_at IS NULL) "
+    "OR (status IN ('active', 'disabled') AND verified_at IS NOT NULL) "
+    "OR status = 'revoked'"
+)
 PREVIOUS_ACTIONS = (
     "action IN ('agency.created', 'agency.updated', 'client.created', 'client.updated', "
     "'membership.created', 'membership.updated', 'grant.created', 'grant.updated', "
@@ -54,7 +70,7 @@ PREVIOUS_RESOURCES = (
 RESOURCES = PREVIOUS_RESOURCES[:-1] + ", 'whatsapp_number')"
 RUNTIME_GRANTS = (
     f"GRANT SELECT, INSERT ON {', '.join(TABLES)} TO tracking_app",
-    "GRANT UPDATE (name, status, updated_at) ON whatsapp_numbers TO tracking_app",
+    "GRANT UPDATE (name, status, verified_at, updated_at) ON whatsapp_numbers TO tracking_app",
 )
 LIFECYCLE_GRANTS = (
     "GRANT SELECT (id, received_at) ON whatsapp_messages TO tracking_lifecycle",
@@ -92,12 +108,14 @@ def upgrade() -> None:
         sa.Column("client_id", sa.Uuid(), nullable=False),
         sa.Column("phone_number_id", sa.String(length=32), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
-        sa.Column("status", sa.String(length=16), server_default="active", nullable=False),
+        sa.Column("status", sa.String(length=16), server_default="pending", nullable=False),
         sa.Column("created_by_membership_id", sa.Uuid(), nullable=False),
         _time("created_at", default=True),
         _time("updated_at", default=True),
+        _time("verified_at", nullable=True),
         _check(table, "valid_phone_number_id", "phone_number_id ~ '^[1-9][0-9]{0,31}$'"),
-        _check(table, "valid_status", "status IN ('active', 'disabled')"),
+        _check(table, "valid_status", f"status IN ({STATUSES})"),
+        _check(table, "valid_verification", VERIFICATION),
         _check(table, "valid_name", "length(btrim(name)) BETWEEN 1 AND 200"),
         sa.ForeignKeyConstraint(
             ["agency_id", "client_id"],
@@ -111,7 +129,21 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f(f"pk_{table}")),
         sa.UniqueConstraint("agency_id", "client_id", "id", name="uq_whatsapp_numbers_scope"),
-        sa.UniqueConstraint("phone_number_id", name="uq_whatsapp_numbers_phone_number_id"),
+    )
+    # One verified binding per number; one unrevoked claim per client and number (D-070).
+    op.create_index(
+        "uq_whatsapp_numbers_verified",
+        table,
+        ["phone_number_id"],
+        unique=True,
+        postgresql_where=sa.text(VERIFIED),
+    )
+    op.create_index(
+        "uq_whatsapp_numbers_claim",
+        table,
+        ["client_id", "phone_number_id"],
+        unique=True,
+        postgresql_where=sa.text("status <> 'revoked'"),
     )
 
     table = "whatsapp_messages"

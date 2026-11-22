@@ -1,7 +1,10 @@
 """WhatsApp numbers and referral messages (specification 015-E, D-068 decisions E7 to E10).
 
-An Owner or Admin registers a client's WhatsApp Business phone number ID; notifications for
-that ID are attributed to the client. For each inbound message, only the Click-to-WhatsApp
+An Owner or Admin registers a client's claim to a WhatsApp Business phone number ID. The claim
+is pending and routes nothing until a platform operator verifies it (D-070, review finding
+R004): agency authority over a workspace is not proof of owning the provider's number. Only a
+verified, active binding attributes notifications for that ID to the client, and each number
+has at most one verified binding. For each inbound message, only the Click-to-WhatsApp
 referral is kept: the source type, the ad ID and whether a click ID was present (E8). A message
 without a referral is recorded as unknown. No row holds a phone number, name, sender ID, message
 text, ad text, media URL or click ID, so no conversation is correlated with a person (no valid
@@ -32,10 +35,14 @@ from app.database import Base
 
 CLIENT_FK = (["agency_id", "client_id"], ["client_workspaces.agency_id", "client_workspaces.id"])
 SOURCE_TYPES = ("ad", "post", "other")
+# D-070 claim states: pending (claimed, routes nothing), active and disabled (verified by the
+# platform operator), revoked (ended by the operator).
+CLAIM_STATES = ("pending", "active", "disabled", "revoked")
+VERIFIED = "status IN ('active', 'disabled')"
 
 
-# One registered WhatsApp Business phone number ID of one client.
-# SELECT id, phone_number_id, name, status FROM public.whatsapp_numbers
+# One client's claim to a WhatsApp Business phone number ID, verified or not.
+# SELECT id, phone_number_id, name, status, verified_at FROM public.whatsapp_numbers
 # WHERE client_id = '00000000-0000-0000-0000-000000000003'::uuid ORDER BY created_at LIMIT 100;
 class WhatsappNumber(Base):
     __tablename__ = "whatsapp_numbers"
@@ -46,9 +53,30 @@ class WhatsappNumber(Base):
             ["agency_memberships.agency_id", "agency_memberships.id"],
         ),
         UniqueConstraint("agency_id", "client_id", "id", name="uq_whatsapp_numbers_scope"),
-        UniqueConstraint("phone_number_id", name="uq_whatsapp_numbers_phone_number_id"),
+        Index(
+            "uq_whatsapp_numbers_verified",
+            "phone_number_id",
+            unique=True,
+            postgresql_where=text(VERIFIED),
+        ),
+        Index(
+            "uq_whatsapp_numbers_claim",
+            "client_id",
+            "phone_number_id",
+            unique=True,
+            postgresql_where=text("status <> 'revoked'"),
+        ),
         CheckConstraint("phone_number_id ~ '^[1-9][0-9]{0,31}$'", name="valid_phone_number_id"),
-        CheckConstraint("status IN ('active', 'disabled')", name="valid_status"),
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{item}'" for item in CLAIM_STATES) + ")",
+            name="valid_status",
+        ),
+        CheckConstraint(
+            "(status = 'pending' AND verified_at IS NULL) "
+            "OR (status IN ('active', 'disabled') AND verified_at IS NOT NULL) "
+            "OR status = 'revoked'",
+            name="valid_verification",
+        ),
         CheckConstraint("length(btrim(name)) BETWEEN 1 AND 200", name="valid_name"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -56,10 +84,11 @@ class WhatsappNumber(Base):
     client_id: Mapped[UUID] = mapped_column(Uuid)
     phone_number_id: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(200))
-    status: Mapped[str] = mapped_column(String(16), server_default="active")
+    status: Mapped[str] = mapped_column(String(16), server_default="pending")
     created_by_membership_id: Mapped[UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # One inbound message of one registered number: its referral, or none (unknown).

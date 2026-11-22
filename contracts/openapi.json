@@ -23119,6 +23119,12 @@
           },
           "status": {
             "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "disabled",
+              "revoked"
+            ],
             "title": "Status"
           },
           "created_at": {
@@ -23130,6 +23136,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
           }
         },
         "type": "object",
@@ -23139,7 +23157,8 @@
           "name",
           "status",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "verified_at"
         ],
         "title": "NumberView"
       },
