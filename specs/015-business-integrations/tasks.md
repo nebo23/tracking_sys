@@ -1,5 +1,19 @@
 # Tasks: 015-business-integrations
-Status: Completed for review under D-066, D-067 and D-068 (all five acceptance criteria). See the [evidence](evidence.md).
+Status: Implemented under D-066 to D-068, with open review corrections under D-069. The historical implementation checks below do not close the findings of the [001-015 review](../../reports/specs-001-015-review-2026-11-22.md). Follow the [handoff](review-corrections-prompt.md) and [tracker](review-corrections-tracker.md); merge waits for their verified closure.
+
+## Review correction completion
+
+- [x] Save the review report and reusable regression patch in the repository.
+- [x] Prepare the per-finding correction handoff and tracker under D-069.
+- [ ] Reproduce every R001-R011 case at `db750d1` in an isolated disposable environment.
+- [ ] Resolve concrete decisions needed by the selected fixes without blocking independent work.
+- [ ] Correct and verify all eleven findings, retaining regression and adjacent-case coverage.
+- [ ] Reconcile A1 documentation and explicitly record A2/A3 repository follow-ups.
+- [ ] Run final suites and re-read all eleven findings against the final code.
+- [ ] Publish verified corrections and update the existing PR 13 evidence.
+- [ ] Satisfy D-069 merge conditions, merge the reviewed head and record the observed merge SHA.
+
+## Historical implementation tasks
 
 - [x] Approve the scope and sources for forms, bookings, payments, crm, and whatsapp. (Payments and the CSV fallback: D-066 and D-067; bookings, CRM and WhatsApp: D-068; form tools are a follow-up.)
 - [ ] Resolve Q-002, Q-003, Q-010; select providers before implementation and record the owner decision. (Paymob, Cal.com and WhatsApp selected under D-066 and D-068; the questions stay open.)

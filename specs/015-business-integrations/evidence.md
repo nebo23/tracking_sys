@@ -1,5 +1,11 @@
 # Specification 015 evidence
 
+## Cross-specification review and correction handoff
+
+On 2026-11-22 the [001-015 review](../../reports/specs-001-015-review-2026-11-22.md) verified `db750d1`: the existing backend suite passed 1,243 cases and the unchanged tracker suites passed 111 cases, while thirteen additional regressions reproduced eleven defects. D-069 records the owner's request to correct and verify them individually before the conditional final merge of PR 13. The [handoff](review-corrections-prompt.md), [tracker](review-corrections-tracker.md) and [regression patch](../../reports/specs-001-015-review-regressions.patch) are prepared; all findings remain open. This documentation preparation does not change application code or claim a correction. The implementer will add `review-corrections-evidence.md` with the actual final results.
+
+## Historical implementation verification
+
 The first round (payments and the CSV and manual fallback, D-066 and D-067) is recorded first, then the second round (bookings, CRM and WhatsApp, D-068).
 
 Branch `codex/spec-015-business-integrations`, created from `c81d506` (the D-066 preparation on top of merged `main` at `73efae9`). Authority: D-066 and D-067, decisions D1-D15 of the [entry review](entry-review.md) as recommended, with amendment A1. Design: [design-015a.md](design-015a.md).
