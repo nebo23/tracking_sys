@@ -68,6 +68,9 @@ def _record(
     when=SALE_AT,
     reason=None,
 ):
+    # A Paymob record carries its signed order ID in the source reference, and an adjustment
+    # carries its sale's order (D-070); the synthetic order is "8" and the sale's operation.
+    order = parent if parent is not None else operation
     return Evidence(
         delivery or f"synthetic:{operation}:{kind.value}:{amount}",
         agency or world.a,
@@ -81,6 +84,7 @@ def _record(
         when,  # replaced by the database clock when appended
         parent_operation_id=parent,
         reason=reason,
+        source_reference=f"paymob:4097558:8{order}",
     )
 
 

@@ -1753,6 +1753,7 @@ TABLES: dict[str, TablePolicy] = {
                 "name",
                 "status",
                 "public_key",
+                "live_integration_ids",
                 "created_at",
                 "updated_at",
             ),

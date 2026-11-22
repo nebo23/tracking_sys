@@ -23336,6 +23336,17 @@
             "minLength": 16,
             "pattern": "^[!-~]+$",
             "title": "Hmac Secret"
+          },
+          "live_integration_ids": {
+            "items": {
+              "type": "integer",
+              "exclusiveMaximum": 9.223372036854776e+18,
+              "exclusiveMinimum": 0.0
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Live Integration Ids"
           }
         },
         "additionalProperties": false,
@@ -23344,7 +23355,8 @@
           "provider",
           "region",
           "name",
-          "hmac_secret"
+          "hmac_secret",
+          "live_integration_ids"
         ],
         "title": "PaymentSourceInput"
       },
@@ -23375,6 +23387,13 @@
             "type": "string",
             "title": "Callback Path"
           },
+          "live_integration_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Live Integration Ids"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -23394,6 +23413,7 @@
           "name",
           "status",
           "callback_path",
+          "live_integration_ids",
           "created_at",
           "updated_at"
         ],
@@ -23428,6 +23448,24 @@
               }
             ],
             "title": "Status"
+          },
+          "live_integration_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer",
+                  "exclusiveMaximum": 9.223372036854776e+18,
+                  "exclusiveMinimum": 0.0
+                },
+                "type": "array",
+                "maxItems": 20,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Integration Ids"
           }
         },
         "additionalProperties": false,

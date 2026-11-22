@@ -8,10 +8,14 @@ TRACKING_PAYMENTS_PAYMOB_ENABLED is set and both provider rules are current (gat
 
 receive_callback records one verified callback: it maps the minimized transaction (app.payments
 .paymob), appends the evidence under the client's revenue lock, and leaves one diagnostic row.
-Nothing here calls Paymob.
+Each source names the merchant's live integration IDs (D-070), and only a callback whose signed
+integration_id is among them can post. A refund or void whose parent sale is already stored
+posts only when both carry the same signed order ID; otherwise it is unmapped (invalid_parent)
+and stores nothing. Nothing here calls Paymob.
 """
 
 import re
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
@@ -20,15 +24,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.ledger import Evidence
+from app.ledger import Evidence, OperationKind
 from app.models import (
     Agency,
     ClientWorkspace,
     PaymentCallbackDiagnostic,
     PaymentSource,
     PaymentSourceSecret,
+    RevenueEvidence,
 )
-from app.payments.paymob import REGIONS, Mapped, Verified, map_transaction
+from app.models.payments import MAX_LIVE_INTEGRATIONS
+from app.payments.paymob import REGIONS, Mapped, Posting, Verified, map_transaction, same_order
 from app.privacy.providers import feature_allowed, rule
 from app.privacy.token_secrets import LocalKeyring, SealedSecret, SecretContext, open_secret, seal
 from app.security import new_token
@@ -79,6 +85,20 @@ def _hmac_secret(value: str) -> str:
     if not isinstance(value, str) or not HMAC_SECRET.fullmatch(value):
         raise ValueError("The HMAC secret must be 16-256 printable characters without spaces.")
     return value
+
+
+# The merchant's live integration IDs (D-070): 1 to 20 positive integers that fit a bigint,
+# kept sorted without repetition. Paymob shows them on the dashboard in live mode.
+def _live_integrations(values: Sequence[int]) -> list[int]:
+    if not isinstance(values, Sequence) or isinstance(values, str | bytes):
+        raise ValueError("Give 1 to 20 live integration IDs.")
+    items = sorted(set(values))
+    valid = all(
+        isinstance(item, int) and not isinstance(item, bool) and 0 < item < 2**63 for item in items
+    )
+    if not valid or not 1 <= len(items) <= MAX_LIVE_INTEGRATIONS:
+        raise ValueError("Give 1 to 20 live integration IDs.")
+    return items
 
 
 def _store_secret(
@@ -135,12 +155,14 @@ class PaymentSourceAdmin(TenancyService):
         region: str,
         name: str,
         hmac_secret: str,
+        live_integration_ids: Sequence[int],
     ) -> PaymentSource:
         actor = self._manager(agency_id, write=True)
         self.get_client(agency_id, client_id)
         if provider != "paymob" or region not in REGIONS:
             raise ValueError("Unsupported provider or region.")
         secret = _hmac_secret(hmac_secret)
+        live = _live_integrations(live_integration_ids)
         require_paymob(self.settings, self._today())
         keyring = require_token_keys(self.settings)
         source = PaymentSource(
@@ -152,6 +174,7 @@ class PaymentSourceAdmin(TenancyService):
             name=self._name(name),
             status="active",
             public_key="ppk_" + new_token(),
+            live_integration_ids=live,
             created_by_membership_id=actor.id,
         )
         self.session.add(source)
@@ -206,18 +229,22 @@ class PaymentSourceAdmin(TenancyService):
         *,
         name: str | None = None,
         status: str | None = None,
+        live_integration_ids: Sequence[int] | None = None,
     ) -> PaymentSource:
         self._manager(agency_id, write=True)
         self.get_client(agency_id, client_id)
         source = self._source(agency_id, client_id, source_id)
         if status is not None and status not in {"active", "disabled"}:
             raise ValueError("Invalid source status.")
+        live = None if live_integration_ids is None else _live_integrations(live_integration_ids)
         if status == "active" and source.status != "active":
             require_paymob(self.settings, self._today())
         if name is not None:
             source.name = self._name(name)
         if status is not None:
             source.status = status
+        if live is not None:
+            source.live_integration_ids = live
         source.updated_at = self.session.scalar(select(func.clock_timestamp()))
         self._audit(agency_id, "payment_source.updated", "payment_source", source.id, client_id)
         return source
@@ -270,6 +297,25 @@ def live_secrets(
     ]
 
 
+# Whether a refund or void may be stored against its named parent (D-070): when a Paymob sale of
+# that operation is already stored for the client, one of them must carry the refund's signed
+# order ID. A parent not yet stored is checked on every ledger read instead (app.services.revenue).
+def _parent_bound(session: Session, source: PaymentSource, posting: Posting) -> bool:
+    parents = list(
+        session.scalars(
+            select(RevenueEvidence.source_reference).where(
+                RevenueEvidence.agency_id == source.agency_id,
+                RevenueEvidence.client_id == source.client_id,
+                RevenueEvidence.source_account_id == posting.source_account_id,
+                RevenueEvidence.operation_id == posting.parent_operation_id,
+                RevenueEvidence.kind == OperationKind.SALE.value,
+                RevenueEvidence.intake == "paymob",
+            )
+        )
+    )
+    return not parents or any(same_order(posting.source_reference, item) for item in parents)
+
+
 # Record one verified callback of a source (D4, D5, D7): map it, append the evidence under the
 # client's revenue lock, and add one diagnostic row. Returns the closed outcome.
 def receive_callback(session: Session, source: PaymentSource, verified: Verified) -> Mapped:
@@ -277,7 +323,16 @@ def receive_callback(session: Session, source: PaymentSource, verified: Verified
     if verified.kind == "TOKEN" or verified.transaction is None:
         mapped = Mapped("unmapped", "card_token")
     else:
-        mapped = map_transaction(verified.transaction, source.region)
+        mapped = map_transaction(
+            verified.transaction, source.region, live_integrations=source.live_integration_ids
+        )
+    posting = mapped.posting
+    if (
+        posting is not None
+        and posting.kind is OperationKind.REFUND
+        and not _parent_bound(session, source, posting)
+    ):
+        mapped = Mapped("unmapped", "invalid_parent")
     if mapped.posting is not None:
         posting = mapped.posting
         outcome = append_evidence(

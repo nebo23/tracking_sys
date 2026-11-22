@@ -1,7 +1,9 @@
 """Paymob payment sources, sealed HMAC secrets and callback diagnostics (specification 015-B).
 
 D-067 decisions D3, D4, D12 and D14. A payment source belongs to one client and carries an
-unguessable public key for its callback URL. The merchant's HMAC secret is sealed under the D-025
+unguessable public key for its callback URL and the live integration IDs the merchant declared
+(D-070): only a signed integration_id in that list can post. The merchant's HMAC secret is
+sealed under the D-025
 keyring; a replaced secret stays valid until retires_at, 24 hours later, and tracking_lifecycle
 deletes retired secrets. Each verified callback leaves one diagnostic row (source, a digest of
 the received signature, receipt time and a closed outcome) that tracking_lifecycle deletes after
@@ -14,6 +16,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKeyConstraint,
@@ -25,6 +28,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -45,16 +49,25 @@ REASONS = (
     "invalid_time",
     "invalid_amount",
     "invalid_parent",
+    "undeclared_integration",
 )
 PUBLIC_KEY = "^ppk_[A-Za-z0-9_-]{43}$"
+MAX_LIVE_INTEGRATIONS = 20
+# D-070: 1 to 20 positive live integration IDs, without nulls (0 < ALL alone passes a null).
+LIVE_INTEGRATIONS_CHECK = (
+    f"cardinality(live_integration_ids) BETWEEN 1 AND {MAX_LIVE_INTEGRATIONS} "
+    "AND array_position(live_integration_ids, NULL) IS NULL "
+    "AND 0 < ALL (live_integration_ids)"
+)
 
 
 def _values(items: tuple[str, ...]) -> str:
     return ", ".join(f"'{item}'" for item in items)
 
 
-# One client's Paymob payment source (D3): provider, region, name, status and the public key of
-# its callback URL (POST /payments/paymob/callback/{public_key}).
+# One client's Paymob payment source (D3): provider, region, name, status, the public key of its
+# callback URL (POST /payments/paymob/callback/{public_key}) and the live integration IDs the
+# merchant declared (D-070).
 # SELECT id, provider, region, name, status, created_at, updated_at
 # FROM public.payment_sources
 # WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
@@ -76,6 +89,7 @@ class PaymentSource(Base):
         CheckConstraint("status IN ('active', 'disabled')", name="valid_status"),
         CheckConstraint("length(btrim(name)) BETWEEN 1 AND 200", name="valid_name"),
         CheckConstraint(f"public_key ~ '{PUBLIC_KEY}'", name="valid_public_key"),
+        CheckConstraint(LIVE_INTEGRATIONS_CHECK, name="valid_live_integrations"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
@@ -85,6 +99,7 @@ class PaymentSource(Base):
     name: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(16), server_default="active")
     public_key: Mapped[str] = mapped_column(String(64))
+    live_integration_ids: Mapped[list[int]] = mapped_column(ARRAY(BigInteger))
     created_by_membership_id: Mapped[UUID] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

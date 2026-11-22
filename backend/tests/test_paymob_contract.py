@@ -12,7 +12,9 @@ from datetime import UTC, date, datetime
 import pytest
 from paymob_callbacks import (
     FORBIDDEN,
+    LIVE_INTEGRATION,
     OTHER_SECRET,
+    TEST_INTEGRATION,
     TEST_SECRET,
     authorization,
     capture,
@@ -32,6 +34,8 @@ from app.payments.paymob import (
     effective_time,
     map_transaction,
     minimize,
+    same_order,
+    signed_order,
     signed_string,
     verify,
 )
@@ -134,8 +138,8 @@ def test_minimize_keeps_only_allowed_fields():
     assert not any(value in repr(kept) for value in FORBIDDEN)
 
 
-def _map(obj):
-    return map_transaction(minimize(obj), "egypt")
+def _map(obj, live=(LIVE_INTEGRATION,)):
+    return map_transaction(minimize(obj), "egypt", live_integrations=frozenset(live))
 
 
 def test_mapping_table():
@@ -147,7 +151,7 @@ def test_mapping_table():
     assert posted.posting.classification is EvidenceClass.CONFIRMED_CAPTURE
     assert posted.posting.operation_id == "1001" and posted.posting.amount.minor == 100_000
     assert posted.posting.source_account_id == "paymob-egypt"
-    assert posted.posting.source_reference == "paymob:4097558:810000001"
+    assert posted.posting.source_reference == f"paymob:{LIVE_INTEGRATION}:{paid['order']['id']}"
     captured = _map(capture(1002, 40_000, id=1003))
     assert captured.posting.kind is OperationKind.SALE and captured.posting.operation_id == "1003"
     partial = _map(refund(1001, 25_000, id=1004)).posting
@@ -164,6 +168,53 @@ def test_mapping_table():
     assert _map(sale(pending=True)).reason == "pending"
     assert _map(sale(is_live=False)).outcome == "test_mode"
     assert _map(refund(1001, 10, is_live=False)).outcome == "test_mode"
+
+
+def test_only_a_declared_live_integration_posts():
+    # R001 (D-070): is_live is unsigned, so the signed integration_id decides. Paymob uses
+    # separate integration IDs in test mode; flipping is_live on a test transaction changes
+    # nothing that is signed, and the integration stays undeclared.
+    tampered = sale(is_live=False)
+    assert tampered["integration_id"] == TEST_INTEGRATION
+    tampered["is_live"] = True
+    mapped = _map(tampered)
+    assert (mapped.outcome, mapped.reason) == ("test_mode", "undeclared_integration")
+    # A live transaction of an integration the merchant did not declare posts nothing either.
+    other = sale(integration_id=5_000_001)
+    assert (_map(other).outcome, _map(other).reason) == ("test_mode", "undeclared_integration")
+    assert _map(other, live=(LIVE_INTEGRATION, 5_000_001)).outcome == "stored"
+    # A declared integration with is_live false is still test mode (A1), and no declaration at
+    # all posts nothing.
+    assert _map(sale(is_live=False, integration_id=LIVE_INTEGRATION)).reason is None
+    assert _map(sale(is_live=False, integration_id=LIVE_INTEGRATION)).outcome == "test_mode"
+    assert _map(sale(), live=()).reason == "undeclared_integration"
+    # A missing or malformed integration ID is never declared.
+    for value in (None, 0, -1, True, "4097558x", 4097558.0):
+        broken = dict(minimize(sale()), integration_id=value)
+        mapped = map_transaction(broken, "egypt", live_integrations={LIVE_INTEGRATION})
+        assert (mapped.outcome, mapped.reason) == ("test_mode", "undeclared_integration"), value
+    # A numeric string of a declared ID is the same signed text and posts.
+    text = dict(minimize(sale()), integration_id=str(LIVE_INTEGRATION))
+    assert map_transaction(text, "egypt", live_integrations={LIVE_INTEGRATION}).posting
+
+
+def test_refund_and_sale_share_the_signed_order():
+    # R001 (D-070): parent_transaction is unsigned, the order ID is signed in both callbacks.
+    first, second = sale(), sale()
+    assert first["order"]["id"] != second["order"]["id"]
+    returned = refund(first["id"], 10_000)
+    assert returned["order"]["id"] == first["order"]["id"]
+    sale_ref = _map(first).posting.source_reference
+    refund_ref = _map(returned).posting.source_reference
+    assert signed_order(refund_ref) == str(first["order"]["id"])
+    assert same_order(refund_ref, sale_ref)
+    assert not same_order(refund_ref, _map(second).posting.source_reference)
+    # An unknown or malformed order never binds, not even to another unknown order.
+    unknown = _map(dict(sale(), order={"id": None})).posting.source_reference
+    assert unknown.endswith(":unknown") and signed_order(unknown) is None
+    assert not same_order(unknown, unknown)
+    for reference in (None, "", "declaration:1", "paymob:1", "paymob:1:0", "paymob:1:x"):
+        assert signed_order(reference) is None, reference
 
 
 @pytest.mark.parametrize(

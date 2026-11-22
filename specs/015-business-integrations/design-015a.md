@@ -109,7 +109,7 @@ Amounts are decimal strings in their own currency (`decimal_text`); currencies a
 
 ### 4.1 Tables (`0021_payment_sources`)
 
-**`payment_sources`**: `id`, `agency_id`, `client_id` (composite foreign key to the client), `provider` (`paymob`), `region` (`egypt`), `name` (1-200), `status` (`active`, `disabled`), `public_key` (`ppk_` and 43 URL-safe characters, unique), `created_by_membership_id`, `created_at`, `updated_at`. Unique (`agency_id`, `client_id`, `id`) for composite references.
+**`payment_sources`**: `id`, `agency_id`, `client_id` (composite foreign key to the client), `provider` (`paymob`), `region` (`egypt`), `name` (1-200), `status` (`active`, `disabled`), `public_key` (`ppk_` and 43 URL-safe characters, unique), `live_integration_ids` (1 to 20 positive bigints without nulls; amended in place under D-070, review finding R001), `created_by_membership_id`, `created_at`, `updated_at`. Unique (`agency_id`, `client_id`, `id`) for composite references. `tracking_app` may also update `live_integration_ids`, and diagnostics accept the reason `undeclared_integration`.
 
 **`payment_source_secrets`**: `id`, `agency_id`, `client_id`, `source_id` (composite foreign key), `version` (unique per source), the sealed secret (`kek_id`, `wrap_nonce`, `wrapped_dek`, `nonce`, `ciphertext`), `created_at`, `retires_at`. Sealed with the D-025 keyring under the context (agency, client, source, secret, `paymob_hmac`, version).
 
@@ -155,6 +155,7 @@ Checked in order on the minimized object:
 | Condition | Result |
 |---|---|
 | `is_live` is not `true` | `test_mode`, nothing posted |
+| signed `integration_id` not among the source's `live_integration_ids` (D-070) | `test_mode` (`undeclared_integration`), nothing posted |
 | `success` not `true` or `error_occured` `true` | `not_posted` (`failed`) |
 | `pending` `true` | `not_posted` (`pending`) |
 | `is_auth` `true` | `not_posted` (`authorization`) |
@@ -164,6 +165,8 @@ Checked in order on the minimized object:
 | anything else | `unmapped` (`unsupported_state`) |
 
 A posting also needs `amount_cents` a positive integer, a currency with exponent 2 in the 014 allow list (`amount_cents` is a cent amount; other exponents are `unsupported_currency`), and a valid `created_at` (`invalid_time`); otherwise `unmapped`. The source reference is `paymob:<integration id>:<order id>` (D6 allows both IDs). Chargebacks are not mapped (V-10). A refund that arrives first stays `parent_missing` until its sale arrives (007-A). Notes N1 and N2 of entry review section 2.5 apply.
+
+**D-070 amendment (review finding R001).** Note N1's signed-flag rule did not stop either reproduced case: with an unchanged signature, `is_live` turned a test transaction into a verified sale, and `parent_transaction` moved a refund to another sale. Both properties now come from signed fields. The environment: the signed `integration_id` must be one of the source's declared live integration IDs (Paymob issues separate integration IDs per mode), in addition to `is_live`. The parent: a refund or void adjusts only a sale with the same signed order ID (the last part of the source reference). `receive_callback` refuses a refund whose stored parent sale carries another order (`unmapped`, `invalid_parent`); `client_ledger` holds back, before calculating, a refund whose parent arrived later with another order, and the revenue read lists it as pending (`parent_order_mismatch`). The shared order of a refund and its sale is confirmed by the live check.
 
 ### 4.5 Synthetic sender
 

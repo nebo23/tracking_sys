@@ -12,6 +12,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
@@ -145,7 +146,7 @@ def test_0021_privileges(db):
             assert _privilege(db, "tracking_app", table, privilege), (table, privilege)
         assert not _privilege(db, "tracking_app", table, "DELETE"), table
         assert not _privilege(db, "tracking_app", table, "TRUNCATE"), table
-    for column in ("name", "status", "updated_at"):
+    for column in ("name", "status", "live_integration_ids", "updated_at"):
         assert _privilege(db, "tracking_app", "payment_sources", "UPDATE", column)
     for column in ("public_key", "client_id", "provider", "region"):
         assert not _privilege(db, "tracking_app", "payment_sources", "UPDATE", column)
@@ -171,7 +172,7 @@ def test_0021_privileges(db):
     assert not _privilege(db, "tracking_lifecycle", "payment_sources", "DELETE")
 
 
-def _source(world) -> None:
+def _source(world, live=(4_097_558,)) -> None:
     with Session(world.db.migration) as session, session.begin():
         session.add(
             PaymentSource(
@@ -183,9 +184,21 @@ def _source(world) -> None:
                 name="Synthetic",
                 status="active",
                 public_key="ppk_" + "A" * 43,
+                live_integration_ids=list(live),
                 created_by_membership_id=world.owner_a,
             )
         )
+
+
+def test_0021_live_integration_check(world):
+    # D-070: 1 to 20 positive live integration IDs, never a null element, enforced by the
+    # database as well as the API.
+    for live in ((), (0,), (-1,), (1, None), tuple(range(1, 22))):
+        with pytest.raises(IntegrityError, match="ck_payment_sources_valid_live_integrations"):
+            _source(world, live)
+    _source(world, tuple(range(1, 21)))
+    with world.db.migration.begin() as connection:
+        connection.execute(text("DELETE FROM payment_sources"))
 
 
 def test_0021_downgrade_refuses_payment_state(world):

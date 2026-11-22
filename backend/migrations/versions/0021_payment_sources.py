@@ -6,14 +6,16 @@ Created: 2026-11-21
 
 Specification 015-B (D-067 decisions D3, D4, D12, D14 and D15; design in
 specs/015-business-integrations/design-015a.md section 4). Adds payment_sources (one client's
-Paymob source with the public key of its callback URL), payment_source_secrets (the merchant's
+Paymob source with the public key of its callback URL and the merchant's declared live
+integration IDs, added in place under D-070 because a callback's is_live is unsigned),
+payment_source_secrets (the merchant's
 HMAC secret sealed under the D-025 keyring; a replaced version retires 24 hours later) and
 payment_callback_diagnostics (one row per verified callback: a digest of the received signature,
 the receipt time and a closed outcome). Audit events accept the payment_source actions and
-resource. tracking_app may insert and read, update a source's name, status and update time and a
-secret's retirement time, and delete nothing; tracking_lifecycle may delete retired secrets and
-diagnostics older than 30 days and read only their keys and times. The downgrade refuses any
-payment source state, any Paymob evidence and any new audit action.
+resource. tracking_app may insert and read, update a source's name, status, live integration IDs
+and update time and a secret's retirement time, and delete nothing; tracking_lifecycle may delete
+retired secrets and diagnostics older than 30 days and read only their keys and times. The
+downgrade refuses any payment source state, any Paymob evidence and any new audit action.
 """
 
 from collections.abc import Sequence
@@ -53,13 +55,21 @@ RESOURCES = PREVIOUS_RESOURCES[:-1] + ", 'payment_source')"
 OUTCOMES = "'stored', 'duplicate', 'not_posted', 'unmapped', 'test_mode'"
 REASONS = (
     "'authorization', 'failed', 'pending', 'card_token', 'unsupported_state', "
-    "'unsupported_currency', 'invalid_time', 'invalid_amount', 'invalid_parent'"
+    "'unsupported_currency', 'invalid_time', 'invalid_amount', 'invalid_parent', "
+    "'undeclared_integration'"
 )
 PUBLIC_KEY = "^ppk_[A-Za-z0-9_-]{43}$"
+# D-070: 1 to 20 positive live integration IDs per source, without nulls.
+LIVE_INTEGRATIONS = (
+    "cardinality(live_integration_ids) BETWEEN 1 AND 20 "
+    "AND array_position(live_integration_ids, NULL) IS NULL "
+    "AND 0 < ALL (live_integration_ids)"
+)
 SOURCE = ["payment_sources.agency_id", "payment_sources.client_id", "payment_sources.id"]
 RUNTIME_GRANTS = (
     f"GRANT SELECT, INSERT ON {', '.join(TABLES)} TO tracking_app",
-    "GRANT UPDATE (name, status, updated_at) ON payment_sources TO tracking_app",
+    "GRANT UPDATE (name, status, live_integration_ids, updated_at) ON payment_sources "
+    "TO tracking_app",
     "GRANT UPDATE (retires_at) ON payment_source_secrets TO tracking_app",
 )
 LIFECYCLE_GRANTS = (
@@ -108,6 +118,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("status", sa.String(length=16), server_default="active", nullable=False),
         sa.Column("public_key", sa.String(length=64), nullable=False),
+        sa.Column("live_integration_ids", sa.ARRAY(sa.BigInteger()), nullable=False),
         sa.Column("created_by_membership_id", sa.Uuid(), nullable=False),
         sa.Column(
             "created_at",
@@ -126,6 +137,7 @@ def upgrade() -> None:
         _check(table, "valid_status", "status IN ('active', 'disabled')"),
         _check(table, "valid_name", "length(btrim(name)) BETWEEN 1 AND 200"),
         _check(table, "valid_public_key", f"public_key ~ '{PUBLIC_KEY}'"),
+        _check(table, "valid_live_integrations", LIVE_INTEGRATIONS),
         sa.ForeignKeyConstraint(
             ["agency_id", "client_id"],
             ["client_workspaces.agency_id", "client_workspaces.id"],

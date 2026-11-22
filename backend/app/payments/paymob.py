@@ -10,13 +10,22 @@ secret. minimize() reduces a verified transaction to the allowed fields at once 
 billing, shipping, customer, item and token data never leave this module. map_transaction()
 turns the minimized transaction into one 007-A Evidence description or a closed outcome that
 posts nothing (D5, A1, notes N1 and N2 of entry review section 2.5).
+
+The HMAC does not cover is_live, parent_transaction, is_refund or is_void (V-2), so a holder of
+one signed callback could change them without breaking the signature (review finding R001).
+D-070 therefore takes both financial properties from signed fields: a transaction is live only
+when its signed integration_id is one of the live integration IDs the merchant declared for the
+source (Paymob issues separate integration IDs for test and live mode) and its is_live is true,
+and a refund or void adjusts only a sale that carries the same signed order ID (same_order). The
+order rule is enforced where both records are known: at intake when the parent sale is already
+stored, and on every ledger read for a refund that arrived before its parent.
 """
 
 import hashlib
 import hmac
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -239,6 +248,26 @@ def delivery_id(operation_id: str, state: dict[str, Any]) -> str:
     return f"paymob:{operation_id}:{hashlib.sha256(_canonical(state).encode()).hexdigest()[:32]}"
 
 
+def source_reference(integration: str, order: str | None) -> str:
+    return f"paymob:{integration}:{order or 'unknown'}"
+
+
+# The signed order ID of a Paymob posting, kept as the last part of its source reference
+# paymob:<integration>:<order>; None when the callback carried no positive order ID.
+def signed_order(reference: str | None) -> str | None:
+    parts = reference.split(":") if isinstance(reference, str) else []
+    if len(parts) != 3 or parts[0] != "paymob":
+        return None
+    return parts[2] if _POSITIVE.fullmatch(parts[2]) else None
+
+
+# D-070: a refund or void may adjust a sale only when both carry the same signed order ID. The
+# parent_transaction that names the sale is unsigned; the order ID is signed in both callbacks.
+def same_order(refund_reference: str | None, sale_reference: str | None) -> bool:
+    order = signed_order(refund_reference)
+    return order is not None and order == signed_order(sale_reference)
+
+
 def _kind(item: Mapping[str, Any]) -> tuple[OperationKind, str | None] | None:
     """The kind and reason of a posting state whose signed flags agree with it (N1)."""
     parent = _flag(item, "has_parent_transaction")
@@ -255,9 +284,17 @@ def _kind(item: Mapping[str, Any]) -> tuple[OperationKind, str | None] | None:
 
 
 # Map one minimized, verified transaction of a source in the given region (design section 4.4).
-def map_transaction(item: Mapping[str, Any], region: str) -> Mapped:
+# live_integrations are the source's declared live integration IDs (D-070): the unsigned is_live
+# alone never makes a transaction live, and a signed integration_id outside the declared list is
+# a test-mode (or unknown) integration that posts nothing.
+def map_transaction(
+    item: Mapping[str, Any], region: str, *, live_integrations: Collection[int]
+) -> Mapped:
     if not _flag(item, "is_live"):
         return Mapped("test_mode", None)
+    integration = _identifier(item.get("integration_id"))
+    if integration is None or int(integration) not in live_integrations:
+        return Mapped("test_mode", "undeclared_integration")
     if not _flag(item, "success") or _flag(item, "error_occured"):
         return Mapped("not_posted", "failed")
     if _flag(item, "pending"):
@@ -299,8 +336,6 @@ def map_transaction(item: Mapping[str, Any], region: str) -> Mapped:
         "parent": parent,
         "reason": reason,
     }
-    integration = _identifier(item.get("integration_id")) or "unknown"
-    order = _identifier(item.get("order_id")) or "unknown"
     posting = Posting(
         delivery_id(operation, state),
         SOURCE_ACCOUNTS[region],
@@ -311,6 +346,6 @@ def map_transaction(item: Mapping[str, Any], region: str) -> Mapped:
         effective,
         parent,
         reason,
-        f"paymob:{integration}:{order}",
+        source_reference(integration, _identifier(item.get("order_id"))),
     )
     return Mapped("stored", None, posting)

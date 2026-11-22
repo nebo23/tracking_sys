@@ -6,6 +6,12 @@ and item data, source_data with the last four digits and the brand, the gateway 
 masked card number, and payment key claims with billing data and a payment token. Every value is
 synthetic. Callbacks are signed by the documented algorithm (HMAC-SHA512 over the documented
 fields) with a test secret. Nothing here opens a network connection or calls Paymob.
+
+As Paymob documents (D-070), test and live mode use different integration IDs: a transaction
+built with is_live false carries TEST_INTEGRATION unless another ID is given, and a live one
+LIVE_INTEGRATION, the ID the test sources declare. Each payment gets its own order ID; a refund,
+void or capture carries the order of the parent this module built (the shared order is the
+D-070 assumption that the live check confirms).
 """
 
 import copy
@@ -38,11 +44,24 @@ FORBIDDEN = (
     CARD_TOKEN,
     PAYMENT_TOKEN,
 )
+LIVE_INTEGRATION = 4_097_558
+TEST_INTEGRATION = 4_097_601
 _ids = count(700_000_001)
+_order_ids = count(810_000_001)
+# The order of every transaction built here, so a child transaction carries its parent's order.
+_orders: dict[int, int] = {}
 
 
 def next_id() -> int:
     return next(_ids)
+
+
+def next_order_id() -> int:
+    return next(_order_ids)
+
+
+def order_of(transaction_id: int) -> int:
+    return _orders.get(transaction_id) or next_order_id()
 
 
 def _person() -> dict[str, Any]:
@@ -65,7 +84,8 @@ def _person() -> dict[str, Any]:
 
 
 # One transaction object with every documented flag. Defaults describe a successful live
-# standalone card payment of 1,000.00 EGP created in Cairo local time without an offset.
+# standalone card payment of 1,000.00 EGP created in Cairo local time without an offset, with a
+# new order and the integration of its mode.
 def transaction(
     *,
     id: int | None = None,
@@ -84,11 +104,16 @@ def transaction(
     is_void: bool = False,
     is_live: bool = True,
     parent: int | None = None,
-    order_id: int = 810_000_001,
-    integration_id: int = 4_097_558,
+    order_id: int | None = None,
+    integration_id: int | None = None,
     owner: int = 302_852,
 ) -> dict[str, Any]:
     identifier = id if id is not None else next_id()
+    if order_id is None:
+        order_id = order_of(parent) if parent is not None else next_order_id()
+    if integration_id is None:
+        integration_id = LIVE_INTEGRATION if is_live else TEST_INTEGRATION
+    _orders[identifier] = order_id
     return {
         "id": identifier,
         "pending": pending,

@@ -1,7 +1,9 @@
 """Payment routes (specification 015-B, D-067 decisions D3, D4, D10, D12 and D13).
 
-Owner and Admin sessions create, list, rename, disable and re-activate a client's Paymob sources
-and replace their merchant HMAC secret, each audited. The secret is accepted once and never
+Owner and Admin sessions create, list, rename, disable and re-activate a client's Paymob sources,
+declare and change their live integration IDs (D-070) and replace their merchant HMAC secret,
+each audited. Only a callback whose signed integration_id is a declared live integration can
+post; any other verified callback counts as test_mode. The secret is accepted once and never
 returned. The public callback route verifies Paymob's documented HMAC before anything is stored
 and answers every verified callback with 200, so Paymob stops retrying; an invalid signature, an
 unknown, disabled or malformed source key all receive the same 401 and store nothing. While the
@@ -35,6 +37,11 @@ from app.services.payments import (
 router = APIRouter(tags=["Payments"])
 callback_router = APIRouter(prefix="/payments", tags=["Payment callbacks"])
 HmacSecret = Annotated[str, Field(min_length=16, max_length=256, pattern=r"^[!-~]+$")]
+# The merchant's live-mode integration IDs from the Paymob dashboard (D-070).
+IntegrationIds = Annotated[
+    list[Annotated[int, Field(gt=0, lt=2**63, strict=True)]],
+    Field(min_length=1, max_length=20),
+]
 
 
 class PaymentSourceInput(Input):
@@ -42,11 +49,13 @@ class PaymentSourceInput(Input):
     region: Literal["egypt"]
     name: Annotated[str, Field(min_length=1, max_length=200)]
     hmac_secret: HmacSecret
+    live_integration_ids: IntegrationIds
 
 
 class PaymentSourceUpdate(Input):
     name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     status: Literal["active", "disabled"] | None = None
+    live_integration_ids: IntegrationIds | None = None
 
 
 class SecretInput(Input):
@@ -60,6 +69,7 @@ class PaymentSourceResponse(Output):
     name: str
     status: str
     callback_path: str
+    live_integration_ids: list[int]
     created_at: datetime
     updated_at: datetime
 
@@ -80,6 +90,7 @@ def _view(source) -> PaymentSourceResponse:
         name=source.name,
         status=source.status,
         callback_path=callback_path(source),
+        live_integration_ids=list(source.live_integration_ids),
         created_at=source.created_at,
         updated_at=source.updated_at,
     )
@@ -105,6 +116,7 @@ def create_payment_source(
         region=data.region,
         name=data.name,
         hmac_secret=data.hmac_secret,
+        live_integration_ids=data.live_integration_ids,
     )
     session.refresh(source)
     return _view(source)
@@ -147,7 +159,12 @@ def update_payment_source(
     if not data.model_fields_set:
         raise ValueError("An update field is required.")
     source = _admin(request, session, browser).update(
-        agency_id, client_id, source_id, name=data.name, status=data.status
+        agency_id,
+        client_id,
+        source_id,
+        name=data.name,
+        status=data.status,
+        live_integration_ids=data.live_integration_ids,
     )
     return _view(source)
 

@@ -16,8 +16,10 @@ from fastapi.testclient import TestClient
 from paymob_callbacks import (
     CARD_LAST_FOUR,
     FORBIDDEN,
+    LIVE_INTEGRATION,
     MASKED_PAN,
     OTHER_SECRET,
+    TEST_INTEGRATION,
     TEST_SECRET,
     authorization,
     capture,
@@ -59,7 +61,14 @@ def pay(authenticated_world, api):
         api.login(client, f"{name}@example.test")
         return client
 
-    def create(name="owner_a", agency=None, client_id=None, secret=TEST_SECRET, settings=None):
+    def create(
+        name="owner_a",
+        agency=None,
+        client_id=None,
+        secret=TEST_SECRET,
+        settings=None,
+        live=(LIVE_INTEGRATION,),
+    ):
         return browser(name, settings).post(
             f"/agencies/{agency or w.a}/clients/{client_id or w.a1}/payment-sources",
             json={
@@ -67,6 +76,7 @@ def pay(authenticated_world, api):
                 "region": "egypt",
                 "name": "Synthetic Paymob",
                 "hmac_secret": secret,
+                "live_integration_ids": list(live),
             },
         )
 
@@ -289,6 +299,163 @@ def test_test_mode_posts_nothing(pay):
     assert _evidence(pay.w) == []
 
 
+def _source_path(pay):
+    w = pay.w
+    return f"/agencies/{w.a}/clients/{w.a1}/payment-sources/{pay.source['id']}"
+
+
+def test_only_declared_live_integrations_post(pay):
+    # R001 (D-070): is_live is unsigned. A signed test-mode callback with is_live changed to
+    # true keeps its test integration ID and posts nothing; a live callback of an integration
+    # the merchant has not declared posts nothing until the merchant declares it.
+    assert pay.source["live_integration_ids"] == [LIVE_INTEGRATION]
+    trial = sale(is_live=False)
+    body, query = signed(trial)
+    trial["is_live"] = True
+    tampered = signed(trial)[0]
+    assert signed(trial)[1] == query  # the signature does not cover is_live
+    assert pay.public.post(pay.path, content=body, params=query).status_code == 200
+    assert pay.public.post(pay.path, content=tampered, params=query).status_code == 200
+    other = sale(integration_id=5_000_001)
+    assert pay.send(other).status_code == 200
+    assert _evidence(pay.w) == []
+    assert _diagnostics(pay.w) == [
+        ("test_mode", None),
+        ("test_mode", "undeclared_integration"),
+        ("test_mode", "undeclared_integration"),
+    ]
+    # Declaring the second live integration (audited) lets its later callbacks post; the test
+    # integration is never declared, so the tampered callback still posts nothing.
+    response = pay.browser("owner_a").patch(
+        _source_path(pay), json={"live_integration_ids": [5_000_001, LIVE_INTEGRATION, 5_000_001]}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["live_integration_ids"] == [LIVE_INTEGRATION, 5_000_001]
+    assert pay.send(other).status_code == 200
+    assert pay.public.post(pay.path, content=tampered, params=query).status_code == 200
+    assert [row.operation_id for row in _evidence(pay.w)] == [str(other["id"])]
+    assert _egp(_revenue(pay))["captured"] == "1000.00"
+    w = pay.w
+    with Session(w.db.migration) as session:
+        actions = session.scalars(
+            select(AuditEvent.action).where(AuditEvent.resource_id == pay.source["id"])
+        ).all()
+    assert actions.count("payment_source.updated") == 1
+
+
+def test_live_integration_ids_are_validated(pay):
+    # R001 (D-070): 1 to 20 positive integers, never strings, booleans or fractions. A source
+    # cannot be created without them; in an update, null leaves them unchanged like the other
+    # fields.
+    for value in ([], [0], [-5], [True], ["4097558"], [4097558.5], list(range(1, 22)), 2**63):
+        created = pay.create(live=value if isinstance(value, list) else [value])
+        assert created.status_code == 422, (value, created.text)
+        patched = pay.browser("owner_a").patch(
+            _source_path(pay),
+            json={"live_integration_ids": value if isinstance(value, list) else [value]},
+        )
+        assert patched.status_code == 422, (value, patched.text)
+    w = pay.w
+    missing = pay.browser("owner_a").post(
+        f"/agencies/{w.a}/clients/{w.a1}/payment-sources",
+        json={
+            "provider": "paymob",
+            "region": "egypt",
+            "name": "No declaration",
+            "hmac_secret": TEST_SECRET,
+        },
+    )
+    assert missing.status_code == 422, missing.text
+    unchanged = pay.browser("owner_a").patch(_source_path(pay), json={"live_integration_ids": None})
+    assert unchanged.status_code == 200
+    assert unchanged.json()["live_integration_ids"] == [LIVE_INTEGRATION]
+    created = pay.create(live=list(range(1, 21)))
+    assert created.status_code == 201 and len(created.json()["live_integration_ids"]) == 20
+    # Only an Owner or Admin of the client changes the declaration.
+    for name in ("analyst", "owner_b"):
+        refused = pay.browser(name).patch(
+            _source_path(pay), json={"live_integration_ids": [TEST_INTEGRATION]}
+        )
+        assert refused.status_code in {403, 404}, (name, refused.text)
+    listed = pay.browser("owner_a").get(f"/agencies/{pay.w.a}/clients/{pay.w.a1}/payment-sources")
+    assert [item["live_integration_ids"] for item in listed.json()][0] == [LIVE_INTEGRATION]
+
+
+def test_refund_cannot_move_to_a_sale_of_another_order(pay):
+    # R001 (D-070): parent_transaction is unsigned and the order ID is signed. With the parent
+    # stored, a refund naming a sale of another order is refused at intake and stores nothing;
+    # the genuine refund still posts against its own sale.
+    first, second = sale(), sale()
+    assert pay.send(first).status_code == pay.send(second).status_code == 200
+    genuine = refund(first["id"], 10_000)
+    body, query = signed(genuine)
+    moved = dict(genuine, parent_transaction=second["id"])
+    assert signed(moved)[1] == query
+    response = pay.public.post(pay.path, content=signed(moved)[0], params=query)
+    assert response.status_code == 200 and response.json() == {"status": "received"}
+    assert pay.public.post(pay.path, content=body, params=query).status_code == 200
+    rows = _evidence(pay.w)
+    assert [(row.kind, row.parent_operation_id) for row in rows] == [
+        ("sale", None),
+        ("sale", None),
+        ("refund", str(first["id"])),
+    ]
+    assert _diagnostics(pay.w)[2:] == [("unmapped", "invalid_parent"), ("stored", None)]
+    nets = {item["operation_id"]: item["net"] for item in _revenue(pay)["verified"]["transactions"]}
+    assert nets == {str(first["id"]): "900.00", str(second["id"]): "1000.00"}
+
+
+def test_refund_before_a_sale_of_another_order_stays_held(pay):
+    # R001 (D-070): a refund that arrives before its named parent cannot be checked at intake.
+    # When the parent then arrives with another signed order ID, the refund is held on every
+    # read: it never changes verified totals, the journal or the 014-B candidates.
+    from uuid import uuid4
+
+    from app.ledger import LedgerScope
+    from app.services.delivery import (
+        ClickIdentifier,
+        SyntheticJourney,
+        candidates_from_feed,
+        candidates_from_ledger,
+    )
+    from app.services.revenue import client_ledger
+
+    target = sale()
+    foreign = refund(target["id"], 25_000, order_id=999_000_001)
+    assert foreign["parent_transaction"] == target["id"]
+    assert foreign["order"]["id"] != target["order"]["id"]
+    assert pay.send(foreign).status_code == 200
+    report = _revenue(pay)
+    assert [(item["operation_id"], item["reason"]) for item in report["pending"]] == [
+        (str(foreign["id"]), "parent_missing")
+    ]
+    assert pay.send(target).status_code == 200
+    report = _revenue(pay)
+    assert [(item["operation_id"], item["reason"]) for item in report["pending"]] == [
+        (str(foreign["id"]), "parent_order_mismatch")
+    ]
+    total = _egp(report)
+    assert (total["captured"], total["refunded"], total["net"]) == ("1000.00", "0.00", "1000.00")
+    w = pay.w
+    with Session(w.db.runtime) as session:
+        ledger = client_ledger(session, w.a, w.a1)
+    assert [item.operation_id for item in ledger.held] == [str(foreign["id"])]
+    assert all(item.operation_id != str(foreign["id"]) for item in ledger.records)
+    assert all(
+        item.movement is None or item.movement.transaction_id == str(target["id"])
+        for item in ledger.journal
+    )
+    scope = LedgerScope(w.a, w.a1, "paymob-egypt")
+    click = ClickIdentifier("synthetic-fbclid-r001", datetime(2026, 11, 10, tzinfo=UTC), uuid4())
+    journeys = {(scope, str(target["id"])): SyntheticJourney("person-1", (), (click,))}
+    (candidate,) = candidates_from_ledger(ledger.calculation, journeys)
+    assert candidate.sale.net_minor == 100_000
+    assert candidates_from_feed(ledger.journal, journeys) == (candidate,)
+    # A refund of the target's own order still posts, before or after the sale.
+    assert pay.send(refund(target["id"], 10_000)).status_code == 200
+    assert _egp(_revenue(pay))["net"] == "900.00"
+
+
 def test_no_card_or_customer_field_is_stored_logged_or_returned(pay, caplog):
     # T-16 (M): no PAN, masked PAN, brand, token, billing, shipping or customer field is stored,
     # logged or returned, and no raw payload is kept.
@@ -344,7 +511,8 @@ def test_no_card_or_customer_field_is_stored_logged_or_returned(pay, caplog):
         if key not in generated and not key.endswith("id") and key != "callback_path":
             assert CARD_LAST_FOUR not in item, key
     for row in _evidence(w):
-        assert row.source_reference == "paymob:4097558:810000001"
+        # The sale and its refund share the sale's signed order (D-070).
+        assert row.source_reference == f"paymob:{LIVE_INTEGRATION}:{paid['order']['id']}"
         assert MASKED_PAN not in (row.delivery_id + row.operation_id)
 
 

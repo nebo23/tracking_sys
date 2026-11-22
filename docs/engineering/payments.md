@@ -15,7 +15,7 @@ An exact redelivery (same source account, delivery ID and content) is stored onc
 `GET /agencies/{agency_id}/clients/{client_id}/revenue` needs `finance:read`: Owners and Admins, members with the financial grant, or read keys with their financial grant. Ingest keys are refused. The answer has:
 - `verified`: per-currency totals (captured, refunded, charged back, reversed, corrected and net) and the transactions with their entries;
 - `declared`: the declared items and per-currency declared sales and refunds, never part of `verified`;
-- `pending`: adjustments waiting for their parent (`parent_missing`, `parent_unresolved`);
+- `pending`: adjustments waiting for their parent (`parent_missing`, `parent_unresolved`), and Paymob refunds held back because their stored parent sale carries another signed order ID (`parent_order_mismatch`, D-070);
 - `reconciliation`: disagreements (`conflicting_evidence`, `delivery_id_reused`, `exceeds_outstanding` and the other 007-A reasons).
 
 Amounts are decimal strings in their own currency; currencies are never added together. Lists are bounded to 1,000 items, newest first, with a `truncated` flag; totals cover every record.
@@ -25,10 +25,12 @@ A Paymob source belongs to one client. Owners and Admins manage sources, and eve
 
 | Route | Body | Audit |
 |---|---|---|
-| `POST /agencies/{a}/clients/{c}/payment-sources` | `{"provider": "paymob", "region": "egypt", "name": ..., "hmac_secret": ...}` | `payment_source.created` |
+| `POST /agencies/{a}/clients/{c}/payment-sources` | `{"provider": "paymob", "region": "egypt", "name": ..., "hmac_secret": ..., "live_integration_ids": [...]}` | `payment_source.created` |
 | `GET /agencies/{a}/clients/{c}/payment-sources` | | |
 | `PUT /agencies/{a}/clients/{c}/payment-sources/{id}/secret` | `{"hmac_secret": ...}` | `payment_source.secret_replaced` |
-| `PATCH /agencies/{a}/clients/{c}/payment-sources/{id}` | `{"name": ...}` and/or `{"status": "active" \| "disabled"}` | `payment_source.updated` |
+| `PATCH /agencies/{a}/clients/{c}/payment-sources/{id}` | Any of `{"name": ...}`, `{"status": "active" \| "disabled"}` and `{"live_integration_ids": [...]}`; `null` leaves a field unchanged | `payment_source.updated` |
+
+**Live integration IDs (D-070).** Paymob's processed callback does not sign `is_live`, so a holder of one signed test-mode callback could otherwise change it to `true` without breaking the signature (review finding R001). Paymob issues separate integration IDs for test and live mode (the dashboard's integration table changes with the mode), and `integration_id` is signed. Each source therefore lists the merchant's live integration IDs: 1 to 20 positive integers, copied from the dashboard in live mode. Only a callback whose signed `integration_id` is in the list and whose `is_live` is true can post; any other verified callback counts as `test_mode` (with the reason `undeclared_integration` when the integration is not listed). Never list a test integration: its test payments would then count as verified revenue. The declaration is the source's owner's assertion, audited like every source change.
 
 The merchant's HMAC secret comes from the Paymob dashboard (API keys page, visible to the main account user only). It is entered once, sealed under the token keyring, and never returned, logged or included in an error. A replaced secret stays valid for 24 hours, then the lifecycle runner deletes it. Each source answers with its `callback_path`, `/payments/paymob/callback/ppk_<43 characters>`. The client sets the API's HTTPS origin followed by that path as the processed callback (webhook) URL of its Paymob integration, or as the intention's `notification_url`. The key is unguessable; treat the full URL as confidential.
 
@@ -49,6 +51,7 @@ The signature is HMAC-SHA512 of the concatenated values of `amount_cents`, `crea
 | Callback | Outcome |
 |---|---|
 | `is_live` not true (test mode) | `test_mode`, nothing posted |
+| Signed `integration_id` not among the source's live integration IDs | `test_mode` (`undeclared_integration`), nothing posted |
 | `success` false or `error_occured` true | `not_posted` (`failed`) |
 | `pending` true | `not_posted` (`pending`) |
 | `is_auth` true | `not_posted` (`authorization`) |
@@ -57,7 +60,9 @@ The signature is HMAC-SHA512 of the concatenated values of `amount_cents`, `crea
 | Refund or void (`is_refund` or `is_void`, with a parent) | Refund (`confirmed_adjustment`) of the parent; reason `void` for a void |
 | Anything else, an amount, currency or time that cannot be read | `unmapped` with a closed reason, nothing posted |
 
-The parent transaction re-sent after a refund or void maps to the same sale and is an exact redelivery. A refund that arrives before its sale stays pending until the sale arrives. A refund that references an authorization instead of its capture, and a void of an authorization that was never captured, stay pending and never change verified totals. Chargebacks have no documented callback and are not mapped. Only currencies with two decimals are mapped from `amount_cents`.
+The parent transaction re-sent after a refund or void maps to the same sale and is an exact redelivery. A refund that arrives before its sale stays pending until the sale arrives.
+
+**Refund binding (D-070).** The `parent_transaction` that names a refund's or void's sale is not signed, so a holder of one signed refund could otherwise point it at another sale of the same client (review finding R001). The signed `order.id` binds them instead: a refund or void adjusts only a sale that carries the same signed order ID. When the named sale is already stored with another order ID, the callback is `unmapped` (`invalid_parent`) and stores nothing. When the refund arrives first and its sale then arrives with another order ID, every ledger read holds the refund back: it appears in `pending` as `parent_order_mismatch` and never reaches verified totals, the journal, attribution or conversion delivery. That a refund carries its parent's order ID is not stated in the Paymob pages read on 2026-11-22; the live check confirms it, and until then a refund whose order differs stays visibly pending rather than silently adjusting a sale. A refund that references an authorization instead of its capture, and a void of an authorization that was never captured, stay pending and never change verified totals. Chargebacks have no documented callback and are not mapped. Only currencies with two decimals are mapped from `amount_cents`.
 
 ## Diagnostics
 `payment_callback_diagnostics` holds, per verified callback, the source, a SHA-256 digest of the received signature, the receipt time and the outcome (`stored`, `duplicate`, `not_posted`, `unmapped`, `test_mode`) with its reason. It holds no payload. The lifecycle runner deletes rows 30 days after receipt.
@@ -102,6 +107,6 @@ Both need an Owner or Admin session. A commit stores each valid row once as unve
 `python -m app.lifecycle` deletes, as `tracking_lifecycle`: callback diagnostics 30 days after receipt, retired payment source secrets, and revenue import records 395 days after the commit. It never reads or deletes evidence.
 
 ## Before any live use
-- An HTTPS-hosted API (020) and an owner Paymob sandbox account for a live callback check, separately approved. The check confirms the null text form in the signature, the references of refunds after captures, and the retry behavior.
+- An HTTPS-hosted API (020) and an owner Paymob sandbox account for a live callback check, separately approved. The check confirms the null text form in the signature, the references of refunds after captures, that a refund or void carries its parent's order ID (D-070), that test and live integration IDs differ, and the retry behavior.
 - A legal review (Q-012) of whether a merchant may direct callbacks that carry the last four digits of a card to this platform under Paymob's terms.
 - Native `tracking_sys` migration of `0020` to `0022`, and deployment, which remain separate owner decisions.

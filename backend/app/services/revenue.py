@@ -11,6 +11,14 @@ and the ledger_feed journal, which 008-A attribution and 014-B conversion delive
 unchanged. revenue_view shapes the finance:read answer: verified totals and transactions,
 declared (unverified) items and totals kept apart, pending adjustments and reconciliation items.
 Amounts in different currencies are never added together.
+
+A Paymob refund names its parent sale in an unsigned field (D-070, review finding R001). Intake
+refuses one whose stored parent carries another signed order ID, but a refund can arrive before
+its sale. client_ledger therefore holds back, before calculating, every Paymob refund whose
+stored parent sales all carry another order ID: it never enters the calculation, the journal or
+any consumer, and revenue_view lists it as pending with the reason parent_order_mismatch.
+Evidence is never changed or deleted, so a later read holds the same refund unless a sale record
+of its parent carrying its order ID is stored.
 """
 
 import hashlib
@@ -40,6 +48,7 @@ from app.ledger import (
     calculate,
 )
 from app.models import RevenueEvidence
+from app.payments.paymob import same_order
 from app.services.collection import client_lock_key
 
 # Advisory namespace of the client revenue lock (004 uses 4004, 003 uses 3003, 005 uses 5005,
@@ -161,6 +170,9 @@ class ClientLedger:
     records: tuple[Evidence, ...]
     intakes: tuple[str, ...]  # the intake of each record, in the same order
     calculation: LedgerCalculation
+    # Paymob refunds held back because no stored parent sale carries their signed order ID
+    # (D-070); they are not part of records, the calculation or the journal.
+    held: tuple[Evidence, ...] = ()
 
     # The ledger_feed journal, computed on first use: it recalculates every receipt prefix.
     @cached_property
@@ -189,13 +201,40 @@ def load_evidence(session: Session, agency_id: UUID, client_id: UUID) -> list[Ev
     return [_evidence(row) for row in load_rows(session, agency_id, client_id)]
 
 
+# The IDs of the Paymob refunds whose named parent is a stored Paymob sale (of the same source
+# account) that never carries the refund's signed order ID (D-070). A refund whose parent is not
+# stored yet is not held: 007-A keeps it pending as parent_missing until the sale arrives.
+def unbound_refunds(rows: Sequence[RevenueEvidence]) -> set[UUID]:
+    sales: dict[tuple[str, str], list[str | None]] = {}
+    for row in rows:
+        if row.intake == "paymob" and row.kind == OperationKind.SALE.value:
+            sales.setdefault((row.source_account_id, row.operation_id), []).append(
+                row.source_reference
+            )
+    held: set[UUID] = set()
+    for row in rows:
+        if row.intake != "paymob" or row.kind != OperationKind.REFUND.value:
+            continue
+        parents = sales.get((row.source_account_id, row.parent_operation_id or ""))
+        if parents and not any(same_order(row.source_reference, item) for item in parents):
+            held.add(row.id)
+    return held
+
+
 # The 007-A calculation and the ledger_feed journal of one client's stored evidence. The caller
 # has authorized the read (finance:read for people and keys; internal jobs check their own
 # scope); the result never contains another client's records.
 def client_ledger(session: Session, agency_id: UUID, client_id: UUID) -> ClientLedger:
     rows = load_rows(session, agency_id, client_id)
-    records = tuple(_evidence(row) for row in rows)
-    return ClientLedger(records, tuple(row.intake for row in rows), calculate(records))
+    held = unbound_refunds(rows)
+    kept = [row for row in rows if row.id not in held]
+    records = tuple(_evidence(row) for row in kept)
+    return ClientLedger(
+        records,
+        tuple(row.intake for row in kept),
+        calculate(records),
+        tuple(_evidence(row) for row in rows if row.id in held),
+    )
 
 
 def _amount(minor: int, currency: Currency) -> str:
@@ -230,6 +269,10 @@ def revenue_view(ledger: ClientLedger, agency_id: UUID, client_id: UUID) -> dict
         if bucket["currency"] != item.amount.currency:
             raise LedgerInputError("currency_exponent_conflict")
         bucket["sales" if item.kind is OperationKind.SALE else "refunds"] += item.amount.minor
+    # Adjustments 007-A keeps pending, then the Paymob refunds held back by D-070.
+    pending: list[tuple[Any, str | None]] = [
+        (item, item.status_reason) for item in calculation.pending
+    ] + [(item, "parent_order_mismatch") for item in ledger.held]
     return {
         "verified": {
             "totals": [
@@ -296,9 +339,9 @@ def revenue_view(ledger: ClientLedger, agency_id: UUID, client_id: UUID) -> dict
                 "amount": _amount(item.amount.minor, item.amount.currency),
                 "currency": item.amount.currency.code,
                 "effective_at": item.effective_at,
-                "reason": item.status_reason,
+                "reason": reason,
             }
-            for item in calculation.pending[:VIEW_LIMIT]
+            for item, reason in pending[:VIEW_LIMIT]
         ],
         "reconciliation": [
             {"operation_id": item.operation_id, "reason": item.reason.value}
@@ -307,7 +350,7 @@ def revenue_view(ledger: ClientLedger, agency_id: UUID, client_id: UUID) -> dict
         "truncated": max(
             len(transactions),
             len(declared),
-            len(calculation.pending),
+            len(pending),
             len(calculation.reconciliation),
         )
         > VIEW_LIMIT,
