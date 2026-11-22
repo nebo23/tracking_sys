@@ -1,5 +1,5 @@
 # Backend
-FastAPI, PostgreSQL 18, SQLAlchemy 2, Alembic and Psycopg 3 (D-013, D-014), with the specification slices merged so far and Spec 015 in PR 13. The migration head is `0025_whatsapp` (63 application tables); the generated API contract is [contracts/openapi.json](../contracts/openapi.json) (121 operations across 99 paths).
+FastAPI, PostgreSQL 18, SQLAlchemy 2, Alembic and Psycopg 3 (D-013, D-014), with the specification slices merged so far and Spec 015 in PR 13. The migration head is `0025_whatsapp` (63 application tables); the generated API contract is [contracts/openapi.json](../contracts/openapi.json) (124 operations across 102 paths, including the Spec 016-A report routes on `codex/spec-016-analytics-reporting`).
 
 - `app/api/`: HTTP routes, schemas, identity dependencies and request controls (body bounds, rate limits, CORS for public collection routes).
 - `app/models/`: tenancy and authentication (002), collection and consent (004), links (005), connectors (009-011), advertising (014), revenue evidence, payments, integrations, CRM and WhatsApp (015).

@@ -1,18 +1,38 @@
 # Tasks: 016-analytics-reporting
-Status: Not completed; this is a review checklist, not an implementation instruction.
 
-- [ ] Approve the scope and sources for analytics queries and client reporting.
-- [ ] Resolve Q-001, Q-006, Q-007, Q-011 and record the owner decision.
-- [ ] Verify dependencies: 008-attribution-engine, 010-instagram, 011-youtube, 012-linkedin, 013-x, 014-ad-spend-capi, 015-business-integrations.
-- [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
-- [ ] Implement the first approved slice.
-- [ ] Verify: Every report enforces tenant, client, and field permissions, including exports and background generation.
-- [ ] Verify: Social metrics show platform definitions, ranges, and freshness; revenue shows currency, model, attribution window, and evidence.
-- [ ] Verify: Pagination, filters, date boundaries, timezones, and comparisons match reference fixtures.
-- [ ] Verify: Partial synchronization, unsupported metrics, and currency mismatches are not displayed as zero or complete totals.
-- [ ] Verify: Export URLs are short-lived and authorized; client deletion invalidates accessible reports according to policy.
-- [ ] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
-- [ ] Record owner acceptance before progressing to dependent work.
+Updated: 2026-11-22. Preparation under D-071; 016-A implemented under D-072. Checked items are supported by the [evidence](evidence.md); unchecked items remain open.
+
+## Preparation
+
+- [x] Create the specification branch/worktree from merged main `2a0c8e5`.
+- [x] Inspect stored facts, access/privacy contracts and 006/007/008 dependencies.
+- [x] Preserve D-063 deferral of 012/013 and the combined launch scope.
+- [x] Prepare entry review, D1-D12 packet, proposed design, verification matrix and conditional handoff.
+- [x] Validate the preparation documents and record their checks; publication follows D-051.
+- [x] Record owner approval/amendments to D1-D12 before application work (D-072: all approved as recommended, no amendment).
+
+## 016-A (D-072)
+
+- [x] Establish an explicit reporting metric catalog and typed contracts.
+- [x] Implement scoped social and spend reports over complete bounded inputs.
+- [x] Implement recorded-revenue activity, with whole-client evidence bounds and verified/declared separation.
+- [x] Implement correct native-day comparisons and deterministic revision-bound pagination.
+- [x] Implement typed bounded CSV through the same calculation and release checks.
+- [x] Verify V01-V19, relevant predecessor regressions and required repository checks; record exact results and performance observations.
+- [x] Update OpenAPI and engineering guidance to match actual behavior.
+- [x] Publish verified commits under D-051 and present completed 016-A for independent review.
+- [x] Obtain PR and merge authorization (D-073, 2026-11-23), conditional on successful independent review and final verification.
+- [x] Complete D-073 correction verification: 1,505 final cases passed; prepare the verified PR 14 head for the authorized merge. See [independent review](merge-review-2026-11-23.md).
+
+## Full specification; remains open
+
+- [ ] Complete dependency review and approved implementation of 006, 007-B/C and persisted 008 integration needed by 016-B.
+- [ ] Implement and verify real attribution/funnel/content-revenue/model-comparison/ROAS reports after their decisions.
+- [ ] Design and approve artifact storage, retention, encryption, download authorization, revocation and deletion consumption under 003.
+- [ ] Implement retained/scheduled/white-label reports after relevant delivery and 017/018/020 decisions; obtain owner brief/brand before customer-facing UI work.
+- [ ] Verify AC1 across every report, export and job.
+- [ ] Verify AC2 source definitions/freshness and financial currency/model/window/evidence across the completed scope.
+- [ ] Verify AC3 filters, pagination, native dates and comparison fixtures across the completed scope.
+- [ ] Verify AC4 partial/unsupported/currency states across the completed scope.
+- [ ] Verify full AC5 short-lived authorized exports and deletion-driven invalidation, including D-025 end-to-end obligations.
+- [ ] Resolve applicable production/global decisions explicitly; record limitations and owner acceptance without treating deferred requirements as completed.
