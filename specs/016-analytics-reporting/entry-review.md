@@ -1,6 +1,6 @@
 # Spec 016 entry review and decision packet
 
-Prepared: 2026-11-22. Revision: 1. Status: preparation authorized by D-071; D1-D12 below are proposals, not approved decisions.
+Prepared: 2026-11-22. Revision: 1. Status: preparation authorized by D-071; D1-D12 below were approved as recommended by D-072 on 2026-11-22. 016-A is implemented under them (see the [evidence](evidence.md)).
 
 ## 1. Baseline and intended result
 

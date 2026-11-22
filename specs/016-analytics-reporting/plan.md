@@ -1,6 +1,6 @@
 # Plan: 016-analytics-reporting
 
-Updated: 2026-11-22. D-071 authorizes preparation; proposed D1-D12 require owner approval before implementation.
+Updated: 2026-11-22. D-071 authorized preparation; D-072 approved D1-D12 as recommended. 016-A1 to 016-A4 are implemented and verified (see the [evidence](evidence.md)); a pull request and merge await owner authorization, and 016-B and 016-C remain open.
 
 ## Preparation and decision
 

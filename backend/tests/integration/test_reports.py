@@ -10,6 +10,7 @@ import logging
 from datetime import date, timedelta
 
 import pytest
+from integration_senders import deal_event, signed_contract
 from report_support import (
     NOW,
     USD,
@@ -935,16 +936,42 @@ def test_v17_v19_no_storage_and_dependency_states(authenticated_world):
     assert before == after and memberships is not None
 
 
-def test_v19_current_crm_and_booking_state_never_becomes_revenue(authenticated_world):
+def test_v19_won_crm_deals_never_become_revenue_or_funnels(authenticated_world, api):
     w = authenticated_world
-    with Session(w.db.migration) as session:
-        tables = set(
-            session.execute(
-                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-            ).scalars()
-        )
-    assert {"crm_deals", "bookings"} <= tables
-    owner = w.signed_in("owner_a")
+    config = api.config.model_copy(update={"integrations_webhook_enabled": True})
+    owner = api.new_client(config)
+    api.login(owner, "owner_a@example.test")
+    created = owner.post(
+        f"/agencies/{w.a}/clients/{w.a1}/integration-sources",
+        json={"kind": "signed_webhook", "name": "Synthetic CRM"},
+    )
+    assert created.status_code == 201, created.text
+    source, secret = created.json()["source"], created.json()["signing_secret"]
+    rule = owner.post(
+        f"/agencies/{w.a}/clients/{w.a1}/crm/stage-rules",
+        json={"pipeline": "sales", "stage": "closed_won", "outcome": "won"},
+    )
+    assert rule.status_code == 201, rule.text
+    raw, headers = signed_contract(
+        deal_event(
+            "D-16",
+            "closed_won",
+            occurred_at="2026-11-01T09:00:00Z",
+            amount="1500.00",
+            currency="EGP",
+        ),
+        secret,
+    )
+    assert (
+        api.new_client(config)
+        .post(source["callback_path"], content=raw, headers=headers)
+        .status_code
+        == 200
+    )
+    deals = owner.get(f"/agencies/{w.a}/clients/{w.a1}/crm/deals").json()
+    assert deals["totals"]["won_unverified"] == 1
     body = owner.get(report_url(w, "revenue", **SPAN)).json()
     assert body["totals"] == [] and body["rows"] == []
+    assert body["unresolved"]["evidence_rows"] == 0
+    assert "1500.00" not in str(body)
     assert "funnel" not in str({key: value for key, value in body.items() if key != "dependencies"})

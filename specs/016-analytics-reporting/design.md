@@ -1,6 +1,6 @@
 # Spec 016-A reporting design
 
-Prepared: 2026-11-22. Revision: 1. Status: proposed; implement only after recorded approval of [D1-D12](entry-review.md#3-decisions-for-the-owner).
+Prepared: 2026-11-22. Revision: 2. Status: approved with [D1-D12](entry-review.md#3-decisions-for-the-owner) by D-072 and implemented as 016-A; section 8 records the choices the implementation made within this design.
 
 ## 1. API and scope
 
@@ -78,3 +78,36 @@ There are no retained artifacts, public URLs, tokens, caches or background gener
 ## 7. Acceptance boundary
 
 No new migration, table, dependency, role or provider call is proposed. Existing source lifecycles and current APIs retain their contracts. Relevant disposable-database, unit, contract and API tests must pass, including the [verification matrix](verification-matrix.md). OpenAPI and the engineering guide must describe only implemented routes. A successful 016-A review records a completed slice and keeps 016-B/C and their predecessor work open.
+
+## 8. Implementation choices (revision 2, D-072)
+
+The implementation follows sections 1 to 7. Where they left a choice open, it made the following ones; the [reporting guide](../../docs/engineering/reporting.md) is the reference for the observable behavior.
+
+- **Catalog.** The complete catalog is the table in the guide, and a unit test compares it with every Instagram and YouTube adapter.
+  - Instagram `follows_and_unfollows` is unreviewed and unsupported: without the follow_type breakdown its total mixes follows and unfollows.
+  - YouTube channel statistics and the public `videos` counters are snapshots, listed as excluded.
+  - Instagram `profile_links_taps` and YouTube `dislikes`, `engagedViews` and the playlist counts are additive daily counts.
+  - Day zones, data delays and freshness windows are part of the catalog and equal the adapters' values, so stored data stays reportable, labeled `adapter_state: unavailable`, while an adapter is switched off.
+- **Social parameters.** `view` is required. An optional `metrics` list narrows the view; an unknown or non-reportable name is refused. A content cohort with `compare=previous` is refused before any input is read.
+- **Content cohorts.**
+  - Cohort totals sum lifetime counts across content, with the range of fetch times. They are complete only with a value for every applicable content item and a proven inventory.
+  - YouTube publication times come from the `published_at` attribute of the `videos` stream. A video without one is counted as `publication_unknown` and makes the inventory unproven. A listed video without a totals record is `missing` (`no_record`).
+- **Freshness.** Each stream's freshness is its latest successful run against the family window. Coverage is that stream's own checkpoint; a checkpoint with a cursor is reported as a read in progress and blocks comparisons (`sync_in_progress`).
+- **Spend.** Object and account names and the account ID are not reported. A period without facts has an empty totals list and the reason `no_spend_facts`. Facts in a zone other than the account's current zone make the totals partial (`time_zone_changed`).
+- **Revenue.**
+  - Verified totals are given for every currency of the client's verified transactions, so a quiet period shows zero activity computed by the complete calculation.
+  - Declarations form a separate block of sales and refunds; another declared kind is refused (`unsupported_declaration`).
+  - Rows aggregate by block, currency, date and kind.
+- **Revision.** The revision digests the principal, the scope, the normalized query, the versions, the connection generation and status, a canonical digest of every input row and status, and the clock-dependent states (provisional records, freshness and synchronization states). The response body itself is not hashed.
+- **Release check.**
+  - A fresh read-only snapshot resolves the scope again and recomputes the input digest. For revenue only the evidence digest is recomputed, since evidence is append-only, and the ledger is not recalculated.
+  - A bound exceeded at release answers `report_changed`.
+  - Tests reach this point through the hook `app.services.reporting.before_release`.
+  - Every source query is also scoped by agency and client, in addition to the connection.
+- **Periods** are limited to 2000-01-01 through 2100-01-01.
+- **Error codes:**
+  - `422`: `unknown_parameter`, `invalid_period`, `unsupported_metric`, `comparison_unsupported`, `csv_pagination_unsupported`, `revision_required`, `invalid_page`, `not_a_social_connection`, `not_a_spend_connection`, `report_too_large` and `export_too_large`.
+  - `409`: `report_changed`, `source_unavailable`, `report_requires_ledger_upgrade`, `currency_exponent_conflict` and `unsupported_declaration`.
+  - `500`: `export_refused`.
+  - Access errors keep the existing codes.
+- **CSV.** One fixed schema of 37 columns, listed in the guide. Spend values have one record per group and metric. The 5,000-record bound counts every record after the header; the byte bound counts the encoded file including the header.

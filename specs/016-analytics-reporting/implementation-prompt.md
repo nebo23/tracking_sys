@@ -1,6 +1,6 @@
 # Conditional implementation handoff: Spec 016-A
 
-Prepared: 2026-11-22. **Not yet authorized to execute.** D-071 approves preparation only. First obtain the owner's recorded decision on D1-D12 of [entry-review.md](entry-review.md), with any amendments. Do not treat this file, the branch, or the instruction to start Spec 016 as approval of its proposed business behavior.
+Prepared: 2026-11-22. **Executed under D-072** (2026-11-22, D1-D12 approved as recommended, no pull request authorization); see the [evidence](evidence.md). The text below is kept as the handoff that was followed. D-071 approved preparation only. First obtain the owner's recorded decision on D1-D12 of [entry-review.md](entry-review.md), with any amendments. Do not treat this file, the branch, or the instruction to start Spec 016 as approval of its proposed business behavior.
 
 ## Context to read
 

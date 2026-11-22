@@ -1,6 +1,6 @@
 # Spec 016-A verification matrix
 
-Prepared: 2026-11-22. Status: proposed tests; none of these new reporting cases has run. Execute only after implementation approval. Use synthetic fixtures and disposable PostgreSQL, never native `tracking_sys`.
+Prepared: 2026-11-22. Status: executed on 2026-11-22 under D-072; V01-V19 passed. The [evidence](evidence.md#verification-matrix) maps each scenario to its test cases and results. Use synthetic fixtures and disposable PostgreSQL, never native `tracking_sys`.
 
 | ID | Scenario and required assertion | Contract |
 |---|---|---|

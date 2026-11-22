@@ -1,6 +1,6 @@
 # Tasks: 016-analytics-reporting
 
-Updated: 2026-11-22. Preparation under D-071. Checked preparation items do not authorize or certify implementation.
+Updated: 2026-11-22. Preparation under D-071; 016-A implemented under D-072. Checked items are supported by the [evidence](evidence.md); unchecked items remain open.
 
 ## Preparation
 
@@ -9,19 +9,19 @@ Updated: 2026-11-22. Preparation under D-071. Checked preparation items do not a
 - [x] Preserve D-063 deferral of 012/013 and the combined launch scope.
 - [x] Prepare entry review, D1-D12 packet, proposed design, verification matrix and conditional handoff.
 - [x] Validate the preparation documents and record their checks; publication follows D-051.
-- [ ] Record owner approval/amendments to D1-D12 before application work.
+- [x] Record owner approval/amendments to D1-D12 before application work (D-072: all approved as recommended, no amendment).
 
-## Proposed 016-A; not implemented
+## 016-A (D-072)
 
-- [ ] Establish an explicit reporting metric catalog and typed contracts.
-- [ ] Implement scoped social and spend reports over complete bounded inputs.
-- [ ] Implement recorded-revenue activity, with whole-client evidence bounds and verified/declared separation.
-- [ ] Implement correct native-day comparisons and deterministic revision-bound pagination.
-- [ ] Implement typed bounded CSV through the same calculation and release checks.
-- [ ] Verify V01-V19, relevant predecessor regressions and required repository checks; record exact results and performance observations.
-- [ ] Update OpenAPI and engineering guidance to match actual behavior.
-- [ ] Publish verified commits under D-051 and present completed 016-A for independent review.
-- [ ] Obtain PR authorization and owner merge decision; neither is implied by preparation.
+- [x] Establish an explicit reporting metric catalog and typed contracts.
+- [x] Implement scoped social and spend reports over complete bounded inputs.
+- [x] Implement recorded-revenue activity, with whole-client evidence bounds and verified/declared separation.
+- [x] Implement correct native-day comparisons and deterministic revision-bound pagination.
+- [x] Implement typed bounded CSV through the same calculation and release checks.
+- [x] Verify V01-V19, relevant predecessor regressions and required repository checks; record exact results and performance observations.
+- [x] Update OpenAPI and engineering guidance to match actual behavior.
+- [x] Publish verified commits under D-051 and present completed 016-A for independent review.
+- [ ] Obtain PR authorization and owner merge decision; neither is implied by preparation or by D-072.
 
 ## Full specification; remains open
 
