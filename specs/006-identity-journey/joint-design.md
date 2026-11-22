@@ -1,6 +1,6 @@
 # Combined identity and revenue design addendum
 
-Status: proposed, 2026-11-23, baseline `81977a3`. Decisions: [J1-J12](joint-entry-review.md). This addendum takes precedence over conflicting implementation details in the historical [006 revision 4](design.md) and [007 entry review](../007-revenue-ledger/entry-review.md) only if the owner approves it. Unchanged identity semantics and API shapes remain in revision 4. No implementation or test result is claimed here.
+Status: approved by D-075 (2026-11-23), baseline `81977a3`. Decisions: [J1-J12](joint-entry-review.md). This addendum takes precedence over conflicting implementation details in the historical [006 revision 4](design.md) and [007 entry review](../007-revenue-ledger/entry-review.md) only if the owner approves it. Unchanged identity semantics and API shapes remain in revision 4. No implementation or test result is claimed here.
 
 ## 1. Boundaries
 

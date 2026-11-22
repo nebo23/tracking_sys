@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-23. Baseline: merged `main` at `81977a3` (PR 14). Branch: `codex/spec-006-007-identity-ledger`.
 
-Status: preparation under D-074. The owner selected a combined workstream. The recommendations J1-J12 below have not been approved. This document does not authorize application code or migrations.
+Status: approved. D-075 (2026-11-23) approves J1-J12 below as recommended, without amendment, and authorizes phases P0-P5. Preparation was performed under D-074.
 
 ## Intended result
 

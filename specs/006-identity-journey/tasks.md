@@ -5,7 +5,7 @@ Current continuation: [combined 006 and 007-B/C review](joint-entry-review.md), 
 
 - [x] Inspect merged main `81977a3`, the 015 receipt store, 016-A reporting and deferred identity findings.
 - [x] Prepare J1-J12, the joint design addendum, verification matrix and conditional handoff.
-- [ ] Record the owner's joint decision and any amendments.
+- [x] Record the owner's joint decision and any amendments (D-075: J1-J12 as recommended, no amendment).
 - [ ] Implement and verify phases P0-P5 with the joint and original acceptance matrices.
 - [ ] Close each deferred finding with implementation evidence; proposed resolutions alone do not close findings.
 

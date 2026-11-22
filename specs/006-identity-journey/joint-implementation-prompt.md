@@ -1,6 +1,6 @@
 # Conditional implementation handoff: 006 and 007-B/C
 
-Status: prepared 2026-11-23 under D-074. This is not execution authorization. The owner has selected the combined workstream; J1-J12 have not yet been decided.
+Status: prepared 2026-11-23 under D-074; execution authorized by D-075, which approves J1-J12 as recommended.
 
 ## Read first
 

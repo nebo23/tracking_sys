@@ -3,7 +3,7 @@ Current continuation: [combined 006 and 007-B/C review](../006-identity-journey/
 
 - [x] Reconcile 007-B/C with the implemented 015 receipt store and 016-A reporting at `81977a3`.
 - [x] Prepare proposed persistence, reconciliation, identity association, schema and verification in the joint packet.
-- [ ] Obtain the joint J1-J12 decision, including explicit confirmation of deterministic release movements (J8).
+- [x] Obtain the joint J1-J12 decision, including explicit confirmation of deterministic release movements (J8): D-075.
 - [ ] Implement and verify persisted financial behavior and actual-input identity/attribution handoffs.
 
 Status: 007-A, the in-memory calculation contract, with the corrections of review findings R007-01 to R007-11, merged in [PR 6](https://github.com/nebo23/tracking_sys/pull/6) at `bc0ff40` after independent verification (D-044). See the [evidence](evidence.md#review-corrections-2026-11-14). 007-B and 007-C remain open.
