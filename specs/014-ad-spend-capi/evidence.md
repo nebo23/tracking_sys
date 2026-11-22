@@ -319,3 +319,6 @@ python mutations_d065.py   # from the worktree root
 - **Dependent work.** The 007-B journal as the persisted conversion source; ROAS read routes and reports (016); destination and account screens (018); production scheduling (020).
 - **Later providers.** Google Ads, and LinkedIn Ads with Spec 012 when the owner resumes it.
 - **Separate decisions.** Native `tracking_sys` migration (`0005` to `0019` and the lifecycle role) and deployment.
+
+## Later correction (2026-11-22, D-069)
+The [001-015 review](../../reports/specs-001-015-review-2026-11-22.md) found R010: the spend read grouped rows by object and currency but paged by object ID only, so an object with facts in two currencies (kept under D4) lost its second currency at `limit=1`. It is corrected in PR 13 with a cursor carrying the complete key (`<object ID>:<currency>`, an empty object ID when the level's ID is missing); see the [correction evidence](../015-business-integrations/review-corrections-evidence.md) and the [advertising guide](../../docs/engineering/advertising.md).

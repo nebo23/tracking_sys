@@ -3,7 +3,11 @@ Status: Implemented for review under D-066, D-067 and D-068 (2026-11-21): paymen
 
 ## Review status
 
-Review update (2026-11-22, D-069): the acceptance evidence below describes the implementation at `db750d1`; the [cross-specification review](../../reports/specs-001-015-review-2026-11-22.md) subsequently found R001-R009 in this specification and R010/R011 in predecessors. These open findings supersede any implication that the existing passing acceptance tests establish merge readiness. Execute the [correction handoff](review-corrections-prompt.md), complete the [tracker](review-corrections-tracker.md), and apply its final verification and conditional merge requirements.
+Review update (2026-11-22, D-069 and D-070): the acceptance evidence below first described the implementation at `db750d1`. The [cross-specification review](../../reports/specs-001-015-review-2026-11-22.md) then found R001-R009 in this specification and R010 and R011 in Specs 014 and 010; all eleven are corrected with their regressions in PR 13 ([correction evidence](review-corrections-evidence.md), [tracker](review-corrections-tracker.md)). The corrections refine four criteria:
+- AC1: Paymob posts only from a declared live integration, and a refund adjusts only a sale of its own signed order (D-070).
+- AC2: bookings are scoped to their source, and links follow the current attribution consent and erasure.
+- AC3: CRM changes are order-independent partial updates, and totals cover every deal.
+- AC4: WhatsApp numbers route only after the platform operator's verification (D-070), and one malformed message never discards its siblings.
 ## Sources
 
 PDF-008,009,047,049,050,051,052,090; IDEA-03,12 candidates. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -36,7 +40,7 @@ Dependencies: [009-connector-runtime](../009-connector-runtime/spec.md), [006-id
 
 Specification 003 obligations (D-025): apply consent, collection minimization, and tombstone admission to imported subjects (E6), and keep payment data within the payment-processor row.
 
-Open decisions: Q-002, Q-003, Q-010; select providers before implementation. The first payment provider is Paymob (D-066); the providers of the later rounds are not selected. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: Q-002, Q-003, Q-010. Selected providers: Paymob for payments (D-066); Cal.com for bookings, a provider-neutral signed webhook for CRM stage changes and other booking tools, and the WhatsApp Cloud API for referrals (D-068). Stripe, Paymob reads and backfill, third-party form tools, ManyChat and named CRM connectors remain follow-ups. D-070 adds the Paymob live-integration declaration and the operator-verified WhatsApp binding. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-D-066 (2026-11-21) set the scope of the first round (payments with Paymob and the CSV and manual fallback, synthetic and fixtures only), and D-067 (2026-11-21) approved decisions D1-D15 of the [entry review](entry-review.md) with amendment A1. D-068 (2026-11-21) completed the specification with E1-E13 of the [second-round entry review](entry-review-round2.md). Live checks, the follow-ups outside the acceptance criteria, native migration and deployment need their own decisions.
+D-066 (2026-11-21) set the scope of the first round (payments with Paymob and the CSV and manual fallback, synthetic and fixtures only), and D-067 (2026-11-21) approved decisions D1-D15 of the [entry review](entry-review.md) with amendment A1. D-068 (2026-11-21) completed the specification with E1-E13 of the [second-round entry review](entry-review-round2.md). D-069 (2026-11-22) ordered the review corrections and the conditional merge, and D-070 (2026-11-22) decided their trust and schema questions. Live checks, the follow-ups outside the acceptance criteria, native migration and deployment need their own decisions.
