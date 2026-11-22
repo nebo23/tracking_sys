@@ -28,7 +28,7 @@ Allowed status values: `OPEN`, `REPRODUCED`, `AWAITING_DECISION`, `FIXED_PENDING
 
 The regression patch contains twelve integration cases and one unit case. R001 has two cases; R009 has two parameter values. Additional adjacent cases are specified in the handoff and should appear in the correction evidence.
 
-The current command, results and per-finding review are in the [independent partial review](../../reports/spec-015-corrections-review-a291bb6-2026-11-22.md#independent-verification); implementation explanations and mutation results are in the [correction evidence](review-corrections-evidence.md). Final closure evidence remains pending for every row.
+The earlier independent partial review is preserved in the [review at a291bb6](../../reports/spec-015-corrections-review-a291bb6-2026-11-22.md#independent-verification). Final per-finding closure, implementation explanations and mutation results are in the [correction evidence](review-corrections-evidence.md) and the final verification table below; all eleven rows are CLOSED_VERIFIED.
 
 ## Decisions required by the selected fixes
 
@@ -64,6 +64,6 @@ The intentionally deferred 012/013 specifications and incomplete future product 
 | A1 reconciled; A2/A3 and unchanged follow-ups accurately disclosed | A1 done; A2 not configured, with the activation decision open; A3 measured and kept as a follow-up; live checks and the other follow-ups unchanged |
 | GitHub required checks/reviews and current head/base verified | Observed with an authenticated read on 2026-11-22: `main` not protected, no required checks or reviews, no check runs or statuses, PR mergeable and clean on base `73efae9`; rechecked immediately before the merge |
 | Final implementation SHA and published correction head | Code `50d739f`, tested at `a42fba5`; the published head adds only this documentation-only record |
-| PR 13 merge SHA and observed merged state | Not merged at this commit. The merge of this head follows under D-069 with an expected-head check, and its observed SHA is reported to the owner; a commit cannot record the merge that includes it |
+| PR 13 merge SHA and observed merged state | Reconciled during D-071 preparation on 2026-11-22: PR 13 is merged at `2a0c8e512e9ae29aecea7728f57ecd366807f178`; its tree `e66c26e1c6ed7d8d7c535a30459aa94b4a52428a` equals published head `f7d8289714afb3a0df3f724fea024b52b240206e`. Earlier test records above remain labeled with their original tested commits. |
 
 Do not fill a result before executing or observing it. The final merge follows D-069 and every condition in the handoff; it is not authorized while any R001-R011 finding remains open.

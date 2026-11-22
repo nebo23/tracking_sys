@@ -1,5 +1,7 @@
 # 016-analytics-reporting — Analytics queries and client reporting
-Status: Draft; implementation is not approved. Level: L5. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Preparation started under D-071; implementation is not approved. Level: L5. Prepared: 2026-10-28. Updated: 2026-11-22.
+
+The [entry review and decision packet](entry-review.md) proposes 016-A over existing stored facts, then 016-B attribution reporting and 016-C retained/scheduled reports. Read the [design](design.md), [verification matrix](verification-matrix.md) and [conditional handoff](implementation-prompt.md). D1-D12 await the owner's decision. This progression does not change the multi-agency social analytics and attribution launch requirement.
 
 ## Sources
 PDF-038,065,067,068,069,070,071,073,097; USER combined dashboard. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -21,11 +23,11 @@ A complete custom dashboard builder, unsourced benchmarks, or treating reach sum
 Read models, aggregation provenance, and report snapshot schemas; identify non-additive metrics explicitly.
 
 ## Dependencies and open decisions
-Dependencies: [008-attribution-engine](../008-attribution-engine/spec.md), [010-instagram](../010-instagram/spec.md), [011-youtube](../011-youtube/spec.md), [012-linkedin](../012-linkedin/spec.md), [013-x](../013-x/spec.md), [014-ad-spend-capi](../014-ad-spend-capi/spec.md), [015-business-integrations](../015-business-integrations/spec.md)
+Dependencies: [006-identity-journey](../006-identity-journey/spec.md), [007-revenue-ledger](../007-revenue-ledger/spec.md), [008-attribution-engine](../008-attribution-engine/spec.md), [010-instagram](../010-instagram/spec.md), [011-youtube](../011-youtube/spec.md), [012-linkedin](../012-linkedin/spec.md), [013-x](../013-x/spec.md), [014-ad-spend-capi](../014-ad-spend-capi/spec.md), [015-business-integrations](../015-business-integrations/spec.md). Specs 012/013 remain deferred under D-063. The proposed 016-A uses stored 010/011/014/015 facts; real journey/attributed-revenue reporting waits for 006 implementation, 007-B/C and persisted 008 integration. Retained/scheduled reports require their own lifecycle and delivery decisions, with 017/018/020 dependencies as applicable.
 
 Specification 003 obligations (D-025): invalidate caches and revoke exports covered by deletion requests, and verify the cache and export part of 003 acceptance criterion 3.
 
-Open decisions: Q-001, Q-006, Q-007, Q-011. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: Q-001, Q-004, Q-006, Q-007, Q-011 and Q-012. See the [decision register](../../docs/planning/decisions.md). The packet proposes bounded development behavior only; it does not settle unrelated production scope, budgets, attribution defaults or retention.
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-071 records the owner's request to begin Spec 016 as preparation under the existing review workflow. Detailed implementation approval is pending. Record the actual owner decision, date and scope boundaries before application changes. Direct CSV in 016-A does not satisfy all of acceptance criterion 5: retained download URLs and deletion-driven revocation remain open in 016-C.
