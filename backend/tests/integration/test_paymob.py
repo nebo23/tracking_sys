@@ -566,6 +566,31 @@ def test_unknown_and_disabled_sources_answer_like_invalid_signatures(pay):
     assert _evidence(w) == [] and _diagnostics(w) == []
 
 
+def test_malformed_callback_types_answer_the_uniform_401(pay):
+    # R005: a list, object, null, number, boolean or unknown type is refused like any invalid
+    # signature, with nothing stored, through the real application without its exception
+    # passthrough; both documented kinds are still accepted afterwards.
+    import json
+
+    paid = sale()
+    _, query = signed(paid)
+    with TestClient(create_app(pay.config), raise_server_exceptions=False) as client:
+        for kind in ([], ["TRANSACTION"], {}, {"type": "TRANSACTION"}, None, 7, False, "token"):
+            body = json.dumps({"type": kind, "obj": paid}).encode()
+            for params in (query, {"hmac": "0" * 128}):
+                response = client.post(pay.path, content=body, params=params)
+                assert (response.status_code, response.json()) == (
+                    401,
+                    {"error": "invalid_signature"},
+                ), kind
+        missing = json.dumps({"obj": paid}).encode()
+        assert client.post(pay.path, content=missing, params=query).status_code == 401
+    assert _evidence(pay.w) == [] and _diagnostics(pay.w) == []
+    assert pay.send(paid).status_code == 200
+    assert pay.send(token(), kind="TOKEN").status_code == 200
+    assert _diagnostics(pay.w) == [("stored", None), ("unmapped", "card_token")]
+
+
 def _stale(monkeypatch, rule_id, **changes):
     rules = tuple(
         dataclasses.replace(item, **changes) if item.rule_id == rule_id else item

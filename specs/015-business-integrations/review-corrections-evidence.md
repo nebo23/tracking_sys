@@ -118,3 +118,18 @@ The `wa` fixture now verifies its number through the operator function. `test_nu
 - Mutations: R004-a (pending claims route) is caught by the regression's assertion, and R004-b (agency self-activation) by the new owner-claim case.
 
 **Remaining limits.** Verification relies on the operator's out-of-band check. A provider-verified binding through Meta's own onboarding (Embedded Signup) needs live Meta access and app review and remains a later production option.
+
+### R005 P2: Malformed Paymob callback types answer the uniform 401
+
+**Root cause.** `parse_body` tested `type` for membership in a set before checking that it was a string. A list or object raised `TypeError` before the signature was checked, so the route answered `500` instead of the uniform `401`.
+
+**Correction.** `type` must be a string before the membership test; anything else raises `Unverifiable("unsupported_type")`, which the route answers with the uniform `401 invalid_signature` and stores nothing. The signature, size, rate, keyring and source-lookup steps are unchanged and still run in their documented order.
+
+**Tests.** The regression passes. New cases:
+- `test_paymob_contract.py::test_malformed_type_is_unverifiable_not_an_error`: nine discriminator shapes (list, objects, null, number, fraction, boolean, lowercase string), each with a valid and an invalid signature.
+- `test_paymob.py::test_malformed_callback_types_answer_the_uniform_401`: the real application without exception passthrough, eight shapes with valid and invalid signatures plus a missing `type`, all `401` and nothing stored; afterwards both documented kinds (`TRANSACTION` and `TOKEN`) are still accepted with their diagnostics.
+
+**Results.**
+- Unit: `test_paymob_contract.py`, 32 passed.
+- Integration: the regression with `test_paymob.py`, 23 passed in 64.50 s.
+- Mutation: R005-a (membership test without the type check) is caught by the regression, which answers `500` again.

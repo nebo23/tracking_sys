@@ -106,6 +106,18 @@ def test_verify_refuses_altered_fields_and_unsupported_bodies():
         verify(floating.encode(), query["hmac"], [TEST_SECRET])
 
 
+@pytest.mark.parametrize("kind", [[], ["TRANSACTION"], {}, {"a": 1}, None, 1, 1.5, True, "token"])
+def test_malformed_type_is_unverifiable_not_an_error(kind):
+    # R005: a list or object type is unhashable; every malformed discriminator is refused as
+    # unverifiable before the signature check, with any signature, valid or not.
+    obj = sale()
+    _, query = signed(obj)
+    body = json.dumps({"type": kind, "obj": obj}).encode()
+    for received in (query["hmac"], "0" * 128):
+        with pytest.raises(Unverifiable, match="unsupported_type"):
+            verify(body, received, [TEST_SECRET])
+
+
 def test_card_token_callback_is_verified_and_carries_nothing():
     body, query = signed(token(), kind="TOKEN")
     result = verify(body, query["hmac"], [TEST_SECRET])

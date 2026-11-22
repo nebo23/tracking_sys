@@ -179,7 +179,10 @@ def parse_body(body: bytes) -> tuple[str, Mapping[str, Any]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("obj"), dict):
         raise Unverifiable("invalid_body")
     kind = payload.get("type")
-    if kind not in {"TRANSACTION", "TOKEN"}:
+    # The discriminator must be a string before the set membership test: a list or an object
+    # is unhashable and raised TypeError (a 500) before the signature was checked (review
+    # finding R005). Every malformed body is unverifiable and gets the uniform 401.
+    if not isinstance(kind, str) or kind not in {"TRANSACTION", "TOKEN"}:
         raise Unverifiable("unsupported_type")
     return kind, payload["obj"]
 
