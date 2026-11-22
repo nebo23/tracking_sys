@@ -279,4 +279,42 @@ After the last correction, R001 to R011 were re-read in order against the comple
 - Payments, CRM, ledger and conversion eligibility: a held Paymob refund is outside the calculation, so CRM verification (sales only), 014-B candidates and 008-A see one consistent ledger. Test-mode and undeclared-integration callbacks store no evidence at all. Declared CSV and manual rows remain unverified.
 - Provider cursors and coverage: the Instagram watermarks come only from the final page, which now reports a gapless start. The spend and deal cursors encode their complete sort keys.
 
+## Final verification
+
+**Tested tree.** Head `a42fba5`. Its code is identical to `50d739f`, the last code commit (the second review hardening and the populated-upgrade test); `a42fba5` changes documentation only. The checks used:
+- a fresh disposable PostgreSQL 18.6 database on `127.0.0.1:55433`, with the repository guard unchanged;
+- Python 3.12.4 from the project `.venv`;
+- Node 24.17.0 with the pinned Playwright 1.64.1, through a temporary junction to the existing local installation of the unchanged tracker dependencies.
+
+**Batched run.** A first complete run at `b769a29` was stopped at about 35%, with no failure, to include the second review change. The next complete run at `a42fba5` was stopped by Claude Code at about 35%, with no failure, because the workstation ran low on memory. With the owner's approval, the suite then ran in five sequential batches against the same fresh database.
+
+| Check | Result at `a42fba5` |
+|---|---|
+| Unit and contract suite (`-m "not integration"`) | **808 passed**, 0 skipped, in 15.57 s; includes the Instagram review regression and the OpenAPI snapshot comparison |
+| Integration batch 1 (access, account closure, advertising migrations and spend, authentication, bookings and CRM) | **134 passed** in 213.47 s |
+| Integration batch 2 (collection, connectors, conversion delivery) | **139 passed** in 248.33 s |
+| Integration batch 3 (data policy, domains, links, Google, integration migrations, lifecycle, Paymob, PostgreSQL cycle) | **108 passed** in 135.70 s |
+| Integration batch 4 (revenue, the 12 integration review regressions, ROAS, tenancy, browser journeys, verification codes, WhatsApp) | **120 passed** in 126.52 s, including the 3 browser journeys (Chromium and Firefox) |
+| **Backend total** | **1,309 passed, 0 failed, 0 skipped**; the collection of 1,309 cases equals the sum of the batches; all 13 review regressions pass |
+| Tracker unit suite (`npm test`) | **67 passed**, 0 skipped |
+| Tracker Chromium and Firefox suite (`npm run test:browser`) | **44 passed**, 0 skipped |
+| `ruff check` and `ruff format --check` | Passed; 222 files formatted |
+| `pip check` | No broken requirements |
+| OpenAPI contract | Regenerated from the application into a scratch file; byte-identical to `contracts/openapi.json` (121 operations, 99 paths) |
+| Migrations | Fresh upgrade in every batch. A populated predecessor database at `0019` upgrades through the amended `0021` and `0023` to `0025` with its data intact (`test_amended_migrations_upgrade_a_populated_predecessor_database`). Every downgrade refuses populated state, and the empty cycle passes. The runtime and lifecycle grant cases pass. |
+| `git diff --check db750d1 HEAD`, control characters, link targets | Clean; 271 local Markdown link targets in the 25 changed documents resolve |
+| Secret scan of the full diff from `db750d1` | No secret pattern. The only matches are four non-secret identifiers from the owner's ignored `.env`: the local host, the database and role names, and the local API docs URL. No ignored environment, key or `local-data` file is tracked. |
+
+The backend total grows from the review's 1,243 existing cases to 1,309: the 13 review regressions plus the adjacent cases recorded above.
+
+**A3: ledger read scaling (bounded measurement).** Synthetic in-memory records, half sales and half partial refunds with their sale's signed order, timed on this workstation. These are observations, not a benchmark or a service objective.
+
+| Records | D-070 pre-pass (`unbound_refunds`) | 007-A `calculate()` | `ledger_feed()` journal |
+|---|---|---|---|
+| 100 | 0.0329 s (first call, warm-up included) | 0.091 s | 3.637 s |
+| 500 | 0.0020 s | 3.984 s | not measured |
+| 1,000 | 0.0037 s | 17.464 s | not measured |
+
+The journal recalculates every receipt prefix, so it was timed at 100 records only; a first attempt at 500 did not finish within 10 minutes and was stopped. The pre-pass that R001 added is linear and costs milliseconds. The calculation remains super-linear, matching the review's observation (0.096 s, 2.383 s and 15.249 s). The revenue read and the CRM deal read call it once per request, and the journal is computed only when a consumer asks for it. The constraint remains a production blocker for large clients. The next decision is the 007-B design review (persisted postings or an incremental calculation) together with realistic load figures (Q-004, Q-011). No service objective is set here.
+
 **Note without a change of behavior.** `_live_integrations` in `app/services/payments.py` checked element types only after building a set. A mixed-type list could therefore raise `TypeError` instead of the validation error. The route's strict Pydantic validation rejects such a list first, so no request reached it. The check now runs before the set is built (defense in depth, covered by a unit case), in the same final commit as the populated-upgrade migration test.

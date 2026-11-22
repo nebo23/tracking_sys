@@ -7,11 +7,11 @@ Status: Implemented under D-066 to D-068, with open review corrections under D-0
 - [x] Prepare the per-finding correction handoff and tracker under D-069.
 - [x] Reproduce every R001-R011 case at `db750d1` in an isolated disposable environment ([evidence](review-corrections-evidence.md#baseline-reproduction-at-db750d1)).
 - [x] Resolve concrete decisions needed by the selected fixes without blocking independent work (D-070).
-- [ ] Correct and verify all eleven findings, retaining regression and adjacent-case coverage.
-- [ ] Reconcile A1 documentation and explicitly record A2/A3 repository follow-ups.
-- [ ] Run final suites and re-read all eleven findings against the final code.
-- [ ] Publish verified corrections and update the existing PR 13 evidence.
-- [ ] Satisfy D-069 merge conditions, merge the reviewed head and record the observed merge SHA.
+- [x] Correct and verify all eleven findings, retaining regression and adjacent-case coverage ([evidence](review-corrections-evidence.md), [tracker](review-corrections-tracker.md)).
+- [x] Reconcile A1 documentation and explicitly record A2/A3 repository follow-ups.
+- [x] Run final suites and re-read all eleven findings against the final code (1,309 backend, 67 tracker unit and 44 browser cases at `a42fba5`; [second review pass](review-corrections-evidence.md#second-review-pass)).
+- [ ] Publish verified corrections and update the existing PR 13 evidence. (The corrections are pushed; the PR description is updated right after this record.)
+- [ ] Satisfy D-069 merge conditions, merge the reviewed head and record the observed merge SHA. (After this record; the merge SHA is reported to the owner.)
 
 ## Historical implementation tasks
 
