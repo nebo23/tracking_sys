@@ -1,4 +1,6 @@
-# Specification 015 evidence, first round
+# Specification 015 evidence
+
+The first round (payments and the CSV and manual fallback, D-066 and D-067) is recorded first, then the second round (bookings, CRM and WhatsApp, D-068).
 
 Branch `codex/spec-015-business-integrations`, created from `c81d506` (the D-066 preparation on top of merged `main` at `73efae9`). Authority: D-066 and D-067, decisions D1-D15 of the [entry review](entry-review.md) as recommended, with amendment A1. Design: [design-015a.md](design-015a.md).
 
@@ -112,7 +114,7 @@ A review of the callback route before the pull request found two gaps, both corr
 | M7: the repeated-commit check removed | T-31 `test_commit_stores_once_and_repeats_as_no_op` | Caught: the repeated commit answered 409 instead of the 200 no-op |
 | M8: declarations stored as confirmed evidence | T-32 `test_declared_rows_stay_out_of_verified_totals_and_delivery` | Caught: declared rows entered the verified totals |
 
-## Final verification (Phase 5)
+## First-round verification (Phase 5)
 
 At the final code of the branch, from `backend/` with the project `.venv` (Python 3.12.4), on 2026-11-21:
 - `python -m ruff check .` and `python -m ruff format --check .`: clean.
@@ -124,7 +126,7 @@ At the final code of the branch, from `backend/` with the project `.venv` (Pytho
 
 An integration run was stopped once, on purpose, to add the hardening fixes; the guard then refused the populated disposable database, which was recreated (`down -v`, `up -d --wait database`) before the final run.
 
-## Limitations
+## Limitations of the first round
 
 - Every Paymob case runs against the synthetic sender built from the documented pages. No live callback has been received. The text form of a null value in the signature is not documented and is read as an empty string. The references of refunds after captures and the retry behavior are also unconfirmed.
 - `parent_transaction`, `is_refund`, `is_void` and `is_live` are outside Paymob's signature (note N1). The mapping requires the signed flags to agree with the kind, and the callback URL's key is a second barrier.
@@ -133,11 +135,81 @@ An integration run was stopped once, on purpose, to add the hardening fixes; the
 - The phone check of declarations recognizes international numbers (a plus sign), so a local number in a reason is not refused. Card numbers are detected with the 003 rule, which may refuse an order number that happens to pass the Luhn check.
 - Retention values are provisional development values (D14). Legal retention is pending Q-012 and Q-003.
 
+## Second round: D-068
+
+After the first-round pull request, the owner asked to finish the whole of Spec 015 in the same pull request for one review. The provider pages read on 2026-11-21 are recorded in the [second-round entry review](entry-review-round2.md) (W-1 to W-8), and D-068 approves its decisions E1-E13 as recommended. Design: [design-015b.md](design-015b.md). No provider was called and no provider account was created or changed.
+
+## 015-D: bookings and CRM stage changes
+
+**Scope (E2 to E6, E9 to E12).**
+- `integration_sources`, `integration_source_secrets`, `integration_deliveries`, `bookings` and `booking_events` (migration `0023_integration_bookings`), with the `integration.*` audit actions; `crm_stage_rules` and `crm_deals` (migration `0024_crm_deals`), with the `crm_rule.*` audit actions.
+- Cal.com sources (the client's write-only secret, `x-cal-signature-256`) and provider-neutral signed webhook sources (a platform-issued secret, the 004 signature), sealed, replaceable with a 24-hour overlap, off by default (`TRACKING_INTEGRATIONS_CALCOM_ENABLED` with the `calcom.webhooks` rule, and `TRACKING_INTEGRATIONS_WEBHOOK_ENABLED`) and audited.
+- Bookings as chains of provider booking IDs whose state is derived from their minimal events, independent of delivery order; a later event that connects two chains merges them; bookings never write revenue and store nothing personal; a booking is linked to a collection subject only through its pseudonymous token with granted attribution consent.
+- CRM deals from the signed webhook contract, the latest change by occurrence time; Owner and Admin won and lost stage rules; a won deal is verified only when its payment reference matches a posted sale of the client's verified ledger; amounts need `finance:read`.
+
+**Tests.**
+- `tests/test_integrations_contract.py`: Cal.com parsing and minimization, the refusals, the subject token format, every delivery order of a chain, a cancellation of a superseded ID, chains received backwards, and the deal contract.
+- `tests/integration/test_bookings_crm.py`: T-50 to T-58, T-70 to T-72 for bookings and CRM.
+- `tests/integration/test_integration_migrations.py`: the `0023` and `0024` privileges, the refused and empty downgrades.
+
+**Verification of 015-D** (2026-11-21): ruff clean; unit 778 passed; integration on the disposable service 450 passed and 3 skipped (the browser journeys).
+
+**Mutation checks (015-D).**
+
+| Mutation | Tests | Result |
+|---|---|---|
+| M11: the Cal.com signature comparison accepts any signature | T-50 `test_signed_calcom_callback_and_refusals` | Caught: an invalid signature answered 200 |
+| M12: every event decides the status, not only those of the current ID | `test_cancelling_a_superseded_id_keeps_the_booking` (and T-52) | Caught: the cancellation of a rescheduled ID cancelled the booking |
+| M13: the booking event key also covers the row ID, and the delivery check is removed | T-52 `test_every_order_gives_the_same_booking_and_duplicates_count_once` | Caught: 36 events stored instead of 18 |
+| M14: the attribution consent check of a lead link removed | T-53 `test_lead_links_need_identifier_evidence_and_consent` | Caught: a subject without attribution consent was linked |
+| M15: any payment reference verifies a won deal | T-56 `test_stage_changes_never_become_revenue_without_rule_and_evidence` | Caught: deals with unmatched references counted as verified |
+| M16: the gate of the integration kinds always open | T-70 `test_gates_and_rules` | Caught: a source was created with the settings off |
+
+## 015-E: WhatsApp referrals
+
+**Scope (E7 to E12).**
+- `whatsapp_numbers` and `whatsapp_messages` (migration `0025_whatsapp`), with the `whatsapp_number.*` audit actions.
+- `GET /integrations/whatsapp/webhook` (the handshake with the verify token) and `POST` (notifications signed with the Meta app secret, `X-Hub-Signature-256`), off by default (`TRACKING_WHATSAPP_ENABLED`, `TRACKING_WHATSAPP_APP_SECRET`, `TRACKING_WHATSAPP_VERIFY_TOKEN`, the `whatsapp.cloud_api` rule), with a 3 MiB body bound.
+- For each inbound message of a registered number, only the referral is kept (source type, ad ID, click-ID presence), keyed by a SHA-256 of the message ID; a message without a referral is unknown; no person field is stored and no conversation is correlated with a person.
+- Owner and Admin number registration with audit events; `GET .../whatsapp/referrals` with `client:read`.
+
+**Tests.**
+- `tests/test_whatsapp_contract.py`: the signature, a correctly signed but deeply nested body, the referral minimization, status notifications and malformed bodies.
+- `tests/integration/test_whatsapp.py`: T-60 to T-64, T-70 to T-72 for WhatsApp.
+- `tests/integration/test_integration_migrations.py`: the `0025` privileges and its refused downgrade.
+
+**Mutation checks (015-E).**
+
+| Mutation | Tests | Result |
+|---|---|---|
+| M17: the WhatsApp signature comparison removed | T-60 `test_signed_notifications_and_the_handshake`, `test_signature_is_verified_in_constant_time` | Caught: an invalid signature answered 200 |
+| M18: messages without a referral are dropped instead of counted as unknown | T-61 `test_referrals_and_unknown_messages` | Caught: 3 messages and 0 unknown instead of 4 and 1 |
+| M19: the message key also covers the row ID | T-63 `test_repeats_and_unregistered_numbers` | Caught: 6 messages stored instead of 2 |
+| M20: the WhatsApp gate always open | T-70 `test_gates_and_rules` | Caught: a notification was accepted with the setting off |
+
+**Environment note.** During the 015-E checks the workstation's Docker Desktop stopped (the session resumed on 2026-11-22), so two mutation runs met connection timeouts. Every mutated source was confirmed restored, Docker Desktop was started again, the disposable Compose project was recreated (`down -v`, `up -d --wait database`), and the 015-E mutation checks were rerun in full.
+
+## Final verification (whole specification)
+
+At the final code of the branch, from `backend/` with the project `.venv` (Python 3.12.4), on 2026-11-22:
+- `python -m ruff check .` and `python -m ruff format --check .`: clean.
+- `python -m pytest -m "not integration" -q`: 781 passed, 462 deselected.
+- The integration suite on the disposable PostgreSQL 18 service (`127.0.0.1:55433`): 459 passed and 3 skipped. The skipped cases are the three browser journeys, which need `TRACKING_RUN_BROWSER_TESTS=1`; they are reported as skipped, not passed.
+- `contracts/openapi.json` regenerated; its contract test passes.
+- The mutation checks M1 to M20 were run again at the final code: 21 of 21 caught (M1 runs twice), each source restored byte for byte.
+
+## Limitations of the second round
+
+- Every booking, CRM and WhatsApp case runs against synthetic senders built from the documented pages. The Cal.com signature encoding over the raw body, the hidden-field prefill that carries the subject token, and whether Cal.com also cancels the old ID of a reschedule are unverified until a live check.
+- A booking is linked only to a pseudonymous collection subject; person-level links and WhatsApp conversation correlation wait for 006.
+- The signed webhook is the fallback for booking tools other than Cal.com and for any CRM; a named CRM connector (for example HubSpot) is a follow-up with its own decision.
+- A WhatsApp referral's `source_type` values other than `ad` are kept as reported (`post`) or as `other`; the documentation shows only `ad`.
+
 ## Follow-ups
 
-- A live Paymob check with an owner sandbox account and an HTTPS-hosted API (020), separately approved.
+- A live Paymob check with an owner sandbox account and an HTTPS-hosted API (020), separately approved; live Cal.com and WhatsApp checks with owner accounts, likewise.
 - A legal review (Q-012), before live intake, of whether a merchant may direct callbacks that carry the last four card digits to this platform under Paymob's terms.
 - 007-B: persisted postings and movements, finance write permissions, audited corrections, reconciliation workflows and the approval of declarations.
-- 006: linking payments to people and journeys.
-- Later rounds of Spec 015: bookings (AC2), CRM (AC3), WhatsApp and ManyChat (AC4), automation webhooks, form tools, Paymob reads and backfill, and Stripe.
-- Native `tracking_sys` migration of `0020` to `0022`, and deployment, which remain separate owner decisions.
+- 006: linking payments, bookings and WhatsApp conversations to people and journeys.
+- Outside the acceptance criteria (E1): Stripe, Paymob reads and backfill, third-party form tools, ManyChat and a named CRM connector, each with its own decision.
+- Native `tracking_sys` migration of `0020` to `0025`, and deployment, which remain separate owner decisions.

@@ -24,6 +24,10 @@ Specification 003-A3/003-A4/003-A5 under D-024, extended for collected data by s
 | Paymob callback diagnostics (015-B, D-067) | 30 days after receipt (`TRACKING_PAYMENT_DIAGNOSTIC_RETENTION_DAYS`, at most 30) |
 | Replaced Paymob HMAC secrets (015-B) | When their 24-hour overlap ends |
 | Revenue import records (015-C, D-067) | 395 days after the commit (`TRACKING_REVENUE_IMPORT_RETENTION_DAYS`, at most 395); the declared evidence stays |
+| Integration deliveries (015-D, D-068) | 30 days after receipt (`TRACKING_INTEGRATION_DELIVERY_RETENTION_DAYS`, at most 30) |
+| Replaced integration signing secrets (015-D) | When their 24-hour overlap ends |
+| Bookings with their events, and CRM deals (015-D) | 395 days after their last update (`TRACKING_BOOKING_RETENTION_DAYS`, `TRACKING_DEAL_RETENTION_DAYS`, at most 395) |
+| WhatsApp referral messages (015-E, D-068) | 395 days after receipt (`TRACKING_WHATSAPP_MESSAGE_RETENTION_DAYS`, at most 395) |
 
 Security events, audit events, invitations, service credentials, and unverified registrations are not deleted; their rules remain pending (Q-012). Revenue evidence (015, D-067 D14) is kept for the life of the client workspace; the runner never reads or deletes it. Erasure tombstones and deletion requests are kept for the workspace lifetime (D-025, D-027) and are never touched by the runner. A closed user's row stays pseudonymized for audit references ([account closure](authentication.md#account-closure)). The approved periods are also the settings' upper bounds: `TRACKING_SESSION_RETENTION_DAYS` and similar variables may shorten a period but cannot extend it. Every new verification, reset, and invitation message carries the expiry of its code or link, and the mail worker clears an undelivered message at that time instead of retrying it. Messages queued without an expiry are outside this cleanup; see [legacy queued mail](#legacy-queued-mail-proposal-awaiting-owner-approval).
 
