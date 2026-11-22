@@ -2,6 +2,8 @@
 
 Date: 2026-11-22. Decision: D-072 (owner approval of D1-D12 as recommended, without pull request authorization). Branch: `codex/spec-016-analytics-reporting`. Scope: slice 016-A only. Spec 016 as a whole, 016-B and 016-C remain open.
 
+Subsequent D-073 independent verification and the three corrected merge-review findings are recorded in the [2026-11-23 review](merge-review-2026-11-23.md). The results below remain the original implementation evidence.
+
 ## Baseline and commits
 | Item | Value |
 |---|---|

@@ -1,6 +1,6 @@
 # Independent merge review of Spec 016-A
 
-Date: 2026-11-23 (Africa/Cairo). Authorization: D-073. Reviewed submission: `c1a4d6a0f5ef841694a7b0d1d438bb3e5d591b3d`. Base: `2a0c8e512e9ae29aecea7728f57ecd366807f178`. Scope: 016-A only; 016-B/C remain open.
+Date: 2026-11-23 (Africa/Cairo). Authorization: D-073. Reviewed submission: `c1a4d6a0f5ef841694a7b0d1d438bb3e5d591b3d`. Base: `2a0c8e512e9ae29aecea7728f57ecd366807f178`. Scope: 016-A only; 016-B/C remain open. Corrected application and test commit: `7e95fd428ac6ff0c8a50d530b97b94c0f061928e`.
 
 ## Findings and corrections
 
@@ -33,14 +33,23 @@ Commands were run from `backend/` through the disposable runner:
 | New regressions before correction: `pytest tests/test_reporting.py tests/integration/test_reports.py -k r016 -q` | 11 failed with the expected behavior assertions; 70 deselected |
 | Corrected reporting selection: `pytest tests/test_reporting.py tests/integration/test_reports.py tests/integration/test_report_bounds.py -q` | 85 passed, 59.39 s |
 | Final unit/contract suite, including `016a.2`: `pytest -m "not integration" -q` | 864 passed, 530 deselected, 16.53 s |
-| Final full integration suite | Running in four sequential batches of ten modules; results must be recorded before merge |
+| Final integration batch 1: `test_access_api.py` through `test_connector_instagram.py` | 193 passed, 299.93 s |
+| Final integration batch 2: `test_connector_instagram_login.py` through `test_event_links.py` | 106 passed, 197.94 s |
+| Final integration batch 3: `test_google.py` through `test_report_bounds.py` | 86 passed, 127.15 s |
+| Final integration batch 4: `test_reports.py` through `test_whatsapp.py` | 145 passed, 166.92 s; includes all three browser journeys |
+| Tracker unit: `node --test test/unit/*.test.js` | 67 passed, no failure or skip |
+| Tracker browser: `node --test --test-concurrency=1 test/browser/*.test.js` | 44 passed across Chromium/Firefox, no failure or skip, 68.12 s |
 | `ruff check app tests`; `ruff format --check app tests` | Clean; 209 files formatted |
 | `pip check`; `git diff --check` | Passed |
 
-The final integration suite includes real browser journeys and every predecessor integration module. Tracker verification and final publication/merge observations are recorded after execution, not inferred from the implementer's earlier report.
+The final backend result is **1,394 passed: 864 unit/contract and 530 integration**, with zero failures, errors or skips, confirmed from all five JUnit result files. The integration suite includes all forty integration modules and the three real browser journeys. The temporary Playwright junction uses the existing project installation (1.64.1), without installing dependencies. The tracker adds 67 unit and 44 browser cases, bringing the final distinct-case total to **1,505 passed, zero failures and zero skips**. The disposable review container and temporary dependency junction were removed after successful verification; the original dependency target was preserved.
+
+Observed accepted-bound requests on this review machine: 10,000 social rows took 2.368 s (30 SQL statements), 10,000 spend facts across both periods took 1.197 s (28 statements), and 200 revenue evidence rows took 1.015 s (19 statements). The first excess inputs returned the expected 422/409 errors, and the 5,000/5,001 CSV boundary passed. These are local observations, not production targets.
+
+A local link check resolved 254 Markdown links, including directory links. All 99 existing OpenAPI paths and 148 schemas remain semantically unchanged. The source diff adds no migration, dependency or frontend/tracker source change.
 
 ## Remaining limitations and merge gate
 
 The whole Spec 016 is not complete. 016-B still requires 006, 007-B/C and persisted 008 integration; 016-C retains scheduled/white-label reports and the full AC5/003 retained-export revocation obligations. The 200-evidence financial cap contains but does not solve A3. Development limits are not production SLOs. Specs 012/013, live providers, native rollout and deployment remain separately gated. CI activation remains an owner decision; local results are not GitHub checks.
 
-The owner authorized opening a PR and merging under D-073. Merge only after final verification is complete, the exact remote head and current main are checked, and applicable GitHub checks/reviews permit it. No merge has been claimed by this in-progress record.
+The owner authorized opening a PR and merging under D-073. Final local verification is complete, with no unresolved finding from this review. The final evidence publication changes documentation only after corrected code commit `7e95fd4`. Check the exact remote head, current main and applicable GitHub checks/reviews immediately before merge. [PR 14](https://github.com/nebo23/tracking_sys/pull/14) was created under this authorization. Its GitHub merge state and final head must still be checked immediately before merging; this document does not claim a merge before it is observed.

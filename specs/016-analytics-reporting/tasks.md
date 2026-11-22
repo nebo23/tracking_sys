@@ -22,7 +22,7 @@ Updated: 2026-11-22. Preparation under D-071; 016-A implemented under D-072. Che
 - [x] Update OpenAPI and engineering guidance to match actual behavior.
 - [x] Publish verified commits under D-051 and present completed 016-A for independent review.
 - [x] Obtain PR and merge authorization (D-073, 2026-11-23), conditional on successful independent review and final verification.
-- [ ] Complete the D-073 correction verification and merge the reviewed final head.
+- [x] Complete D-073 correction verification: 1,505 final cases passed; prepare the verified PR 14 head for the authorized merge. See [independent review](merge-review-2026-11-23.md).
 
 ## Full specification; remains open
 
