@@ -220,7 +220,7 @@ class _Daily:
             return "not_synced"
         covered = sum(1 for day in period.dates() if self.covered(day))
         if covered == period.days:
-            return "complete"
+            return "partial" if self.state.in_progress else "complete"
         return "partial" if covered else "not_synced"
 
     def total(self, entry: Entry, period: Period, label: str) -> dict[str, Any]:
@@ -243,8 +243,14 @@ class _Daily:
             status, reason = "unavailable", _dominant(cells)
         else:
             value = sum(int(cell.value) for cell in available)  # type: ignore[arg-type]
-            complete = len(available) == len(cells)
-            status, reason = ("complete", None) if complete else ("partial", "incomplete_days")
+            if self.state is not None and self.state.in_progress:
+                status, reason = "partial", "sync_in_progress"
+            elif len(available) < len(cells):
+                status, reason = "partial", "incomplete_days"
+            elif self.coverage_state(period) != "complete":
+                status, reason = "partial", "coverage_incomplete"
+            else:
+                status, reason = "complete", None
         return {
             "period": label,
             "stream": entry.stream,
@@ -303,14 +309,14 @@ def _comparison_reason(
         return "non_additive"
     if "unavailable" in (current["status"], previous["status"]):
         return "unavailable"
+    if in_progress:
+        return "sync_in_progress"
     if "partial" in (current["status"], previous["status"]):
         return "partial"
     if current["provisional"] or previous["provisional"]:
         return "provisional"
     if freshness != "fresh":
         return "stale"
-    if in_progress:
-        return "sync_in_progress"
     return None
 
 
@@ -519,6 +525,8 @@ class _Cohort:
             value = sum(int(cell.value) for cell in available)  # type: ignore[arg-type]
             if len(available) < len(applicable):
                 status, reason = "partial", "incomplete_contents"
+            elif any(cell.reason == "product_type_unknown" for cell in cells):
+                status, reason = "partial", "product_type_unknown"
             elif inventory != "complete":
                 status, reason = "partial", "inventory_unproven"
             else:

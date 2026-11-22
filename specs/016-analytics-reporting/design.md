@@ -111,3 +111,7 @@ The implementation follows sections 1 to 7. Where they left a choice open, it ma
   - `500`: `export_refused`.
   - Access errors keep the existing codes.
 - **CSV.** One fixed schema of 37 columns, listed in the guide. Spend values have one record per group and metric. The 5,000-record bound counts every record after the header; the byte bound counts the encoded file including the header.
+
+## 9. D-073 correction clarification
+
+Full daily values do not by themselves establish completed source coverage. Daily totals require the complete coverage range and no partial synchronization; a pending page also makes spend totals partial. Unknown content product types cannot prove that a metric is inapplicable, so the known subtotal stays partial, while known inapplicable products remain excluded. CSV period metadata is mandatory even for empty reports. Contract `016a.2` gives these corrected outputs a new revision identity; the metric catalog is unchanged. These corrections enforce D3, D6, D7 and D9 without changing product scope or storage.

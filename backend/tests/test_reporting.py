@@ -797,3 +797,64 @@ def test_default_csv_bounds_are_the_approved_values():
     assert csv_export.MAX_ROWS == 5000
     assert csv_export.MAX_BYTES == 2_097_152
     assert csv_export.NAMES[0] == "row_type" and len(set(csv_export.NAMES)) == len(csv_export.NAMES)
+
+
+@pytest.mark.parametrize("coverage", ["missing", "short", "syncing"])
+def test_r016_01_daily_values_do_not_prove_complete_coverage(coverage):
+    days = Period(date(2026, 11, 3), date(2026, 11, 5))
+    records = [_ig_day(day, views=10) for day in days.previous().dates() + days.dates()]
+    state = _social([]).streams["account"]
+    if coverage == "missing":
+        streams = {}
+    elif coverage == "short":
+        streams = {"account": replace(state, complete_through=datetime(2026, 11, 4, tzinfo=UTC))}
+    else:
+        streams = {"account": replace(state, in_progress=True)}
+    result = social_report(
+        _social(records, streams=streams), "daily", days, days.previous(), ["views"], NOW
+    )
+    total = _total(result, "views")
+    assert total["value"] == 20
+    assert total["status"] == "partial"
+    assert total["reason"] == (
+        "sync_in_progress" if coverage == "syncing" else "coverage_incomplete"
+    )
+    assert result.comparison[0]["comparable"] is False
+    assert result.comparison[0]["percent_change"] is None
+
+
+def test_r016_01_spend_between_pages_is_a_partial_subtotal():
+    inputs = _spend([_fact("31", date(2026, 11, 1), "EGP", 100)], in_progress=True)
+    result = spend_report(inputs, "ad", NOVEMBER, None, NOW)
+    assert result.totals[0]["spend"]["minor"] == 100
+    assert (result.totals[0]["status"], result.totals[0]["reason"]) == (
+        "partial",
+        "sync_in_progress",
+    )
+    assert result.source_status["periods"][0]["status"] == "partial"
+
+
+def test_r016_03_unknown_product_cannot_prove_a_complete_cohort_total():
+    published = datetime(2026, 11, 1, 10, tzinfo=UTC)
+    records = [
+        _media("901", published, "FEED", views=500, profile_visits=7),
+        _media("902", published, None, views=700, profile_visits=4),
+    ]
+    streams = {
+        "media": StreamState(
+            "media", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 11, 19, tzinfo=UTC)
+        )
+    }
+    result = social_report(
+        _social(records, streams=streams), "content_cohort", NOVEMBER, None, ["views"], NOW
+    )
+    total = next(item for item in result.totals if item["stream"] == "media")
+    assert total["value"] == 500
+    assert (total["status"], total["reason"]) == ("partial", "product_type_unknown")
+    # A known product that does not offer a metric is legitimately excluded.
+    known = [records[0], replace(records[1], product_type="REELS")]
+    result = social_report(
+        _social(known, streams=streams), "content_cohort", NOVEMBER, None, ["profile_visits"], NOW
+    )
+    total = next(item for item in result.totals if item["stream"] == "media")
+    assert (total["value"], total["status"]) == (7, "complete")

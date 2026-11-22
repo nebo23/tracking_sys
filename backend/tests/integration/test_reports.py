@@ -37,6 +37,7 @@ from app.connectors.synthetic_youtube import pacific_start
 from app.ledger import Currency, EvidenceClass, OperationKind
 from app.models import (
     AgencyMembership,
+    ConnectorCheckpoint,
     ConnectorConnection,
     ConnectorRecord,
     ServiceCredential,
@@ -49,6 +50,59 @@ from app.services.tenancy import tenancy_transaction
 pytestmark = pytest.mark.integration
 NOV1, NOV2, NOV3 = date(2026, 11, 1), date(2026, 11, 2), date(2026, 11, 3)
 SPAN = {"start": "2026-11-01", "end": "2026-11-03"}
+
+
+@pytest.mark.parametrize("family", ["social", "spend"])
+@pytest.mark.parametrize("output", ["json", "csv"])
+def test_r016_01_partial_sync_never_exports_complete_totals(authenticated_world, family, output):
+    w = authenticated_world
+    if family == "social":
+        cid = _instagram(w, views=[10, 12])
+        extra = {"view": "daily", "metrics": "views"}
+    else:
+        cid = _spend(w)
+        spend_facts(w, cid, [{"ad": "31", "day": NOV1, "currency": "EGP", "minor": 100}])
+        extra = {}
+    with Session(w.db.migration) as session, session.begin():
+        session.execute(
+            update(ConnectorCheckpoint)
+            .where(ConnectorCheckpoint.connection_id == cid)
+            .values(cursor="synthetic-next-page")
+        )
+    response = w.signed_in("owner_a").get(
+        report_url(w, family, connection_id=cid, format=output, **SPAN, **extra)
+    )
+    assert response.status_code == 200, response.text
+    totals = (
+        response.json()["totals"]
+        if output == "json"
+        else [row for row in _parse(response) if row["row_type"] == "total"]
+    )
+    assert totals and all(row["status"] == "partial" for row in totals)
+    assert all(row["reason"] == "sync_in_progress" for row in totals)
+
+
+@pytest.mark.parametrize("compared", [False, True])
+def test_r016_02_empty_revenue_csv_keeps_requested_periods(authenticated_world, compared):
+    w = authenticated_world
+    owner = w.signed_in("owner_a")
+    extra = {"compare": "previous"} if compared else {}
+    query = {**SPAN, **extra}
+    body = owner.get(report_url(w, "revenue", **query)).json()
+    assert body["totals"] == [] and body["rows"] == []
+    response = owner.get(
+        report_url(w, "revenue", format="csv", expected_revision=body["revision"], **query)
+    )
+    assert response.status_code == 200, response.text
+    periods = {
+        row["period"]: row
+        for row in _parse(response)
+        if row["row_type"] == "metadata" and row["metric"] == "report_period"
+    }
+    assert set(periods) == ({"current", "previous"} if compared else {"current"})
+    for label, value in periods.items():
+        expected = body["period" if label == "current" else "comparison_period"]
+        assert (value["period_start"], value["period_end"]) == (expected["start"], expected["end"])
 
 
 @pytest.fixture(autouse=True)

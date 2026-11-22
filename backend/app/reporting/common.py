@@ -15,7 +15,7 @@ from typing import Any
 
 from app.advertising.currencies import decimal_text
 
-CONTRACT_VERSION = "016a.1"
+CONTRACT_VERSION = "016a.2"
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 500
 MAX_SOURCE_ROWS = 10_000  # social and spend inputs across both periods (D8)

@@ -156,6 +156,8 @@ class _Period:
 
 
 def _status(inputs: SpendInputs, aggregate: _Period) -> tuple[str, str | None]:
+    if inputs.in_progress:
+        return "partial", "sync_in_progress"
     coverage = _coverage(inputs, aggregate.period)
     if coverage != "complete":
         return "partial", "coverage_incomplete"
@@ -219,14 +221,14 @@ def _comparison(
     blocked = None
     current_status, _ = _status(inputs, current)
     previous_status, _ = _status(inputs, previous)
-    if "partial" in (current_status, previous_status):
+    if inputs.in_progress:
+        blocked = "sync_in_progress"
+    elif "partial" in (current_status, previous_status):
         blocked = "partial"
     elif current.provisional or previous.provisional:
         blocked = "provisional"
     elif _freshness(inputs, now) != "fresh":
         blocked = "stale"
-    elif inputs.in_progress:
-        blocked = "sync_in_progress"
     for currency in sorted(set(current.totals) | set(previous.totals)):
         exponent = _exponent(currency)
         mine = current.totals.get(currency)

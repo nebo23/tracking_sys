@@ -241,6 +241,9 @@ def _period_cells(body: Mapping[str, Any], label: str) -> dict[str, object]:
 
 def _metadata(builder: CsvBuilder, body: Mapping[str, Any], extra: Iterable[tuple]) -> None:
     builder.add("metadata", metric="contract_version", detail=body["contract_version"])
+    for label in ("current", "previous"):
+        if label == "current" or body.get("comparison_period") is not None:
+            builder.add("metadata", metric="report_period", **_period_cells(body, label))
     builder.add("metadata", metric="revision", object_id=body["revision"])
     builder.add("metadata", metric="generated_at", timestamp=body["generated_at"])
     builder.add("metadata", metric="client_id", object_id=body["client_id"])

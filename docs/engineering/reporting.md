@@ -28,7 +28,7 @@ Browser sessions and read service keys follow the existing scope rules: managers
 An unknown or repeated parameter answers `422 unknown_parameter`; there is no time zone parameter and no "as of" parameter. Each source uses its own day: Instagram UTC, YouTube `America/Los_Angeles`, spend the ad account's stored zone, revenue UTC. Daily aggregates are never rebucketed into another zone, and daylight-saving days stay single calendar days.
 
 ## Answer
-Every JSON answer has `contract_version` (`016a.1`), `family`, `client_id`, `connection_id` where one applies, `period` and `comparison_period`, `day_zone`, `basis`, `generated_at`, `revision`, `totals`, `comparison`, `rows`, `page`, a status block and `dependencies`. Totals and comparisons always cover the complete filtered result; pages slice only `rows`. Money is `{"minor": <integer>, "decimal": "<text>"}` with the currency and its exponent. Percentages are exact decimal text rounded half-even to two places.
+Every JSON answer has `contract_version` (`016a.2`), `family`, `client_id`, `connection_id` where one applies, `period` and `comparison_period`, `day_zone`, `basis`, `generated_at`, `revision`, `totals`, `comparison`, `rows`, `page`, a status block and `dependencies`. Totals and comparisons always cover the complete filtered result; pages slice only `rows`. Money is `{"minor": <integer>, "decimal": "<text>"}` with the currency and its exponent. Percentages are exact decimal text rounded half-even to two places.
 
 Availability, coverage, freshness and provisional status are separate fields:
 
@@ -123,3 +123,7 @@ Names, titles, URLs, free text, reasons entered by people, actors, payloads, per
 - Retained or revocable exports, scheduled and white-label reports, and the 003 export-deletion obligations: 016-C.
 - Snapshot views, agency-wide rollups, segmentation beyond connection, metric, date and level, and LinkedIn and X (deferred by D-063).
 - Production limits and freshness objectives: Q-004 and Q-011.
+
+## Independent review corrections (D-073, 2026-11-23)
+
+Contract `016a.2` labels daily totals partial when coverage is absent or incomplete and labels social/spend subtotals `sync_in_progress` while a checkpoint has another page. These states cannot produce a percentage comparison. A content item with an unknown product type keeps the known lifetime subtotal partial (`product_type_unknown`); a known product that does not offer a metric remains legitimately excluded. Every CSV includes explicit current/previous period metadata, even when there are no revenue rows or totals. The catalog remains `016a.1`. See the [independent review](../../specs/016-analytics-reporting/merge-review-2026-11-23.md).

@@ -21,7 +21,8 @@ Updated: 2026-11-22. Preparation under D-071; 016-A implemented under D-072. Che
 - [x] Verify V01-V19, relevant predecessor regressions and required repository checks; record exact results and performance observations.
 - [x] Update OpenAPI and engineering guidance to match actual behavior.
 - [x] Publish verified commits under D-051 and present completed 016-A for independent review.
-- [ ] Obtain PR authorization and owner merge decision; neither is implied by preparation or by D-072.
+- [x] Obtain PR and merge authorization (D-073, 2026-11-23), conditional on successful independent review and final verification.
+- [ ] Complete the D-073 correction verification and merge the reviewed final head.
 
 ## Full specification; remains open
 
