@@ -1,4 +1,6 @@
 # 007-revenue-ledger — Revenue, refunds, and currencies
+Current continuation (2026-11-23, D-074): prepare 007-B/C together with 006 using the [joint packet](../006-identity-journey/joint-entry-review.md). The proposal builds on the 015 receipt store and current 016-A reports; J1-J12 and application implementation remain pending. 007-A stays implemented and merged.
+
 Status: 007-A, with the corrections of review findings R007-01 to R007-11, merged in PR 6 at `bc0ff40` under D-044; see the [evidence](evidence.md#review-corrections-2026-11-14). Slices 007-B and 007-C await review. Level: L3. Prepared: 2026-10-28. English revision: 2026-10-29. Entry review opened under D-042 from the PR 5 merge at `ec9a09b` on 2026-11-11.
 
 ## Sources

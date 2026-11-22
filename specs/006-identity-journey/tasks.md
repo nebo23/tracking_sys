@@ -1,4 +1,16 @@
 # Tasks: 006-identity-journey
+Current continuation: [combined 006 and 007-B/C review](joint-entry-review.md), prepared under D-074 on 2026-11-23. The historical checklist below remains open where implementation is not verified.
+
+## Joint preparation
+
+- [x] Inspect merged main `81977a3`, the 015 receipt store, 016-A reporting and deferred identity findings.
+- [x] Prepare J1-J12, the joint design addendum, verification matrix and conditional handoff.
+- [ ] Record the owner's joint decision and any amendments.
+- [ ] Implement and verify phases P0-P5 with the joint and original acceptance matrices.
+- [ ] Close each deferred finding with implementation evidence; proposed resolutions alone do not close findings.
+
+## Historical checklist
+
 Status: Not completed; this is a review checklist, not an implementation instruction. Preparation under D-039 (2026-11-11).
 
 - [x] Verify dependencies: 005-links-tracker (merged in PR #4 at `c251e20`; see the [entry review](entry-review.md)).

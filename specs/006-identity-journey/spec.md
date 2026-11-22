@@ -1,4 +1,6 @@
 # 006-identity-journey — Lead identity and customer journey
+Current continuation (2026-11-23, D-074): the owner selected joint preparation with 007-B/C from merged main `81977a3`. Read the [joint entry review](joint-entry-review.md) and proposed addendum before using the historical design below. Decisions J1-J12 and implementation are pending; the obsolete proposed migration 0009 must not be used.
+
 Status: Draft; implementation is not approved. Level: L2. Prepared: 2026-10-28. English revision: 2026-10-29. Preparation for owner approval (D-039, 2026-11-11): [entry review](entry-review.md), [design revision 4](design.md), [decision packet](decision-packet.md), [verification matrix](verification-matrix.md) and [review register](preparation-review.md) on `codex/spec-006-identity-journey` from merged `main` at `c251e20`. D-042 authorizes merging the preparation with the remaining review findings deferred.
 
 ## Sources

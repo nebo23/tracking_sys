@@ -1,4 +1,6 @@
 # Plan: 007-revenue-ledger
+Current planning (2026-11-23, D-074): the owner chose combined preparation with 006. The [joint plan and decisions](../006-identity-journey/joint-entry-review.md) and [design addendum](../006-identity-journey/joint-design.md) replace the old baseline for this proposed continuation. Reuse the implemented 015 evidence store. Implementation awaits the joint decision; production 008 persistence is a successor.
+
 Status: 007-A, with the corrections of the independent review findings R007-01 to R007-11, merged in PR 6 at `bc0ff40` under D-044. The [implementation prompt](implementation-prompt.md) defined the calculation contract and the five synthetic acceptance cases from the [entry review](entry-review.md); the [evidence](evidence.md) records the delivered contract, commands and results. Planning for 007-B and 007-C remains provisional.
 
 ## Expected outcome
