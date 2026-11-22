@@ -17309,6 +17309,36 @@
               "default": false,
               "title": "Include Amounts"
             }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -20762,12 +20792,28 @@
             },
             "type": "array",
             "title": "Deals"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After"
           }
         },
         "type": "object",
         "required": [
           "totals",
-          "deals"
+          "deals",
+          "has_more"
         ],
         "title": "DealReport"
       },

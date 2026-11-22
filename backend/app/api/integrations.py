@@ -325,8 +325,12 @@ class DealView(Output):
 
 
 class DealReport(Output):
+    # Totals cover every deal of the client; deals is one page (R008).
     totals: DealTotals
     deals: list[DealView]
+    has_more: bool
+    # The cursor of the next page; present only when has_more is true.
+    next_after: str | None = None
 
 
 def _rules(session, browser) -> CrmRuleAdmin:
@@ -374,6 +378,8 @@ def update_stage_rule(
 
 
 # A client's deals with their rule-based status; amounts and the linked sale need finance:read.
+# The totals cover every deal; the rows are paged newest first received, by at most 500, and
+# next_after continues after the last row (R008).
 @router.get(
     "/agencies/{agency_id}/clients/{client_id}/crm/deals",
     response_model=DealReport,
@@ -385,9 +391,18 @@ def read_deals(
     session: SessionDep,
     principal: ReaderDep,
     include_amounts: Annotated[bool, Query()] = False,
+    after: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 500,
 ) -> DealReport:
     permission = "finance:read" if include_amounts else "client:read"
     resolve_scope(session, principal, agency_id, client_id, permission)
     return DealReport.model_validate(
-        deals_view(session, agency_id, client_id, include_amounts=include_amounts)
+        deals_view(
+            session,
+            agency_id,
+            client_id,
+            include_amounts=include_amounts,
+            after=after,
+            limit=limit,
+        )
     )

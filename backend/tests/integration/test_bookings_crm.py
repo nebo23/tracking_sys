@@ -1115,3 +1115,100 @@ def test_the_latest_payment_reference_decides_verification(lab):
             assert lab.hook(item).status_code == 200
     statuses = {row["deal_ref"]: row["status"] for row in _deals(lab).json()["deals"]}
     assert statuses == {"V-1": "won_unverified", "V-2": "won_unverified"}
+
+
+# --- Review finding R008 (D-069): CRM totals cover every deal; detail rows are paged ---------
+
+
+def _bulk_deals(lab, client_id, specs):
+    from uuid import UUID, uuid4
+
+    w = lab.w
+    source = lab.webhook["id"] if client_id == w.a1 else None
+    if source is None:
+        source = lab.create("signed_webhook", client_id=client_id).json()["source"]["id"]
+    now = datetime.now(UTC)
+    with Session(w.db.migration) as session, session.begin():
+        session.add_all(
+            CrmDeal(
+                id=uuid4(),
+                agency_id=w.a,
+                client_id=client_id,
+                source_id=UUID(source),
+                deal_ref=f"bulk-{prefix}-{index}",
+                pipeline="sales",
+                stage=stage,
+                stage_at=now,
+                amount_minor=1_000 + index,
+                currency=currency,
+                currency_exponent=2,
+                amount_at=now,
+                payment_reference=reference,
+                payment_reference_at=None if reference is None else now,
+                first_received_at=now - timedelta(seconds=index % 7),
+                updated_at=now,
+            )
+            for prefix, stage, reference, currency, count in specs
+            for index in range(count)
+        )
+
+
+def test_deal_totals_cover_every_deal_and_every_row_is_reachable(lab):
+    # R008: with 1,203 deals the totals count every deal by status, the rows come in pages
+    # with a complete cursor, every deal of the client appears exactly once, and no other
+    # client's deal appears; amounts stay per deal and per currency for finance readers only.
+    w = lab.w
+    _sale(w, "700000123")
+    _won_rule(lab)
+    rules = f"/agencies/{w.a}/clients/{w.a1}/crm/stage-rules"
+    lost = {"pipeline": "sales", "stage": "lost", "outcome": "lost"}
+    assert lab.browser("owner_a").post(rules, json=lost).status_code == 201
+    _bulk_deals(
+        lab,
+        w.a1,
+        [
+            ("open", "new", None, "EGP", 501),
+            ("verified", "won", "700000123", "USD", 300),
+            ("unverified", "won", "999", "EGP", 150),
+            ("plain", "won", None, "USD", 50),
+            ("lost", "lost", None, "EGP", 202),
+        ],
+    )
+    _bulk_deals(lab, w.a2, [("foreign", "new", None, "EGP", 30)])
+    expected = {"open": 501, "won_verified": 300, "won_unverified": 200, "lost": 202}
+    path = f"/agencies/{w.a}/clients/{w.a1}/crm/deals"
+    reader = lab.browser("analyst")
+    first = reader.get(path).json()
+    assert first["totals"] == expected
+    assert len(first["deals"]) == 500 and first["has_more"] is True
+    assert reader.get(path, params={"limit": 1}).json()["totals"] == expected
+    seen, after, pages = [], None, 0
+    while True:
+        params = {"limit": 250} | ({"after": after} if after else {})
+        page = reader.get(path, params=params).json()
+        assert page["totals"] == expected
+        seen.extend(row["id"] for row in page["deals"])
+        pages += 1
+        if not page["has_more"]:
+            assert "next_after" not in page
+            break
+        after = page["next_after"]
+    assert pages == 5 and len(seen) == len(set(seen)) == 1_203
+    with Session(w.db.migration) as session:
+        own = {
+            str(item)
+            for item in session.scalars(select(CrmDeal.id).where(CrmDeal.client_id == w.a1))
+        }
+    assert set(seen) == own
+    assert all("amount" not in row for row in first["deals"])
+    owner = lab.browser("owner_a")
+    detailed = owner.get(path, params={"include_amounts": "true", "limit": 500}).json()
+    assert {row["currency"] for row in detailed["deals"]} == {"EGP", "USD"}
+    assert reader.get(path, params={"include_amounts": "true"}).status_code == 403
+    for params in (
+        {"after": "not-a-cursor"},
+        {"after": "MjAyNi0xMS0xMHwx"},
+        {"limit": 0},
+        {"limit": 501},
+    ):
+        assert reader.get(path, params=params).status_code == 422, params

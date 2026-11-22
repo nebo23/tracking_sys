@@ -16,6 +16,8 @@ any delivery order gives the same result. Nothing here writes revenue evidence. 
 calls a provider.
 """
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -25,8 +27,20 @@ from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
-from sqlalchemy.dialects.postgresql import distinct_on, insert
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    String,
+    and_,
+    any_,
+    bindparam,
+    func,
+    or_,
+    select,
+    tuple_,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, distinct_on, insert
 from sqlalchemy.orm import Session
 
 from app.advertising.currencies import decimal_text
@@ -772,13 +786,53 @@ class CrmRuleAdmin(TenancyService):
         return item
 
 
+DEAL_PAGE = 500
+
+
+def deal_cursor(row: CrmDeal) -> str:
+    text = f"{row.first_received_at.isoformat()}|{row.id}"
+    return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
+
+
+# The position after which the next page starts: (first_received_at, id) of the last deal of
+# the previous page. Anything else is refused as a validation failure.
+def parse_deal_cursor(cursor: str) -> tuple[datetime, UUID]:
+    try:
+        text = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode()
+        moment, identifier = text.split("|")
+        position = datetime.fromisoformat(moment), UUID(identifier)
+    except (ValueError, UnicodeDecodeError, binascii.Error) as error:
+        raise ValueError("invalid_cursor") from error
+    if position[0].tzinfo is None:
+        raise ValueError("invalid_cursor")
+    return position
+
+
+def _deal_status(outcome: str | None, verified: bool) -> str:
+    if outcome is None:
+        return "open"
+    if outcome == "lost":
+        return "lost"
+    return "won_verified" if verified else "won_unverified"
+
+
 # A client's deals (E6, E10). The status comes from the active rules: no rule is open, a lost rule
 # is lost, and a won rule is won_verified only when the payment reference matches a verified
 # ledger sale of the same client, otherwise won_unverified. Amounts and the linked sale are
-# returned only to finance:read readers.
+# returned only to finance:read readers. The totals cover every deal of the client; the detail
+# rows are one page in a stable order (newest first received, then ID), and next_after is the
+# complete cursor of the following page (review finding R008).
 def deals_view(
-    session: Session, agency_id: UUID, client_id: UUID, *, include_amounts: bool
+    session: Session,
+    agency_id: UUID,
+    client_id: UUID,
+    *,
+    include_amounts: bool,
+    after: str | None = None,
+    limit: int = DEAL_PAGE,
 ) -> dict[str, Any]:
+    if not 1 <= limit <= DEAL_PAGE:
+        raise ValueError("invalid_limit")
     rules = {
         (row.pipeline, row.stage): row.outcome
         for row in session.scalars(
@@ -789,29 +843,41 @@ def deals_view(
             )
         )
     }
+    scope = (CrmDeal.agency_id == agency_id, CrmDeal.client_id == client_id)
+    referenced = session.scalar(
+        select(CrmDeal.id).where(*scope, CrmDeal.payment_reference.is_not(None)).limit(1)
+    )
+    sales: list[str] = []
+    if referenced is not None:
+        ledger = client_ledger(session, agency_id, client_id)
+        sales = sorted({item.operation_id for item in ledger.calculation.transactions})
+    verified = CrmDeal.payment_reference == any_(bindparam("sales", sales, type_=ARRAY(String)))
+    flags = (
+        select(CrmDeal.pipeline, CrmDeal.stage, func.coalesce(verified, False).label("matched"))
+        .where(*scope)
+        .subquery()
+    )
+    totals = dict.fromkeys(("open", "won_verified", "won_unverified", "lost"), 0)
+    for pipeline, stage, matched, number in session.execute(
+        select(flags.c.pipeline, flags.c.stage, flags.c.matched, func.count()).group_by(
+            flags.c.pipeline, flags.c.stage, flags.c.matched
+        )
+    ):
+        totals[_deal_status(rules.get((pipeline, stage)), bool(matched))] += number
+    query = select(CrmDeal).where(*scope)
+    if after is not None:
+        moment, identifier = parse_deal_cursor(after)
+        query = query.where(tuple_(CrmDeal.first_received_at, CrmDeal.id) < (moment, identifier))
     rows = list(
         session.scalars(
-            select(CrmDeal)
-            .where(CrmDeal.agency_id == agency_id, CrmDeal.client_id == client_id)
-            .order_by(CrmDeal.updated_at.desc(), CrmDeal.id)
-            .limit(500)
+            query.order_by(CrmDeal.first_received_at.desc(), CrmDeal.id.desc()).limit(limit + 1)
         )
     )
-    sales: set[str] = set()
-    if any(row.payment_reference for row in rows):
-        ledger = client_ledger(session, agency_id, client_id)
-        sales = {item.operation_id for item in ledger.calculation.transactions}
-    totals = dict.fromkeys(("open", "won_verified", "won_unverified", "lost"), 0)
+    following = deal_cursor(rows[limit - 1]) if len(rows) > limit else None
+    known = set(sales)
     deals = []
-    for row in rows:
-        outcome = rules.get((row.pipeline, row.stage))
-        if outcome is None:
-            status = "open"
-        elif outcome == "lost":
-            status = "lost"
-        else:
-            status = "won_verified" if row.payment_reference in sales else "won_unverified"
-        totals[status] += 1
+    for row in rows[:limit]:
+        status = _deal_status(rules.get((row.pipeline, row.stage)), row.payment_reference in known)
         item: dict[str, Any] = {
             "id": row.id,
             "deal_ref": row.deal_ref,
@@ -830,4 +896,9 @@ def deals_view(
             item["currency"] = row.currency
             item["linked_sale"] = row.payment_reference if status == "won_verified" else None
         deals.append(item)
-    return {"totals": totals, "deals": deals}
+    return {
+        "totals": totals,
+        "deals": deals,
+        "has_more": following is not None,
+        "next_after": following,
+    }

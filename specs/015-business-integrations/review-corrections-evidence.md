@@ -174,3 +174,20 @@ The `wa` fixture now verifies its number through the operator function. `test_nu
 - Integration: the regression with `test_bookings_crm.py` and `test_integration_migrations.py`, 30 passed in 107.11 s.
 - Unit: `test_data_policy.py` and `test_integrations_contract.py`, 22 passed.
 - Mutation: R007-a (optional values applied only with a newer stage) is caught by the regression.
+
+### R008 P2: CRM totals cover the full authorized scope
+
+**Root cause.** `deals_view` selected the newest 500 deals and computed `totals` from that list, with no continuation or truncation indicator. With 501 open deals it reported 500, and older won and lost deals disappeared from the totals.
+
+**Correction.** No schema change.
+- The totals are a SQL aggregate over every deal of the client. Deals are grouped by pipeline, stage and whether the payment reference is one of the client's verified ledger sales (passed as one array parameter), then mapped through the active rules.
+- The detail rows are a keyset page in a stable order: `first_received_at` descending, then `id` descending, so later updates never move a deal between pages.
+- The route takes `limit` (1-500, default 500) and an opaque `after` cursor carrying the complete key, and answers `has_more`, plus `next_after` when another page follows. A malformed cursor or limit answers `422`.
+- The OpenAPI snapshot is regenerated. Permissions are unchanged: totals and rows need `client:read`, and amounts `finance:read`.
+
+**Tests.** The regression passes. New case in `test_bookings_crm.py`: `test_deal_totals_cover_every_deal_and_every_row_is_reachable`. It has 1,203 deals of one client in every outcome (open, won with a matching verified sale, won with another or no reference, lost), USD and EGP amounts, and 30 deals of another client. The totals are exact on every page and for `limit=1`; five pages of 250 reach every deal exactly once and no other client's deal. Amounts stay hidden from a `client:read` reader, finance readers see per-deal currencies, and malformed cursors and limits are refused.
+
+**Results.**
+- Integration: both CRM regressions with `test_bookings_crm.py`, 27 passed in 108.19 s.
+- Unit: `test_contract.py` with the regenerated snapshot passes.
+- Mutations: R008-a (totals over a bounded subset) is caught by the regression (`open: 500`), and R008-b (a cursor without the ID tie-break) by the traversal case.
