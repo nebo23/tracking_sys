@@ -7,6 +7,13 @@ verified whatsapp_business_account body (W-7) and keeps, for each, a digest of i
 its timestamp and only its Click-to-WhatsApp referral: the source type, the ad ID and whether a
 click ID was present. Phone numbers, names, sender IDs, text, ad copy, media URLs and click IDs
 never leave this module. Status notifications carry no message and yield nothing.
+
+Every item of a signed batch is read on its own (review finding R009): a value of an unexpected
+type or range in one message never raises, so a malformed message cannot make the route answer
+500 and discard its valid siblings, nor make Meta retry an otherwise handled batch for days. A
+source type that is not a known string is kept as other, a timestamp outside 2015-2099 is
+unknown, and a message without a usable ID is skipped. The parser has no database access, so
+storage failures still surface as errors in the caller.
 """
 
 import hashlib
@@ -15,13 +22,19 @@ import json
 import re
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 SIGNATURE = re.compile(r"sha256=([0-9a-fA-F]{64})")
 DIGITS = re.compile(r"[1-9][0-9]{0,31}")
 SOURCE_TYPES = frozenset({"ad", "post"})
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 EARLIEST = datetime(2015, 1, 1, tzinfo=UTC)
+LATEST = datetime(2100, 1, 1, tzinfo=UTC)
+# Message times as Unix seconds, bounded before any conversion: datetime.fromtimestamp raises
+# OverflowError, OSError or ValueError for large values depending on the platform.
+_EARLIEST_SECONDS = int((EARLIEST - EPOCH).total_seconds())
+_LATEST_SECONDS = int((LATEST - EPOCH).total_seconds())
 
 
 class Unverifiable(ValueError):
@@ -65,8 +78,10 @@ def _moment(value: Any) -> datetime | None:
     text = _digits(value)
     if text is None or len(text) > 12:
         return None
-    moment = datetime.fromtimestamp(int(text), UTC)
-    return moment if moment >= EARLIEST else None
+    seconds = int(text)
+    if not _EARLIEST_SECONDS <= seconds < _LATEST_SECONDS:
+        return None
+    return EPOCH + timedelta(seconds=seconds)
 
 
 def _message(phone_number_id: str, item: Mapping[str, Any]) -> Message | None:
@@ -79,15 +94,28 @@ def _message(phone_number_id: str, item: Mapping[str, Any]) -> Message | None:
     if not isinstance(referral, Mapping):
         return Message(phone_number_id, digest, moment, False, None, None, False)
     source = referral.get("source_type")
+    click = referral.get("ctwa_clid")
     return Message(
         phone_number_id,
         digest,
         moment,
         True,
-        source if source in SOURCE_TYPES else "other",
+        source if isinstance(source, str) and source in SOURCE_TYPES else "other",
         _digits(referral.get("source_id")),
-        isinstance(referral.get("ctwa_clid"), str) and bool(referral.get("ctwa_clid")),
+        isinstance(click, str) and bool(click),
     )
+
+
+# One message of a batch, or None when it cannot be read. The reading above raises for no input;
+# the narrow guard keeps a future parsing error confined to its own message. It never covers
+# storage, which happens in the caller after parsing.
+def _read(phone_number_id: str, item: Any) -> Message | None:
+    if not isinstance(item, Mapping):
+        return None
+    try:
+        return _message(phone_number_id, item)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 # The inbound messages of a verified body, per phone number ID. Anything that is not a
@@ -112,5 +140,5 @@ def messages(payload: Mapping[str, Any]) -> Iterator[Message]:
             if number is None or not isinstance(items, list):
                 continue
             for item in items:
-                if isinstance(item, Mapping) and (message := _message(number, item)) is not None:
+                if (message := _read(number, item)) is not None:
                     yield message

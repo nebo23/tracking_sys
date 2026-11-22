@@ -403,3 +403,82 @@ def test_operator_command(wa):
         with pytest.raises(SystemExit) as exit_info:
             main(argv)
         assert exit_info.value.code == 2, argv
+
+
+# --- Review finding R009 (D-069): malformed messages stay confined to themselves -------------
+
+
+def _post(wa, body, **changes):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    raw, headers = signed(body)
+    with TestClient(create_app(wa.config), raise_server_exceptions=False) as client:
+        return client.post(WEBHOOK, content=raw, headers=headers)
+
+
+def test_malformed_messages_never_discard_valid_siblings(wa):
+    # R009: through the real application without exception passthrough, malformed messages first
+    # and last, unsupported shapes between changes, and extreme dates are read on their own: the
+    # signed batch answers 200 and every readable message is stored once with its minimized
+    # referral; unreadable items are skipped; a repeat stores nothing new.
+    w = wa.w
+    listed, objected = message(), message()
+    listed["referral"]["source_type"] = []
+    objected["referral"]["source_type"] = {"type": "ad"}
+    far, near = message(timestamp=999_999_999_999), message(timestamp=1)
+    valid = [message(), message(source_type="post"), message(referral=False)]
+    anonymous = message()
+    del anonymous["id"]
+    body = notification(NUMBER, listed, valid[0], far, valid[1], "item", anonymous, near)
+    body["entry"][0]["changes"].insert(0, "not a change")
+    body["entry"].insert(0, ["not an entry"])
+    body["entry"].append(
+        {"id": "2", "changes": [{"field": "messages", "value": {"messages": "not a list"}}]}
+    )
+    second = notification(NUMBER, valid[2], objected)
+    body["entry"].append(second["entry"][0])
+    response = _post(wa, body)
+    assert (response.status_code, response.json()) == (200, {"status": "received"})
+    stored = _messages(w)
+    assert len(stored) == 7
+    assert sorted(row.source_type or "unknown" for row in stored) == [
+        "ad",
+        "ad",
+        "ad",
+        "other",
+        "other",
+        "post",
+        "unknown",
+    ]
+    assert sum(1 for row in stored if row.message_at is None) == 2
+    assert _post(wa, body).status_code == 200
+    assert len(_messages(w)) == 7
+    report = _referrals(wa).json()
+    assert (report["total"], report["unknown"]) == (7, 1)
+
+
+def test_unsigned_batches_and_storage_failures_are_never_acknowledged(wa, monkeypatch):
+    # R009: the per-message reading never turns a refused signature or a storage failure into a
+    # 200: an unsigned batch is 401, and a database error while storing is a server error,
+    # so Meta retries it, with nothing stored.
+    from fastapi.testclient import TestClient
+    from sqlalchemy.exc import OperationalError
+
+    from app.api import whatsapp as routes
+    from app.main import create_app
+
+    body = notification(NUMBER, message(), message())
+    raw, _ = signed(body)
+    with TestClient(create_app(wa.config), raise_server_exceptions=False) as client:
+        refused = client.post(WEBHOOK, content=raw, headers={"content-type": "application/json"})
+        assert refused.status_code == 401
+
+        def failing(session, items):
+            raise OperationalError("INSERT", {}, Exception("synthetic storage failure"))
+
+        monkeypatch.setattr(routes, "receive_messages", failing)
+        response = client.post(WEBHOOK, content=raw, headers=signed(body)[1])
+        assert response.status_code >= 500
+    assert _messages(wa.w) == []

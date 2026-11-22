@@ -5,12 +5,21 @@ D-068 decisions E7 and E8; every value is synthetic and comes from tests/whatsap
 
 import hashlib
 import hmac
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from whatsapp_sender import APP_SECRET, FORBIDDEN, message, notification, signed
 
-from app.integrations.whatsapp import Unverifiable, messages, verify
+from app.integrations.whatsapp import (
+    _EARLIEST_SECONDS,
+    _LATEST_SECONDS,
+    EARLIEST,
+    LATEST,
+    Unverifiable,
+    _moment,
+    messages,
+    verify,
+)
 
 
 def test_signature_is_verified_in_constant_time():
@@ -59,6 +68,56 @@ def test_messages_keep_only_the_referral():
     assert items[0].digest != hashlib.sha256(b"").hexdigest()
     for value in FORBIDDEN:
         assert value not in repr(items), value
+
+
+def test_malformed_items_never_raise_and_keep_their_siblings():
+    # R009: list, object, null and number source types, out-of-range timestamps (a twelve-digit
+    # value raised in datetime.fromtimestamp), a referral that is not an object, items without a
+    # usable ID and items that are not objects are each read on their own; valid messages before
+    # and after them are kept in order.
+    good_first, good_last = message(), message()
+    shapes = []
+    for value in ([], {}, None, 5, ["ad"], {"type": "ad"}):
+        item = message()
+        item["referral"]["source_type"] = value
+        shapes.append(item)
+    timed = [message(timestamp=value) for value in (999_999_999_999, 4_102_444_800, 1)]
+    flat = message()
+    flat["referral"] = ["not", "an", "object"]
+    anonymous = message()
+    del anonymous["id"]
+    long_id = dict(message(), id="w" * 513)
+    body = notification(
+        "1001",
+        good_first,
+        *shapes,
+        *timed,
+        flat,
+        anonymous,
+        long_id,
+        "not an object",
+        7,
+        None,
+        good_last,
+    )
+    items = list(messages(body))
+    expected = 1 + len(shapes) + len(timed) + 1 + 1
+    assert len(items) == expected
+    assert items[0].source_type == "ad" and items[-1].source_type == "ad"
+    assert [item.source_type for item in items[1 : 1 + len(shapes)]] == ["other"] * len(shapes)
+    assert [item.message_at for item in items[1 + len(shapes) : -2]] == [None, None, None]
+    assert items[-2].has_referral is False  # a referral that is not an object
+    digests = {item.digest for item in items}
+    assert len(digests) == expected
+
+
+def test_message_times_are_bounded_before_conversion():
+    # R009: the conversion uses arithmetic within 2015-2099, never the platform's time functions.
+    assert _moment(str(_EARLIEST_SECONDS)) == EARLIEST
+    assert _moment(_LATEST_SECONDS - 1) == LATEST - timedelta(seconds=1)
+    for value in (_EARLIEST_SECONDS - 1, _LATEST_SECONDS, "999999999999", "1" * 13, -5, 1.5):
+        assert _moment(value) is None, value
+    assert _moment(1_763_000_000) == datetime.fromtimestamp(1_763_000_000, UTC)
 
 
 def test_statuses_and_other_objects_yield_nothing():

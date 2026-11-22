@@ -191,3 +191,26 @@ The `wa` fixture now verifies its number through the operator function. `test_nu
 - Integration: both CRM regressions with `test_bookings_crm.py`, 27 passed in 108.19 s.
 - Unit: `test_contract.py` with the regenerated snapshot passes.
 - Mutations: R008-a (totals over a bounded subset) is caught by the regression (`open: 500`), and R008-b (a cursor without the ID tie-break) by the traversal case.
+
+The independent partial review of `a291bb6` ([report](../../reports/spec-015-corrections-review-a291bb6-2026-11-22.md)) found no further blocking defect in R001-R008: full backend suite 1,286 passed and 4 failed, the failures being exactly R009 (two cases), R010 and R011. The sections below complete those three findings on top of that reviewed head, without changing the reviewed corrections.
+
+### R009 P2: Malformed WhatsApp messages stay confined to themselves
+
+**Root cause.** The route parsed every message of a verified batch before storing any of them. `_message` tested a list or object `source_type` for set membership (`TypeError`). `_moment` passed a twelve-digit timestamp to `datetime.fromtimestamp`, which raises `OSError` on Windows and `ValueError` or `OverflowError` elsewhere. Either error answered 500, so the valid sibling was lost and Meta would retry the whole batch for days.
+
+**Correction.** No schema change.
+- A source type counts as `ad` or `post` only when it is that string, and every other value is `other`, as the design already says.
+- A timestamp is bounded to 2015-2099 as Unix seconds and converted arithmetically, so no platform call can raise; values outside the range are unknown.
+- Each item is read through `_read`, which skips non-objects and keeps a narrow guard (`TypeError`, `ValueError`, `OverflowError`) around the pure parsing of one message only.
+- The parser has no database access; storage stays outside the guard, and its errors still fail the request. The acknowledgement contract is unchanged: every verified batch is 200, an invalid signature is 401, and no diagnostic row or person field is added.
+
+**Tests.** Both regression cases pass. New cases:
+- `test_whatsapp_contract.py::test_malformed_items_never_raise_and_keep_their_siblings`: six source-type shapes, three out-of-range timestamps, a non-object referral, a missing or oversized ID, three non-object items, with valid messages first and last.
+- `test_whatsapp_contract.py::test_message_times_are_bounded_before_conversion`: the range edges.
+- `test_whatsapp.py::test_malformed_messages_never_discard_valid_siblings`: the real application without exception passthrough, malformed messages first and last, unsupported entry, change and value shapes, a second change, extreme dates and a repeat. Seven messages are stored once, two with unknown times.
+- `test_whatsapp.py::test_unsigned_batches_and_storage_failures_are_never_acknowledged`: an unsigned batch is 401; a simulated database error while storing is a server error with nothing stored.
+
+**Results.**
+- Unit: `test_whatsapp_contract.py`, 5 passed.
+- Integration: the three WhatsApp regressions with `test_whatsapp.py`, 17 passed in 36.77 s.
+- Mutations: R009-a (membership test without the type check) is caught by the new application case and the unit cases. R009-b (the unbounded `fromtimestamp`) is caught by the timestamp regression, which answers 500 again on this Windows workstation, and by the unit cases.
