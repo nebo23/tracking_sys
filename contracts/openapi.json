@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals.",
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads.",
     "version": "0.5.0"
   },
   "paths": {
@@ -15023,6 +15023,769 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/reports/social": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Social Report",
+        "operationId": "social_report_agencies__agency_id__clients__client_id__reports_social_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "daily",
+                "content_cohort"
+              ],
+              "type": "string",
+              "title": "View"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "metrics",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1700,
+                  "pattern": "^[A-Za-z_]{1,64}(,[A-Za-z_]{1,64}){0,24}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metrics"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/reports/spend": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Spend Report",
+        "operationId": "spend_report_agencies__agency_id__clients__client_id__reports_spend_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ad",
+                "adset",
+                "campaign"
+              ],
+              "type": "string",
+              "default": "ad",
+              "title": "Level"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/reports/revenue": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Revenue Report",
+        "operationId": "revenue_report_agencies__agency_id__clients__client_id__reports_revenue_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
       "post": {
         "tags": [
@@ -19624,6 +20387,24 @@
         ],
         "title": "AgentApproval"
       },
+      "Amount": {
+        "properties": {
+          "minor": {
+            "type": "integer",
+            "title": "Minor"
+          },
+          "decimal": {
+            "type": "string",
+            "title": "Decimal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minor",
+          "decimal"
+        ],
+        "title": "Amount"
+      },
       "AuditResponse": {
         "properties": {
           "id": {
@@ -21490,6 +22271,33 @@
         ],
         "title": "DeliveryResult"
       },
+      "Dependency": {
+        "properties": {
+          "capability": {
+            "type": "string",
+            "title": "Capability"
+          },
+          "state": {
+            "type": "string",
+            "const": "dependency_unavailable",
+            "title": "State"
+          },
+          "requires": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requires"
+          }
+        },
+        "type": "object",
+        "required": [
+          "capability",
+          "state",
+          "requires"
+        ],
+        "title": "Dependency"
+      },
       "DestinationActions": {
         "properties": {
           "update": {
@@ -22185,6 +22993,29 @@
           "revision"
         ],
         "title": "EventResult"
+      },
+      "ExcludedMetric": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "metric",
+          "reason"
+        ],
+        "title": "ExcludedMetric"
       },
       "FinancialGrant": {
         "properties": {
@@ -23323,6 +24154,34 @@
         "type": "object",
         "title": "OriginUpdate"
       },
+      "PageView": {
+        "properties": {
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_rows": {
+            "type": "integer",
+            "title": "Total Rows"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page",
+          "page_size",
+          "total_rows",
+          "total_pages"
+        ],
+        "title": "PageView"
+      },
       "PasswordChange": {
         "properties": {
           "current_password": {
@@ -23587,6 +24446,31 @@
           "reason"
         ],
         "title": "PendingAdjustment"
+      },
+      "PeriodView": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "days"
+        ],
+        "title": "PeriodView"
       },
       "ReadinessResponse": {
         "properties": {
@@ -23914,6 +24798,142 @@
         ],
         "title": "Registration"
       },
+      "ReportStreamCoverage": {
+        "properties": {
+          "covered_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered From"
+          },
+          "complete_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complete Through"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          }
+        },
+        "type": "object",
+        "required": [
+          "covered_from",
+          "complete_through"
+        ],
+        "title": "ReportStreamCoverage"
+      },
+      "RevenueComparison": {
+        "properties": {
+          "block": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "declared"
+            ],
+            "title": "Block"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "current_value": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "previous_value": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block",
+          "currency",
+          "exponent",
+          "metric",
+          "current_value",
+          "previous_value",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "RevenueComparison"
+      },
       "RevenueReport": {
         "properties": {
           "verified": {
@@ -23950,6 +24970,300 @@
           "truncated"
         ],
         "title": "RevenueReport"
+      },
+      "RevenueReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "revenue",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "type": "string",
+            "const": "UTC",
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/RevenueTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RevenueComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "unresolved": {
+            "$ref": "#/components/schemas/Unresolved"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RevenueRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "generated_at",
+          "revision",
+          "totals",
+          "comparison",
+          "unresolved",
+          "rows",
+          "page",
+          "dependencies"
+        ],
+        "title": "RevenueReportResult"
+      },
+      "RevenueRow": {
+        "properties": {
+          "block": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "declared"
+            ],
+            "title": "Block"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "postings": {
+            "type": "integer",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block",
+          "currency",
+          "exponent",
+          "date",
+          "kind",
+          "amount",
+          "postings"
+        ],
+        "title": "RevenueRow"
+      },
+      "RevenueTotal": {
+        "properties": {
+          "block": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "declared"
+            ],
+            "title": "Block"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "captured": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refunded": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "charged_back": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reversed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "net": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postings"
+          },
+          "sales": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refunds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block",
+          "period",
+          "currency",
+          "exponent"
+        ],
+        "title": "RevenueTotal"
       },
       "Role": {
         "type": "string",
@@ -24227,6 +25541,716 @@
         ],
         "title": "SignedRequestResult"
       },
+      "SocialComparison": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "current_status": {
+            "type": "string",
+            "title": "Current Status"
+          },
+          "previous_status": {
+            "type": "string",
+            "title": "Previous Status"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "metric",
+          "unit",
+          "current_value",
+          "previous_value",
+          "current_status",
+          "previous_status",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "SocialComparison"
+      },
+      "SocialReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "social",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "content_cohort"
+            ],
+            "title": "View"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "type": "string",
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "catalog_version": {
+            "type": "string",
+            "title": "Catalog Version"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/SocialTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SocialComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SocialRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SocialSource"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "connection_id",
+          "view",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "catalog_version",
+          "generated_at",
+          "revision",
+          "totals",
+          "comparison",
+          "rows",
+          "page",
+          "source_status",
+          "dependencies"
+        ],
+        "title": "SocialReportResult"
+      },
+      "SocialRow": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "metric_class": {
+            "type": "string",
+            "title": "Metric Class"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "content_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Id"
+          },
+          "product_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Type"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Date"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "missing",
+              "unsupported",
+              "not_synced"
+            ],
+            "title": "Availability"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "definition_since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition Since"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "metric",
+          "unit",
+          "metric_class",
+          "value",
+          "availability",
+          "reason",
+          "provisional",
+          "definition_since",
+          "fetched_at"
+        ],
+        "title": "SocialRow"
+      },
+      "SocialSource": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "family": {
+            "type": "string",
+            "title": "Family"
+          },
+          "adapter_state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "Adapter State"
+          },
+          "adapter_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Version"
+          },
+          "connection_status": {
+            "type": "string",
+            "title": "Connection Status"
+          },
+          "connection_last_successful_sync_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Last Successful Sync At"
+          },
+          "catalog_version": {
+            "type": "string",
+            "title": "Catalog Version"
+          },
+          "excluded_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedMetric"
+            },
+            "type": "array",
+            "title": "Excluded Metrics"
+          },
+          "source_rows": {
+            "type": "integer",
+            "title": "Source Rows"
+          },
+          "publication_unknown": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publication Unknown"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/StreamStatus"
+            },
+            "type": "array",
+            "title": "Streams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "family",
+          "adapter_state",
+          "adapter_version",
+          "connection_status",
+          "connection_last_successful_sync_at",
+          "catalog_version",
+          "excluded_metrics",
+          "source_rows",
+          "streams"
+        ],
+        "title": "SocialSource"
+      },
+      "SocialTotal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "metric_class": {
+            "type": "string",
+            "title": "Metric Class"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "definition_since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition Since"
+          },
+          "expected_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Days"
+          },
+          "available_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Days"
+          },
+          "missing_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Days"
+          },
+          "unsupported_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsupported Days"
+          },
+          "not_synced_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Synced Days"
+          },
+          "contents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contents"
+          },
+          "applicable_contents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicable Contents"
+          },
+          "available_contents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Contents"
+          },
+          "missing_contents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Contents"
+          },
+          "unsupported_contents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsupported Contents"
+          },
+          "fetched_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched From"
+          },
+          "fetched_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched Through"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "stream",
+          "metric",
+          "unit",
+          "metric_class",
+          "value",
+          "status",
+          "reason",
+          "provisional",
+          "definition_since"
+        ],
+        "title": "SocialTotal"
+      },
       "SourceResponse": {
         "properties": {
           "id": {
@@ -24419,6 +26443,176 @@
         ],
         "title": "SpendAccount"
       },
+      "SpendAccountView": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "time_zone": {
+            "type": "string",
+            "title": "Time Zone"
+          },
+          "previous_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Currency"
+          },
+          "currency_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Changed At"
+          },
+          "previous_time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Time Zone"
+          },
+          "time_zone_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone Changed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "time_zone",
+          "previous_currency",
+          "currency_changed_at",
+          "previous_time_zone",
+          "time_zone_changed_at"
+        ],
+        "title": "SpendAccountView"
+      },
+      "SpendComparison": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "spend",
+              "impressions",
+              "clicks"
+            ],
+            "title": "Metric"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "exponent",
+          "metric",
+          "current_value",
+          "previous_value",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "SpendComparison"
+      },
       "SpendCoverage": {
         "properties": {
           "covered_from": {
@@ -24462,6 +26656,134 @@
           "state"
         ],
         "title": "SpendCoverage"
+      },
+      "SpendFreshness": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "stale",
+              "never_synced"
+            ],
+            "title": "State"
+          },
+          "freshness_hours": {
+            "type": "integer",
+            "title": "Freshness Hours"
+          },
+          "last_stream_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Stream Success At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "freshness_hours",
+          "last_stream_success_at"
+        ],
+        "title": "SpendFreshness"
+      },
+      "SpendPeriodStatus": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "not_synced"
+            ],
+            "title": "Coverage"
+          },
+          "facts": {
+            "type": "integer",
+            "title": "Facts"
+          },
+          "valued_facts": {
+            "type": "integer",
+            "title": "Valued Facts"
+          },
+          "refused": {
+            "$ref": "#/components/schemas/SpendReportRefusals"
+          },
+          "provisional_dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Provisional Dates"
+          },
+          "fact_zones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fact Zones"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "start",
+          "end",
+          "coverage",
+          "facts",
+          "valued_facts",
+          "refused",
+          "provisional_dates",
+          "fact_zones",
+          "status",
+          "reason"
+        ],
+        "title": "SpendPeriodStatus"
       },
       "SpendRefusals": {
         "properties": {
@@ -24573,6 +26895,281 @@
         ],
         "title": "SpendReport"
       },
+      "SpendReportRefusals": {
+        "properties": {
+          "unparseable_amount": {
+            "type": "integer",
+            "title": "Unparseable Amount"
+          },
+          "unsupported_currency": {
+            "type": "integer",
+            "title": "Unsupported Currency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unparseable_amount",
+          "unsupported_currency"
+        ],
+        "title": "SpendReportRefusals"
+      },
+      "SpendReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "spend",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign"
+            ],
+            "title": "Level"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/SpendReportTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SpendComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SpendReportRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SpendSource"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "connection_id",
+          "level",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "generated_at",
+          "revision",
+          "totals",
+          "comparison",
+          "rows",
+          "page",
+          "source_status",
+          "dependencies"
+        ],
+        "title": "SpendReportResult"
+      },
+      "SpendReportRow": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "impressions": {
+            "type": "integer",
+            "title": "Impressions"
+          },
+          "clicks": {
+            "type": "integer",
+            "title": "Clicks"
+          },
+          "days_with_spend": {
+            "type": "integer",
+            "title": "Days With Spend"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "currency",
+          "exponent",
+          "spend",
+          "impressions",
+          "clicks",
+          "days_with_spend",
+          "provisional"
+        ],
+        "title": "SpendReportRow"
+      },
+      "SpendReportTotal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "impressions": {
+            "type": "integer",
+            "title": "Impressions"
+          },
+          "clicks": {
+            "type": "integer",
+            "title": "Clicks"
+          },
+          "days_with_spend": {
+            "type": "integer",
+            "title": "Days With Spend"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "currency",
+          "exponent",
+          "spend",
+          "impressions",
+          "clicks",
+          "days_with_spend",
+          "provisional",
+          "status",
+          "reason"
+        ],
+        "title": "SpendReportTotal"
+      },
       "SpendRow": {
         "properties": {
           "object_id": {
@@ -24634,6 +27231,133 @@
           "provisional"
         ],
         "title": "SpendRow"
+      },
+      "SpendSource": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "adapter_state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "Adapter State"
+          },
+          "adapter_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Version"
+          },
+          "connection_status": {
+            "type": "string",
+            "title": "Connection Status"
+          },
+          "connection_last_successful_sync_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Last Successful Sync At"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpendAccountView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stream": {
+            "$ref": "#/components/schemas/SpendStream"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/SpendPeriodStatus"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "source_rows": {
+            "type": "integer",
+            "title": "Source Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "adapter_state",
+          "adapter_version",
+          "connection_status",
+          "connection_last_successful_sync_at",
+          "account",
+          "stream",
+          "periods",
+          "source_rows"
+        ],
+        "title": "SpendSource"
+      },
+      "SpendStream": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "covered_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered From"
+          },
+          "complete_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complete Through"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncView"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/SpendFreshness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "covered_from",
+          "complete_through",
+          "sync",
+          "freshness"
+        ],
+        "title": "SpendStream"
       },
       "SpendTotal": {
         "properties": {
@@ -24730,6 +27454,98 @@
           "sync"
         ],
         "title": "StreamCoverage"
+      },
+      "StreamFreshness": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "stale",
+              "never_synced"
+            ],
+            "title": "State"
+          },
+          "freshness_hours": {
+            "type": "integer",
+            "title": "Freshness Hours"
+          },
+          "last_stream_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Stream Success At"
+          },
+          "fetched_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched From"
+          },
+          "fetched_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched Through"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "freshness_hours",
+          "last_stream_success_at",
+          "fetched_from",
+          "fetched_through"
+        ],
+        "title": "StreamFreshness"
+      },
+      "StreamStatus": {
+        "properties": {
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/ReportStreamCoverage"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncView"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/StreamFreshness"
+          },
+          "provisional_delay_hours": {
+            "type": "integer",
+            "title": "Provisional Delay Hours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stream",
+          "coverage",
+          "sync",
+          "freshness",
+          "provisional_delay_hours"
+        ],
+        "title": "StreamStatus"
       },
       "SyncInput": {
         "properties": {
@@ -24873,6 +27689,36 @@
         ],
         "title": "SyncState"
       },
+      "SyncView": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "in_progress": {
+            "type": "boolean",
+            "title": "In Progress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "in_progress"
+        ],
+        "title": "SyncView"
+      },
       "TemplateInput": {
         "properties": {
           "name": {
@@ -25012,6 +27858,67 @@
           "token"
         ],
         "title": "TokenInput"
+      },
+      "Unresolved": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "const": "all_evidence",
+            "title": "Scope"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "pending_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Pending Reasons"
+          },
+          "held": {
+            "type": "integer",
+            "title": "Held"
+          },
+          "reconciliation": {
+            "type": "integer",
+            "title": "Reconciliation"
+          },
+          "reconciliation_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Reconciliation Reasons"
+          },
+          "evidence_rows": {
+            "type": "integer",
+            "title": "Evidence Rows"
+          },
+          "evidence_limit": {
+            "type": "integer",
+            "title": "Evidence Limit"
+          },
+          "external_completeness": {
+            "type": "string",
+            "const": "unknown",
+            "title": "External Completeness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "pending",
+          "pending_reasons",
+          "held",
+          "reconciliation",
+          "reconciliation_reasons",
+          "evidence_rows",
+          "evidence_limit",
+          "external_completeness"
+        ],
+        "title": "Unresolved"
       },
       "UserResponse": {
         "properties": {

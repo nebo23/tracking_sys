@@ -28,6 +28,7 @@ from app.api.middleware import RequestBoundary
 from app.api.payments import callback_router as payment_callback_router
 from app.api.payments import router as payments_router
 from app.api.public_cors import PlatformCors, PublicCollectionCors
+from app.api.reports import router as reports_router
 from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
@@ -37,6 +38,7 @@ from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
+from app.reporting.common import ReportError
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
@@ -106,7 +108,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Revenue and payments (specification 015): the client ledger derived from "
             "stored evidence, Paymob sources with signed processed callbacks, and CSV "
             "imports and manual declarations of unverified revenue, Cal.com bookings and "
-            "CRM stage changes through signed integration sources, and WhatsApp referrals."
+            "CRM stage changes through signed integration sources, and WhatsApp referrals. "
+            "Reports (specification 016-A): social, advertising spend and recorded-revenue "
+            "reports over stored facts on source-native days, with previous-period "
+            "comparisons, revision-bound pages and bounded CSV downloads."
         ),
         lifespan=lifespan,
         responses={
@@ -185,6 +190,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def whatsapp_error(request: Request, error: WhatsappError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
+    # Report refusals (specification 016-A) carry a closed code; never a rejected value.
+    @application.exception_handler(ReportError)
+    async def report_error(request: Request, error: ReportError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
     # Managed-host or hostname conflicts (specification 005) carry a fixed code.
     @application.exception_handler(LinkConflict)
     async def link_conflict(request: Request, error: LinkConflict) -> JSONResponse:
@@ -241,6 +251,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(connectors_router)
     application.include_router(advertising_router)
     application.include_router(revenue_router)
+    application.include_router(reports_router)
     application.include_router(payments_router)
     application.include_router(payment_callback_router)
     application.include_router(integrations_router)
