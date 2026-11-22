@@ -90,13 +90,16 @@ def _hmac_secret(value: str) -> str:
 # The merchant's live integration IDs (D-070): 1 to 20 positive integers that fit a bigint,
 # kept sorted without repetition. Paymob shows them on the dashboard in live mode.
 def _live_integrations(values: Sequence[int]) -> list[int]:
+    # Every element is checked before the set is built, so a mixed or unhashable list is a
+    # validation error, never a TypeError.
     if not isinstance(values, Sequence) or isinstance(values, str | bytes):
         raise ValueError("Give 1 to 20 live integration IDs.")
+    if not all(
+        isinstance(item, int) and not isinstance(item, bool) and 0 < item < 2**63 for item in values
+    ):
+        raise ValueError("Give 1 to 20 live integration IDs.")
     items = sorted(set(values))
-    valid = all(
-        isinstance(item, int) and not isinstance(item, bool) and 0 < item < 2**63 for item in items
-    )
-    if not valid or not 1 <= len(items) <= MAX_LIVE_INTEGRATIONS:
+    if not 1 <= len(items) <= MAX_LIVE_INTEGRATIONS:
         raise ValueError("Give 1 to 20 live integration IDs.")
     return items
 

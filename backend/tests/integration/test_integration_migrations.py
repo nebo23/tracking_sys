@@ -228,3 +228,95 @@ def test_0025_privileges_and_downgrade(world):
     with pytest.raises(RuntimeError, match="Refuse to remove WhatsApp state"):
         command.downgrade(CONFIG, "0024_crm_deals")
     assert _version(db) == head
+
+
+# --- D-070: the in-place amendments upgrade a populated predecessor database ----------------
+
+PREDECESSOR_TABLES = (
+    "agencies",
+    "client_workspaces",
+    "agency_memberships",
+    "users",
+    "audit_events",
+    "collection_subjects",
+    "consent_records",
+)
+
+
+def _counts(db, tables) -> dict[str, int]:
+    with db.migration.connect() as connection:
+        return {
+            table: connection.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
+            for table in tables
+        }
+
+
+def test_amended_migrations_upgrade_a_populated_predecessor_database(world):
+    # D-070 amended 0021 and 0023 to 0025 in place. From a database at 0019_meta_providers that
+    # holds tenancy, audit, subject and consent rows, the amended revisions upgrade to head
+    # without touching that data, and their new columns, constraints and grants apply at once.
+    from app.privacy.consent import ConsentSource, ConsentState, Purpose
+    from app.services.collection import record_consent
+
+    db = world.db
+    head = _version(db)
+    with Session(db.runtime) as session, session.begin():
+        record_consent(
+            session,
+            world.a,
+            world.a1,
+            source=ConsentSource.API,
+            notice_sha256="a" * 64,
+            choices={Purpose.ATTRIBUTION: ConsentState.GRANTED},
+            subject_token=None,
+            captured_at=None,
+            recheck=lambda: None,
+        )
+    command.downgrade(CONFIG, "0019_meta_providers")
+    try:
+        assert _version(db) == "0019_meta_providers"
+        assert "payment_sources" not in _tables(db) and "bookings" not in _tables(db)
+        before = _counts(db, PREDECESSOR_TABLES)
+        assert before["collection_subjects"] == 1 and before["agencies"] == 2
+    finally:
+        command.upgrade(CONFIG, "head")
+    assert _version(db) == head
+    assert _counts(db, PREDECESSOR_TABLES) == before
+    with db.migration.connect() as connection:
+        columns = {
+            (table, column)
+            for table, column in connection.execute(
+                text(
+                    "SELECT table_name, column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND (table_name, column_name) IN ("
+                    "('payment_sources', 'live_integration_ids'), ('bookings', 'source_id'), "
+                    "('booking_events', 'source_id'), ('crm_deals', 'amount_at'), "
+                    "('crm_deals', 'payment_reference_at'), ('whatsapp_numbers', 'verified_at'))"
+                )
+            )
+        }
+        indexes = set(
+            connection.execute(
+                text(
+                    "SELECT indexname FROM pg_indexes WHERE tablename = 'whatsapp_numbers' "
+                    "AND indexname IN ('uq_whatsapp_numbers_verified', 'uq_whatsapp_numbers_claim')"
+                )
+            ).scalars()
+        )
+    assert len(columns) == 6 and len(indexes) == 2
+    assert _privilege(db, "tracking_lifecycle", "bookings", "UPDATE", "linked_at")
+    assert _privilege(db, "tracking_app", "payment_sources", "UPDATE", "live_integration_ids")
+    # A pending claim is the registration default on the upgraded schema.
+    with Session(db.migration) as session, session.begin():
+        claim = WhatsappNumber(
+            id=uuid4(),
+            agency_id=world.a,
+            client_id=world.a1,
+            phone_number_id="106540352242955",
+            name="Synthetic",
+            created_by_membership_id=world.owner_a,
+        )
+        session.add(claim)
+        session.flush()
+        session.refresh(claim)
+        assert (claim.status, claim.verified_at) == ("pending", None)

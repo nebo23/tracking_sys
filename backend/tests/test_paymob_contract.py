@@ -106,6 +106,23 @@ def test_verify_refuses_altered_fields_and_unsupported_bodies():
         verify(floating.encode(), query["hmac"], [TEST_SECRET])
 
 
+def test_live_integration_declaration_is_validated_before_use():
+    # D-070, second review: element types are checked before the set is built, so mixed or
+    # unhashable lists are validation errors; duplicates collapse and the order is sorted.
+    from app.services.payments import _live_integrations
+
+    assert _live_integrations([5_000_001, LIVE_INTEGRATION, 5_000_001]) == [
+        LIVE_INTEGRATION,
+        5_000_001,
+    ]
+    for values in ([1, "2"], [[1]], [{}], [1, None], [True], [0], [2**63], [], list(range(1, 22))):
+        with pytest.raises(ValueError):
+            _live_integrations(values)
+    for values in ("4097558", b"1", None, 7, {1}):
+        with pytest.raises(ValueError):
+            _live_integrations(values)
+
+
 @pytest.mark.parametrize("kind", [[], ["TRANSACTION"], {}, {"a": 1}, None, 1, 1.5, True, "token"])
 def test_malformed_type_is_unverifiable_not_an_error(kind):
     # R005: a list or object type is unhashable; every malformed discriminator is refused as

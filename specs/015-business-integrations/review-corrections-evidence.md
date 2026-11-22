@@ -255,3 +255,28 @@ The existing adapter, feasibility and Instagram runtime tests pass unchanged.
 - Unit: the new file with the regression, 13 passed; `test_connector_instagram_adapter.py`, `test_instagram_feasibility.py` and the regression, 41 passed.
 - Integration: `test_connector_instagram.py` and `test_connector_instagram_login.py`, 11 passed in 19.51 s.
 - Mutations: R011-a (the offset applied to a day list recomputed from now) is caught by the regression, and R011-b (no coverage restart behind the limit) by the several-midnights case.
+
+## Second review pass
+
+After the last correction, R001 to R011 were re-read in order against the complete diff from `db750d1` and the final code, not from the notes above. This is the implementer's own second pass; the only external review is the independent partial review of R001-R008 at `a291bb6`.
+
+| ID | Failure mechanism rechecked | Positive counterpart rechecked | Verdict |
+|---|---|---|---|
+| R001 | `map_transaction` takes the environment only from a declared signed `integration_id` together with `is_live`. The refund parent is bound to the signed order in `_parent_bound`, at intake, and in `unbound_refunds`, before `calculate()`. The only ledger computation in the application is `client_ledger`; `load_evidence`, the raw receipt log, has no consumer outside tests. | Declared live sales and own-order refunds post in every order; duplicates and the parent's re-sent callback stay exact redeliveries. | Closed |
+| R002 | `erase_subject` and the lifecycle `booking_links` target clear both link columns before the subject row is deleted. The subject predicate waits for the links, so no path leaves only the foreign key's `SET NULL`. Booking events still cascade as table owner, with no added lifecycle grant. | Bookings are kept; other subjects, sources and clients are untouched. | Closed |
+| R003 | `record_consent` evaluates the previous attribution state before appending records, and detaches on a non-grant or a re-grant after a lapse. `bookings_view` derives the total and each row from one `effective_link` expression scoped to the client. A merge copies a link only through `_granted`. | Continuous renewals keep links; a later delivery with the token links under a new grant. | Closed |
+| R004 | Registration inserts `pending`. Routing selects `active` only. Agency updates refuse pending and revoked claims. Only `verify_claim` sets `verified_at`, and the partial indexes back it against a concurrent writer. | A verified binding routes, and disable, re-enable, revoke and transfer behave as recorded. | Closed |
+| R005 | The discriminator is type-checked before membership; the 401 path stores nothing. | Transaction and token callbacks post as before. | Closed |
+| R006 | Every chain lookup and insert carries the delivering `source_id`; merges stay inside the source. | Duplicates and out-of-order chains within a source still form one booking. | Closed |
+| R007 | Each part of a deal compares (time, value) on its own, so no part depends on another part's order, and `updated_at` moves only on change. | All 24 orders converge; amounts and currencies move together. | Closed |
+| R008 | Totals are aggregated over the client's whole scope with the ledger sale set as one array parameter. Rows use an immutable keyset, so the totals never come from the page. | Every row is reachable once; amounts stay behind `finance:read`. | Closed |
+| R009 | No platform time call remains, and source types are type-checked. The narrow per-item guard covers pure parsing only; storage errors still fail the request. | Valid siblings are stored once; the signature and acknowledgement contract are unchanged. | Closed |
+| R010 | The filter and the cursor use the same (object, currency) tuple as the sort. | Totals and permissions are unchanged; the final and empty pages are explicit. | Closed |
+| R011 | The day comes from the cursor's absolute next day; the moving limit can only restart coverage, never shift a day. | Pages within the limit are unchanged in content and watermarks. | Closed |
+
+**Cross-feature effects.**
+- Erasure, consent and bookings: erasure and expiry detach in every source, a withdrawal detaches across sources, and reads count only links whose consent is granted now. The three use the client privacy lock taken by booking intake, consent changes, erasure and lifecycle batches.
+- Payments, CRM, ledger and conversion eligibility: a held Paymob refund is outside the calculation, so CRM verification (sales only), 014-B candidates and 008-A see one consistent ledger. Test-mode and undeclared-integration callbacks store no evidence at all. Declared CSV and manual rows remain unverified.
+- Provider cursors and coverage: the Instagram watermarks come only from the final page, which now reports a gapless start. The spend and deal cursors encode their complete sort keys.
+
+**Note without a change of behavior.** `_live_integrations` in `app/services/payments.py` checked element types only after building a set. A mixed-type list could therefore raise `TypeError` instead of the validation error. The route's strict Pydantic validation rejects such a list first, so no request reached it. The check now runs before the set is built (defense in depth, covered by a unit case), in the same final commit as the populated-upgrade migration test.
