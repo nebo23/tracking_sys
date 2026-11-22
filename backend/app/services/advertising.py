@@ -5,8 +5,14 @@ the ad, ad set or campaign level: totals and rows per currency (amounts in diffe
 are never added), the provisional dates, the refused facts per reason, and the coverage of the
 daily stream. The caller has resolved finance:read for the client; the connection must belong
 to that client and be a spend connection. Nothing identifies a person.
+
+Rows are grouped by object and currency, because each fact keeps the currency it was reported in
+(D-064 D4), so one object can have rows in two currencies. Pages follow that complete key
+(review finding R010): the cursor is "<object ID>:<currency>" of the last row, with an empty
+object ID for facts without one at the level read, and the next page starts after that pair.
 """
 
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Literal
@@ -27,6 +33,19 @@ DAILY_STREAM = "ad_daily"
 MAX_PERIOD_DAYS = 366
 Level = Literal["ad", "adset", "campaign"]
 KEYS = {"ad": "ad_id", "adset": "adset_id", "campaign": "campaign_id"}
+# A page position: the object ID (empty when the level's ID is missing) and the currency.
+CURSOR = re.compile(r"((?:[1-9][0-9]{0,31})?):([A-Z]{3})")
+
+
+def page_cursor(key: str, currency: str) -> str:
+    return f"{key}:{currency}"
+
+
+def parse_page_cursor(cursor: str) -> tuple[str, str]:
+    match = CURSOR.fullmatch(cursor)
+    if match is None:
+        raise ConnectorError("invalid_cursor", 422)
+    return match.group(1), match.group(2)
 
 
 def _connection(session: Session, access: ScopedAccess, connection_id: UUID) -> ConnectorConnection:
@@ -92,6 +111,7 @@ def read_spend(
         raise AccessDenied()
     if until < since or (until - since).days >= MAX_PERIOD_DAYS:
         raise ConnectorError("invalid_period", 422)
+    position = None if after is None else parse_page_cursor(after)
     connection = _connection(session, access, connection_id)
     account = session.scalar(select(AdAccount).where(AdAccount.connection_id == connection.id))
     facts = list(
@@ -133,7 +153,7 @@ def read_spend(
         group["impressions"] += fact.impressions  # type: ignore[operator]
         group["clicks"] += fact.clicks  # type: ignore[operator]
         group["provisional"] = bool(group["provisional"]) or fact.provisional_until > now
-    ordered = sorted(item for item in groups if after is None or item[0] > after)
+    ordered = sorted(item for item in groups if position is None or item > position)
     page = ordered[:limit]
     names = {
         row.object_id: row.name
@@ -158,7 +178,7 @@ def read_spend(
         }
         for key, currency in page
     ]
-    following = page[-1][0] if len(ordered) > limit and page else None
+    following = page_cursor(*page[-1]) if len(ordered) > limit and page else None
     zone = account.time_zone if account is not None else connection.day_zone
     return {
         "connection_id": connection.id,

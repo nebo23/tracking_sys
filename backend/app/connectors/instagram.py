@@ -11,7 +11,10 @@ see specs/010-instagram/evidence.md) or is documented by Meta:
   ("user_id"). Every granted permission is recorded, including ones that were not requested.
 - The long-lived token refreshes itself (refresh_mode "self"); there is no revocation endpoint.
 - Streams (D6): daily account insights (the eleven D2 metrics in one total_value read per UTC
-  day, up to 729 days back), feed posts and reels with lifetime insights (up to 730 days back),
+  day, up to 729 days back; the page cursor names the read's first day and the next day itself,
+  so a read resumed after a UTC midnight continues with the next day instead of shifting a
+  numeric offset onto a newly computed day list, review finding R011), feed posts and reels with
+  lifetime insights (up to 730 days back),
   and the live stories, all re-read every run while they are live. Each media item is asked
   only for the D2/D-054 metrics of its product type, so a metric the product type does not
   offer is reported as unsupported by the catalog and never requested.
@@ -40,7 +43,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.connectors.contracts import (
@@ -152,6 +155,28 @@ CAPABILITY = Capability(
     signed_requests=True,
 )
 DAY_CURSOR = "day:"
+
+
+# An account-stream position (R011): "day:<first day>:<next day>", both ISO dates. The first day
+# stays fixed for the whole read and is the start of its gapless coverage; the next day is the
+# absolute day the next page reads.
+def day_cursor(first: datetime, following: datetime) -> str:
+    return f"{DAY_CURSOR}{first.date().isoformat()}:{following.date().isoformat()}"
+
+
+def parse_day_cursor(cursor: str) -> tuple[datetime, datetime]:
+    parts = cursor.removeprefix(DAY_CURSOR).split(":") if cursor.startswith(DAY_CURSOR) else []
+    days = []
+    for part in parts:
+        try:
+            day = date.fromisoformat(part)
+        except ValueError:
+            break
+        if day.isoformat() == part:
+            days.append(datetime(day.year, day.month, day.day, tzinfo=UTC))
+    if len(parts) != 2 or len(days) != 2 or days[1] < days[0]:
+        raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
+    return days[0], days[1]
 
 
 @dataclass
@@ -459,7 +484,13 @@ class InstagramProvider:
         return self._media_page(access_token, str(user), cursor, start, end)
 
     # One complete UTC day per page, up to the start of the current day, with all account
-    # metrics in one total_value read.
+    # metrics in one total_value read. The first page fixes the read's first day (the day of
+    # `start`, never before the history limit); the cursor then carries that first day and the
+    # absolute next day (R011). The history limit is recomputed from `now` on every page, so it
+    # moves forward at each UTC midnight: the next day is still read when it is within the
+    # limit, and when a long deferral has left it behind the limit, those days can no longer be
+    # read and the read's gapless coverage restarts at the limit (covered_from), instead of
+    # claiming days it never read. The end follows the latest complete day.
     def _account_page(
         self,
         token: str,
@@ -470,21 +501,16 @@ class InstagramProvider:
         end: datetime,
         now: datetime,
     ) -> ProviderPage:
-        first, last = _day(start), min(_day(end), _day(now))
-        days = []
-        day = first
-        while day < last:
-            days.append(day)
-            day += timedelta(days=1)
-        offset = 0
-        if cursor is not None:
-            digits = cursor.removeprefix(DAY_CURSOR)
-            if not cursor.startswith(DAY_CURSOR) or not digits.isdigit():
-                raise ProviderError(ErrorKind.PERMANENT, "invalid_cursor")
-            offset = int(digits)
-        if offset >= len(days):
+        oldest = _day(now - timedelta(days=self.capability.stream_spec("account").history_days))
+        last = min(_day(end), _day(now))
+        if cursor is None:
+            first = day = _day(start)
+        else:
+            first, day = parse_day_cursor(cursor)
+            if day < oldest:
+                first = day = oldest
+        if day >= last:
             return ProviderPage((), None, first, max(first, last))
-        day = days[offset]
         names = [spec.name for spec in self.capability.stream_metrics("account")]
         window = {
             "period": "day",
@@ -502,7 +528,8 @@ class InstagramProvider:
             if name not in values
         }
         record = ProviderRecord(f"day-{day.date().isoformat()}", day, values, None, unavailable)
-        following = f"{DAY_CURSOR}{offset + 1}" if offset + 1 < len(days) else None
+        after = day + timedelta(days=1)
+        following = day_cursor(first, after) if after < last else None
         return ProviderPage((record,), following, first, last)
 
     # The values of the named metrics, and whether the combined read was refused. A refused

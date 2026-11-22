@@ -512,3 +512,90 @@ def test_disconnect_purges_spend(ads):
     row = ads.row(k)
     assert (row.status, row.external_account_id, row.day_zone) == ("disconnected", None, None)
     assert row.revocation_status == "unsupported"
+
+
+def test_spend_pages_follow_object_and_currency(ads):
+    # R010: facts keep their reported currency (D-064 D4), so one object can have rows in two
+    # currencies, and an ad set or campaign ID can be missing. At every level, limit-1 pages
+    # reach each (object, currency) group exactly once in order; the totals stay the same on
+    # every page; the last page has no cursor and a page after it is empty.
+    w = ads.w
+    connection = _connect(ads, "owner_a", w.a, w.a1)
+    now = datetime(2026, 11, 22, tzinfo=UTC)
+    facts = [
+        ("111", "222", "333", 1, "EGP", 100),
+        ("111", "222", "333", 2, "USD", 200),
+        ("112", "222", "333", 1, "USD", 300),
+        ("113", None, None, 1, "EGP", 50),
+        ("113", None, None, 2, "USD", 70),
+        ("114", "223", None, 1, "EGP", 10),
+    ]
+    with Session(w.db.migration) as session, session.begin():
+        for ad, adset, campaign, day, currency, minor in facts:
+            session.add(
+                AdSpendFact(
+                    agency_id=w.a,
+                    client_id=w.a1,
+                    connection_id=connection,
+                    ad_id=ad,
+                    adset_id=adset,
+                    campaign_id=campaign,
+                    spend_date=date(2026, 11, day),
+                    time_zone="UTC",
+                    currency=currency,
+                    spend_minor=minor,
+                    provisional_until=now,
+                )
+            )
+    expected = {
+        "ad": [
+            ("111", "EGP", 100),
+            ("111", "USD", 200),
+            ("112", "USD", 300),
+            ("113", "EGP", 50),
+            ("113", "USD", 70),
+            ("114", "EGP", 10),
+        ],
+        "adset": [
+            (None, "EGP", 50),
+            (None, "USD", 70),
+            ("222", "EGP", 100),
+            ("222", "USD", 500),
+            ("223", "EGP", 10),
+        ],
+        "campaign": [
+            (None, "EGP", 60),
+            (None, "USD", 70),
+            ("333", "EGP", 100),
+            ("333", "USD", 500),
+        ],
+    }
+    totals = [("EGP", 160), ("USD", 570)]
+    path = f"/agencies/{w.a}/clients/{w.a1}/ad-spend"
+    client = ads.browser("owner_a")
+    base = {"connection_id": str(connection), "since": "2026-11-01", "until": "2026-11-02"}
+    for level, groups in expected.items():
+        seen, after = [], None
+        while True:
+            params = {**base, "level": level, "limit": 1} | ({"after": after} if after else {})
+            page = client.get(path, params=params).json()
+            assert [(t["currency"], t["spend_minor"]) for t in page["totals"]] == totals
+            seen.extend((r["object_id"], r["currency"], r["spend_minor"]) for r in page["rows"])
+            after = page["next_after"]
+            if after is None:
+                break
+        assert seen == groups, level
+        last = groups[-1]
+        tail = client.get(
+            path, params={**base, "level": level, "after": f"{last[0] or ''}:{last[1]}"}
+        ).json()
+        assert (tail["rows"], tail["next_after"]) == ([], None)
+        whole = client.get(path, params={**base, "level": level, "limit": 500}).json()
+        assert [(r["object_id"], r["currency"]) for r in whole["rows"]] == [
+            (item[0], item[1]) for item in groups
+        ]
+        assert whole["next_after"] is None
+    for cursor in ("111", "111:egp", "x:EGP", ":", "0:EGP", "111:EGPX", "111:EGP:USD"):
+        response = client.get(path, params={**base, "after": cursor})
+        assert response.status_code == 422, cursor
+    assert ads.browser("analyst").get(path, params=base).status_code == 403

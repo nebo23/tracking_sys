@@ -468,6 +468,119 @@ CLASSES: dict[str, DataClass] = {
             "014",
         ),
         DataClass(
+            "revenue.evidence",
+            "Received revenue evidence of one client: delivery and operation IDs, source "
+            "account, kind, evidence class, amount in minor units and currency, effective and "
+            "receipt times, parent operation, intake provenance, content digest and, for "
+            "declarations, the reason and source reference; no card, billing, shipping or "
+            "customer data (D-067 D6).",
+            Sensitivity.HIGH,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Kept for the life of the client workspace; legal retention pending Q-012 and Q-003 "
+            "(D-067 D14).",
+            "015",
+        ),
+        DataClass(
+            "payment.source",
+            "Paymob payment source of one client: provider, region, name, status, the public key "
+            "of its callback URL, creator and times; no card or customer data.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017); disabled to stop intake (D-067 D14).",
+            "015",
+        ),
+        DataClass(
+            "payment.callback_diagnostic",
+            "One verified Paymob callback: source, a digest of the received signature, receipt "
+            "time and a closed outcome and reason; no payload.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Deleted 30 days after receipt (D-067 D14).",
+            "015",
+        ),
+        DataClass(
+            "revenue.import_record",
+            "One committed transaction CSV file: the file's SHA-256 digest, row counts, the "
+            "committing membership and the commit time; the file itself is never kept.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Deleted 13 months (395 days) after the commit (D-067 D14).",
+            "015",
+        ),
+        DataClass(
+            "integration.source",
+            "Integration source of one client: kind, name, status, the public key of its callback "
+            "URL, creator and times; no provider data.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017); disabled to stop intake (D-068).",
+            "015",
+        ),
+        DataClass(
+            "integration.delivery",
+            "One verified integration delivery: source, a digest of the body, receipt time and a "
+            "closed outcome and reason; no payload.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Deleted 30 days after receipt (D-068 E9).",
+            "015",
+        ),
+        DataClass(
+            "booking.record",
+            "One booking chain and its minimal events: provider booking IDs, event type, schedule, "
+            "status, reschedule count and times; no attendee, answer, note or meeting link.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 395 days after the last update (D-068 E9).",
+            "015",
+        ),
+        DataClass(
+            "crm.rule",
+            "An approved won or lost stage of one client's CRM pipeline, with creator and times.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017).",
+            "015",
+        ),
+        DataClass(
+            "crm.deal",
+            "The latest known stage of one CRM deal: deal ID, pipeline, stages, stage time, an "
+            "optional amount and payment reference; no contact, name or note.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 395 days after the last update (D-068 E9).",
+            "015",
+        ),
+        DataClass(
+            "whatsapp.number",
+            "A registered WhatsApp Business phone number ID of one client (a business number), "
+            "with name, status, creator and times.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017); disabled to stop intake (D-068).",
+            "015",
+        ),
+        DataClass(
+            "whatsapp.referral",
+            "One inbound WhatsApp message: a digest of its ID, its times and only its "
+            "Click-to-WhatsApp referral (source type, ad ID, click-ID presence); no person data.",
+            Sensitivity.LOW,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 395 days after receipt (D-068 E9).",
+            "015",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1589,6 +1702,315 @@ TABLES: dict[str, TablePolicy] = {
             ),
         },
         (_row(APPROVED, "D-064", "Deleted with its delivery, 30 days after it ends (D13)."),),
+    ),
+    "revenue_evidence": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id"),
+            "actor": "account.reference",
+            **_same(
+                "revenue.evidence",
+                "sequence",
+                "delivery_id",
+                "source_account_id",
+                "operation_id",
+                "kind",
+                "classification",
+                "currency",
+                "currency_exponent",
+                "amount_minor",
+                "effective_at",
+                "received_at",
+                "parent_operation_id",
+                "reason",
+                "source_reference",
+                "intake",
+                "intake_id",
+                "content_digest",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-067; 017",
+                "Append-only; kept for the life of the client workspace (D14). Deletion with the "
+                "workspace belongs to 017 and 018; legal retention is pending Q-012 and Q-003.",
+            ),
+        ),
+    ),
+    "payment_sources": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "payment.source",
+                "provider",
+                "region",
+                "name",
+                "status",
+                "public_key",
+                "live_integration_ids",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-067; 017",
+                "Kept until workspace deletion (017); a source is disabled to stop intake (D14).",
+            ),
+        ),
+    ),
+    "payment_source_secrets": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "credential.sealed_secret",
+                "version",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same("credential.lifecycle", "created_at", "retires_at"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-067",
+                "A replaced secret retires 24 hours later and is then deleted by "
+                "tracking_lifecycle (D14).",
+            ),
+        ),
+    ),
+    "payment_callback_diagnostics": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "payment.callback_diagnostic",
+                "delivery_digest",
+                "received_at",
+                "outcome",
+                "reason",
+            ),
+        },
+        (_row(APPROVED, "D-067", "Deleted by tracking_lifecycle 30 days after receipt (D14)."),),
+    ),
+    "revenue_imports": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "committed_by_membership_id",
+            ),
+            **_same(
+                "revenue.import_record",
+                "file_digest",
+                "total_rows",
+                "stored_rows",
+                "duplicate_rows",
+                "rejected_rows",
+                "committed_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-067",
+                "Deleted by tracking_lifecycle 395 days after the commit (D14); the declared "
+                "evidence stays for the life of the workspace.",
+            ),
+        ),
+    ),
+    "integration_sources": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "integration.source",
+                "kind",
+                "name",
+                "status",
+                "public_key",
+                "created_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-068; 017",
+                "Kept until workspace deletion (017); a source is disabled to stop intake.",
+            ),
+        ),
+    ),
+    "integration_source_secrets": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "credential.sealed_secret",
+                "version",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+            ),
+            **_same("credential.lifecycle", "created_at", "retires_at"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-068",
+                "A replaced secret retires 24 hours later and is then deleted by "
+                "tracking_lifecycle.",
+            ),
+        ),
+    ),
+    "integration_deliveries": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same("integration.delivery", "delivery_digest", "received_at", "outcome", "reason"),
+        },
+        (_row(APPROVED, "D-068", "Deleted by tracking_lifecycle 30 days after receipt (E9)."),),
+    ),
+    "bookings": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            "subject_id": "collection.subject",
+            **_same(
+                "booking.record",
+                "provider",
+                "status",
+                "event_type_ref",
+                "start_at",
+                "end_at",
+                "reschedule_count",
+                "linked_at",
+                "first_received_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-068",
+                "Deleted by tracking_lifecycle 395 days after the last update (E9); erasing the "
+                "linked subject, or its lifecycle expiry, clears the link (R002, D-070).",
+            ),
+        ),
+    ),
+    "booking_events": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration", "id", "agency_id", "client_id", "booking_id", "source_id"
+            ),
+            **_same(
+                "booking.record",
+                "provider",
+                "kind",
+                "ref",
+                "previous_ref",
+                "event_type_ref",
+                "occurred_at",
+                "start_at",
+                "end_at",
+            ),
+        },
+        (_row(APPROVED, "D-068", "Deleted with its booking (E9)."),),
+    ),
+    "crm_stage_rules": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "crm.rule", "pipeline", "stage", "outcome", "status", "created_at", "updated_at"
+            ),
+        },
+        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),
+    ),
+    "crm_deals": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
+            **_same(
+                "crm.deal",
+                "deal_ref",
+                "pipeline",
+                "stage",
+                "previous_stage",
+                "stage_at",
+                "amount_minor",
+                "currency",
+                "currency_exponent",
+                "amount_at",
+                "payment_reference",
+                "payment_reference_at",
+                "first_received_at",
+                "updated_at",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-068",
+                "Deleted by tracking_lifecycle 395 days after the last update (E9).",
+            ),
+        ),
+    ),
+    "whatsapp_numbers": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "whatsapp.number",
+                "phone_number_id",
+                "name",
+                "status",
+                "created_at",
+                "updated_at",
+                "verified_at",
+            ),
+        },
+        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),
+    ),
+    "whatsapp_messages": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "number_id"),
+            **_same(
+                "whatsapp.referral",
+                "message_digest",
+                "message_at",
+                "received_at",
+                "has_referral",
+                "source_type",
+                "source_id",
+                "click_id_present",
+            ),
+        },
+        (_row(APPROVED, "D-068", "Deleted by tracking_lifecycle 395 days after receipt (E9)."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

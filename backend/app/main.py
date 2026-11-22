@@ -20,12 +20,19 @@ from app.api.connectors import provider_router as connector_provider_router
 from app.api.connectors import router as connectors_router
 from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
+from app.api.integrations import callback_router as integration_callback_router
+from app.api.integrations import router as integrations_router
 from app.api.links import redirect_router
 from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
+from app.api.payments import callback_router as payment_callback_router
+from app.api.payments import router as payments_router
 from app.api.public_cors import PlatformCors, PublicCollectionCors
+from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
+from app.api.whatsapp import router as whatsapp_router
+from app.api.whatsapp import webhook_router as whatsapp_webhook_router
 from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
@@ -33,9 +40,13 @@ from app.logging_config import configure_logging
 from app.security import AuthError, RateLimited
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
+from app.services.declarations import DeclarationRefused
 from app.services.google import GoogleOIDC
+from app.services.integrations import IntegrationError
 from app.services.links import LinkConflict
+from app.services.payments import PaymentError
 from app.services.tenancy import AccessDenied, MembershipConflict
+from app.services.whatsapp import WhatsappError
 
 
 # Liveness body: the process answers HTTP; it says nothing about the database.
@@ -91,7 +102,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "destination origins, custom domains, managed links, safe redirects, and a "
             "non-mutating public consent-state read for the website tracker. "
             "Connectors (specification 009-A): OAuth connection lifecycle with a synthetic "
-            "development provider, status, sync requests, and disconnection."
+            "development provider, status, sync requests, and disconnection. "
+            "Revenue and payments (specification 015): the client ledger derived from "
+            "stored evidence, Paymob sources with signed processed callbacks, and CSV "
+            "imports and manual declarations of unverified revenue, Cal.com bookings and "
+            "CRM stage changes through signed integration sources, and WhatsApp referrals."
         ),
         lifespan=lifespan,
         responses={
@@ -148,6 +163,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         headers = {"Retry-After": "1"} if error.status == 503 else None
         return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
 
+    # Payment failures (specification 015-B) carry a fixed public code; never a secret or
+    # payload.
+    @application.exception_handler(PaymentError)
+    async def payment_error(request: Request, error: PaymentError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Refused CSV files and declarations (specification 015-C) carry a closed code and never
+    # echo a rejected value.
+    @application.exception_handler(DeclarationRefused)
+    async def declaration_error(request: Request, error: DeclarationRefused) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Integration failures (specification 015-D) carry a fixed public code; never a secret.
+    @application.exception_handler(IntegrationError)
+    async def integration_error(request: Request, error: IntegrationError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # WhatsApp failures (specification 015-E) carry a fixed public code; never a secret.
+    @application.exception_handler(WhatsappError)
+    async def whatsapp_error(request: Request, error: WhatsappError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
     # Managed-host or hostname conflicts (specification 005) carry a fixed code.
     @application.exception_handler(LinkConflict)
     async def link_conflict(request: Request, error: LinkConflict) -> JSONResponse:
@@ -203,6 +240,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(redirect_router)
     application.include_router(connectors_router)
     application.include_router(advertising_router)
+    application.include_router(revenue_router)
+    application.include_router(payments_router)
+    application.include_router(payment_callback_router)
+    application.include_router(integrations_router)
+    application.include_router(integration_callback_router)
+    application.include_router(whatsapp_router)
+    application.include_router(whatsapp_webhook_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
     application.include_router(connector_provider_router)

@@ -29,6 +29,20 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "whatsapp_messages",
+    "whatsapp_numbers",
+    "crm_deals",
+    "crm_stage_rules",
+    "booking_events",
+    "bookings",
+    "integration_deliveries",
+    "integration_source_secrets",
+    "integration_sources",
+    "revenue_imports",
+    "payment_callback_diagnostics",
+    "payment_source_secrets",
+    "payment_sources",
+    "revenue_evidence",
     "conversion_acknowledgements",
     "conversion_deliveries",
     "conversion_destinations",

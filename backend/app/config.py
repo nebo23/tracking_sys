@@ -185,6 +185,25 @@ class Settings(DatabaseSettings):
     meta_ads_app_id: str = ""
     meta_ads_app_secret: SecretStr = SecretStr("")
     meta_ads_config_id: str = ""
+    # Paymob payments (specification 015-B, D-067 decision D12). The Paymob source type stays
+    # off unless explicitly enabled, and it is usable only while the payments.processor_records
+    # and paymob.accept provider rules are current. Merchant HMAC secrets are entered through
+    # the API and sealed under the token keyring; none belongs in .env. Spec 015 makes no call
+    # to Paymob.
+    payments_paymob_enabled: bool = False
+    # Bookings and CRM (specification 015-D, D-068 E2, E5 and E11). The Cal.com source kind
+    # stays off unless enabled and usable only while the calcom.webhooks rule is current; the
+    # provider-neutral signed webhook kind stays off unless enabled. Signing secrets are
+    # entered or issued through the API and sealed under the token keyring.
+    integrations_calcom_enabled: bool = False
+    integrations_webhook_enabled: bool = False
+    # WhatsApp Cloud API referrals (specification 015-E, D-068 E7 and E11). The intake stays off
+    # unless enabled with the Meta app secret (signatures) and a verify token (the handshake)
+    # from ignored .env, and it is usable only while the whatsapp.cloud_api rule is current.
+    # Spec 015 makes no call to Meta.
+    whatsapp_enabled: bool = False
+    whatsapp_app_secret: SecretStr = SecretStr("")
+    whatsapp_verify_token: SecretStr = SecretStr("")
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -341,6 +360,19 @@ class Settings(DatabaseSettings):
                     "The Meta advertising connectors require the app ID, secret and login "
                     "configuration ID."
                 )
+        if self.whatsapp_enabled:
+            secrets = (
+                self.whatsapp_app_secret.get_secret_value(),
+                self.whatsapp_verify_token.get_secret_value(),
+            )
+            if not all(
+                value.isascii()
+                and value.isprintable()
+                and value.strip() == value
+                and 16 <= len(value) <= 256
+                for value in secrets
+            ):
+                raise ValueError("WhatsApp intake requires the app secret and a verify token.")
 
     # Google sign-in needs a Web client, an exact callback on this API, and a completion URL
     # whose origin is explicitly allowed. HTTP is accepted only on loopback hosts.
@@ -473,6 +505,19 @@ class LifecycleSettings(DatabaseSettings):
     ad_spend_retention_days: int = Field(default=730, ge=0, le=730)
     # Ended conversion deliveries and their acknowledgements 30 days after they end (D13).
     delivery_retention_days: int = Field(default=30, ge=0, le=30)
+    # 015 (D-067 decision D14, provisional development values): Paymob callback diagnostics
+    # 30 days after receipt; replaced payment source secrets are deleted once retired.
+    payment_diagnostic_retention_days: int = Field(default=30, ge=0, le=30)
+    # Revenue import records (D-067 D14): 13 months (395 days) after the commit; the declared
+    # evidence stays.
+    revenue_import_retention_days: int = Field(default=395, ge=0, le=395)
+    # 015-D (D-068 E9, provisional development values): integration deliveries 30 days after
+    # receipt; bookings and CRM deals 13 months (395 days) after their last update.
+    integration_delivery_retention_days: int = Field(default=30, ge=0, le=30)
+    booking_retention_days: int = Field(default=395, ge=0, le=395)
+    deal_retention_days: int = Field(default=395, ge=0, le=395)
+    # 015-E (D-068 E9): WhatsApp referral messages 395 days after receipt.
+    whatsapp_message_retention_days: int = Field(default=395, ge=0, le=395)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

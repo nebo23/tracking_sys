@@ -21,7 +21,11 @@ Specification 011-A (D-058 decision D11) clears connector record attributes and 
 that were not refreshed for 30 days, keeping the statistics, and lets a provider keep its
 connector records for a shorter period than the global one. Specification 014 (D-064 decision
 D13) deletes advertising spend facts 730 days after their spend date, and ended conversion
-deliveries with their acknowledgements 30 days after they end.
+deliveries with their acknowledgements 30 days after they end. A 015 booking can stay linked to a
+subject after the subject's own retention has run out; in the batch that deletes such a subject,
+booking_links first clears the booking's subject_id and linked_at together, and the subject is
+deleted only once no booking references it (review finding R002, D-070). The booking itself is
+kept until its own retention.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -55,6 +59,7 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    Booking,
     CollectedEvent,
     CollectionSubject,
     ConnectorConnection,
@@ -63,15 +68,22 @@ from app.models import (
     ConnectorWebhookDelivery,
     ConversionAcknowledgement,
     ConversionDelivery,
+    CrmDeal,
     EventDiagnostic,
     ExternalIdentity,
     IngestionSourceSecret,
+    IntegrationDelivery,
+    IntegrationSourceSecret,
     MailOutbox,
     OAuthTransaction,
     PasswordCredential,
+    PaymentCallbackDiagnostic,
+    PaymentSourceSecret,
+    RevenueImport,
     StoredConsentRecord,
     User,
     VerificationChallenge,
+    WhatsappMessage,
 )
 from app.services.collection import LOCK_NAMESPACE as CLIENT_LOCK_NAMESPACE
 from app.services.collection import client_lock_key
@@ -209,6 +221,42 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             .exists(),
         )
 
+    # Paymob callback diagnostics (D-067 D14): 30 days after receipt.
+    def payment_diagnostics(cutoff: datetime) -> ColumnElement[bool]:
+        return PaymentCallbackDiagnostic.received_at < before(
+            settings.payment_diagnostic_retention_days, cutoff
+        )
+
+    # Replaced payment source secrets once retired, 24 hours after replacement (D-067 D14).
+    def payment_secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return PaymentSourceSecret.retires_at < cutoff
+
+    # Revenue import records (D-067 D14): 13 months (395 days) after the commit.
+    def revenue_imports(cutoff: datetime) -> ColumnElement[bool]:
+        return RevenueImport.committed_at < before(settings.revenue_import_retention_days, cutoff)
+
+    # 015-D (D-068 E9): integration deliveries after 30 days, retired integration secrets,
+    # and bookings and CRM deals 395 days after their last update.
+    def integration_deliveries(cutoff: datetime) -> ColumnElement[bool]:
+        return IntegrationDelivery.received_at < before(
+            settings.integration_delivery_retention_days, cutoff
+        )
+
+    def integration_secrets(cutoff: datetime) -> ColumnElement[bool]:
+        return IntegrationSourceSecret.retires_at < cutoff
+
+    def bookings(cutoff: datetime) -> ColumnElement[bool]:
+        return Booking.updated_at < before(settings.booking_retention_days, cutoff)
+
+    def deals(cutoff: datetime) -> ColumnElement[bool]:
+        return CrmDeal.updated_at < before(settings.deal_retention_days, cutoff)
+
+    # 015-E (D-068 E9): WhatsApp referral messages 395 days after receipt.
+    def whatsapp_messages(cutoff: datetime) -> ColumnElement[bool]:
+        return WhatsappMessage.received_at < before(
+            settings.whatsapp_message_retention_days, cutoff
+        )
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -272,12 +320,24 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             ),
         )
 
-    # A subject is deleted only after all its consent records, so a bounded batch never breaks
-    # the consent foreign key.
-    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+    # Idle subjects without consent records left: their consent history is gone.
+    def expiring(cutoff: datetime) -> ColumnElement[bool]:
         return and_(
             idle(cutoff),
             ~exists().where(StoredConsentRecord.subject_id == CollectionSubject.id),
+        )
+
+    # Bookings linked to an expiring subject: both link columns are cleared together, in the
+    # batch before the subject's deletion (R002). Only granted columns are read.
+    def booking_links(cutoff: datetime) -> ColumnElement[bool]:
+        return Booking.subject_id.in_(select(CollectionSubject.id).where(expiring(cutoff)))
+
+    # A subject is deleted only after all its consent records and booking links, so a bounded
+    # batch never breaks the consent foreign key or the bookings link constraint.
+    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            expiring(cutoff),
+            ~select(Booking.subject_id).where(Booking.subject_id == CollectionSubject.id).exists(),
         )
 
     return (
@@ -329,6 +389,31 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             acknowledgements,
         ),
         Target("conversion_deliveries", ConversionDelivery, ConversionDelivery.id, deliveries),
+        Target(
+            "payment_callback_diagnostics",
+            PaymentCallbackDiagnostic,
+            PaymentCallbackDiagnostic.id,
+            payment_diagnostics,
+        ),
+        Target(
+            "payment_source_secrets", PaymentSourceSecret, PaymentSourceSecret.id, payment_secrets
+        ),
+        Target("revenue_imports", RevenueImport, RevenueImport.id, revenue_imports),
+        Target(
+            "integration_deliveries",
+            IntegrationDelivery,
+            IntegrationDelivery.id,
+            integration_deliveries,
+        ),
+        Target(
+            "integration_source_secrets",
+            IntegrationSourceSecret,
+            IntegrationSourceSecret.id,
+            integration_secrets,
+        ),
+        Target("bookings", Booking, Booking.id, bookings),
+        Target("crm_deals", CrmDeal, CrmDeal.id, deals),
+        Target("whatsapp_messages", WhatsappMessage, WhatsappMessage.id, whatsapp_messages),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),
@@ -338,6 +423,14 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         ),
         Target(
             "consent_records", StoredConsentRecord, StoredConsentRecord.id, consent_records, True
+        ),
+        Target(
+            "booking_links",
+            Booking,
+            Booking.id,
+            booking_links,
+            True,
+            clear={"subject_id": None, "linked_at": None},
         ),
         Target("collection_subjects", CollectionSubject, CollectionSubject.id, subjects, True),
     )
@@ -373,6 +466,10 @@ def delete_client_batch(
     for target in scoped:
         condition = and_(target.model.client_id == client_id, target.eligible(cutoff))
         keys = select(target.key).where(condition).order_by(target.key).limit(size)
+        if target.clear is not None:
+            statement = update(target.model).where(target.key.in_(keys), condition)
+            counts[target.name] = connection.execute(statement.values(**target.clear)).rowcount
+            continue
         counts[target.name] = connection.execute(
             delete(target.model).where(target.key.in_(keys), condition)
         ).rowcount

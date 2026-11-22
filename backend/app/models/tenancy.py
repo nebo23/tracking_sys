@@ -201,14 +201,19 @@ class AuditEvent(Base):
             "'domain.created', 'domain.updated', 'domain.challenge_issued', 'domain.checked', "
             "'link.created', 'link.updated', 'connector.connected', 'connector.reconnected', "
             "'connector.disconnect_requested', 'destination.created', 'destination.updated', "
-            "'delivery.requeued', 'delivery.dismissed')",
+            "'delivery.requeued', 'delivery.dismissed', 'payment_source.created', "
+            "'payment_source.updated', 'payment_source.secret_replaced', "
+            "'revenue_import.committed', 'revenue.declared', 'integration.created', "
+            "'integration.updated', 'integration.secret_replaced', 'crm_rule.created', "
+            "'crm_rule.updated', 'whatsapp_number.created', 'whatsapp_number.updated')",
             name="valid_action",
         ),
         CheckConstraint(
             "resource_type IN ('agency', 'client', 'membership', 'invitation', 'credential', "
             "'source', 'form', 'deletion_request', 'campaign', 'content_reference', "
             "'utm_template', 'destination_origin', 'domain', 'link', 'connection', "
-            "'destination', 'delivery')",
+            "'destination', 'delivery', 'payment_source', 'revenue_import', "
+            "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

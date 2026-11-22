@@ -547,6 +547,7 @@ def test_erasure_removes_subject_data_and_tombstones_block_every_replay(c):
         "consent_records": "done",
         "collection_subjects": "done",
         "event_diagnostics": "not_applicable",
+        "booking_links": "not_applicable",  # the 015 booking store (R002); no booking here
     }
     assert len(events(c)) == 1
     assert count_rows(c.db, CollectionSubject) == 1
@@ -1047,7 +1048,13 @@ def test_an_admission_behind_lifecycle_sees_the_expired_subject(
         counts = delete_client_batch(
             connection, scoped, c.w.a1, now_utc(), settings.lifecycle_batch_size
         )
-        assert counts == {"collected_events": 0, "consent_records": 2, "collection_subjects": 1}
+        # booking_links (R002) clears links of expiring subjects; this subject has none.
+        assert counts == {
+            "collected_events": 0,
+            "consent_records": 2,
+            "booking_links": 0,
+            "collection_subjects": 1,
+        }
         with ThreadPoolExecutor(max_workers=1) as executor:
             pending = executor.submit(c.send, envelope(token))
             wait_for_blocked_lock(c.db)
