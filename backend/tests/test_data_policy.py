@@ -32,9 +32,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     # 43 application tables at 0016_youtube_provider, three more at 0017_ad_spend (014-A),
     # three more at 0018_conversion_delivery (014-B), one more at 0020_revenue_evidence
     # (015-A), three more at 0021_payment_sources (015-B), one more at 0022_revenue_imports
-    # (015-C), seven more at 0023_integration_bookings and 0024_crm_deals (015-D), plus
-    # alembic_version.
-    assert len(SCHEMA) == 62
+    # (015-C), seven more at 0023_integration_bookings and 0024_crm_deals (015-D), two more
+    # at 0025_whatsapp (015-E), plus alembic_version.
+    assert len(SCHEMA) == 64
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -161,6 +161,7 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("bookings", "row", "D-068"),
         ("booking_events", "row", "D-068"),
         ("crm_deals", "row", "D-068"),
+        ("whatsapp_messages", "row", "D-068"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

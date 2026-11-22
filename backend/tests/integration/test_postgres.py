@@ -86,6 +86,8 @@ def test_postgresql_migration_cycle_and_runtime_permissions(
                 "booking_events",
                 "crm_stage_rules",
                 "crm_deals",
+                "whatsapp_numbers",
+                "whatsapp_messages",
             }, "Refuse an unknown database schema."
             for table in tables - {"alembic_version"}:
                 assert not connection.execute(

@@ -561,6 +561,26 @@ CLASSES: dict[str, DataClass] = {
             "015",
         ),
         DataClass(
+            "whatsapp.number",
+            "A registered WhatsApp Business phone number ID of one client (a business number), "
+            "with name, status, creator and times.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept until workspace deletion (017); disabled to stop intake (D-068).",
+            "015",
+        ),
+        DataClass(
+            "whatsapp.referral",
+            "One inbound WhatsApp message: a digest of its ID, its times and only its "
+            "Click-to-WhatsApp referral (source type, ad ID, click-ID presence); no person data.",
+            Sensitivity.LOW,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 395 days after receipt (D-068 E9).",
+            "015",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -1949,6 +1969,37 @@ TABLES: dict[str, TablePolicy] = {
                 "Deleted by tracking_lifecycle 395 days after the last update (E9).",
             ),
         ),
+    ),
+    "whatsapp_numbers": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "created_by_membership_id",
+            ),
+            **_same(
+                "whatsapp.number", "phone_number_id", "name", "status", "created_at", "updated_at"
+            ),
+        },
+        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),
+    ),
+    "whatsapp_messages": TablePolicy(
+        {
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "number_id"),
+            **_same(
+                "whatsapp.referral",
+                "message_digest",
+                "message_at",
+                "received_at",
+                "has_referral",
+                "source_type",
+                "source_id",
+                "click_id_present",
+            ),
+        },
+        (_row(APPROVED, "D-068", "Deleted by tracking_lifecycle 395 days after receipt (E9)."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

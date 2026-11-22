@@ -17,7 +17,8 @@ section 2.4. Specification 015-B (D-067) re-verified the payment processor row a
 Paymob Accept row on 2026-11-21 against Paymob's callback, HMAC, transaction, refund, void,
 capture, intention, credential and security pages, Paymob's terms and PCI SSC FAQ 1154 of
 entry review section 2.4, and specification 015-D (D-068) added the Cal.com webhooks row on
-2026-11-21 against Cal.com's webhook pages of the second-round entry review. No row implies
+2026-11-21 against Cal.com's webhook pages of the second-round entry review, and 015-E the
+WhatsApp Cloud API row against Meta's WhatsApp webhook pages of that review. No row implies
 provider app approval or review access.
 """
 
@@ -284,6 +285,24 @@ RULES: tuple[ProviderRule, ...] = (
         "The client's own Cal.com account and webhook; no Cal.com API key and no outbound call; "
         "a booking is never revenue",
         ("W-1", "W-2", "W-3", "W-4"),
+        "015",
+        REVERIFIED_015,
+        RuleStatus.CURRENT,
+        REVIEW_015,
+    ),
+    ProviderRule(
+        "whatsapp",
+        "whatsapp.cloud_api",
+        "whatsapp.referral",
+        "Referral source type, ad ID and click-ID presence per inbound message, 395 days "
+        "after receipt (D-068 E9); no phone number, name, sender ID, text, ad copy, media URL "
+        "or click ID",
+        "Workspace deletion (017); the number is disabled to stop intake",
+        "Webhooks signed with the Meta app secret (X-Hub-Signature-256) over HTTPS (020); Meta "
+        "retries for up to 7 days, so messages are deduplicated",
+        "Messages of registered numbers only; no conversation is correlated with a person "
+        "without a valid grant (006); no outbound call; Platform Terms of the Meta app apply",
+        ("S-61", "W-6", "W-7"),
         "015",
         REVERIFIED_015,
         RuleStatus.CURRENT,

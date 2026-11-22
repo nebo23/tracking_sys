@@ -77,6 +77,7 @@ from app.models.tenancy import (
     ClientWorkspace,
     User,
 )
+from app.models.whatsapp import WhatsappMessage, WhatsappNumber
 
 __all__ = [
     "Agency",
@@ -140,4 +141,6 @@ __all__ = [
     "IntegrationDelivery",
     "IntegrationSource",
     "IntegrationSourceSecret",
+    "WhatsappMessage",
+    "WhatsappNumber",
 ]

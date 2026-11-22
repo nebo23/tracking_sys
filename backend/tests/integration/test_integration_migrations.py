@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_ROOT
-from app.models import CrmStageRule, IntegrationSource
+from app.models import CrmStageRule, IntegrationSource, WhatsappNumber
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
@@ -174,8 +174,47 @@ def test_downgrade_and_upgrade_when_empty(db):
     head = _version(db)
     command.downgrade(CONFIG, "0022_revenue_imports")
     try:
-        assert not _tables(db) & set(BOOKING_TABLES + CRM_TABLES)
+        assert not _tables(db) & {
+            *BOOKING_TABLES,
+            *CRM_TABLES,
+            "whatsapp_numbers",
+            "whatsapp_messages",
+        }
         assert "revenue_imports" in _tables(db)
     finally:
         command.upgrade(CONFIG, "head")
+    assert _version(db) == head
+
+
+def test_0025_privileges_and_downgrade(world):
+    db = world.db
+    for table in ("whatsapp_numbers", "whatsapp_messages"):
+        for privilege in ("SELECT", "INSERT"):
+            assert _privilege(db, "tracking_app", table, privilege), (table, privilege)
+        for privilege in ("DELETE", "TRUNCATE"):
+            assert not _privilege(db, "tracking_app", table, privilege), (table, privilege)
+    for column in ("name", "status", "updated_at"):
+        assert _privilege(db, "tracking_app", "whatsapp_numbers", "UPDATE", column)
+    assert not _privilege(db, "tracking_app", "whatsapp_numbers", "UPDATE", "phone_number_id")
+    assert not _privilege(db, "tracking_app", "whatsapp_messages", "UPDATE")
+    assert _privilege(db, "tracking_lifecycle", "whatsapp_messages", "DELETE")
+    for column in ("id", "received_at"):
+        assert _privilege(db, "tracking_lifecycle", "whatsapp_messages", "SELECT", column)
+    assert not _privilege(db, "tracking_lifecycle", "whatsapp_messages", "SELECT", "source_id")
+    assert not _privilege(db, "tracking_lifecycle", "whatsapp_numbers", "DELETE")
+    head = _version(db)
+    with Session(db.migration) as session, session.begin():
+        session.add(
+            WhatsappNumber(
+                id=uuid4(),
+                agency_id=world.a,
+                client_id=world.a1,
+                phone_number_id="106540352242922",
+                name="Synthetic",
+                status="active",
+                created_by_membership_id=world.owner_a,
+            )
+        )
+    with pytest.raises(RuntimeError, match="Refuse to remove WhatsApp state"):
+        command.downgrade(CONFIG, "0024_crm_deals")
     assert _version(db) == head

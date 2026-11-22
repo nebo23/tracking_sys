@@ -79,6 +79,7 @@ from app.models import (
     StoredConsentRecord,
     User,
     VerificationChallenge,
+    WhatsappMessage,
 )
 from app.services.collection import LOCK_NAMESPACE as CLIENT_LOCK_NAMESPACE
 from app.services.collection import client_lock_key
@@ -246,6 +247,12 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     def deals(cutoff: datetime) -> ColumnElement[bool]:
         return CrmDeal.updated_at < before(settings.deal_retention_days, cutoff)
 
+    # 015-E (D-068 E9): WhatsApp referral messages 395 days after receipt.
+    def whatsapp_messages(cutoff: datetime) -> ColumnElement[bool]:
+        return WhatsappMessage.received_at < before(
+            settings.whatsapp_message_retention_days, cutoff
+        )
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -390,6 +397,7 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         ),
         Target("bookings", Booking, Booking.id, bookings),
         Target("crm_deals", CrmDeal, CrmDeal.id, deals),
+        Target("whatsapp_messages", WhatsappMessage, WhatsappMessage.id, whatsapp_messages),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

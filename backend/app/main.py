@@ -31,6 +31,8 @@ from app.api.public_cors import PlatformCors, PublicCollectionCors
 from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
+from app.api.whatsapp import router as whatsapp_router
+from app.api.whatsapp import webhook_router as whatsapp_webhook_router
 from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
@@ -44,6 +46,7 @@ from app.services.integrations import IntegrationError
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
 from app.services.tenancy import AccessDenied, MembershipConflict
+from app.services.whatsapp import WhatsappError
 
 
 # Liveness body: the process answers HTTP; it says nothing about the database.
@@ -103,7 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Revenue and payments (specification 015): the client ledger derived from "
             "stored evidence, Paymob sources with signed processed callbacks, and CSV "
             "imports and manual declarations of unverified revenue, Cal.com bookings and "
-            "CRM stage changes through signed integration sources."
+            "CRM stage changes through signed integration sources, and WhatsApp referrals."
         ),
         lifespan=lifespan,
         responses={
@@ -177,6 +180,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def integration_error(request: Request, error: IntegrationError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
+    # WhatsApp failures (specification 015-E) carry a fixed public code; never a secret.
+    @application.exception_handler(WhatsappError)
+    async def whatsapp_error(request: Request, error: WhatsappError) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
     # Managed-host or hostname conflicts (specification 005) carry a fixed code.
     @application.exception_handler(LinkConflict)
     async def link_conflict(request: Request, error: LinkConflict) -> JSONResponse:
@@ -237,6 +245,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(payment_callback_router)
     application.include_router(integrations_router)
     application.include_router(integration_callback_router)
+    application.include_router(whatsapp_router)
+    application.include_router(whatsapp_webhook_router)
     application.include_router(connector_callback_router)
     application.include_router(connector_webhook_router)
     application.include_router(connector_provider_router)
