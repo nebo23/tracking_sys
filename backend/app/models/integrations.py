@@ -145,7 +145,8 @@ class IntegrationDelivery(Base):
     reason: Mapped[str | None] = mapped_column(String(32))
 
 
-# One booking chain of one client and provider, with the state derived from its events.
+# One booking chain of one source of one client, with the state derived from its events. The
+# provider's booking IDs are scoped to the source that delivered them (review finding R006).
 # SELECT id, provider, status, start_at, reschedule_count, subject_id IS NOT NULL AS linked
 # FROM public.bookings WHERE client_id = '00000000-0000-0000-0000-000000000003'::uuid
 # ORDER BY updated_at DESC LIMIT 100;
@@ -153,6 +154,7 @@ class Booking(Base):
     __tablename__ = "bookings"
     __table_args__ = (
         ForeignKeyConstraint(*CLIENT_FK),
+        ForeignKeyConstraint(*SOURCE_FK),
         UniqueConstraint("agency_id", "client_id", "id", name="uq_bookings_scope"),
         Index("ix_bookings_client_updated", "client_id", "updated_at"),
         CheckConstraint(f"provider IN ({_values(KINDS)})", name="valid_provider"),
@@ -163,6 +165,7 @@ class Booking(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)
     client_id: Mapped[UUID] = mapped_column(Uuid)
+    source_id: Mapped[UUID] = mapped_column(Uuid)
     provider: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16))
     event_type_ref: Mapped[str | None] = mapped_column(String(128))
@@ -187,10 +190,12 @@ class BookingEvent(Base):
             ["bookings.agency_id", "bookings.client_id", "bookings.id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(*SOURCE_FK),
         UniqueConstraint(
             "booking_id", "kind", "ref", "occurred_at", name="uq_booking_events_event"
         ),
-        Index("ix_booking_events_ref", "client_id", "provider", "ref"),
+        Index("ix_booking_events_source_ref", "source_id", "ref"),
+        Index("ix_booking_events_source_previous", "source_id", "previous_ref"),
         CheckConstraint(f"kind IN ({_values(EVENT_KINDS)})", name="valid_kind"),
         CheckConstraint(f"provider IN ({_values(KINDS)})", name="valid_provider"),
         CheckConstraint(
@@ -203,6 +208,7 @@ class BookingEvent(Base):
     agency_id: Mapped[UUID] = mapped_column(Uuid)
     client_id: Mapped[UUID] = mapped_column(Uuid)
     booking_id: Mapped[UUID] = mapped_column(Uuid)
+    source_id: Mapped[UUID] = mapped_column(Uuid)
     provider: Mapped[str] = mapped_column(String(16))
     kind: Mapped[str] = mapped_column(String(16))
     ref: Mapped[str] = mapped_column(String(128))

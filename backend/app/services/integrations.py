@@ -450,6 +450,9 @@ def effective_link(client_id: UUID, now: datetime) -> ColumnElement[bool]:
     )
 
 
+# A booking ID belongs to the source that delivered it: a chain is found, extended and merged only
+# among that source's events (review finding R006). Two signed webhook sources of one client may
+# reuse the same local ID, and a reschedule or cancellation from one never reaches the other.
 def _apply_booking(
     session: Session, source: IntegrationSource, event: Event, received: datetime
 ) -> str | None:
@@ -457,16 +460,14 @@ def _apply_booking(
     chains = set(
         session.scalars(
             select(BookingEvent.booking_id).where(
-                BookingEvent.client_id == source.client_id,
-                BookingEvent.provider == source.kind,
+                BookingEvent.source_id == source.id,
                 BookingEvent.ref.in_(refs),
             )
         )
     ) | set(
         session.scalars(
             select(BookingEvent.booking_id).where(
-                BookingEvent.client_id == source.client_id,
-                BookingEvent.provider == source.kind,
+                BookingEvent.source_id == source.id,
                 BookingEvent.previous_ref.in_(refs),
             )
         )
@@ -502,6 +503,7 @@ def _apply_booking(
             id=uuid4(),
             agency_id=source.agency_id,
             client_id=source.client_id,
+            source_id=source.id,
             provider=source.kind,
             status="requested",
             reschedule_count=0,
@@ -517,6 +519,7 @@ def _apply_booking(
             agency_id=source.agency_id,
             client_id=source.client_id,
             booking_id=booking.id,
+            source_id=source.id,
             provider=source.kind,
             kind=event.kind,
             ref=event.ref,

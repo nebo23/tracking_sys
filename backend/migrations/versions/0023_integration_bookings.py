@@ -19,7 +19,10 @@ secrets, deliveries after 30 days and bookings 395 days after their last update,
 their keys and times. Amended in place under D-070 (review finding R002): tracking_lifecycle may
 also read a booking's client and subject and clear its subject_id and linked_at together, so
 that the expiry of a linked subject detaches the booking before the subject is deleted; it may
-not change any other booking column. The downgrade
+not change any other booking column. Also under D-070 (review finding R006), bookings and
+booking_events carry the source whose deliveries created them, and a chain is looked up within
+its source only: two signed webhook sources of one client may both use a booking ID such as
+booking-1 without touching each other's bookings. The downgrade
 refuses any integration or booking state and any new audit action.
 """
 
@@ -223,6 +226,7 @@ def upgrade() -> None:
     op.create_table(
         table,
         *_scope(),
+        sa.Column("source_id", sa.Uuid(), nullable=False),
         sa.Column("provider", sa.String(length=16), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("event_type_ref", sa.String(length=128), nullable=True),
@@ -238,6 +242,7 @@ def upgrade() -> None:
         _check(table, "valid_reschedules", "reschedule_count >= 0"),
         _check(table, "valid_link", "(subject_id IS NULL) = (linked_at IS NULL)"),
         _client(table),
+        _source(table),
         sa.ForeignKeyConstraint(
             ["subject_id"],
             ["collection_subjects.id"],
@@ -254,6 +259,7 @@ def upgrade() -> None:
         table,
         *_scope(),
         sa.Column("booking_id", sa.Uuid(), nullable=False),
+        sa.Column("source_id", sa.Uuid(), nullable=False),
         sa.Column("provider", sa.String(length=16), nullable=False),
         sa.Column("kind", sa.String(length=16), nullable=False),
         sa.Column("ref", sa.String(length=128), nullable=False),
@@ -276,12 +282,15 @@ def upgrade() -> None:
             name=op.f(f"fk_{table}_agency_id_bookings"),
             ondelete="CASCADE",
         ),
+        _source(table),
         sa.PrimaryKeyConstraint("id", name=op.f(f"pk_{table}")),
         sa.UniqueConstraint(
             "booking_id", "kind", "ref", "occurred_at", name="uq_booking_events_event"
         ),
     )
-    op.create_index("ix_booking_events_ref", table, ["client_id", "provider", "ref"])
+    # Chain lookups by a booking ID and by a previous ID, within one source (R006).
+    op.create_index("ix_booking_events_source_ref", table, ["source_id", "ref"])
+    op.create_index("ix_booking_events_source_previous", table, ["source_id", "previous_ref"])
 
     for statement in RUNTIME_GRANTS + LIFECYCLE_GRANTS:
         op.execute(statement)

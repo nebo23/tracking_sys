@@ -1889,7 +1889,7 @@ TABLES: dict[str, TablePolicy] = {
     ),
     "bookings": TablePolicy(
         {
-            **_same("tenancy.configuration", "id", "agency_id", "client_id"),
+            **_same("tenancy.configuration", "id", "agency_id", "client_id", "source_id"),
             "subject_id": "collection.subject",
             **_same(
                 "booking.record",
@@ -1915,7 +1915,9 @@ TABLES: dict[str, TablePolicy] = {
     ),
     "booking_events": TablePolicy(
         {
-            **_same("tenancy.configuration", "id", "agency_id", "client_id", "booking_id"),
+            **_same(
+                "tenancy.configuration", "id", "agency_id", "client_id", "booking_id", "source_id"
+            ),
             **_same(
                 "booking.record",
                 "provider",

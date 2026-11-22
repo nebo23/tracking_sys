@@ -133,3 +133,21 @@ The `wa` fixture now verifies its number through the operator function. `test_nu
 - Unit: `test_paymob_contract.py`, 32 passed.
 - Integration: the regression with `test_paymob.py`, 23 passed in 64.50 s.
 - Mutation: R005-a (membership test without the type check) is caught by the regression, which answers `500` again.
+
+### R006 P2: Booking identities are scoped to their source
+
+**Root cause.** Chain discovery looked up booking events by client and provider kind. Every signed webhook source of a client therefore shared one namespace of booking IDs: two tools' local `booking-1` became one booking, and a reschedule or cancellation from one tool could move or cancel the other's booking.
+
+**Correction** (migration `0023` amended in place, D-070).
+- `bookings` and `booking_events` carry `source_id`, with composite foreign keys to the delivering integration source. The lookup indexes are now (`source_id`, `ref`) and (`source_id`, `previous_ref`).
+- Chain discovery, extension and merging use the delivering source only. The namespace is the source for both kinds; the integrations guide says to replace a Cal.com source's secret rather than create a second source for the same account.
+- The delivery digest was already unique per source; the event uniqueness within a booking and the derived state rules are unchanged.
+
+**Tests.** The regression passes. New cases in `test_bookings_crm.py`:
+- `test_each_source_keeps_its_own_booking_identities`: a reschedule and a cancellation from the second source leave the first source's `booking-1` scheduled; the first source's cancellation of an ID it never used starts its own chain; a cancellation of a moved-away ID stays ignored.
+- `test_duplicates_and_out_of_order_chains_stay_within_one_source`: a repeated delivery and a re-sent event with a new envelope ID stay one event; an out-of-order cancellation, creation and reschedule end in one booking; another client's source with the same IDs is separate; two Cal.com sources of one client keep separate bookings.
+
+**Results.**
+- Integration: the regression with `test_bookings_crm.py` and `test_integration_migrations.py`, 27 passed in 84.20 s.
+- Unit: `test_data_policy.py` and `test_integrations_contract.py`, 22 passed.
+- Mutation: R006-a (lookup by client and provider again) is caught by the regression (`1 == 2`).

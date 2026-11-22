@@ -898,3 +898,93 @@ def test_withdrawal_and_a_delivery_serialize_on_the_privacy_lock(lab):
             session.commit()
             pending.result(timeout=10)
     assert (_linked(lab), _stored_links(w)) == (0, 0)
+
+
+# --- Review finding R006 (D-069, D-070): booking identities belong to their source -----------
+
+
+def _by_source(w, client_id=None):
+    rows = [row for row in _bookings(w, client_id) if row.status != "merged"]
+    return {str(row.source_id): row for row in rows}
+
+
+def test_each_source_keeps_its_own_booking_identities(lab):
+    # R006: two signed webhook sources of one client both use booking-1. Each keeps its own
+    # booking; a reschedule or cancellation from one never moves or cancels the other's.
+    w = lab.w
+    other = lab.create("signed_webhook").json()
+    second = {"path": other["source"]["callback_path"], "secret": other["signing_secret"]}
+    first_id, second_id = lab.webhook["id"], other["source"]["id"]
+    assert lab.hook(booking_event("created", "booking-1")).status_code == 200
+    assert lab.hook(booking_event("created", "booking-1"), **second).status_code == 200
+    assert set(_by_source(w)) == {first_id, second_id}
+    moved = booking_event(
+        "rescheduled", "booking-2", previous="booking-1", occurred_at="2026-11-10T10:00:00Z"
+    )
+    assert lab.hook(moved, **second).status_code == 200
+    gone = booking_event("cancelled", "booking-2", occurred_at="2026-11-10T11:00:00Z")
+    assert lab.hook(gone, **second).status_code == 200
+    rows = _by_source(w)
+    assert (rows[first_id].status, rows[first_id].reschedule_count) == ("scheduled", 0)
+    assert (rows[second_id].status, rows[second_id].reschedule_count) == ("cancelled", 1)
+    # A cancellation of booking-2 from the first source, which never used that ID, starts a
+    # chain of its own there and changes nothing in the second source.
+    stray = booking_event("cancelled", "booking-2", occurred_at="2026-11-10T12:00:00Z")
+    assert lab.hook(stray).status_code == 200
+    rows = _by_source(w)
+    assert rows[second_id].status == "cancelled" and rows[second_id].reschedule_count == 1
+    statuses = sorted(row.status for row in _bookings(w) if str(row.source_id) == first_id)
+    assert statuses == ["cancelled", "scheduled"]
+    # The second source's own cancellation of booking-1 (moved away) is ignored there, and the
+    # first source's booking-1 stays scheduled.
+    late = booking_event("cancelled", "booking-1", occurred_at="2026-11-10T13:00:00Z")
+    assert lab.hook(late, **second).status_code == 200
+    rows = _by_source(w)
+    assert rows[second_id].status == "cancelled"
+    assert any(row.status == "scheduled" for row in _bookings(w) if str(row.source_id) == first_id)
+
+
+def test_duplicates_and_out_of_order_chains_stay_within_one_source(lab):
+    # R006: within one source, a repeated delivery and a re-sent event with a new envelope ID
+    # are still one event, and an out-of-order chain still ends in one booking; another
+    # client's source with the same IDs keeps its own booking.
+    w = lab.w
+    created = booking_event("created", "booking-9a")
+    resent = dict(created, id="evt-booking-9a-created-resent")
+    assert lab.hook(created).status_code == 200
+    assert lab.hook(created).status_code == 200
+    assert lab.hook(resent).status_code == 200
+    with Session(w.db.migration) as session:
+        events = session.scalar(select(func.count()).select_from(BookingEvent))
+    assert events == 1 and len(_by_source(w)) == 1
+    for body in (
+        booking_event("cancelled", "booking-8b", occurred_at="2026-11-10T11:00:00Z"),
+        booking_event("created", "booking-8a"),
+        booking_event(
+            "rescheduled", "booking-8b", previous="booking-8a", occurred_at="2026-11-10T10:00:00Z"
+        ),
+    ):
+        assert lab.hook(body).status_code == 200
+    visible = [row for row in _bookings(w) if row.status != "merged"]
+    assert sorted((row.status, row.reschedule_count) for row in visible) == [
+        ("cancelled", 1),
+        ("scheduled", 0),
+    ]
+    foreign = lab.create("signed_webhook", client_id=w.a2).json()
+    for body in (booking_event("created", "booking-9a"), booking_event("created", "booking-8a")):
+        response = lab.hook(
+            body, path=foreign["source"]["callback_path"], secret=foreign["signing_secret"]
+        )
+        assert response.status_code == 200
+    assert len(_by_source(w, w.a2)) == 1 and len(_bookings(w, w.a2)) == 2
+    assert len([row for row in _bookings(w) if row.status != "merged"]) == 2
+    # Two Cal.com sources of one client are separate namespaces as well.
+    calcom_two = lab.create("cal_com", secret=CALCOM_SECRET).json()["source"]
+    shared = uid()
+    assert lab.cal(calcom("BOOKING_CREATED", shared)).status_code == 200
+    assert (
+        lab.cal(calcom("BOOKING_CREATED", shared), path=calcom_two["callback_path"]).status_code
+        == 200
+    )
+    sources = {str(row.source_id) for row in _bookings(w) if row.provider == "cal_com"}
+    assert sources == {lab.calcom["id"], calcom_two["id"]}
