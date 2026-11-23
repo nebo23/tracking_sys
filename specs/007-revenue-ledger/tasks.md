@@ -4,7 +4,7 @@ Current continuation: [combined 006 and 007-B/C review](../006-identity-journey/
 - [x] Reconcile 007-B/C with the implemented 015 receipt store and 016-A reporting at `81977a3`.
 - [x] Prepare proposed persistence, reconciliation, identity association, schema and verification in the joint packet.
 - [x] Obtain the joint J1-J12 decision, including explicit confirmation of deterministic release movements (J8): D-075.
-- [ ] Implement and verify persisted financial behavior and actual-input identity/attribution handoffs.
+- [x] Implement and verify persisted financial behavior and actual-input identity/attribution handoffs (D-075; [joint evidence](../006-identity-journey/joint-evidence.md)). A3 stays open.
 
 Status: 007-A, the in-memory calculation contract, with the corrections of review findings R007-01 to R007-11, merged in [PR 6](https://github.com/nebo23/tracking_sys/pull/6) at `bc0ff40` after independent verification (D-044). See the [evidence](evidence.md#review-corrections-2026-11-14). 007-B and 007-C remain open.
 
@@ -40,10 +40,10 @@ Each regression failed against `0e4fca1` and passes after the correction; see th
 - [x] R007-09: parent cycles and known invalid parent kinds go to reconciliation; an absent parent stays pending until it arrives (`test_r007_09_*`).
 - [x] R007-10: same-currency conversion inputs accumulate exactly in every order (`test_r007_10_*`).
 - [x] R007-11: snapshot provenance does not depend on input order (`test_r007_11_*`).
-- [ ] Owner confirmation of the R007-02 policy: deterministic recomputation with release movements (implemented, consistent with A3) or commitment first.
+- [x] Owner confirmation of the R007-02 policy (D-075 J8, release movements): deterministic recomputation with release movements (implemented, consistent with A3) or commitment first.
 - [x] Owner review of the corrections, then update PR 6 (D-012): published to PR 6 and merged at `bc0ff40` under D-044.
 
 ## Subsequent work
-- [ ] 007-B: present persistence, audit, finance-write permission, retention and migration design; persist the movement journal; repeat AC1–AC5 and the R007 regressions against persisted movements and concurrent deliveries.
-- [ ] 007-C: verify identity association and attribution handoffs against implemented dependencies.
+- [x] 007-B: present persistence, audit, finance-write permission, retention and migration design; persist the movement journal; repeat AC1–AC5 and the R007 regressions against persisted movements and concurrent deliveries (equality with the reference engine; see the joint evidence for what was replayed).
+- [x] 007-C: verify identity association and attribution handoffs against implemented dependencies (in-memory 008-A; production persistence open).
 - [ ] Record owner acceptance before progressing to dependent work.

@@ -107,7 +107,7 @@ The inherited unit suites `test_privacy_deletion.py`, `test_privacy_consent.py` 
 
 ## Deferred at merge
 
-D-042 authorizes progression with these revision 4 findings open. Revisit them when implementing the affected contracts.
+D-042 authorizes progression with these revision 4 findings open. Revisit them when implementing the affected contracts. Status (2026-11-23, D-075): all six are closed by implementation with regression evidence; see the [joint evidence](joint-evidence.md#deferred-006-findings).
 
 | Finding | Follow-up |
 |---|---|

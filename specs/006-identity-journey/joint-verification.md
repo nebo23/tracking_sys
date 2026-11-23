@@ -1,6 +1,6 @@
 # Combined 006 and 007-B/C verification matrix
 
-Status: planned, not executed. Prepared 2026-11-23 against `81977a3` and the proposed [joint design](joint-design.md). Use synthetic agencies, clients, identifiers and financial evidence; all migration/concurrency tests use disposable PostgreSQL. Existing 006 cases and 007 regression cases remain required rather than being replaced by this matrix.
+Status: executed under D-075; results, gaps and exact commits are in the [joint evidence](joint-evidence.md). Prepared 2026-11-23 against `81977a3` and the [joint design](joint-design.md). Use synthetic agencies, clients, identifiers and financial evidence; all migration/concurrency tests use disposable PostgreSQL. Existing 006 cases and 007 regression cases remain required rather than being replaced by this matrix.
 
 | Case | Required observable evidence | Phase |
 |---|---|---|
