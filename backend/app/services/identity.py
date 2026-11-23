@@ -347,15 +347,20 @@ def active_edge(session: Session, person_id: UUID) -> IdentityMerge | None:
     )
 
 
-def _assertions_presenting(session: Session, client_id: UUID, key_id: UUID):
-    return (
-        select(IdentityAssertion.id)
-        .where(
-            IdentityAssertion.client_id == client_id,
-            IdentityAssertion.evidence.contains([{"key_id": str(key_id)}]),
-        )
-        .exists()
+def _assertions_presenting(
+    session: Session, client_id: UUID, key_id: UUID, excluding_merge: UUID | None = None
+):
+    """A surviving assertion presenting the key; with excluding_merge, one that does not depend
+    on that merge (a merge-dependent anchor never supplies independent evidence, R006-25)."""
+    query = select(IdentityAssertion.id).where(
+        IdentityAssertion.client_id == client_id,
+        IdentityAssertion.evidence.contains([{"key_id": str(key_id)}]),
     )
+    if excluding_merge is not None:
+        query = query.where(
+            or_(IdentityAssertion.merge_id.is_(None), IdentityAssertion.merge_id != excluding_merge)
+        )
+    return query.exists()
 
 
 def has_evidence(
@@ -395,7 +400,8 @@ def has_evidence(
         )
     )
     return any(
-        session.scalar(select(_assertions_presenting(session, client_id, key))) for key in keys
+        session.scalar(select(_assertions_presenting(session, client_id, key, excluding_merge)))
+        for key in keys
     )
 
 

@@ -136,6 +136,18 @@ export function fakeEnvironment({
       server.delete(body.subject_token);
       return json(202, { status: "received" });
     }
+    if (route === "identity-handoff") {
+      // 006 D3: issued only for a known subject with an effective identity_link grant.
+      const deadline = expiries.get(body.subject_token)?.identity_link;
+      const granted =
+        server.get(body.subject_token)?.identity_link === "granted" && deadline > time;
+      if (!granted) return json(200, { status: "unavailable" });
+      return json(201, {
+        status: "issued",
+        code: `ihc_${String(++counter).padStart(43, "c")}`,
+        expires_at: new Date(time + 10 * 60 * 1000).toISOString(),
+      });
+    }
     return json(202, { status: "received" });
   }
 

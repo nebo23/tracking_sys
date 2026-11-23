@@ -698,6 +698,42 @@ def erase_subject(
     )
     session.add(request)
     session.flush()
+    detached, had_identity = erase_subject_row(session, keys, request, subject, now)
+    targets = {
+        "collected_events": TargetStatus.DONE,
+        "consent_records": TargetStatus.DONE,
+        "collection_subjects": TargetStatus.DONE,
+        "event_diagnostics": TargetStatus.NOT_APPLICABLE,
+        "booking_links": TargetStatus.DONE if detached else TargetStatus.NOT_APPLICABLE,
+    }
+    if had_identity:
+        # Reported only when identity evidence existed, so a 004 erasure keeps its outcome set.
+        targets["identity_records"] = TargetStatus.DONE
+    final = deletion.outcome(targets)
+    if final is None:
+        raise RuntimeError("Every erasure target has an outcome.")
+    request.status = deletion.transition(status, final).value
+    request.completed_at = now
+    request.target_outcomes = {name: value.value for name, value in targets.items()}
+    count(session, agency_id, client_id, now.date(), "erasure", "accepted", "completed")
+    return request
+
+
+# Erase one already scoped collection subject under an existing request (004, extended by 006
+# section 7.2 for subjects exclusive to an erased person, including a subject with zero events):
+# tombstones for the token digest and every event ID, holds on its events settled as
+# erased_elsewhere, its identity evidence and any person left without evidence removed after an
+# active merge edge is closed, then its events, consent records and row. The caller holds the
+# client privacy lock. Returns whether a booking was detached and whether identity evidence
+# existed.
+def erase_subject_row(
+    session: Session,
+    keys: TombstoneKeyring,
+    request: SubjectDeletionRequest,
+    subject: CollectionSubject,
+    now: datetime,
+) -> tuple[int, bool]:
+    agency_id, client_id = subject.agency_id, subject.client_id
     event_ids = list(
         session.scalars(
             select(CollectedEvent.event_id).where(CollectedEvent.subject_id == subject.id)
@@ -718,14 +754,11 @@ def erase_subject(
                 match_key=match_key,
                 match_key_id=key_id,
                 effective_at=now,
-                objected=objected and match_type == "subject_token",
+                objected=request.objected and match_type == "subject_token",
             )
         )
     session.flush()
     detached = detach_bookings(session, client_id, subject.id)
-    # 006 (D-075): holds on these events settle as erased_elsewhere, and the subject's
-    # identity evidence and any person left without evidence go with it, after an active
-    # merge edge is closed. Possession of the token never reaches other devices.
     from app.services import identity
 
     held = list(
@@ -739,24 +772,7 @@ def erase_subject(
     session.execute(delete(CollectedEvent).where(CollectedEvent.subject_id == subject.id))
     session.execute(delete(StoredConsentRecord).where(StoredConsentRecord.subject_id == subject.id))
     session.execute(delete(CollectionSubject).where(CollectionSubject.id == subject.id))
-    targets = {
-        "collected_events": TargetStatus.DONE,
-        "consent_records": TargetStatus.DONE,
-        "collection_subjects": TargetStatus.DONE,
-        "event_diagnostics": TargetStatus.NOT_APPLICABLE,
-        "booking_links": TargetStatus.DONE if detached else TargetStatus.NOT_APPLICABLE,
-    }
-    if had_identity:
-        # Reported only when identity evidence existed, so a 004 erasure keeps its outcome set.
-        targets["identity_records"] = TargetStatus.DONE
-    final = deletion.outcome(targets)
-    if final is None:
-        raise RuntimeError("Every erasure target has an outcome.")
-    request.status = deletion.transition(status, final).value
-    request.completed_at = now
-    request.target_outcomes = {name: value.value for name, value in targets.items()}
-    count(session, agency_id, client_id, now.date(), "erasure", "accepted", "completed")
-    return request
+    return detached, had_identity
 
 
 def _secret_context(source: IngestionSource, secret_id: UUID, version: int) -> SecretContext:

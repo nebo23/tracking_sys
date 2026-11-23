@@ -113,6 +113,9 @@ class Target:
     client_scoped: bool = False
     # 011-A (D11): the values that clear an eligible row's expired columns; the row is kept.
     clear: Mapping[str, Any] | None = None
+    # 006 (D-075): subjects otherwise ready for deletion whose identity evidence the identity
+    # step removes first, in the same batch.
+    ready: Callable[[datetime], ColumnElement[bool]] | None = None
 
 
 # The approved targets with their end-of-life predicates for a given cutoff.
@@ -339,10 +342,15 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
     # batch never breaks the consent foreign key or the bookings link constraint. A subject
     # that still holds 006 identity evidence (segments, assertions or handoffs) waits until the
     # identity expiry has removed it (D-075), so the scoped identity foreign keys always hold.
-    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+    def ready(cutoff: datetime) -> ColumnElement[bool]:
         return and_(
             expiring(cutoff),
             ~select(Booking.subject_id).where(Booking.subject_id == CollectionSubject.id).exists(),
+        )
+
+    def subjects(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            ready(cutoff),
             ~select(IdentityLink.collection_subject_id)
             .where(IdentityLink.collection_subject_id == CollectionSubject.id)
             .exists(),
@@ -446,7 +454,14 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             True,
             clear={"subject_id": None, "linked_at": None},
         ),
-        Target("collection_subjects", CollectionSubject, CollectionSubject.id, subjects, True),
+        Target(
+            "collection_subjects",
+            CollectionSubject,
+            CollectionSubject.id,
+            subjects,
+            True,
+            ready=ready,
+        ),
     )
 
 
@@ -476,7 +491,7 @@ def delete_client_batch(
     connection.execute(
         select(func.pg_advisory_xact_lock(CLIENT_LOCK_NAMESPACE, client_lock_key(client_id)))
     )
-    counts: dict[str, int] = {}
+    counts: dict[str, int] = _identity_step(connection, scoped, client_id, cutoff, size)
     for target in scoped:
         condition = and_(target.model.client_id == client_id, target.eligible(cutoff))
         keys = select(target.key).where(condition).order_by(target.key).limit(size)
@@ -490,13 +505,67 @@ def delete_client_batch(
     return counts
 
 
+# 006 identity retention (app.services.identity_lifecycle) for one client, before the batch's
+# own deletes: holds on the events this batch deletes settle as expired, the subjects it is
+# about to delete lose their identity evidence, and the identity periods run.
+def _identity_step(
+    connection: Any, scoped: Sequence[Target], client_id: UUID, cutoff: datetime, size: int
+) -> dict[str, int]:
+    from app.services import identity_lifecycle
+
+    by_name = {target.name: target for target in scoped}
+    events: list[UUID] = []
+    if "collected_events" in by_name:
+        target = by_name["collected_events"]
+        events = list(
+            connection.execute(
+                select(CollectedEvent.id)
+                .where(CollectedEvent.client_id == client_id, target.eligible(cutoff))
+                .order_by(CollectedEvent.id)
+                .limit(size)
+            ).scalars()
+        )
+    subjects: list[UUID] = []
+    target = by_name.get("collection_subjects")
+    if target is not None and target.ready is not None:
+        holds_identity = or_(
+            select(IdentityLink.id)
+            .where(IdentityLink.collection_subject_id == CollectionSubject.id)
+            .exists(),
+            select(IdentityAssertion.id)
+            .where(IdentityAssertion.collection_subject_id == CollectionSubject.id)
+            .exists(),
+            select(IdentityHandoff.id)
+            .where(IdentityHandoff.collection_subject_id == CollectionSubject.id)
+            .exists(),
+        )
+        subjects = list(
+            connection.execute(
+                select(CollectionSubject.id)
+                .where(
+                    CollectionSubject.client_id == client_id,
+                    target.ready(cutoff),
+                    holds_identity,
+                )
+                .order_by(CollectionSubject.id)
+                .limit(size)
+            ).scalars()
+        )
+    return identity_lifecycle.run(
+        connection, client_id, cutoff, size, expiring_events=events, expiring_subjects=subjects
+    )
+
+
 # Clients that may have eligible collected data; only a candidate list; eligibility is decided
 # again under each client's lock.
 def _client_candidates(connection: Any, scoped: Sequence[Target], cutoff: datetime) -> list[UUID]:
     query = union(
         *(select(target.model.client_id).where(target.eligible(cutoff)) for target in scoped)
     )
-    return sorted(connection.execute(query).scalars())
+    from app.services import identity_lifecycle
+
+    found = set(connection.execute(query).scalars())
+    return sorted(found | identity_lifecycle.candidates(connection, cutoff))
 
 
 # Delete development .eml captures (and interrupted .pending files) older than the approved
@@ -589,7 +658,7 @@ def run_lifecycle(
                         break
                     batches += 1
                     for name, count in counts.items():
-                        deleted[name] += count
+                        deleted[name] = deleted.get(name, 0) + count
                     if not any(counts.values()):
                         break
                 else:

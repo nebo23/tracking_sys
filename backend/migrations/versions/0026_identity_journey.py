@@ -159,8 +159,8 @@ LIFECYCLE_GRANTS = (
     "identity_links, identity_merges TO tracking_lifecycle",
     "GRANT UPDATE (status, merged_into_id, version, journey_revision, updated_at) "
     "ON identity_subjects TO tracking_lifecycle",
-    "GRANT UPDATE (subject_id, status, contested_reason, candidate_ids, merge_id) "
-    "ON identity_keys TO tracking_lifecycle",
+    "GRANT UPDATE (subject_id, status, contested_reason, candidate_ids, merge_id, "
+    "original_owner_ids) ON identity_keys TO tracking_lifecycle",
     "GRANT UPDATE (candidate_ids, merge_id, subject_id) ON identity_assertions "
     "TO tracking_lifecycle",
     "GRANT UPDATE (status, subject_id, candidate_ids, eligible_until, closed_reason, "

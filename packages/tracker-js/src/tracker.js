@@ -61,7 +61,7 @@ import {
   urlsplit,
 } from "./minimize.js";
 
-export const VERSION = "0.5.4";
+export const VERSION = "0.6.0";
 export const PURPOSES = Object.freeze([
   "analytics.first_party",
   "attribution",
@@ -89,6 +89,9 @@ export const LIMITS = Object.freeze({
 const CHOICES = new Set(["granted", "denied", "withdrawn"]);
 const PUBLIC_KEY = /^pk_[A-Za-z0-9_-]{43}$/;
 const SUBJECT_TOKEN = /^sbj_[A-Za-z0-9_-]{43}$/;
+// A backend challenge for identityHandoff(): at least 128 random bits as base64url (006 D3).
+const CHALLENGE = /^[A-Za-z0-9_-]{22,128}$/;
+const IDENTITY = "identity_link";
 const LINK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FORM_KEY = /^[a-z0-9_-]{1,100}$/;
 const FIELD_NAME = /^[A-Za-z0-9_.-]{1,100}$/;
@@ -216,6 +219,9 @@ export function createTracker(config, environment = {}) {
   let stateEpoch = 0; // bumped by every state read and local change: older reads are ignored
   let confirmedAt = 0;
   let destroyed = false;
+  // The local session: restart() increments it, and every request or answer that belongs to
+  // an earlier session is dropped or ignored (006 section 8).
+  let session = 0;
   let continuity = "none";
   let mutation = Promise.resolve();
   let queued = 0; // serialized consent operations that have not finished
@@ -552,8 +558,13 @@ export function createTracker(config, environment = {}) {
       gpcRounds.set(key, round);
       return round;
     });
+    const owner = session;
     serialized(() =>
       writing(async () => {
+        if (owner !== session) {
+          for (const round of rounds) round.pending = false;
+          return;
+        }
         const choices = Object.fromEntries(affected.map((purpose) => [purpose, "withdrawn"]));
         const confirmed = await sendControl("consent", { subject_token: subject, choices });
         for (const round of rounds) {
@@ -627,8 +638,9 @@ export function createTracker(config, environment = {}) {
     if (refused.length > 0) reconcileGpc({ explicit: true });
     if (Object.keys(send).length === 0) return Promise.resolve({ status: "nothing_sent", refused });
     const refusedAtCall = refused;
+    const started = session;
     return serialized(async () => {
-      if (destroyed) return { status: "superseded", refused: refusedAtCall };
+      if (destroyed || started !== session) return { status: "superseded", refused: refusedAtCall };
       // Only the choices that are still the visitor's latest are sent; when none is, nothing
       // is read from storage and nothing leaves the browser.
       const current = Object.fromEntries(
@@ -670,7 +682,7 @@ export function createTracker(config, environment = {}) {
       if (token) body.subject_token = token;
       return writing(async () => {
         const seq = ++requestSeq;
-        const started = now();
+        const startedAt = now();
         let reply;
         try {
           reply = await control("consent", body);
@@ -680,6 +692,8 @@ export function createTracker(config, environment = {}) {
         if (!reply.ok) {
           return { status: reply.status === 429 ? "rate_limited" : "rejected", refused };
         }
+        // A late answer for a session ended by restart() is ignored, including a new token.
+        if (started !== session) return { status: "superseded", refused };
         const { data } = reply;
         const returned = SUBJECT_TOKEN.test(data?.subject_token ?? "") ? data.subject_token : null;
         if (returned && returned !== token) {
@@ -689,7 +703,7 @@ export function createTracker(config, environment = {}) {
         }
         if (token === null) return { status: "nothing_granted", refused };
         if (destroyed) return { status: "superseded", refused };
-        applyServer(data, seq, started);
+        applyServer(data, seq, startedAt);
         settled();
         const changed = Object.keys(current).some((purpose) => intent.get(purpose) !== versions[purpose]);
         const purposes = [...effectiveSet()];
@@ -724,8 +738,9 @@ export function createTracker(config, environment = {}) {
     if (wanted.size === 0) return Promise.resolve({ status: "blocked" });
     // The host's intent this read acts on. A newer choice for a purpose changes its counter.
     const versions = new Map([...wanted].map((purpose) => [purpose, intent.get(purpose) ?? 0]));
+    const owner = session;
     return serialized(async () => {
-      if (destroyed) return { status: "superseded" };
+      if (destroyed || owner !== session) return { status: "superseded" };
       // This read may have waited behind other consent work. It goes ahead only while the
       // host still allows a purpose it was asked for under the same choice; otherwise it ends
       // here, before storage is read or the subject token is sent.
@@ -747,7 +762,7 @@ export function createTracker(config, environment = {}) {
       }
       if (!reply.ok) return { status: reply.status === 429 ? "rate_limited" : "unavailable" };
       const state = reply.data;
-      if (destroyed || epoch !== stateEpoch) return { status: "superseded" };
+      if (destroyed || owner !== session || epoch !== stateEpoch) return { status: "superseded" };
       token = record.token;
       localExpiresAt = record.expiresAt;
       if (state?.status !== "active") {
@@ -777,13 +792,14 @@ export function createTracker(config, environment = {}) {
     const seq = ++requestSeq;
     const started = now();
     const current = token;
+    const owner = session;
     const mark = writes > 0 ? -1 : writeMark;
     refreshing = (async () => {
       try {
         const reply = await control("consent-state", { subject_token: current });
         if (!reply.ok) return false;
         const state = reply.data;
-        if (destroyed || current !== token) return false;
+        if (destroyed || owner !== session || current !== token) return false;
         if (epoch !== stateEpoch || mark !== writeMark) {
           rereadDue = true;
           return false;
@@ -835,7 +851,9 @@ export function createTracker(config, environment = {}) {
     } else if (token !== null) {
       writeRecord();
     }
+    const owner = session;
     return serialized(async () => {
+      if (owner !== session) return { status: "superseded", confirmed: false };
       const subject = token ?? known;
       if (!subject || list.length === 0) return { status: "withdrawn", confirmed: false };
       const choices = Object.fromEntries(list.map((purpose) => [purpose, "withdrawn"]));
@@ -852,7 +870,9 @@ export function createTracker(config, environment = {}) {
     host.clear();
     const known = token ?? readRecord({ allowExpired: true })?.token ?? erasable;
     clearSubject();
+    const owner = session;
     return serialized(async () => {
+      if (owner !== session) return { status: "superseded", confirmed: false };
       const subject = token ?? erasable ?? known;
       token = null;
       erasable = null;
@@ -1013,6 +1033,7 @@ export function createTracker(config, environment = {}) {
     item.attempts += 1;
     item.inFlight = true;
     const controller = typeof AbortController === "function" ? new AbortController() : null;
+    item.controller = controller;
     const budget = item.enqueuedAt + LIMITS.eventTtlMs - now();
     const timer = controller
       ? setTimer(() => {
@@ -1166,6 +1187,76 @@ export function createTracker(config, environment = {}) {
     });
   }
 
+  // Issue a one-time identity handoff code for the client's backend (006 D3). The challenge
+  // comes from the backend's verified form or login transaction. identity_link must be
+  // effective immediately before sending and again before the code is returned to this
+  // session; the code and challenge travel only in the request and response bodies, never in
+  // a URL, log or browser storage. Returns {status: "issued", code, expires_at}, or "blocked"
+  // (no effective identity_link), "unavailable" or "rate_limited".
+  async function identityHandoff(challenge) {
+    if (typeof challenge !== "string" || !CHALLENGE.test(challenge)) {
+      throw new TypeError("challenge must be 22-128 base64url characters.");
+    }
+    expireIfNeeded();
+    if (!effective(IDENTITY)) return { status: "blocked" };
+    const owner = session;
+    const subject = token;
+    let reply;
+    try {
+      reply = await control("identity-handoff", { subject_token: subject, challenge });
+    } catch {
+      return { status: "unavailable" };
+    }
+    if (destroyed || owner !== session || token !== subject || !effective(IDENTITY)) {
+      return { status: "unavailable" };
+    }
+    if (!reply.ok) return { status: reply.status === 429 ? "rate_limited" : "unavailable" };
+    const data = reply.data;
+    if (data?.status !== "issued" || typeof data.code !== "string") return { status: "unavailable" };
+    return { status: "issued", code: data.code, expires_at: data.expires_at };
+  }
+
+  // Sign-out or account switch (006 section 8, D5): the old local session ends at once. Its
+  // token (including one kept only for erase()), permissions, queue, timers and stored record
+  // are cleared, in-flight event requests are aborted where possible and never retried, queued
+  // consent work and late answers of the old session are ignored, and no old token or handoff
+  // is restored or sent afterwards. Server consent keeps its recorded state, so a host that
+  // needs a withdrawal confirmed awaits withdraw() before calling restart(). The next explicit
+  // grant creates a new subject.
+  function restart() {
+    session += 1;
+    PURPOSES.forEach(bump);
+    host.clear();
+    hostSince.clear();
+    gpcRounds.clear();
+    token = null;
+    localExpiresAt = 0;
+    erasable = null;
+    server.clear();
+    reported.clear();
+    confirmedAt = 0;
+    stateEpoch += 1;
+    rereadDue = false;
+    cancelRefresh();
+    for (let index = queue.length - 1; index >= 0; index -= 1) {
+      const item = queue[index];
+      item.revoked = true;
+      if (item.inFlight) {
+        try {
+          item.controller?.abort();
+        } catch {
+          // An abort failure leaves a request whose answer is ignored.
+        }
+        continue;
+      }
+      queue.splice(index, 1);
+      stats.dropped_permission += 1;
+    }
+    removeRecord();
+    if (wake) wake();
+    return { status: "restarted" };
+  }
+
   function destroy() {
     destroyed = true;
     stateEpoch += 1;
@@ -1184,6 +1275,8 @@ export function createTracker(config, environment = {}) {
     trackPageView,
     trackLinkClick,
     trackForm,
+    identityHandoff,
+    restart,
     destroy,
     state: () => ({
       purposes: [...effectiveSet()].sort(),

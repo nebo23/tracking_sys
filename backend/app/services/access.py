@@ -29,6 +29,7 @@ from app.services.tenancy import MANAGERS, AccessDenied, MembershipConflict, Rol
 class ClientPermission:
     client_id: UUID
     can_view_financials: bool = False
+    can_view_identities: bool | None = None  # 006 D8; refused for service keys
 
 
 # Authenticated actor for read authorization: a browser user ID or a service credential ID.
@@ -47,7 +48,7 @@ class ScopedAccess:
     principal: Principal
     agency_id: UUID
     client_id: UUID
-    permission: Literal["client:read", "finance:read", "events:write"]
+    permission: Literal["client:read", "finance:read", "events:write", "identity:read"]
 
     # Partition future cache entries by agency, client, principal, permission, and resource.
     def cache_key(self, resource: str) -> str:
@@ -125,9 +126,14 @@ def resolve_scope(
     principal: Principal,
     agency_id: UUID,
     client_id: UUID,
-    permission: Literal["client:read", "finance:read", "events:write"] = "client:read",
+    permission: Literal[
+        "client:read", "finance:read", "events:write", "identity:read"
+    ] = "client:read",
 ) -> ScopedAccess:
-    if permission not in {"client:read", "finance:read", "events:write"}:
+    if permission not in {"client:read", "finance:read", "events:write", "identity:read"}:
+        raise AccessDenied()
+    # 006 D8 (D-075): no service key reads person-level identity data in v1.
+    if principal.kind == "service" and permission == "identity:read":
         raise AccessDenied()
     if principal.kind == "user" and permission == "events:write":
         raise AccessDenied()
@@ -144,6 +150,8 @@ def resolve_scope(
         service = TenancyService(session, principal.identifier)
         if permission == "finance:read":
             service.require_financial_access(agency_id, client_id)
+        elif permission == "identity:read":
+            service.require_identity_access(agency_id, client_id)
         else:
             service.get_client(agency_id, client_id)
     elif principal.kind == "service":
@@ -240,6 +248,7 @@ class AccessService(TenancyService):
                     invitation_id=invitation.id,
                     client_id=item.client_id,
                     can_view_financials=item.can_view_financials,
+                    can_view_identities=bool(item.can_view_identities),
                 )
                 for item in grants
             ]
@@ -342,7 +351,11 @@ class AccessService(TenancyService):
         member = issuer.add_member(agency_id, user.id, Role(item.role))
         for grant in grants:
             issuer.grant_client(
-                agency_id, grant.client_id, member.id, can_view_financials=grant.can_view_financials
+                agency_id,
+                grant.client_id,
+                member.id,
+                can_view_financials=grant.can_view_financials,
+                can_view_identities=grant.can_view_identities,
             )
         item.status, item.accepted_by_user_id = "accepted", user.id
         self._audit(agency_id, "invitation.accepted", "invitation", item.id)
@@ -368,6 +381,8 @@ class AccessService(TenancyService):
             kind == "ingest" and any(grant.can_view_financials for grant in grants)
         ):
             raise ValueError("Ingest keys cannot read financial data.")
+        if any(grant.can_view_identities for grant in grants):
+            raise ValueError("Service keys cannot read identity data in v1.")
         self._check_grants(agency_id, grants)
         raw = "tsk_" + new_token()
         item = ServiceCredential(
