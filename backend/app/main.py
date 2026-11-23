@@ -47,6 +47,7 @@ from app.services.declarations import DeclarationRefused
 from app.services.google import GoogleOIDC
 from app.services.identity import IdentityError
 from app.services.integrations import IntegrationError
+from app.services.ledger_store import LedgerConflict, LedgerUnavailable
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
 from app.services.tenancy import AccessDenied, MembershipConflict
@@ -197,6 +198,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def identity_error(request: Request, error: IdentityError) -> JSONResponse:
         headers = {"Retry-After": "1"} if error.status == 503 else None
         return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
+
+    # The persisted ledger is not ready or is behind its evidence (007-B): retry shortly.
+    @application.exception_handler(LedgerUnavailable)
+    async def ledger_unavailable(request: Request, error: LedgerUnavailable) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=503, headers={"Retry-After": "1"})
+
+    # Stale or conflicting ledger requests (007-B): a closed code, never a value.
+    @application.exception_handler(LedgerConflict)
+    async def ledger_conflict(request: Request, error: LedgerConflict) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
 
     # Report refusals (specification 016-A) carry a closed code; never a rejected value.
     @application.exception_handler(ReportError)

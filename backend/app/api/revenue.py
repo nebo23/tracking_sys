@@ -6,6 +6,10 @@ the stored evidence. Verified and declared amounts are kept apart, and amounts i
 currencies are never added. No answer carries a delivery ID, a content digest, an actor, an
 intake ID or another client's data.
 
+007-B (D-075 J8, J9): finance readers page through the stored movement journal and the
+reconciliation queue; Owner and Admin sessions acknowledge or reopen an issue, which changes
+no evidence or amount. Reads fail closed while the persisted projection is behind.
+
 015-C: Owner and Admin sessions preview and commit transaction CSV files and declare single
 transactions with a reason, each commit and declaration audited. Declarations are unverified
 manual_declaration evidence; files are never kept.
@@ -15,7 +19,9 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Response
+from fastapi import APIRouter, Path, Query, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field
 
 from app.advertising.currencies import decimal_text
@@ -24,7 +30,9 @@ from app.api.schemas import Input, Output
 from app.declarations import ParsedFile
 from app.services.access import resolve_scope
 from app.services.declarations import DeclarationService
-from app.services.revenue import client_ledger, revenue_view
+from app.services.ledger_review import ReconciliationService, reconciliation_view
+from app.services.ledger_store import movements_page, require_current
+from app.services.revenue import client_ledger, load_rows, revenue_view
 
 router = APIRouter(tags=["Revenue"])
 
@@ -280,3 +288,68 @@ def declare_revenue(
             reason=item.reason,
         ),
     )
+
+
+# --- 007-B: persisted movements and the reconciliation queue (D-075 J8, J9) ---------------
+
+
+class ReviewInput(Input):
+    operation_id: UUID
+    expected_financial_revision: Annotated[int, Field(ge=0)]
+    action: Literal["acknowledge", "reopen"]
+    reason_code: Literal[
+        "provider_contacted",
+        "awaiting_evidence",
+        "confirmed_duplicate",
+        "reviewed_no_action",
+        "new_information",
+    ]
+
+
+# The stored movement journal of the published generation, in keyset pages bound to it.
+@router.get("/agencies/{agency_id}/clients/{client_id}/revenue/movements")
+def read_revenue_movements(
+    agency_id: UUID,
+    client_id: UUID,
+    session: SessionDep,
+    principal: ReaderDep,
+    after: Annotated[int, Query(ge=0)] = 0,
+    generation: Annotated[int | None, Query(ge=1)] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
+    rows = load_rows(session, agency_id, client_id)
+    state = require_current(session, agency_id, client_id, rows)
+    body = movements_page(session, state, after=after, generation=generation, limit=limit)
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
+    return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
+
+
+# Open reconciliation, pending and held items with their latest review (J9).
+@router.get("/agencies/{agency_id}/clients/{client_id}/revenue/reconciliation")
+def read_revenue_reconciliation(
+    agency_id: UUID, client_id: UUID, session: SessionDep, principal: ReaderDep
+) -> JSONResponse:
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
+    body = reconciliation_view(session, agency_id, client_id)
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
+    return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
+
+
+# Owner/Admin acknowledge or reopen of one issue; idempotent by operation ID, audited.
+@router.post(
+    "/agencies/{agency_id}/clients/{client_id}/revenue/reconciliation/{issue_id}/actions",
+    status_code=201,
+)
+def review_revenue_issue(
+    agency_id: UUID,
+    client_id: UUID,
+    issue_id: UUID,
+    data: ReviewInput,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> JSONResponse:
+    result, status = ReconciliationService(session, browser.user.id).review(
+        agency_id, client_id, issue_id, **data.model_dump()
+    )
+    return JSONResponse(result, status)

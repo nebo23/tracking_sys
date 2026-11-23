@@ -209,7 +209,7 @@ class AuditEvent(Base):
             "'integration.updated', 'integration.secret_replaced', 'crm_rule.created', "
             "'crm_rule.updated', 'whatsapp_number.created', 'whatsapp_number.updated', "
             "'identity.merged', 'identity.unmerged', 'identity.erased', "
-            "'identity.erasure_resolved')",
+            "'identity.erasure_resolved', 'revenue.reconciliation_reviewed')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -218,7 +218,7 @@ class AuditEvent(Base):
             "'utm_template', 'destination_origin', 'domain', 'link', 'connection', "
             "'destination', 'delivery', 'payment_source', 'revenue_import', "
             "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
-            "'identity_subject')",
+            "'identity_subject', 'revenue_issue')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

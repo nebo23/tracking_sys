@@ -72,6 +72,13 @@ from app.models.integrations import (
     IntegrationSource,
     IntegrationSourceSecret,
 )
+from app.models.ledger import (
+    LedgerMovement,
+    LedgerProjectionState,
+    LedgerReceipt,
+    LedgerReconciliationAction,
+    LedgerTransaction,
+)
 from app.models.links import (
     LinkCampaign,
     LinkContentReference,
@@ -167,4 +174,9 @@ __all__ = [
     "IdentityLink",
     "IdentityMerge",
     "IdentitySubject",
+    "LedgerMovement",
+    "LedgerProjectionState",
+    "LedgerReceipt",
+    "LedgerReconciliationAction",
+    "LedgerTransaction",
 ]

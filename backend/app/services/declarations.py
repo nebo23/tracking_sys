@@ -30,6 +30,9 @@ from app.models import RevenueEvidence, RevenueImport
 from app.services.revenue import append_evidence, content_digest, lock_revenue
 from app.services.tenancy import TenancyService
 
+# The most rows one CSV commit projects inline (007-B, measured: 250 rows about 2.4 s).
+INLINE_RECEIPT_ROWS = 200
+
 
 class DeclarationRefused(ValueError):
     """A refused file or declaration with a closed public code and HTTP status."""
@@ -103,12 +106,17 @@ class DeclarationService(TenancyService):
         parsed = self._parse(body, received)
         record_id = uuid4()
         stored = duplicate = 0
+        # 007-B (D-075 J11): receipts are applied inline for a bounded commit; a larger file
+        # keeps the existing intake behavior and leaves the persisted projection behind, so
+        # ledger reads fail closed until the operator backfill has caught up (A3 stays open).
+        project = len(parsed.valid) <= INLINE_RECEIPT_ROWS
         for item in parsed.valid:
             outcome = append_evidence(
                 self.session,
                 _evidence(item, agency_id, client_id, self.actor_user_id, received),
                 "csv_import",
                 record_id,
+                project=project,
             )
             stored += outcome == "stored"
             duplicate += outcome == "duplicate"

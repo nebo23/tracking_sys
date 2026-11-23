@@ -6,19 +6,24 @@ lock, whose clock read is the receipt time. Receipts of one client are therefore
 commit order, which keeps the 007-A journal-prefix property: a journal returned earlier is a
 prefix of the journal returned with more evidence. Nothing updates or deletes evidence.
 
-client_ledger loads a client's records in receipt order and returns the 007-A LedgerCalculation
-and the ledger_feed journal, which 008-A attribution and 014-B conversion delivery consume
-unchanged. revenue_view shapes the finance:read answer: verified totals and transactions,
+Since 007-B (D-075 J8) every stored record also receives a persisted receipt in the same
+transaction (app.services.ledger_store). client_ledger loads a client's records in receipt order
+once, derives the current 007-A view in one pass and returns the stored movements and the
+stored receipt journal, which 008-A attribution and 014-B conversion delivery consume through
+the same contracts; no receipt prefix is recalculated on a read, and a read fails closed with
+ledger_projection_unavailable while the published projection is behind the stored evidence.
+revenue_view shapes the finance:read answer: verified totals and transactions,
 declared (unverified) items and totals kept apart, pending adjustments and reconciliation items.
 Amounts in different currencies are never added together.
 
 A Paymob refund names its parent sale in an unsigned field (D-070, review finding R001). Intake
 refuses one whose stored parent carries another signed order ID, but a refund can arrive before
 its sale. client_ledger therefore holds back, before calculating, every Paymob refund whose
-stored parent sales all carry another order ID: it never enters the calculation, the journal or
-any consumer, and revenue_view lists it as pending with the reason parent_order_mismatch.
-Evidence is never changed or deleted, so a later read holds the same refund unless a sale record
-of its parent carrying its order ID is stored.
+stored parent sales all carry another order ID: it never enters the calculation or any
+movement, and revenue_view lists it as pending with the reason parent_order_mismatch. The
+persisted journal evaluates this rule at each receipt: a held refund keeps its own receipt
+position (without a movement), and a later sale record carrying its order ID makes it take
+effect at that later receipt; no earlier receipt or movement is rewritten.
 """
 
 import hashlib
@@ -26,7 +31,6 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import cached_property
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -35,7 +39,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.advertising.currencies import decimal_text
-from app.attribution import JournalItem, ledger_feed
+from app.attribution import JournalItem
 from app.ledger import (
     Currency,
     Evidence,
@@ -45,7 +49,7 @@ from app.ledger import (
     Money,
     OperationKind,
     Stream,
-    calculate,
+    current_calculation,
 )
 from app.models import RevenueEvidence
 from app.payments.paymob import same_order
@@ -103,12 +107,20 @@ def content_digest(item: Evidence) -> str:
     return hashlib.sha256(_canonical(item).encode()).hexdigest()
 
 
-# Append one record of a client's revenue stream. The caller holds the client's revenue lock and
-# passes its clock read as received_at. Returns "stored", or "duplicate" for an exact redelivery
-# (same source account, delivery ID and content), which inserts nothing. A reused delivery ID
+# Append one record of a client's revenue stream. With project (the default) its receipt is
+# applied in the same transaction; a large bounded import passes project=False and leaves the
+# projection behind until the operator backfill catches up (007-B, D-075 J11, A3). The caller
+# holds the client's revenue lock and passes its clock read as received_at. Returns "stored",
+# or "duplicate" for an exact redelivery (same source account, delivery ID and content), which
+# inserts nothing. A reused delivery ID
 # with other content is stored, so the 007-A calculation reports it as delivery_id_reused.
 def append_evidence(
-    session: Session, item: Evidence, intake: Intake, intake_id: UUID | None
+    session: Session,
+    item: Evidence,
+    intake: Intake,
+    intake_id: UUID | None,
+    *,
+    project: bool = True,
 ) -> Literal["stored", "duplicate"]:
     if item.stream is not Stream.CLIENT_REVENUE or item.client_id is None:
         raise LedgerInputError("invalid_stream")
@@ -141,7 +153,15 @@ def append_evidence(
         .on_conflict_do_nothing(constraint="uq_revenue_evidence_delivery")
         .returning(RevenueEvidence.id)
     )
-    return "stored" if session.scalar(statement) is not None else "duplicate"
+    stored = session.scalar(statement)
+    if stored is None:
+        return "duplicate"
+    # 007-B (D-075): the receipt, its movements and projections commit with the evidence.
+    from app.services.ledger_store import on_evidence_stored
+
+    if project:
+        on_evidence_stored(session, item.agency_id, item.client_id, stored)
+    return "stored"
 
 
 def _evidence(row: RevenueEvidence) -> Evidence:
@@ -171,13 +191,20 @@ class ClientLedger:
     intakes: tuple[str, ...]  # the intake of each record, in the same order
     calculation: LedgerCalculation
     # Paymob refunds held back because no stored parent sale carries their signed order ID
-    # (D-070); they are not part of records, the calculation or the journal.
+    # (D-070); they are not part of records or the calculation.
     held: tuple[Evidence, ...] = ()
+    # The stored receipt journal of the published generation (one receipt per stored record,
+    # held ones included) and the evidence row IDs of records and held, in the same order.
+    journal: tuple[JournalItem, ...] = ()
+    record_ids: tuple[UUID, ...] = ()
+    held_ids: tuple[UUID, ...] = ()
+    generation: int | None = None
+    financial_revision: int = 0
 
-    # The ledger_feed journal, computed on first use: it recalculates every receipt prefix.
-    @cached_property
-    def journal(self) -> tuple[JournalItem, ...]:
-        return ledger_feed(self.records)
+    def evidence_ids_by_object(self) -> dict[int, UUID]:
+        mapping = {id(item): key for item, key in zip(self.records, self.record_ids, strict=False)}
+        mapping.update({id(item): key for item, key in zip(self.held, self.held_ids, strict=False)})
+        return mapping
 
     def intake_of(self, item: Evidence) -> str | None:
         for record, intake in zip(self.records, self.intakes, strict=True):
@@ -221,19 +248,29 @@ def unbound_refunds(rows: Sequence[RevenueEvidence]) -> set[UUID]:
     return held
 
 
-# The 007-A calculation and the ledger_feed journal of one client's stored evidence. The caller
+# The 007-A view and the stored journal of one client's evidence (007-B). The caller
 # has authorized the read (finance:read for people and keys; internal jobs check their own
 # scope); the result never contains another client's records.
 def client_ledger(session: Session, agency_id: UUID, client_id: UUID) -> ClientLedger:
+    from app.services import ledger_store
+
     rows = load_rows(session, agency_id, client_id)
+    state = ledger_store.require_current(session, agency_id, client_id, rows)
     held = unbound_refunds(rows)
+    evidence = {row.id: _evidence(row) for row in rows}
     kept = [row for row in rows if row.id not in held]
-    records = tuple(_evidence(row) for row in kept)
+    records = tuple(evidence[row.id] for row in kept)
+    movements = ledger_store.stored_movements(session, state, evidence) if state else ()
     return ClientLedger(
         records,
         tuple(row.intake for row in kept),
-        calculate(records),
-        tuple(_evidence(row) for row in rows if row.id in held),
+        current_calculation(records, movements),
+        tuple(evidence[row.id] for row in rows if row.id in held),
+        journal=ledger_store.stored_journal(session, state, movements) if state else (),
+        record_ids=tuple(row.id for row in kept),
+        held_ids=tuple(row.id for row in rows if row.id in held),
+        generation=state.generation if state else None,
+        financial_revision=state.financial_revision if state else 0,
     )
 
 
