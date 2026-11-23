@@ -33,8 +33,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     # three more at 0018_conversion_delivery (014-B), one more at 0020_revenue_evidence
     # (015-A), three more at 0021_payment_sources (015-B), one more at 0022_revenue_imports
     # (015-C), seven more at 0023_integration_bookings and 0024_crm_deals (015-D), two more
-    # at 0025_whatsapp (015-E), plus alembic_version.
-    assert len(SCHEMA) == 64
+    # at 0025_whatsapp (015-E), eleven more at 0026_identity_journey (006, D-075), plus
+    # alembic_version.
+    assert len(SCHEMA) == 75
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -121,9 +122,9 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("password_credentials", "row", "D-024"),
         ("external_identities", "row", "D-024"),
         ("ingestion_source_secrets", "row", "D-027"),
-        ("collection_subjects", "row", "D-027"),
+        ("collection_subjects", "row", "D-027; D-075"),
         ("consent_records", "row", "D-027"),
-        ("collected_events", "row", "D-027; D-033"),
+        ("collected_events", "row", "D-027; D-033; D-075"),
         ("event_diagnostics", "row", "D-027"),
         ("deletion_requests", "row", "D-027"),
         ("deletion_tombstones", "row", "D-025; D-027"),
@@ -162,6 +163,16 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("booking_events", "row", "D-068"),
         ("crm_deals", "row", "D-068"),
         ("whatsapp_messages", "row", "D-068"),
+        # D-075 (006, J6): the development identity retention rules.
+        ("identity_subjects", "row", "D-075"),
+        ("identity_keys", "row", "D-075"),
+        ("identity_assertions", "row", "D-075"),
+        ("identity_assertion_receipts", "row", "D-075"),
+        ("identity_links", "row", "D-075"),
+        ("identity_handoffs", "row", "D-075"),
+        ("identity_merges", "row", "D-075"),
+        ("identity_changes", "row", "D-075"),
+        ("identity_erasure_holds", "row", "D-075"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

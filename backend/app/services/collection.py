@@ -341,6 +341,7 @@ def record_consent(
     subject_token: str | None,
     captured_at: datetime | None,
     recheck,
+    issuance: Literal["browser", "server", "unknown"] = "unknown",
 ) -> ConsentResult:
     now = lock_client(session, client_id)
     recheck()
@@ -359,6 +360,13 @@ def record_consent(
             is not ConsentState.GRANTED
         ):
             detach_bookings(session, client_id, subject.id)
+        identity = choices.get(Purpose.IDENTITY_LINK)
+        if identity is not None and identity is not ConsentState.GRANTED:
+            # W1 (006 D7, D-075): a withdrawal or an explicit denial of identity_link removes
+            # the subject's identity evidence in this consent transaction.
+            from app.services.identity import withdraw_identity
+
+            withdraw_identity(session, agency_id, client_id, subject, now)
     elif ConsentState.GRANTED not in choices.values():
         count(session, agency_id, client_id, now.date(), "consent", "suppressed", "nothing_granted")
         unknown = {purpose: ConsentState.UNKNOWN for purpose in PURPOSES}
@@ -372,6 +380,9 @@ def record_consent(
             token_digest=digest(created),
             created_at=now,
             last_activity_at=now,
+            # Immutable (006 section 8.1): the public route issues browser subjects, the
+            # trusted consent API server subjects; other callers fail closed as unknown.
+            issuance_channel=issuance,
         )
         session.add(subject)
         session.flush()
@@ -582,6 +593,7 @@ def admit(
         count(session, agency_id, client_id, day, channel.kind, "minimized", reason, amount)
     if inserted is not None:
         subject.last_activity_at = now
+        _identity_event(session, agency_id, client_id, subject.id, now, envelope.occurred_at, now)
         return finish("accepted", "new", 1)
     existing = session.scalar(
         select(CollectedEvent)
@@ -599,6 +611,18 @@ def admit(
         existing.revision += 1
         existing.last_received_at = now
         subject.last_activity_at = now
+        # An upgrade keeps first_received_at and the R006-24 exclusion marker (the guard
+        # trigger refuses changes to either); only an assigned event changes a journey.
+        if existing.identity_excluded_at is None:
+            _identity_event(
+                session,
+                agency_id,
+                client_id,
+                subject.id,
+                existing.first_received_at,
+                envelope.occurred_at,
+                now,
+            )
         return finish("upgraded", "trusted_copy", existing.revision)
     if existing.fingerprint == print_:
         existing.last_received_at = now
@@ -607,6 +631,22 @@ def admit(
     existing.conflict_count += 1
     existing.last_conflict_at = now
     return finish("conflict", "changed_content" if same_identity else "identity_mismatch")
+
+
+# A newly accepted or upgraded event changes the journey of the person it is assigned to
+# (006 section 11); a subject without identity links costs one indexed lookup.
+def _identity_event(
+    session: Session,
+    agency_id: UUID,
+    client_id: UUID,
+    subject_id: UUID,
+    received_at: datetime,
+    occurred_at: datetime,
+    now: datetime,
+) -> None:
+    from app.services.identity import on_event_changed
+
+    on_event_changed(session, agency_id, client_id, subject_id, received_at, occurred_at, now)
 
 
 # Erase one subject of a client in one transaction (D-027 decision 11): tombstones for the
@@ -683,6 +723,19 @@ def erase_subject(
         )
     session.flush()
     detached = detach_bookings(session, client_id, subject.id)
+    # 006 (D-075): holds on these events settle as erased_elsewhere, and the subject's
+    # identity evidence and any person left without evidence go with it, after an active
+    # merge edge is closed. Possession of the token never reaches other devices.
+    from app.services import identity
+
+    held = list(
+        session.scalars(select(CollectedEvent.id).where(CollectedEvent.subject_id == subject.id))
+    )
+    identity.settle_holds(session, client_id, held, "erased_elsewhere", now)
+    journey = identity.Journey(session, agency_id, client_id, now)
+    had_identity = identity.subject_has_identity(session, subject.id)
+    identity.drop_subject_evidence(session, agency_id, client_id, subject, "erased", journey, now)
+    journey.flush()
     session.execute(delete(CollectedEvent).where(CollectedEvent.subject_id == subject.id))
     session.execute(delete(StoredConsentRecord).where(StoredConsentRecord.subject_id == subject.id))
     session.execute(delete(CollectionSubject).where(CollectionSubject.id == subject.id))
@@ -693,6 +746,9 @@ def erase_subject(
         "event_diagnostics": TargetStatus.NOT_APPLICABLE,
         "booking_links": TargetStatus.DONE if detached else TargetStatus.NOT_APPLICABLE,
     }
+    if had_identity:
+        # Reported only when identity evidence existed, so a 004 erasure keeps its outcome set.
+        targets["identity_records"] = TargetStatus.DONE
     final = deletion.outcome(targets)
     if final is None:
         raise RuntimeError("Every erasure target has an outcome.")

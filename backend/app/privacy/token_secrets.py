@@ -40,6 +40,8 @@ class SecretStatus(StrEnum):
 # "conversion_payload". For a 015-B Paymob merchant HMAC secret (D-067 D3), connector_id holds
 # the payment source ID and kind is "paymob_hmac". For a 015-D integration signing secret
 # (D-068), connector_id holds the integration source ID and kind is "integration_signing".
+# For the 006 per-client identity matching key (D-075), connector_id holds the client ID,
+# secret_id the identity_key_secrets row ID and kind is "identity_matching_key".
 @dataclass(frozen=True)
 class SecretContext:
     agency_id: UUID
@@ -53,6 +55,7 @@ class SecretContext:
         "conversion_payload",
         "paymob_hmac",
         "integration_signing",
+        "identity_matching_key",
     ]
     version: int
 

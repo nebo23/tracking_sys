@@ -52,6 +52,19 @@ from app.models.delivery import (
     ConversionDelivery,
     ConversionDestination,
 )
+from app.models.identity import (
+    IdentityAssertion,
+    IdentityAssertionReceipt,
+    IdentityChange,
+    IdentityErasureHold,
+    IdentityFeedState,
+    IdentityHandoff,
+    IdentityKey,
+    IdentityKeySecret,
+    IdentityLink,
+    IdentityMerge,
+    IdentitySubject,
+)
 from app.models.integrations import (
     Booking,
     BookingEvent,
@@ -143,4 +156,15 @@ __all__ = [
     "IntegrationSourceSecret",
     "WhatsappMessage",
     "WhatsappNumber",
+    "IdentityAssertion",
+    "IdentityAssertionReceipt",
+    "IdentityChange",
+    "IdentityErasureHold",
+    "IdentityFeedState",
+    "IdentityHandoff",
+    "IdentityKey",
+    "IdentityKeySecret",
+    "IdentityLink",
+    "IdentityMerge",
+    "IdentitySubject",
 ]

@@ -20,6 +20,7 @@ from app.api.connectors import provider_router as connector_provider_router
 from app.api.connectors import router as connectors_router
 from app.api.connectors import webhook_router as connector_webhook_router
 from app.api.google import router as google_router
+from app.api.identity import router as identity_router
 from app.api.integrations import callback_router as integration_callback_router
 from app.api.integrations import router as integrations_router
 from app.api.links import redirect_router
@@ -44,6 +45,7 @@ from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
 from app.services.declarations import DeclarationRefused
 from app.services.google import GoogleOIDC
+from app.services.identity import IdentityError
 from app.services.integrations import IntegrationError
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
@@ -190,6 +192,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def whatsapp_error(request: Request, error: WhatsappError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
+    # Identity refusals (specification 006) carry a closed code; never an identifier.
+    @application.exception_handler(IdentityError)
+    async def identity_error(request: Request, error: IdentityError) -> JSONResponse:
+        headers = {"Retry-After": "1"} if error.status == 503 else None
+        return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
+
     # Report refusals (specification 016-A) carry a closed code; never a rejected value.
     @application.exception_handler(ReportError)
     async def report_error(request: Request, error: ReportError) -> JSONResponse:
@@ -246,6 +254,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(collection_router)
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)
+    application.include_router(identity_router)
     application.include_router(links_router)
     application.include_router(redirect_router)
     application.include_router(connectors_router)

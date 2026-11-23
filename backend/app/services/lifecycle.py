@@ -71,6 +71,9 @@ from app.models import (
     CrmDeal,
     EventDiagnostic,
     ExternalIdentity,
+    IdentityAssertion,
+    IdentityHandoff,
+    IdentityLink,
     IngestionSourceSecret,
     IntegrationDelivery,
     IntegrationSourceSecret,
@@ -333,11 +336,22 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         return Booking.subject_id.in_(select(CollectionSubject.id).where(expiring(cutoff)))
 
     # A subject is deleted only after all its consent records and booking links, so a bounded
-    # batch never breaks the consent foreign key or the bookings link constraint.
+    # batch never breaks the consent foreign key or the bookings link constraint. A subject
+    # that still holds 006 identity evidence (segments, assertions or handoffs) waits until the
+    # identity expiry has removed it (D-075), so the scoped identity foreign keys always hold.
     def subjects(cutoff: datetime) -> ColumnElement[bool]:
         return and_(
             expiring(cutoff),
             ~select(Booking.subject_id).where(Booking.subject_id == CollectionSubject.id).exists(),
+            ~select(IdentityLink.collection_subject_id)
+            .where(IdentityLink.collection_subject_id == CollectionSubject.id)
+            .exists(),
+            ~select(IdentityAssertion.collection_subject_id)
+            .where(IdentityAssertion.collection_subject_id == CollectionSubject.id)
+            .exists(),
+            ~select(IdentityHandoff.collection_subject_id)
+            .where(IdentityHandoff.collection_subject_id == CollectionSubject.id)
+            .exists(),
         )
 
     return (

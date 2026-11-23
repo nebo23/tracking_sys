@@ -59,7 +59,7 @@ class AgencyInvitation(Entity, Base):
 
 
 # Client grants to apply when an invitation is accepted; composite keys keep one agency.
-# SELECT agency_id, invitation_id, client_id, can_view_financials
+# SELECT agency_id, invitation_id, client_id, can_view_financials, can_view_identities
 # FROM public.invitation_client_grants
 # WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
 #   AND invitation_id = '00000000-0000-0000-0000-000000000007'::uuid
@@ -84,6 +84,8 @@ class InvitationClientGrant(Base):
     invitation_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     client_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     can_view_financials: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Carried to the accepted membership's grant (006 D8, D-075).
+    can_view_identities: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
 # Expiring service API key for one agency; only the key digest is stored. Its creator
