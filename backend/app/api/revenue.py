@@ -19,20 +19,23 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query, Response
+from fastapi import APIRouter, Path, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field
 
 from app.advertising.currencies import decimal_text
-from app.api.dependencies import BrowserDep, RawBody, ReaderDep, SessionDep
+from app.api.dependencies import BrowserDep, IngestDep, RawBody, ReaderDep, SessionDep
 from app.api.schemas import Input, Output
 from app.declarations import ParsedFile
 from app.services.access import resolve_scope
+from app.services.auth import enforce_rate_limit
+from app.services.collection import lock_client
 from app.services.declarations import DeclarationService
 from app.services.ledger_review import ReconciliationService, reconciliation_view
 from app.services.ledger_store import movements_page, require_current
 from app.services.revenue import client_ledger, load_rows, revenue_view
+from app.services.revenue_identity import AssociationAdmin, AssociationRequest, associate
 
 router = APIRouter(tags=["Revenue"])
 
@@ -351,5 +354,92 @@ def review_revenue_issue(
 ) -> JSONResponse:
     result, status = ReconciliationService(session, browser.user.id).review(
         agency_id, client_id, issue_id, **data.model_dump()
+    )
+    return JSONResponse(result, status)
+
+
+# --- 007-C: sale-to-person association (D-075 J10) ----------------------------------------
+
+
+class AssociationInput(Input):
+    request_id: UUID
+    source_account_id: Annotated[str, Field(min_length=1, max_length=256)]
+    sale_operation_id: Annotated[str, Field(min_length=1, max_length=256)]
+    assertion_id: UUID
+    expected_revision: Annotated[int | None, Field(ge=0)] = None
+
+
+class DetachInput(Input):
+    operation_id: UUID
+    expected_revision: Annotated[int, Field(ge=1)]
+    reason_code: Literal["mistaken_association", "customer_request", "data_correction"]
+
+
+ASSOCIATION_STATUS = {
+    "accepted": 201,
+    "duplicate": 200,
+    "conflict": 409,
+    "revision_conflict": 409,
+    "proof_invalid": 422,
+}
+
+
+# A trusted association assertion from a client-granted ingest key. The answer is generic: it
+# never says whether the sale exists, who holds it or whether it was linked.
+@router.post(
+    "/agencies/{agency_id}/clients/{client_id}/revenue/identity-associations", status_code=201
+)
+def create_revenue_association(
+    agency_id: UUID,
+    client_id: UUID,
+    data: AssociationInput,
+    request: Request,
+    session: SessionDep,
+    principal: IngestDep,
+) -> JSONResponse:
+    settings = request.app.state.settings
+    enforce_rate_limit(
+        request.app.state.security_engine,
+        settings,
+        "ingest-key",
+        str(principal.identifier),
+        limit=settings.ingest_trusted_per_minute,
+        period=60,
+    )
+    resolve_scope(session, principal, agency_id, client_id, "events:write")
+
+    def lock() -> datetime:
+        now = lock_client(session, client_id)
+        resolve_scope(session, principal, agency_id, client_id, "events:write")
+        return now
+
+    status, http = associate(
+        session,
+        agency_id,
+        client_id,
+        principal.identifier,
+        AssociationRequest(**data.model_dump()),
+        lock=lock,
+    )
+    if status in {"accepted", "duplicate", "conflict"}:
+        return JSONResponse({"status": status, "request_id": str(data.request_id)}, http)
+    return JSONResponse({"status": "rejected", "reason": status}, http)
+
+
+# Owner/Admin detachment of a mistaken association; audited, idempotent and versioned.
+@router.post(
+    "/agencies/{agency_id}/clients/{client_id}/revenue/identity-associations/{association_id}/detach",
+    status_code=201,
+)
+def detach_revenue_association(
+    agency_id: UUID,
+    client_id: UUID,
+    association_id: UUID,
+    data: DetachInput,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> JSONResponse:
+    result, status = AssociationAdmin(session, browser.user.id).detach(
+        agency_id, client_id, association_id, **data.model_dump()
     )
     return JSONResponse(result, status)

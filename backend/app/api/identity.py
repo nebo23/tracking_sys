@@ -21,13 +21,14 @@ from sqlalchemy import func, select
 from app.api.collection import PublicKey, _browser_source, _limit, _public_body
 from app.api.dependencies import BrowserDep, IngestDep, RawBody, ReaderDep, SessionDep
 from app.identity.normalize import IdentifierRejected, canonical, check_method
-from app.models import AgencyMembership
+from app.models import AgencyMembership, IdentitySubject
 from app.services.access import resolve_scope
 from app.services.collection import lock_client, require_live_source
 from app.services.identity import (
     AssertedIdentifier,
     AssertionRequest,
     issue_handoff,
+    person_group,
     process_assertion,
 )
 from app.services.identity_admin import (
@@ -38,6 +39,7 @@ from app.services.identity_admin import (
     profile,
     timeline,
 )
+from app.services.revenue_identity import person_revenue
 from app.services.tenancy import MANAGERS, AccessDenied
 
 router = APIRouter(tags=["Identity"])
@@ -360,6 +362,29 @@ def read_identity_timeline(
 ) -> JSONResponse:
     reader = _reader(session, principal, agency_id, client_id)
     body = timeline(session, reader, subject_id, _clock(session), after=after, limit=limit)
+    return _release(session, principal, agency_id, client_id, body)
+
+
+# Verified sales currently associated with a person: identity:read and finance:read both, with
+# consent, ownership and the published ledger rechecked before release (007-C, J4).
+@router.get(IDENTITY + "/subjects/{subject_id}/revenue")
+def read_identity_revenue(
+    agency_id: UUID, client_id: UUID, subject_id: UUID, session: SessionDep, principal: ReaderDep
+) -> JSONResponse:
+    resolve_scope(session, principal, agency_id, client_id, "identity:read")
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
+    if (
+        session.scalar(
+            select(IdentitySubject.id).where(
+                IdentitySubject.client_id == client_id, IdentitySubject.id == subject_id
+            )
+        )
+        is None
+    ):
+        raise AccessDenied()
+    group = person_group(session, client_id, subject_id)
+    body = person_revenue(session, agency_id, client_id, group, _clock(session))
+    resolve_scope(session, principal, agency_id, client_id, "finance:read")
     return _release(session, principal, agency_id, client_id, body)
 
 

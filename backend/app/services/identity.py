@@ -532,6 +532,24 @@ def remove_person(
             journey.touched.pop(other, None)
             journey._record([(other, "merge_closed")])
     journey.final(person_id, kind)
+    # F1 (007-C, J6): every association naming the person or one of its assertions.
+    from app.services.revenue_identity import unlink
+
+    unlink(
+        session,
+        client_id,
+        kind,
+        now,
+        owner_subject_id=person_id,
+        assertion_refs=list(
+            session.scalars(
+                select(IdentityAssertion.id).where(
+                    IdentityAssertion.client_id == client_id,
+                    IdentityAssertion.subject_id == person_id,
+                )
+            )
+        ),
+    )
     session.execute(
         update(IdentityLink)
         .where(IdentityLink.client_id == client_id, _member(person_id, IdentityLink.candidate_ids))
@@ -713,6 +731,17 @@ def drop_subject_evidence(
     keys = _keys_of_assertions(assertions)
     for person in people:
         journey.touch(person, "unlinked")
+    # F1 (007-C, J6): the subject's sale associations lose every identifying pointer first.
+    from app.services.revenue_identity import unlink
+
+    unlink(
+        session,
+        client_id,
+        kind,
+        now,
+        collection_subject_id=subject.id,
+        assertion_refs=[item.id for item in assertions],
+    )
     session.execute(delete(IdentityLink).where(IdentityLink.collection_subject_id == subject.id))
     session.execute(
         delete(IdentityAssertion).where(IdentityAssertion.collection_subject_id == subject.id)

@@ -37,6 +37,7 @@ from app.models import (
     LinkCampaign,
     LinkContentReference,
     ManagedLink,
+    RevenueIdentityBinding,
     StoredTombstone,
     SubjectDeletionRequest,
 )
@@ -515,6 +516,14 @@ class IdentityAdmin(TenancyService):
             session.execute(
                 CollectedEvent.__table__.delete().where(CollectedEvent.id.in_(confirmed_ids))
             )
+        associations = session.scalar(
+            select(func.count())
+            .select_from(RevenueIdentityBinding)
+            .where(
+                RevenueIdentityBinding.client_id == client_id,
+                RevenueIdentityBinding.owner_subject_id == person.id,
+            )
+        )
         journey = Journey(session, agency_id, client_id, now)
         remove_person(session, client_id, person.id, "erased", journey, now)
         remove_orphan_keys(session, client_id, presented)
@@ -533,6 +542,11 @@ class IdentityAdmin(TenancyService):
             "booking_links": (TargetStatus.DONE if detached else TargetStatus.NOT_APPLICABLE).value,
             "unresolved_events": (
                 TargetStatus.PENDING if unresolved else TargetStatus.NOT_APPLICABLE
+            ).value,
+            # F1: completion requires the person's sale associations to be unlinked (done in
+            # this transaction by remove_person); amounts and evidence are untouched.
+            "financial_associations": (
+                TargetStatus.DONE if associations else TargetStatus.NOT_APPLICABLE
             ).value,
         }
         request.target_outcomes = targets

@@ -89,6 +89,7 @@ from app.models.links import (
 )
 from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
 from app.models.revenue import RevenueEvidence, RevenueImport
+from app.models.revenue_identity import RevenueIdentityBinding
 from app.models.tenancy import (
     Agency,
     AgencyMembership,
@@ -179,4 +180,5 @@ __all__ = [
     "LedgerReceipt",
     "LedgerReconciliationAction",
     "LedgerTransaction",
+    "RevenueIdentityBinding",
 ]

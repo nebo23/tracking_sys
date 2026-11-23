@@ -50,6 +50,7 @@ from app.services.integrations import IntegrationError
 from app.services.ledger_store import LedgerConflict, LedgerUnavailable
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
+from app.services.revenue_identity import AssociationError
 from app.services.tenancy import AccessDenied, MembershipConflict
 from app.services.whatsapp import WhatsappError
 
@@ -207,6 +208,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Stale or conflicting ledger requests (007-B): a closed code, never a value.
     @application.exception_handler(LedgerConflict)
     async def ledger_conflict(request: Request, error: LedgerConflict) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # Association refusals (007-C) carry a closed code; never a person or a sale.
+    @application.exception_handler(AssociationError)
+    async def association_error(request: Request, error: AssociationError) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
     # Report refusals (specification 016-A) carry a closed code; never a rejected value.

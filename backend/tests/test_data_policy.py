@@ -34,8 +34,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     # (015-A), three more at 0021_payment_sources (015-B), one more at 0022_revenue_imports
     # (015-C), seven more at 0023_integration_bookings and 0024_crm_deals (015-D), two more
     # at 0025_whatsapp (015-E), eleven more at 0026_identity_journey (006, D-075), five more
-    # at 0027_ledger_persistence (007-B), plus alembic_version.
-    assert len(SCHEMA) == 80
+    # at 0027_ledger_persistence (007-B), one more at 0028_revenue_identity (007-C), plus
+    # alembic_version.
+    assert len(SCHEMA) == 81
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -173,6 +174,7 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("identity_merges", "row", "D-075"),
         ("identity_changes", "row", "D-075"),
         ("identity_erasure_holds", "row", "D-075"),
+        ("revenue_identity_bindings", "row", "D-075"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

@@ -2485,6 +2485,48 @@ TABLES: dict[str, TablePolicy] = {
             ),
         ),
     ),
+    "revenue_identity_bindings": TablePolicy(
+        {
+            **_same(
+                "tenancy.configuration",
+                "id",
+                "agency_id",
+                "client_id",
+                "credential_id",
+                "actor_membership_id",
+            ),
+            **_same(
+                "revenue.ledger",
+                "association_id",
+                "revision",
+                "source_account_id",
+                "sale_operation_id",
+                "state",
+                "reason",
+                "detach_reason",
+                "expected_revision",
+                "received_at",
+                "closed_at",
+            ),
+            **_same(
+                "identity.link",
+                "request_id",
+                "request_fingerprint",
+                "assertion_ref",
+                "collection_subject_id",
+                "owner_subject_id",
+                "key_ids",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-075",
+                "Identifying pointers and retry material are cleared (F1) on withdrawal, erasure "
+                "or expiry of the person; the non-identifying record follows the ledger.",
+            ),
+        ),
+    ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},
         (_row(RuleStatus.NOT_APPLICABLE, "001", "Schema revision marker; no personal data."),),

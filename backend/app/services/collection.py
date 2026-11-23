@@ -360,6 +360,12 @@ def record_consent(
             is not ConsentState.GRANTED
         ):
             detach_bookings(session, client_id, subject.id)
+            # 007-C (J6): an association also needs current attribution consent.
+            from app.services.revenue_identity import unlink
+
+            unlink(
+                session, client_id, "attribution_withdrawn", now, collection_subject_id=subject.id
+            )
         identity = choices.get(Purpose.IDENTITY_LINK)
         if identity is not None and identity is not ConsentState.GRANTED:
             # W1 (006 D7, D-075): a withdrawal or an explicit denial of identity_link removes

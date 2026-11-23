@@ -29,6 +29,7 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "revenue_identity_bindings",
     "ledger_reconciliation_actions",
     "ledger_transactions",
     "ledger_movements",
