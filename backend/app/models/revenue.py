@@ -77,6 +77,8 @@ class RevenueEvidence(Base):
             name="uq_revenue_evidence_delivery",
         ),
         UniqueConstraint("sequence", name="uq_revenue_evidence_sequence"),
+        # The scoped target of ledger receipts, movements and actions (007-B, 0027).
+        UniqueConstraint("agency_id", "client_id", "id", name="uq_revenue_evidence_scope"),
         Index("ix_revenue_evidence_receipt", "client_id", "received_at", "sequence"),
         CheckConstraint(f"kind IN ({_values(KINDS)})", name="valid_kind"),
         CheckConstraint(ALLOWED_CLASSES, name="valid_classification"),

@@ -26,6 +26,8 @@ from app.ledger.calculation import (
     Stream,
     Transaction,
     calculate,
+    current_calculation,
+    next_movements,
 )
 from app.ledger.money import (
     Conversion,
@@ -66,4 +68,6 @@ __all__ = [
     "Transaction",
     "calculate",
     "convert",
+    "current_calculation",
+    "next_movements",
 ]

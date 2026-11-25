@@ -52,12 +52,32 @@ from app.models.delivery import (
     ConversionDelivery,
     ConversionDestination,
 )
+from app.models.identity import (
+    IdentityAssertion,
+    IdentityAssertionReceipt,
+    IdentityChange,
+    IdentityErasureHold,
+    IdentityFeedState,
+    IdentityHandoff,
+    IdentityKey,
+    IdentityKeySecret,
+    IdentityLink,
+    IdentityMerge,
+    IdentitySubject,
+)
 from app.models.integrations import (
     Booking,
     BookingEvent,
     IntegrationDelivery,
     IntegrationSource,
     IntegrationSourceSecret,
+)
+from app.models.ledger import (
+    LedgerMovement,
+    LedgerProjectionState,
+    LedgerReceipt,
+    LedgerReconciliationAction,
+    LedgerTransaction,
 )
 from app.models.links import (
     LinkCampaign,
@@ -69,6 +89,7 @@ from app.models.links import (
 )
 from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
 from app.models.revenue import RevenueEvidence, RevenueImport
+from app.models.revenue_identity import RevenueIdentityBinding
 from app.models.tenancy import (
     Agency,
     AgencyMembership,
@@ -143,4 +164,21 @@ __all__ = [
     "IntegrationSourceSecret",
     "WhatsappMessage",
     "WhatsappNumber",
+    "IdentityAssertion",
+    "IdentityAssertionReceipt",
+    "IdentityChange",
+    "IdentityErasureHold",
+    "IdentityFeedState",
+    "IdentityHandoff",
+    "IdentityKey",
+    "IdentityKeySecret",
+    "IdentityLink",
+    "IdentityMerge",
+    "IdentitySubject",
+    "LedgerMovement",
+    "LedgerProjectionState",
+    "LedgerReceipt",
+    "LedgerReconciliationAction",
+    "LedgerTransaction",
+    "RevenueIdentityBinding",
 ]

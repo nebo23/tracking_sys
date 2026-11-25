@@ -240,6 +240,26 @@ class TenancyService:
             if allowed is not True:
                 raise AccessDenied()
 
+    # Authorize person-level identity reads (006 D8, D-075): managers for visible clients;
+    # Analyst and ClientViewer only with a live grant that sets can_view_identities.
+    def require_identity_access(self, agency_id: UUID, client_id: UUID) -> None:
+        member = self._membership(agency_id)
+        client = self.session.scalar(
+            self._client_query(member).where(ClientWorkspace.id == client_id)
+        )
+        if client is None:
+            raise AccessDenied()
+        if member.role not in MANAGERS:
+            allowed = self.session.scalar(
+                select(ClientGrant.can_view_identities).where(
+                    ClientGrant.agency_id == agency_id,
+                    ClientGrant.client_id == client_id,
+                    ClientGrant.membership_id == member.id,
+                )
+            )
+            if allowed is not True:
+                raise AccessDenied()
+
     # Rename or change the status of a client (including archived ones) under the manager write
     # lock; audited.
     def update_client(
@@ -349,6 +369,7 @@ class TenancyService:
         membership_id: UUID,
         *,
         can_view_financials: bool = False,
+        can_view_identities: bool | None = None,
     ) -> ClientGrant:
         actor = self._manager(agency_id, write=True)
         member = self._target_member(agency_id, membership_id)
@@ -365,6 +386,11 @@ class TenancyService:
             )
             self.session.add(grant)
         grant.can_view_financials = can_view_financials
+        # 006 D8: an older caller that omits the identity flag never clears it.
+        if can_view_identities is not None:
+            grant.can_view_identities = can_view_identities
+        elif action == "grant.created":
+            grant.can_view_identities = False
         self._audit(agency_id, action, "membership", membership_id, client_id)
         return grant
 

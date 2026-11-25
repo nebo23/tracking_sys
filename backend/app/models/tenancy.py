@@ -165,6 +165,8 @@ class ClientGrant(Base):
     client_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     membership_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     can_view_financials: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Person-level identity reads for Analyst and ClientViewer members (006 D8, D-075).
+    can_view_identities: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
 # Append-only record of successful sensitive tenant mutations: identifiers and action codes
@@ -205,7 +207,10 @@ class AuditEvent(Base):
             "'payment_source.updated', 'payment_source.secret_replaced', "
             "'revenue_import.committed', 'revenue.declared', 'integration.created', "
             "'integration.updated', 'integration.secret_replaced', 'crm_rule.created', "
-            "'crm_rule.updated', 'whatsapp_number.created', 'whatsapp_number.updated')",
+            "'crm_rule.updated', 'whatsapp_number.created', 'whatsapp_number.updated', "
+            "'identity.merged', 'identity.unmerged', 'identity.erased', "
+            "'identity.erasure_resolved', 'revenue.reconciliation_reviewed', "
+            "'revenue.association_detached')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -213,7 +218,8 @@ class AuditEvent(Base):
             "'source', 'form', 'deletion_request', 'campaign', 'content_reference', "
             "'utm_template', 'destination_origin', 'domain', 'link', 'connection', "
             "'destination', 'delivery', 'payment_source', 'revenue_import', "
-            "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number')",
+            "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
+            "'identity_subject', 'revenue_issue', 'revenue_association')",
             name="valid_resource",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),
