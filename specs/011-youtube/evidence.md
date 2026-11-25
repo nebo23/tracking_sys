@@ -525,3 +525,20 @@ The setup reproduced that of the [live check of 2026-11-18](#live-check-with-the
 
 - **Consequence for D5: none.** A disconnect's revocation ends every grant of the account in `connectapp` (G-1), as D5 assumes. It is the reason for the shared-revocation rule: a disconnect revokes only when no other active connection holds the account.
 - **Compared with 2026-11-18.** `video_totals` succeeded at the first run with the corrected two-report reads. The usage matches the capacity table: 1 + 3 + 2 Data units and 3 + 2 Analytics requests (90 days in 31-day windows).
+
+### Step 4: F12, the shared grant
+
+At the owner's request, Claude ran the tool's commands for this step while the owner gave the consents in the browser. Two fresh full consents were stored: `authorize --no-probe` (slot a, 12:42:58 UTC) and `authorize --slot b --no-probe` (12:43:08 UTC). Each granted both scopes and returned a refresh token with `refresh_token_expires_in` 604,799. `revoke-test --confirm` then ran from 12:43:21 to 12:43:32 UTC.
+
+| Record | Result |
+|---|---|
+| `b_before` | 200: the slot b refresh worked with both scopes, returned no new refresh token and reported `refresh_token_expires_in` 604,786 |
+| `revoke_a` | 200 |
+| `wait_seconds` | 10 |
+| `a_after` | 400 `invalid_grant`, with the description for an expired or revoked token |
+| `b_after` | 400 `invalid_grant`, with the same description |
+| Conclusion | `final`: slot b did not survive the revocation of slot a |
+
+- **Answer to F12.** Revoking one consent's refresh token ended the other consent of the same account for the same client within 10 seconds. The conclusion is final, so no `check-access --slot b` 30 minutes later was needed. The tool removed both tokens from `.env`.
+- **Comparison with step 3.5.** The same effect appeared in the other direction. There, the product's revocation had ended the tool's slot a consent when it was checked, about 3 minutes later. Both show that one revocation ends every consent of the account for the client at once (G-1).
+- **Consequence for D5 and D6: none.** The shared-revocation rule of D5 is needed, as assumed: a revocation for one connection would end every other connection of the same channel. Under D6, such a connection's next refresh gets `invalid_grant` and makes it `reconnect_required`.
