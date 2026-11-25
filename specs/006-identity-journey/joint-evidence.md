@@ -95,3 +95,77 @@ A structured self-review of the diff covered tenant scope, permissions, lock ord
 - The per-client privacy and revenue locks serialize identity and financial writes per client; sizing needs Q-004.
 - Retention values are development values (Q-012 stays open for real data).
 - Not in scope and not done: production 008 persistence, 016-B/C, React UI, live providers, native `tracking_sys` migration, deployment, CI (A2).
+
+## Review corrections (D-076, 2026-11-25)
+
+Claude's [independent review](../../reports/specs-006-007-joint-review-2026-11-25.md) of `8b03b1c` reproduced nineteen findings. D-076 authorized Claude to correct them on this branch, with the owner's choices for R0607-10 and R0607-11. All data is synthetic, and every database case ran on a disposable `postgres:18.6-bookworm` container (Compose project `tracking-fix-0607` on 127.0.0.1:55433) with the repository's restricted roles. Native `tracking_sys`, provider calls, new dependencies and migrations are untouched: no schema or grant changed.
+
+### Commits
+
+| Commit | Content |
+|---|---|
+| `fe9f934` | The review report and its regression patch. |
+| `45238c4` | D-076 recorded, and the review regressions added (failing at `8b03b1c`). |
+| `36b02b8` | Identity removal paths: R0607-01, 02, 03, 07, 08 and 19. |
+| `bb4cdeb` | Sale association rules: R0607-04, 05, 06, 10, 14 and 15. |
+| `9981ef9` | Ledger store paths: R0607-09, 11, 12, 13, 17 and 18. |
+| `cf9cb55` | Tracker: R0607-16. |
+
+### Corrections
+
+| Finding | Correction | Regression (`backend/tests/integration/test_review_006_007.py` unless stated) |
+|---|---|---|
+| R0607-01 P1 | `remove_person` removes the person from every candidate and original-owner list and turns an ambiguous segment left without candidates into a neutral one in the same statement; R5 over contested keys without candidates opens a neutral segment. Withdrawal and erasure no longer fail on `ck_identity_links_ambiguous_candidates`. | `test_review_r0607_01_withdrawal_of_the_last_ambiguous_candidate`, `test_review_r0607_01_erasure_of_the_last_ambiguous_candidate` |
+| R0607-02 P1 | A subject is marked shared when the union of its original owners grows beyond one (merge-dependent sets included) and when a reversal makes one of its segments ambiguous or gives it another owner. | `test_review_r0607_02_erasure_keeps_another_persons_reassigned_device`, `test_review_r0607_02_unmerge_marks_the_device_shared` |
+| R0607-03 P1 | The 395-day step unlinks (F1, reason `expired`) every association of the expiring assertions and segments before deleting them. | `test_review_r0607_03_expiry_of_an_associated_assertion` |
+| R0607-04 P2 | An ambiguous current association changes only by a review action; `GET /identity/review` lists `ambiguous_associations` with the revision detach needs. | `test_review_r0607_04_a_conflicting_owner_never_takes_over` |
+| R0607-05 P2 | An association needs an assertion received within the current attribution grant. | `test_review_r0607_05_no_restore_after_attribution_returns` |
+| R0607-06 P2 | Every refused proof answers the generic `201 accepted`; `revision_conflict` applies only against a live association. | `test_review_r0607_06_the_association_answer_hides_an_objection` |
+| R0607-07 P2 | `remove_orphan_keys` deletes owned keys too when no surviving assertion presents them, and the owners of keys presented by removed assertions are checked again (W1, token erasure, expiry and the 395-day step). | `test_review_r0607_07_withdrawn_keys_and_people_do_not_link_again`, `test_review_r0607_07_a_person_kept_only_by_a_withdrawn_device_is_removed` |
+| R0607-08 P2 | A paused objected erasure writes its objection tombstones at once; resolving a paused request whose person another path removed (a removal record in the change feed, kept 30 days) completes it. | `test_review_r0607_08_a_paused_objection_survives_withdrawal` |
+| R0607-09 P2 | Customer qualification is `ledger_unavailable` with the flag `customer_status_unavailable` while the ledger cannot be read; a stage-filtered list answers 503; lead items carry the qualification. | `test_review_r0607_09_customer_status_while_the_projection_is_behind`, `test_review_r0607_09_customer_status_during_a_concurrent_receipt` |
+| R0607-10 P2 | (D-076) A segment that ended normally keeps its owner; consent and ambiguity still decide. | `test_review_r0607_10_an_account_switch_keeps_the_first_buyer` |
+| R0607-11 P2 | (D-076) A CSV commit projects inline only while rows x (history + rows) stays within 40,000; otherwise `ledger_store.catch_up` applies the receipts after the response, outside the agency lock, in half-second batches, scheduled by the intake routes whenever the projection is behind. | `test_review_r0607_11_projection_work_never_holds_the_agency_lock`; measurement `test_review_r0607_11_a_200_row_commit_on_a_client_with_history` (opt-in) |
+| R0607-12 P3 | `published_state` reads the state and the latest stored sequence in one statement, and every later ledger read is bounded by the published cursors. | `test_review_r0607_12_a_receipt_committed_between_ledger_reads` |
+| R0607-13 P3 | `append_evidence` refuses a receipt time behind the client's last receipt on every path with the retryable `503 receipt_clock_behind`. | `test_review_r0607_13_a_clock_behind_the_log_is_retryable`, `test_review_r0607_13_an_out_of_order_row_is_never_served_without_a_receipt` |
+| R0607-14 P3 | Responses built with finance access recheck `finance:read` before release. | `test_review_r0607_14_finance_is_rechecked_before_release` |
+| R0607-15 P3 | A reversal or edge closure moves live associations with their recomputed segment owner, or makes them ambiguous with the segment. | `test_review_r0607_15_unmerge_keeps_the_sale_with_its_original_owner` |
+| R0607-16 P3 | `sendControl` stops before a retry once `restart()` ended its session. | `packages/tracker-js/test/unit/review-restart.test.js` (2 cases) |
+| R0607-17 P3 | Issue IDs are anchored on each item's first evidence record; a review takes its time from the revenue lock's clock. | `test_review_r0607_17_conflicting_deliveries_have_distinct_issues` |
+| R0607-18 P3 | The backfill refuses (`refused`, exit 1) an agency that does not own the client and changes nothing. | `test_review_r0607_18_a_backfill_with_the_wrong_agency_changes_nothing` |
+| R0607-19 P3 | The person leaves the original-owner lists, and assertion evidence no longer stores a person ID. | `test_review_r0607_19_an_erased_candidate_leaves_no_reference` |
+
+Behavior changes visible to API callers:
+- `POST /revenue/identity-associations` no longer answers `422 proof_invalid`; refused proofs get the generic acknowledgement. The two existing cases in `test_revenue_identity.py` that asserted the old answers now assert the generic answer and that nothing is linked or restored.
+- `customer_qualification` gains `ledger_unavailable`.
+- `GET /identity/review` gains `ambiguous_associations`.
+- Intake can answer `503 receipt_clock_behind`.
+- `app.ledger_backfill` can print `refused`.
+
+The OpenAPI snapshot is unchanged, because these routes return plain JSON bodies.
+
+### Verification
+
+Run from `backend/` with the project virtual environment through a runner that drops inherited `TRACKING_`, `PG` and `PYTHON` variables. Chromium ran the browser cases: Playwright 1.64.1 drove the pre-installed Chromium build through an `executablePath` preload, because browser downloads are blocked on the review host, and Firefox was not available there.
+
+| Check | Result |
+|---|---|
+| Review regressions at `8b03b1c` (application code of the reviewed head, final test files copied in) | **23 failed** as intended and 1 opt-in measurement skipped. Each failed on its own assertion: for example 409 `state_conflict` on the withdrawal, `not_customer` under a concurrent receipt, the agency lock `held` during projection, and 4 of 5 receipts served. Tracker: **2 failed**. |
+| The same regressions at the corrected head | **23 passed**, and the measurement passed with `TRACKING_REVIEW_MEASURE=1`: a 200-row CSV commit on a client with 1,000 rows took **0.5 s**, against 43.3 s at `8b03b1c`. Tracker: **2 passed**. |
+| `pytest -m "not integration"` (includes the OpenAPI snapshot) | **886 passed**, 604 deselected |
+| `pytest -m integration -k "not firefox"` with `TRACKING_RUN_BROWSER_TESTS=1`, 48 modules | **602 passed**, 1 skipped (the opt-in measurement), 0 failed, 922 s. The two Chromium browser journeys passed; the Firefox journey is deselected. |
+| Tracker unit (`node --test test/unit/*.test.js`) | **73 passed** |
+| Tracker browser, Chromium cases (`--test-skip-pattern=firefox`) | **25 passed** |
+| `ruff check app tests migrations`; `ruff format --check` | Clean; 266 files formatted |
+| `pip check`; `git diff --check` | Passed |
+| Relative links and anchors of the changed Markdown files | 235 resolved |
+
+### Remaining limits
+
+- **A3.** Catch-up and backfill still recompute the history per receipt. A catch-up that exceeds its 120-second budget, or fails, leaves the projection behind until the next intake or the operator backfill. Scheduled catch-up belongs to 020.
+- **Not reproduced.** The candidates the review did not reproduce stay open:
+  - a provisional prefix after the expiry of an owned link;
+  - `last_evidence_at` after a reassignment;
+  - the review's minor schema notes.
+- **Paused requests.** A paused request whose person was removed more than 30 days earlier cannot be matched to the removal any more (the change feed retention), and stays paused for an Owner/Admin decision.
+- **Firefox.** The review environment ran browser tests in Chromium only; the Firefox results remain those of P5.
