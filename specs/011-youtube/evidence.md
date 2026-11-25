@@ -463,3 +463,18 @@ Scope: D-062, under the [Phase 4 handoff](phase4-prompt.md), on `codex/spec-011-
 | Time | 2026-11-25 11:53 UTC, after 2026-11-24 23:57 UTC, when the slot a refresh token of 2026-11-17 23:57 UTC should have expired. Slot b, last stored at 2026-11-18 11:45 UTC, should have expired at about 11:45 UTC the same day. |
 | `python -m pytest -q tests/test_youtube_feasibility.py` (offline; from `backend/` with the project `.venv`, on Windows 11 with Python 3.12.4) | **25 passed** |
 | Owner confirmations | Since 2026-11-17, nothing has revoked a token, removed the app's access or run `authorize` on slot a. `connectapp` is still in Testing. The test channel's Google account is not the Gmail sender's. |
+
+### Step 1: F3, the 7-day refresh check
+
+At 12:04 UTC the owner ran `refresh` on slot a, then `refresh --slot b`. The token age counts from the start of the `authorize` command that stored the token, so it slightly exceeds the age since Google issued it.
+
+| Slot | Consent | Token age | Status | Error | Description |
+|---|---|---|---|---|---|
+| a | 2026-11-17 23:57 UTC | 180.1 hours | 400 | `invalid_grant` | Google's fixed text for an expired or revoked token |
+| b | 2026-11-18 11:45 UTC (the PKCE consent) | 168.3 hours | 400 | `invalid_grant` | The same |
+
+- **Answer to F3.** A refresh works within the token's lifetime (the refresh two minutes after the first consent succeeded). Once the 7-day lifetime that the code exchange reported in `refresh_token_expires_in` (604,799 seconds, about 168.0 hours) has passed, the refresh is refused with `invalid_grant`: slot b about 0.3 hours after that lifetime ended, slot a about 12 hours after.
+- **Expiry, not revocation.** Google's description does not tell an expiry from a revocation. The owner confirmed in step 0 that nothing revoked a token or removed access since 2026-11-17, so both refusals are expiries.
+- **Not measured.** The exact moment of expiry: no refresh was made between 2 minutes and 168.3 hours after a consent.
+- **Consequence for D4: none.** The grant keeps the reported `refresh_token_expires_in` as its expiry (`grant_expires_at`), and Google refuses the token once that time has passed. A connection made while `connectapp` is in Testing therefore needs a new consent within 7 days. The runtime already makes it `reconnect_required` (`credential_expired`) on `invalid_grant`, and the 14-day grace purge follows.
+- **Access rule.** With F3 recorded, the access rule of the [completion prompt](completion-prompt.md#access-rule-for-the-test-account) ends (D-060, D-062).
