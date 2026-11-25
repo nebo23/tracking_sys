@@ -1,6 +1,6 @@
 # Spec 018 entry review and design decision packet
 
-Prepared: 2026-11-25. Revision: 1. Status: design preparation authorized by D-074. Decisions D1-D14 below are proposals for the owner; none is approved. No React code, dependency, build tool or migration is authorized by this preparation.
+Prepared: 2026-11-25. Revision: 2, after the owner's design review of the same day. Status: design preparation authorized by D-074. D-075 decides D6 (the logo) and approves the sign-in screen and the search field; see section 5.1. The other decisions below are proposals for the owner and are not approved. No React code, dependency, build tool or migration is authorized by this preparation.
 
 ## 1. Baseline and intended result
 Start from merged `main` at `81977a38110458a75838baa47c73029a0495c2ae` (Spec 016-A, [PR 14](https://github.com/nebo23/tracking_sys/pull/14)). Preparation uses `codex/spec-018-react-workspace` in an isolated worktree. Existing owner files and other worktrees remain intact.
@@ -36,7 +36,7 @@ The specification lists 016 and 017 as dependencies. 016-A is enough for the fir
 5. A comparison exists only for final periods. Default date ranges should therefore end on the last final day, or most views would show no comparison.
 
 ## 4. The proposed design in brief
-- **Brand**: the letter C as an open ring and the dot that closes it ("closing the loop" between content and a sale). Latin logo, Arabic lockup, mark, application icon and favicon.
+- **Brand**: the capital C as a horseshoe magnet with two teal pole tips, and every other letter regular (content pulls customers in, and Connect tracks the pull to the sale). Latin logo, Arabic lockup, mark, application icon and favicon. Approved by D-075.
 - **Color**: one teal for actions, selection and the first chart series; cool neutrals; green, amber, red and blue reserved for states; a fixed eight-color chart order validated for color-vision deficiency.
 - **Type**: IBM Plex Sans, IBM Plex Sans Arabic and IBM Plex Mono.
 - **Layout**: sidebar, top bar and a content column; a bottom tab bar on phones; agency level and client level.
@@ -53,7 +53,7 @@ Details, token values and audit results are in the [design language](../../docs/
 | D3 | Numerals, calendar and currency display | Western digits and the Gregorian calendar in both languages; `EGP 128,450.75` in English and `128,450.75 ج.م` in Arabic. | Arabic-Indic digits in Arabic, as a user setting. |
 | D4 | Chart direction in Arabic | Time runs from left to right; the card around the chart mirrors. Confirm with Arabic-speaking users. | Mirror the time axis, as Apple's guidance describes. |
 | D5 | Brand color | Teal (`brand-600` `#007a79` for actions, `brand-950` `#02282c` as ink). | A cobalt or violet brand. The tokens make the switch a change of one ramp, but the category is crowded there. |
-| D6 | Logo | The closed-loop mark with the custom Latin wordmark and the Arabic lockup. | Commission an identity designer, using these files as the brief. |
+| D6 | Logo | Decided by D-075: "Pure magnet", option 2 of the [logo brief](../../docs/design/brand/logo-brief.md), with the custom Latin wordmark and the Arabic lockup. The first proposal, a ring closed by a dot, was not accepted. | None; decided. |
 | D7 | Typeface | IBM Plex Sans, IBM Plex Sans Arabic and IBM Plex Mono, self-hosted. | Readex Pro (friendlier, wider) or Noto Sans Arabic with Inter (most neutral). |
 | D8 | Themes | Light and dark, following the system setting with an explicit choice in the account menu. | Light only at launch. |
 | D9 | Data-state language | Adopt the state table of the design language as a product rule for every screen and export. | None recommended. |
@@ -65,6 +65,18 @@ Details, token values and audit results are in the [design language](../../docs/
 
 D13 names dependency families only. Under D-011 each package needs an exact reviewed version, a manifest and a lockfile inside `frontend/`, and under the working agreement a major dependency needs a recorded decision.
 
+### 5.1 Decided in the owner's review of 2026-11-25 (D-075)
+| Item | Decision |
+|---|---|
+| Logo (D6) | "Pure magnet": the capital C is a horseshoe magnet with two teal pole tips. Chosen from six options after research; see the [logo brief](../../docs/design/brand/logo-brief.md). |
+| Sign-in screen | Approved as designed in [`sign-in.html`](../../docs/design/preview/screens/sign-in.html): a brand side with a magnet that pulls people in and turns them into sales, as a looping picture; the language switch in the top corner; "Forgot password?" under the password field in a quieter color; a box the user ticks to agree to the Terms of Service and the Privacy Policy. |
+| Search | Search fields are pills, in the top bar and above lists. |
+
+Two consequences of the sign-in decision need work before the screen is built:
+
+- **Agreement to the terms.** The API has no field or record for it, and the Terms of Service and the Privacy Policy do not exist. Recording who agreed, when and to which version is backend and schema work that needs its own decision. The design keeps both sign-in actions enabled and refuses a sign-in without the tick with a message at the box, because a disabled action does not say what is missing. A lighter alternative the owner may prefer later: ask once at registration and again only when the terms change.
+- **A picture that loops.** A loop beside a form must be stoppable (WCAG 2.2, criterion 2.2.2). The design stops it under the system's reduced-motion setting and adds a pause control on the brand side.
+
 ## 6. What this preparation does not decide
 - Currencies and the exchange-rate source of Q-006 (they belong to 007).
 - Subscription, trial and usage screens (017).
@@ -74,7 +86,8 @@ D13 names dependency families only. Under D-011 each package needs an exact revi
 ## 7. Risks and checks before implementation
 | Risk | Check |
 |---|---|
-| The name is generic | Trademark and domain search (owner). |
+| The name is generic | Trademark and domain search (owner). Stripe Connect is an established product name in payments. |
+| The sign-in screen asks for agreement that nothing records | Decide the acceptance record and supply the legal texts before 018-A builds the screen. |
 | Provider brand rules | Re-read Google sign-in, YouTube API and Meta brand guidelines when the screens are built. |
 | Arabic copy written by a model | Review by a native editor; a short usability check with Arabic-speaking users, including D3 and D4. |
 | Only Chromium was used for rendering | Add Firefox and WebKit to the browser checks in 018-A. |

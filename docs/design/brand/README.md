@@ -1,9 +1,9 @@
 # Connect brand assets
 
-Status: design proposal for specification 018, prepared 2026-11-25. The name, the mark and the colors are not approved until the owner records the decisions listed in the [018 entry review](../../../specs/018-react-workspace/entry-review.md).
+Status: the owner approved this logo on 2026-11-25 (D-075), chosen from six options; the [logo brief](logo-brief.md) records the research, the options and the choice. The product name and the brand color remain proposals until the owner records decisions D1 and D5 of the [018 entry review](../../../specs/018-react-workspace/entry-review.md).
 
 ## The idea
-The mark is the letter C drawn as an open ring, and the dot that closes it. Marketing teams call measured attribution "closing the loop": the ring is the path from a piece of content to a sale, and the dot is the moment the two are connected. The same dot marks the current place in the navigation and the latest point of a trend line.
+The capital C is a horseshoe magnet. Good content attracts: a post pulls people in, and some of them become customers. Connect shows which content does the pulling and follows it to the sale. The two teal tips are the poles of the magnet and the only color in the logo. Every other letter is regular, so the name is read at once and the idea is found a moment later.
 
 ## Files
 All files are SVG with outlined paths. They use no fonts, strokes, gradients or effects.
@@ -19,28 +19,29 @@ All files are SVG with outlined paths. They use no fonts, strokes, gradients or 
 | `favicon.svg` | Browser tab icon. |
 
 ## Construction
-- Mark: outer diameter 160 units; ring thickness 32 (one fifth of the diameter); aperture 68 degrees, centered on three o'clock; dot diameter 36, centered on the ring's centerline. The dot overhangs the ring by 2 units, so the artboard is 168 units square.
-- Latin wordmark: the mark stands for the capital C at cap height. The letters "onnect" are drawn from circles and straight stems of one thickness (19 units on an x-height of 100), with flat terminals.
-- Arabic lockup: the name is set in Alexandria SemiBold and converted to outlines. The mark sits on the right, because Arabic is read from the right.
+- Mark: 126 by 140 units. A half ring with an outer radius of 70 continues into two straight arms. The bar is 28 units thick, one fifth of the height. The arms end 126 units from the left edge, and the last 30 units of each arm are the pole tips.
+- In the color versions the tips sit flush on the arms and differ by color only. In the one-ink versions a slit of 4 units separates each tip from its arm, so the magnet is still read without color.
+- Latin logo: the mark is the capital C, at a cap height of 140 on an x-height of 100. The letters "onnect" are drawn from circles and straight stems of one thickness (21 units), with flat terminals. The e is complete: its bowl closes on the lower edge of its bar and opens with a single cut.
+- Arabic lockup: the name is set in Alexandria SemiBold and converted to outlines. The mark sits on the right at a height of 160 units, because Arabic is read from the right. It keeps its direction.
 
 ## Colors
 | Role | Value | Token |
 |---|---|---|
-| Ink (ring and letters) | `#02282c` | `brand-950` |
-| Dot | `#15a6a0` | `brand-500` |
+| Ink (magnet and letters) | `#02282c` | `brand-950` |
+| Pole tips | `#15a6a0` | `brand-500` |
 | Reversed ink | `#f5f8f9` | `neutral-50` |
-| Reversed dot | `#4ec7be` | `brand-400` |
-| Icon tile | `#007a79` with a white ring and a `#b9ebe7` dot | `brand-600`, `brand-200` |
+| Reversed tips | `#4ec7be` | `brand-400` |
+| Icon tile | `#007a79` with a white magnet and `#b9ebe7` tips | `brand-600`, `brand-200` |
 
 ## Rules
-- Keep clear space of one ring thickness (one fifth of the mark's height) on every side.
+- Keep clear space of one bar thickness (one fifth of the mark's height) on every side.
 - Smallest sizes: mark 16 pixels; Latin logo 20 pixels high; Arabic lockup 24 pixels high.
 - Use the color versions on white, `neutral-50`, `brand-50` and the dark surfaces. On any other color or on a photograph, use a one-ink version.
 - Never mirror the logo in a right-to-left layout. Never rotate it, recolor it, outline it, add a shadow, or set the name in another typeface beside the mark.
-- The dot is never used alone as the logo.
+- Nothing is drawn in the mouth of the mark, and the tips are never used alone as the logo. An illustration may show a magnet that attracts things, as the sign-in screen does; the logo does not.
 
 ## Open points
-- "Connect" is a common word and many products use it. No trademark or domain search has been made. Run one before any public launch.
+- "Connect" is a common word and many products use it, among them Stripe Connect in payments. No trademark or domain search has been made. Run one before any public launch.
 - The Arabic form "كونكت" is a transliteration. Whether the Arabic interface shows the Arabic lockup or keeps the Latin logo is an owner decision.
 
 ## Licenses

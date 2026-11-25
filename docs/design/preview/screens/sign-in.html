@@ -13,11 +13,6 @@
 <script src="../theme.js"></script>
 <style>
   html, body { block-size: 100%; }
-  .a-art { display: block; inline-size: 100%; max-inline-size: 440px; block-size: auto; }
-  .a-statement { font-size: 32px; line-height: 40px; font-weight: 600; max-inline-size: 16ch; text-wrap: balance; }
-  .a-points { display: flex; flex-direction: column; gap: 12px; color: #b9ebe7; font-size: 15px; line-height: 22px; }
-  .a-points li { display: flex; gap: 10px; align-items: flex-start; }
-  .a-points .c-icon { margin-block-start: 3px; color: #4ec7be; }
 </style>
 </head>
 <body class="c-root">
@@ -26,27 +21,45 @@
   <section class="l-auth__brand" aria-label="About Connect">
     <img src="../../brand/connect-logo-reversed.svg" alt="Connect" height="32" style="align-self: flex-start">
     <div class="l-stack l-stack--loose">
-      <svg class="a-art" viewBox="0 0 440 220" role="img" aria-label="A line runs from a post, through a visit and a lead, to a sale, where a dot closes the loop.">
-        <path d="M30 170 C 110 170, 110 70, 190 70 S 270 150, 330 150" fill="none" stroke="#15a6a0" stroke-width="2"></path>
-        <path d="M330 150 A 50 50 0 1 1 396.6 95.5" fill="none" stroke="#f5f8f9" stroke-width="16"></path>
-        <circle cx="400" cy="124" r="10" fill="#4ec7be"></circle>
-        <circle cx="30" cy="170" r="7" fill="#02282c" stroke="#89dcd5" stroke-width="2"></circle>
-        <circle cx="190" cy="70" r="7" fill="#02282c" stroke="#89dcd5" stroke-width="2"></circle>
-        <circle cx="268" cy="126" r="7" fill="#02282c" stroke="#89dcd5" stroke-width="2"></circle>
-        <text x="30" y="200" text-anchor="middle" fill="#89dcd5" font-size="13" font-family="IBM Plex Sans, sans-serif">Post</text>
-        <text x="190" y="50" text-anchor="middle" fill="#89dcd5" font-size="13" font-family="IBM Plex Sans, sans-serif">Visit</text>
-        <text x="258" y="160" text-anchor="middle" fill="#89dcd5" font-size="13" font-family="IBM Plex Sans, sans-serif">Lead</text>
-        <text x="350" y="208" text-anchor="middle" fill="#f5f8f9" font-size="13" font-weight="600" font-family="IBM Plex Sans, sans-serif">Sale</text>
+      <svg class="l-auth__art c-pull" viewBox="0 20 440 200" role="img" aria-label="A magnet pulls people toward it. On the way they turn into sales.">
+        <g class="c-pull__tracks" fill="none" stroke="#4ec7be" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 9">
+          <path d="M430 44C330 44 250 96 160 112"></path>
+          <path d="M430 120H156"></path>
+          <path d="M430 196C330 196 250 144 160 128"></path>
+        </g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g transform="translate(10 48) scale(0.9)">
+          <path d="M116 0H80A80 80 0 0 0 80 160H116V130H80A50 50 0 0 1 80 30H116Z" fill="#f5f8f9"></path>
+          <path d="M116 0h30v30h-30ZM116 130h30v30h-30Z" fill="#4ec7be"></path>
+          <g class="c-pull__held">
+            <circle cx="116" cy="80" r="36" fill="#4ec7be"></circle>
+            <g transform="translate(98 62) scale(1.5)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g>
+          </g>
+        </g>
       </svg>
-      <p class="a-statement">See what your content earned.</p>
-      <ul class="a-points">
-        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>Content results and verified revenue in one place, for every client.</li>
-        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>Every figure shows its source and how fresh it is.</li>
-        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>Read-only connections. Connect never posts or charges.</li>
+      <p class="l-auth__statement">Turn your content into a sales magnet.</p>
+      <ul class="l-auth__points">
+        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>See which posts pull in visits, leads and paid sales.</li>
+        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>Put your time and budget where the sales come from.</li>
       </ul>
     </div>
-    <p style="color: #89dcd5; font-size: 13px">Sample data shown in this design.</p>
+    <div class="l-spread">
+      <p class="l-auth__note">Read-only connections. Connect never posts or charges.</p>
+      <label class="l-auth__motion"><input type="checkbox" id="signin-motion"><span class="c-icon c-icon--sm c-icon--circle-pause" aria-hidden="true"></span><span class="c-icon c-icon--sm c-icon--play" aria-hidden="true"></span><span class="u-sr">Pause animation</span></label>
+    </div>
   </section>
+
+  <div class="l-auth__lang">
+    <div class="c-seg" role="group" aria-label="Language"><button class="c-seg__item is-active" type="button">English</button><button class="c-seg__item" type="button" lang="ar">العربية</button></div>
+  </div>
 
   <main class="l-auth__form">
     <div class="l-stack l-stack--tight">
@@ -62,18 +75,15 @@
       <div class="c-divider">or</div>
       <label class="c-field"><span class="c-field__label">Email</span><input class="c-input c-input--lg" type="email" autocomplete="username" value="mona@lumenstudio.example" id="signin-email"></label>
       <div class="c-field">
-        <div class="l-spread"><label class="c-field__label" for="signin-password">Password</label><a href="sign-in.html">Forgot password?</a></div>
+        <label class="c-field__label" for="signin-password">Password</label>
         <span class="c-input-wrap"><input class="c-input c-input--lg" type="password" autocomplete="current-password" value="correct horse" id="signin-password" style="padding-inline-start: 12px; padding-inline-end: 44px"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Show password" style="position: absolute; inset-block-start: 6px; inset-inline-end: 6px"><span class="c-icon c-icon--sm c-icon--eye" aria-hidden="true"></span></button></span>
+        <a class="c-field__link" href="sign-in.html">Forgot password?</a>
       </div>
+      <label class="c-choice c-choice--multiline"><input class="c-check" type="checkbox" id="signin-terms"><span>I agree to the <a href="sign-in.html">Terms of Service</a> and the <a href="sign-in.html">Privacy Policy</a>.</span></label>
       <button class="c-btn c-btn--primary c-btn--lg c-btn--block" type="button">Sign in</button>
     </form>
 
     <p class="u-secondary">New to Connect? <a href="sign-in.html">Create an agency account</a></p>
-
-    <div class="l-spread u-tertiary" style="font-size: 13px">
-      <div class="c-seg" role="group" aria-label="Language"><button class="c-seg__item is-active" type="button">English</button><button class="c-seg__item" type="button" lang="ar">العربية</button></div>
-      <span><a href="sign-in.html">Privacy</a> and <a href="sign-in.html">terms</a></span>
-    </div>
   </main>
 </div>
 </body>

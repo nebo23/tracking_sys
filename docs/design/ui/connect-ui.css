@@ -574,6 +574,22 @@
   line-height: calc(var(--type-caption-line) + var(--script-leading-bump));
   color: var(--status-danger-fg);
 }
+/* A help link under a control, such as "Forgot password?". */
+/* Quieter than a text link: it helps, it does not compete with the action below it. */
+.c-field__link {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 24px;
+  color: var(--text-secondary);
+  font-size: calc(var(--type-label-size) + var(--script-size-bump));
+  font-weight: 500;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.c-field__link:hover {
+  color: var(--text-primary);
+}
 .c-input,
 .c-select,
 .c-textarea {
@@ -656,6 +672,82 @@
   inset-block-start: 50%;
   inset-inline-end: 8px;
   transform: translateY(-50%);
+}
+/* Search is a pill, so it is never mistaken for a button or for a field of a form.
+   As a label it wraps an input; as a button it opens the command palette. */
+.c-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 320px;
+  min-block-size: var(--control-md);
+  padding-block: 0;
+  padding-inline: 14px var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+  font-size: calc(var(--type-label-size) + var(--script-size-bump));
+  line-height: 1;
+  text-align: start;
+  cursor: text;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+.c-search:hover {
+  border-color: var(--border-strong);
+}
+.c-search:focus-within {
+  border-color: var(--border-focus);
+  background: var(--surface-raised);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.c-search > .c-icon,
+.c-search > .c-kbd {
+  flex: none;
+}
+.c-search__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  block-size: calc(var(--control-md) - 2px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  appearance: none;
+}
+.c-search__input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+.c-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.c-search__input:focus-visible {
+  outline: none;
+}
+.c-search__label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+button.c-search {
+  font-family: inherit;
+  cursor: pointer;
+}
+/* In the top bar the search keeps one line with the actions beside it and gives way first. */
+.l-topbar > .l-cluster {
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
+.l-topbar .c-search {
+  flex: 0 1 auto;
+  inline-size: 280px;
+  min-inline-size: 132px;
 }
 /* The pointer target is 24 by 24 pixels; the drawn box inside it is 18. */
 .c-check,
@@ -741,6 +833,13 @@
   gap: var(--space-3);
   min-block-size: 24px;
   cursor: pointer;
+}
+/* A label that may wrap keeps its box beside the first line. */
+.c-choice--multiline {
+  align-items: flex-start;
+}
+.c-choice--multiline > span {
+  padding-block: 1px;
 }
 /* One-time codes are always typed left to right. */
 .c-otp {
@@ -1641,10 +1740,17 @@
 
 /* -------------------------------------------------------------- Sign in -- */
 .l-auth {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   min-block-size: 100%;
   background: var(--surface-raised);
+}
+/* The language switch sits in the top corner at the end of the reading direction. */
+.l-auth__lang {
+  position: absolute;
+  inset-block-start: var(--space-7);
+  inset-inline-end: var(--space-8);
 }
 .l-auth__brand {
   display: flex;
@@ -1654,6 +1760,230 @@
   padding: var(--space-11);
   background: var(--brand-950);
   color: var(--neutral-50);
+}
+.l-auth__art {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 520px;
+  block-size: auto;
+}
+.l-auth__statement {
+  max-inline-size: 16ch;
+  font-size: calc(32px + var(--script-size-bump));
+  line-height: calc(40px + var(--script-leading-bump));
+  font-weight: 600;
+  text-wrap: balance;
+}
+.l-auth__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  color: var(--brand-200);
+  font-size: calc(15px + var(--script-size-bump));
+  line-height: calc(22px + var(--script-leading-bump));
+}
+.l-auth__points > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.l-auth__points .c-icon {
+  margin-block-start: 3px;
+  color: var(--brand-400);
+}
+.l-auth__note {
+  color: var(--brand-300);
+  font-size: calc(var(--type-label-size) + var(--script-size-bump));
+}
+/* Pauses the picture. A loop that runs beside a form needs a way to stop it. */
+.l-auth__motion {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-full);
+  color: var(--brand-300);
+  cursor: pointer;
+}
+.l-auth__motion:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--neutral-50);
+}
+.l-auth__motion:focus-within {
+  outline: 2px solid var(--brand-300);
+  outline-offset: 2px;
+}
+/* The checkbox covers the whole control, so the pointer target is the control itself. */
+.l-auth__motion input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.l-auth__motion input:checked ~ .c-icon--circle-pause,
+.l-auth__motion input:not(:checked) ~ .c-icon--play {
+  display: none;
+}
+.l-auth__brand:has(.l-auth__motion input:checked) .c-pull * {
+  animation-play-state: paused;
+}
+
+/* The picture: a magnet pulls people in, and on the way they turn into sales.
+   Each traveller is drawn at the origin and placed along one of three tracks.
+   Without motion the travellers rest at three places per track. */
+.c-pull {
+  overflow: visible;
+}
+.c-pull__mover {
+  --at: 12%;
+  --track: 0s;
+  --order: 0s;
+  offset-rotate: 0deg;
+  offset-distance: var(--at);
+}
+.c-pull__mover--top {
+  offset-path: path("M430 44C330 44 250 96 160 112");
+}
+.c-pull__mover--mid {
+  --track: -0.8s;
+  offset-path: path("M430 120H156");
+}
+.c-pull__mover--low {
+  --track: -1.6s;
+  offset-path: path("M430 196C330 196 250 144 160 128");
+}
+.c-pull__mover--2 {
+  --at: 45%;
+  --order: -2.4s;
+}
+.c-pull__mover--3 {
+  --at: 76%;
+  --order: -4.8s;
+}
+/* The tracks meet at the magnet, so the middle one rests at other places. */
+.c-pull__mover--mid.c-pull__mover--1 {
+  --at: 18%;
+}
+.c-pull__mover--mid.c-pull__mover--2 {
+  --at: 42%;
+}
+.c-pull__mover--mid.c-pull__mover--3 {
+  --at: 62%;
+}
+.c-pull__mover--1 .c-pull__body {
+  scale: 0.8;
+}
+.c-pull__coin,
+.c-pull__mover--3 .c-pull__person {
+  opacity: 0;
+}
+.c-pull__mover--3 .c-pull__coin {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .c-pull__mover,
+  .c-pull__body,
+  .c-pull__person,
+  .c-pull__coin {
+    animation-duration: 7.2s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-delay: calc(var(--track) + var(--order));
+  }
+  /* A pulled object speeds up as it comes near. */
+  .c-pull__mover {
+    animation-name: c-pull-travel;
+    animation-timing-function: cubic-bezier(0.42, 0, 0.9, 0.62);
+  }
+  .c-pull__body {
+    animation-name: c-pull-grow;
+  }
+  .c-pull__person {
+    animation-name: c-pull-person;
+  }
+  .c-pull__coin {
+    animation-name: c-pull-coin;
+  }
+  .c-pull__tracks {
+    animation: c-pull-march 1.1s linear infinite;
+  }
+  .c-pull__held {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: c-pull-throb 2.4s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .l-auth__motion {
+    display: none;
+  }
+}
+@keyframes c-pull-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  6%,
+  93% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+@keyframes c-pull-grow {
+  0% {
+    scale: 0.75;
+  }
+  75% {
+    scale: 1.1;
+  }
+  100% {
+    scale: 0.75;
+  }
+}
+@keyframes c-pull-person {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  70%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes c-pull-coin {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  70%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes c-pull-march {
+  from {
+    stroke-dashoffset: 9.1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes c-pull-throb {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 .l-auth__form {
   display: flex;

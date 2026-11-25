@@ -1,6 +1,6 @@
 # Connect design language
 
-Status: design proposal for specification 018, prepared 2026-11-25 under D-074. Nothing here is approved until the owner decides the items in the [018 entry review](../../specs/018-react-workspace/entry-review.md). No React code, dependency or build tool is added by this folder.
+Status: design proposal for specification 018, prepared 2026-11-25 under D-074 and revised the same day after the owner's review. D-075 approves the logo, the sign-in screen and the pill-shaped search field. Everything else is a proposal until the owner decides the items in the [018 entry review](../../specs/018-react-workspace/entry-review.md). No React code, dependency or build tool is added by this folder.
 
 Connect is the working product name the owner uses for this project. The design covers the multi-agency product with both launch capabilities: content performance and financial tracking.
 
@@ -27,7 +27,7 @@ node docs/design/tokens/build-tokens.mjs --check
 5. **Summary before detail.** Key figures, then one chart, then the table. One date range above everything it scopes.
 
 ## Brand
-The mark is the letter C as an open ring and the dot that closes it: measured attribution "closes the loop" between content and a sale. The dot recurs as the marker of the active navigation item and of the latest point on a trend line. See [brand/README.md](brand/README.md).
+The capital C of the name is a horseshoe magnet with two teal pole tips, and every other letter is regular: content pulls customers in, and Connect tracks the pull to the sale. The owner chose this logo from six options (D-075). See [brand/README.md](brand/README.md) and the [logo brief](brand/logo-brief.md). The teal of the tips is the one accent of the interface: it marks the active navigation item, the primary action and the first chart series.
 
 ## Color
 Authored in OKLCH and compiled to sRGB. Three layers:
@@ -96,7 +96,7 @@ Further rules:
 ## Charts
 - Form before color: a line for a trend, thin bars for magnitude, a tile for a single figure. No dual axes, pies or gauges.
 - Marks: lines 2 pixels, area wash at 10 percent, bars at most 24 pixels wide with a 4-pixel rounded data end, solid hairline gridlines.
-- A legend is present for two or more series; text never takes the series color. The latest point carries the closing dot.
+- A legend is present for two or more series; text never takes the series color. The latest point carries a dot.
 - Every chart has a table view and a text alternative. The hover layer adds a crosshair and one tooltip for all series; nothing is readable by hover only.
 - Provisional days are shaded and labeled inside the plot.
 - In Arabic, time still runs from left to right and the surrounding card mirrors. Published guidance on this point disagrees, so it is an owner decision (D4 in the entry review).
@@ -113,14 +113,23 @@ Target: WCAG 2.2 level AA.
 
 - Visible focus on every interactive element: a 2-pixel `border-focus` ring with a 2-pixel offset.
 - State is carried by an icon and a word, never by color alone.
-- Motion is limited to 120 to 240 milliseconds and stops under `prefers-reduced-motion`.
+- Motion is limited to 120 to 240 milliseconds and stops under `prefers-reduced-motion`. The one exception is the picture on the sign-in screen, which loops: it rests as a still picture under reduced motion and has a pause control beside it (WCAG 2.2, criterion 2.2.2).
 - The reference pages use real buttons, links, inputs and labels, table headers with scope, and labels on icon-only buttons.
 
 ## Components
 The reference styles cover: buttons, form fields, select, checkbox, radio, switch, one-time code, search field, tabs, segmented control, filter chips, badges, status dots, source chips, avatars, cards, figure tiles, change indicators, definition lists, meters, segmented bars, coverage bars, tables, chart frame and legend, tooltip, banners, empty state, skeleton, toast, dialog, drawer, menu, timeline, sidebar navigation, client switcher, top bar, bottom tab bar and the sign-in layout. Class names use `l-` for layout, `c-` for components, `u-` for utilities and `is-` for states.
 
+Search is always a pill (`c-search`), in the top bar and above a list, so it is never mistaken for a button or for a field of a form. In the top bar it is a button that opens the command palette; above a list it holds an input.
+
 ## Screens
 See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Connections, Links, Team and access, and an Attribution concept. Each screen lists the specification that backs it. The Attribution screen is a concept only: its reports wait for specifications 006, persisted 008 and 016-B.
+
+The sign-in screen, as the owner approved it (D-075):
+
+- The brand side shows a magnet that pulls people in; on the way they turn into sales. The picture is built from the `c-pull` classes and moves in a loop of 7.2 seconds.
+- The language switch sits in the top corner at the end of the reading direction.
+- "Forgot password?" sits under the password field, in the secondary text color, so it does not compete with the links and the action below it.
+- A box that starts unticked asks the user to agree to the Terms of Service and the Privacy Policy. Both sign-in actions stay enabled; a sign-in without the tick is refused with a message at the box. The API records no acceptance of terms today and the two texts do not exist yet, so this needs backend work and the owner's legal texts before it is built.
 
 ## Verification performed on 2026-11-25
 | Check | Result |
