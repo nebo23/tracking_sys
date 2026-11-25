@@ -1,5 +1,5 @@
 # 018-react-workspace — React workspace and user experience
-Status: design decisions approved (D-075, D-076); implementation is not approved until the owner approves the package list of the [018-A plan](plan-018a.md). Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-074 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md). Owner design review D-075 (2026-11-25): the logo, the sign-in screen and the search field are approved. D-076 (2026-11-26): the remaining design decisions are approved as recommended.
+Status: design decisions approved (D-075, D-076); slice 018-A is approved for implementation under the [018-A plan](plan-018a.md) (D-077). Later slices are not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-074 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md). Owner design review D-075 (2026-11-25): the logo, the sign-in screen and the search field are approved. D-076 (2026-11-26): the remaining design decisions are approved as recommended.
 
 ## Sources
 USER React; PDF-013,029,030,065,068,069,098,101,103. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
