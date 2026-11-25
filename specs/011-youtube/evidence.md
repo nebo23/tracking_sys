@@ -542,3 +542,11 @@ At the owner's request, Claude ran the tool's commands for this step while the o
 - **Answer to F12.** Revoking one consent's refresh token ended the other consent of the same account for the same client within 10 seconds. The conclusion is final, so no `check-access --slot b` 30 minutes later was needed. The tool removed both tokens from `.env`.
 - **Comparison with step 3.5.** The same effect appeared in the other direction. There, the product's revocation had ended the tool's slot a consent when it was checked, about 3 minutes later. Both show that one revocation ends every consent of the account for the client at once (G-1).
 - **Consequence for D5 and D6: none.** The shared-revocation rule of D5 is needed, as assumed: a revocation for one connection would end every other connection of the same channel. Under D6, such a connection's next refresh gets `invalid_grant` and makes it `reconnect_required`.
+
+### Step 5: F13, access removal in the Google Account
+
+- **Consent.** Claude ran `authorize --no-probe` (slot a) while the owner consented, at 12:44:37 UTC. It returned both scopes and a refresh token.
+- **Removal.** The owner then removed the app's access in the test channel's Google Account (myaccount.google.com/connections).
+- **Check.** `check-access` at 12:47:47 UTC, 0.1 hours after the consent: 400 `invalid_grant`, with the description for an expired or revoked token. The refusal was immediate, so no second check 30 minutes later was needed.
+- **Answer to F13.** After access is removed in the Google Account, the next refresh is refused with `invalid_grant`. It is the same answer as for an expiry (F3) or a revocation (F12): the product cannot tell these cases apart, and it does not need to.
+- **Consequence for D6: none.** A connection whose access was removed gets `invalid_grant` at its next refresh: before its next run, or at the latest at the 7-day authorization check. It then becomes `reconnect_required` (`credential_expired`), and the grace purge removes its data 14 days later. That is within the 30 calendar days that the YouTube API Services Developer Policies (P-1) allow after a revocation in the Google security settings.
