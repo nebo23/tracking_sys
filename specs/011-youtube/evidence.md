@@ -451,3 +451,15 @@ Notes, none of which blocks the merge:
 - **Checks before syncs.** The scheduling step makes its token calls before the pass's sync runs: at most 100, each bounded by the adapter's 20-second timeout. Production scheduling (020) should account for it.
 
 The owner then decided to merge PR 11 before Phase 4 (D-062). The F8 next-day probe and Phase 4 are follow-ups after the merge, recorded on a fresh branch from the merged `main`. The access rule stays in force until F3 is recorded.
+
+## Phase 4 (2026-11-25)
+
+Scope: D-062, under the [Phase 4 handoff](phase4-prompt.md), on `codex/spec-011-youtube-phase4`, created from the merged `main` at `81977a3` in a fresh worktree. Only redacted facts are recorded: outcomes, counts, states, day offsets and error codes, with no token, code, channel or video ID, title or metric value. Nothing ran against native `tracking_sys`, and no call was made to Meta, Instagram or any provider other than Google.
+
+### Step 0: preconditions
+
+| Check | Result |
+|---|---|
+| Time | 2026-11-25 11:53 UTC, after 2026-11-24 23:57 UTC, when the slot a refresh token of 2026-11-17 23:57 UTC should have expired. Slot b, last stored at 2026-11-18 11:45 UTC, should have expired at about 11:45 UTC the same day. |
+| `python -m pytest -q tests/test_youtube_feasibility.py` (offline; from `backend/` with the project `.venv`, on Windows 11 with Python 3.12.4) | **25 passed** |
+| Owner confirmations | Since 2026-11-17, nothing has revoked a token, removed the app's access or run `authorize` on slot a. `connectapp` is still in Testing. The test channel's Google account is not the Gmail sender's. |
