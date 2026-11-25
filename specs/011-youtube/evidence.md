@@ -501,3 +501,27 @@ The rest of the probe repeated the 2026-11-18 answers unchanged:
 - 401 `authError` for an invalid token on both APIs.
 
 The slot a token of this consent is kept for the cross-check of step 3.
+
+### Step 3: the 011-C live disconnect check
+
+The setup reproduced that of the [live check of 2026-11-18](#live-check-with-the-owners-test-channel-2026-11-18):
+- **Database.** A separate disposable database: Compose project `tracking-system-youtube-live`, `tracking_youtube_live` on 127.0.0.1:55434, migrated to the head of `main` (`0025_whatsapp`). Never `tracking_sys`.
+- **API.** In process, with the adapter enabled only for this check, the connector's Web client from the main `.env`, and a synthetic Owner, agency and client.
+- **Callback.** The loopback receiver on 127.0.0.1:8000 passed Google's code and state to the API's callback, with the session and binding cookies of the client that started the connect.
+- **Worker.** `python -m app.connector_worker`, run as a separate process with the same settings.
+- **No revoke guard.** The teardown's revocation reached Google.
+- **Harness.** A temporary script outside the repository, deleted after the check (D-010).
+
+| Stage | Result |
+|---|---|
+| Connect (12:29 UTC) | The owner chose the test channel's account and granted both scopes, and the callback answered `connected`. The connection is `active` with both scopes and a label. Its grant expiry is 7.0 days ahead, and the D13 approval is stored with `dev-agent-approval-1`. |
+| Sync | One worker pass: 4 runs `succeeded`, one per stream, storing 143 records:<br>- the `channel` snapshot (3 values);<br>- 90 `channel_daily` days (1,170 values, 4 days provisional);<br>- 26 `videos` (78 values, 26 with attributes);<br>- 26 `video_totals`: 312 values for 24 videos, 2 videos `not_returned`; 21 `SHORTS` and 3 `VIDEO_ON_DEMAND`.<br><br>Every stream was `complete`, `channel_daily` and `video_totals` through 3 days before the read, and all 32 metrics were `available`. Usage: 6 Data units and 5 Analytics requests. |
+| Disconnect | `POST .../disconnect` as the Owner: 202, `disconnecting`. |
+| Teardown | One worker pass: `{"teardown": {"disconnected": 1}}`. The connection is `disconnected` (`user_requested`), with revocation `done`, `secret_destruction` `done`, `data_purge` `done`, `completed_at` set and `deadline_met` true. The teardown completed 1.8 seconds after the request, against a deadline of 72 hours. |
+| Database after the teardown (counts only) | **Connection:** 0 records (0 with attributes) and 0 checkpoints. Both token versions (access and refresh) are `destroyed` with revocation `done` and no sealed material. The account reference, the label with its refresh time, and the account kind are cleared.<br>**Whole database:** 0 records, 0 checkpoints, 0 token versions not destroyed and 0 connections with an account reference.<br>**API:** coverage shows every stream and all 32 metrics `not_synced`, and the records API returns nothing.<br>**Kept as designed:** the 4 runs and the 11 usage units, which hold no provider data. |
+| Cross-check at Google (G-1), 12:32 UTC | `refresh` on slot a, the step 2 consent issued 12 minutes earlier (token age 0.2 hours): 400 `invalid_grant`, with the description for an expired or revoked token. At that age the token had not expired, and a new consent does not end earlier tokens (slot a kept working after the slot b consent of 2026-11-18 00:04 UTC). The product's revocation therefore ended the account's separate consent. |
+| Log scan | The 7,439 characters of the API output and of both worker passes contain none of the following:<br>- the code or the state;<br>- the client secret or the client ID;<br>- the channel ID, the label or any of the 26 video IDs;<br>- the Google token prefixes `ya29.` and `1//`, the code prefix `4/0` or the client-secret prefix;<br>- a channel-ID shape, or a token field with a value. |
+| Clean-up | The disposable database was removed (`down -v`), and the harness was deleted. |
+
+- **Consequence for D5: none.** A disconnect's revocation ends every grant of the account in `connectapp` (G-1), as D5 assumes. It is the reason for the shared-revocation rule: a disconnect revokes only when no other active connection holds the account.
+- **Compared with 2026-11-18.** `video_totals` succeeded at the first run with the corrected two-report reads. The usage matches the capacity table: 1 + 3 + 2 Data units and 3 + 2 Analytics requests (90 days in 31-day windows).
