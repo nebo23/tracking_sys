@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Primary">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu" aria-label="Switch client">
+      <span class="c-avatar c-avatar--org">OT</span>
+      <span class="u-grow"><span class="c-switcher__name">Olive &amp; Thyme</span><span class="c-switcher__sub">Lumen Studio</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <nav class="c-nav u-grow" aria-label="Client workspace">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item is-active" href="revenue.html" aria-current="page"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item" href="journey.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections<span class="c-nav__count" aria-label="1 needs attention">1</span></a>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+      <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Settings</a>
+      <a class="c-nav__item" href="../index.html"><span class="c-icon c-icon--circle-help" aria-hidden="true"></span>Help</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong>Revenue</strong></nav>
+      <div class="l-cluster u-end">
+        <button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span>Search<span class="c-kbd">Ctrl K</span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button>
+      </div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Revenue</h1>
+          <p class="c-pagehead__lead">Sales, refunds and net revenue as the ledger knows them now. A later payment or refund can change these figures.</p>
+        </div>
+        <div class="l-cluster">
+          <div class="c-seg" role="group" aria-label="Currency"><button class="c-seg__item is-active" type="button">EGP</button><button class="c-seg__item" type="button">USD</button></div>
+          <button class="c-select c-select--inline" type="button" aria-label="Date range"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>1 – 30 March 2026</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button>
+          <button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--upload" aria-hidden="true"></span>Import CSV</button>
+          <button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--plus" aria-hidden="true"></span>Declare a sale</button>
+        </div>
+      </div>
+
+      <section class="l-grid l-grid--3" aria-label="Revenue summary">
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">Verified</h2><p class="c-card__subtitle">Confirmed by a payment provider or an import</p></div><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></div>
+          <div class="c-card__body l-stack">
+            <div>
+              <p class="c-stat__value c-stat__value--xl"><span class="c-stat__unit">EGP</span><span class="u-num">128,450.75</span></p>
+              <p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+6.1%</span></span><span>net, vs previous 30 days</span></p>
+            </div>
+            <dl class="c-dl c-dl--split">
+              <dt>Captured</dt><dd><span class="u-num">141,250.75</span></dd>
+              <dt>Refunded</dt><dd><span class="u-num">−9,800.00</span></dd>
+              <dt>Charged back</dt><dd><span class="u-num">−3,000.00</span></dd>
+              <dt>Entries</dt><dd><span class="u-num">214</span></dd>
+            </dl>
+          </div>
+        </article>
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">Declared</h2><p class="c-card__subtitle">Entered by hand, not confirmed</p></div><span class="c-badge"><span class="c-icon c-icon--pencil" aria-hidden="true"></span>Unverified</span></div>
+          <div class="c-card__body l-stack">
+            <div>
+              <p class="c-stat__value c-stat__value--xl"><span class="c-stat__unit">EGP</span><span class="u-num">12,400.00</span></p>
+              <p class="c-stat__row">4 sales, no refunds</p>
+            </div>
+            <p class="u-secondary">Declared amounts never join the verified total. When a matching payment arrives, the declaration is replaced.</p>
+          </div>
+        </article>
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">To review</h2><p class="c-card__subtitle">Across all dates, not only this period</p></div><span class="c-badge c-badge--warning"><span class="c-icon c-icon--circle-dot" aria-hidden="true"></span>3 open</span></div>
+          <div class="c-card__body c-card__body--flush">
+            <table class="c-table c-table--compact">
+              <tbody>
+                <tr><td><span class="c-table__primary">Waiting for the provider</span><span class="c-table__sub">Payment started, not settled</span></td><td class="is-num">2</td></tr>
+                <tr><td><span class="c-table__primary">Refund without its sale</span><span class="c-table__sub">Held until the sale arrives</span></td><td class="is-num">1</td></tr>
+                <tr><td><span class="c-table__primary">Amounts that disagree</span><span class="c-table__sub">Two records for one payment</span></td><td class="is-num">0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="c-card__footer"><button class="c-btn c-btn--secondary c-btn--sm" type="button">Review 3 items</button></div>
+        </article>
+      </section>
+
+      <article class="c-card">
+        <div class="c-card__header">
+          <div><h2 class="c-card__title">Net revenue by day</h2><p class="c-card__subtitle">Verified entries on the day they took effect, in Egyptian pounds</p></div>
+          <button class="c-btn c-btn--ghost c-btn--sm" type="button"><span class="c-icon c-icon--sm c-icon--table-2" aria-hidden="true"></span>Table</button>
+        </div>
+        <div class="c-card__body">
+          <svg class="c-chart" viewBox="0 0 1100 240" role="img" aria-label="Net revenue by day in March. Most days are between 2,600 and 7,700 pounds. 17 March is negative, minus 1,200, because refunds exceeded sales.">
+            <line class="c-chart__grid" x1="48" x2="1084" y1="212" y2="212"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="133.6" y2="133.6"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="94.4" y2="94.4"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="55.2" y2="55.2"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="16" y2="16"></line>
+            <line class="c-chart__axis" x1="48" x2="1084" y1="172.8" y2="172.8"></line>
+            <text x="40" y="216" text-anchor="end">−2K</text><text x="40" y="177" text-anchor="end">0</text><text x="40" y="138" text-anchor="end">2K</text><text x="40" y="98" text-anchor="end">4K</text><text x="40" y="59" text-anchor="end">6K</text><text x="40" y="20" text-anchor="end">8K</text>
+            <text x="65" y="234" text-anchor="middle">1 Mar</text><text x="307" y="234" text-anchor="middle">8 Mar</text><text x="549" y="234" text-anchor="middle">15 Mar</text><text x="790" y="234" text-anchor="middle">22 Mar</text><text x="1067" y="234" text-anchor="middle">30 Mar</text>
+            <path class="f1" d="M58.3 172.8V116a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM92.8 172.8V121.9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM127.3 172.8V94.5a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM161.9 172.8V67a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM196.4 172.8V41.6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM230.9 172.8V31.8a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM265.5 172.8V118a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM300 172.8V125.8a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM334.5 172.8V110.2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM369.1 172.8V96.4a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM403.6 172.8V74.9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM438.1 172.8V43.5a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM472.7 172.8V25.9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM507.2 172.8V100.4a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM541.7 172.8V114.1a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM576.3 172.8V120a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM645.3 172.8V90.6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM679.9 172.8V57.2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM714.4 172.8V35.7a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM748.9 172.8V98.4a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM783.5 172.8V108.2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM818 172.8V102.3a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM852.5 172.8V86.6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM887.1 172.8V61.2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM921.6 172.8V39.6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM956.1 172.8V27.8a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM990.7 172.8V92.5a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM1025.2 172.8V106.2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8ZM1059.7 172.8V80.8a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4V172.8Z"></path>
+            <path style="fill: var(--viz-div-neg)" d="M610.8 172.8V192.3a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4V172.8Z"></path>
+            <text class="is-label" x="632.8" y="200" text-anchor="start">17 March: refunds exceeded sales</text>
+          </svg>
+        </div>
+        <div class="c-card__footer"><span class="c-icon c-icon--sm c-icon--badge-check" aria-hidden="true"></span><span>Paymob payments and one CSV import</span><span>Days in UTC</span><span>Read at 14:20 today</span></div>
+      </article>
+
+      <article class="c-card">
+        <div class="c-card__header"><div><h2 class="c-card__title">Entries</h2><p class="c-card__subtitle">Grouped by day and kind. Individual payments are not listed here.</p></div><button class="c-btn c-btn--secondary c-btn--sm" type="button"><span class="c-icon c-icon--sm c-icon--download" aria-hidden="true"></span>Export CSV</button></div>
+        <div class="c-card__body c-card__body--flush">
+          <div class="c-table-wrap">
+            <table class="c-table">
+              <thead><tr><th scope="col">Day</th><th scope="col">Kind</th><th scope="col">Basis</th><th scope="col" class="is-num">Entries</th><th scope="col" class="is-num">Amount, EGP</th></tr></thead>
+              <tbody>
+                <tr><td>30 March</td><td>Sale captured</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></td><td class="is-num">9</td><td class="is-num">4,900.00</td></tr>
+                <tr><td>29 March</td><td>Sale captured</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></td><td class="is-num">7</td><td class="is-num">3,600.00</td></tr>
+                <tr><td>29 March</td><td>Sale declared</td><td><span class="c-badge"><span class="c-icon c-icon--pencil" aria-hidden="true"></span>Unverified</span></td><td class="is-num">1</td><td class="is-num">2,400.00</td></tr>
+                <tr><td>28 March</td><td>Sale captured</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></td><td class="is-num">8</td><td class="is-num">4,300.00</td></tr>
+                <tr><td>17 March</td><td>Refund</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></td><td class="is-num">3</td><td class="is-num">−4,100.00</td></tr>
+                <tr><td>17 March</td><td>Sale captured</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified</span></td><td class="is-num">5</td><td class="is-num">2,900.00</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="c-card__footer"><span>1 to 6 of 58</span><span class="l-cluster u-end"><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Previous page" disabled><span class="c-icon c-icon--sm c-icon--chevron-left c-icon--mirror" aria-hidden="true"></span></button><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Next page"><span class="c-icon c-icon--sm c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span></button></span></div>
+      </article>
+    </main>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Primary">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu" aria-label="Switch client">
+      <span class="c-avatar c-avatar--org">OT</span>
+      <span class="u-grow"><span class="c-switcher__name">Olive &amp; Thyme</span><span class="c-switcher__sub">Lumen Studio</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <nav class="c-nav u-grow" aria-label="Client workspace">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item is-active" href="content.html" aria-current="page"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item" href="journey.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections<span class="c-nav__count" aria-label="1 needs attention">1</span></a>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+      <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Settings</a>
+      <a class="c-nav__item" href="../index.html"><span class="c-icon c-icon--circle-help" aria-hidden="true"></span>Help</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong>Content</strong></nav>
+      <div class="l-cluster u-end">
+        <button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span>Search<span class="c-kbd">Ctrl K</span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button>
+      </div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Content</h1>
+          <p class="c-pagehead__lead">How posts, reels, stories and videos performed, read from the analytics each platform stores for this account.</p>
+        </div>
+        <div class="l-cluster">
+          <button class="c-select c-select--inline" type="button" aria-label="Source"><span class="c-glyph c-glyph--instagram" aria-hidden="true"></span><span class="u-ltr">@olive.thyme</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button>
+          <button class="c-select c-select--inline" type="button" aria-label="Date range"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>Last 30 days, to 2 April</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button>
+          <button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--download" aria-hidden="true"></span>Export CSV</button>
+        </div>
+      </div>
+
+      <div class="c-tabs" role="tablist" aria-label="View">
+        <button class="c-tab is-active" role="tab" aria-selected="true" type="button">By day</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">By content</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">Coverage</button>
+      </div>
+
+      <div class="c-banner" role="status">
+        <span class="c-icon c-icon--hourglass" aria-hidden="true"></span>
+        <div class="c-banner__text"><p><span class="c-banner__title">1 and 2 April are provisional.</span> <span class="u-secondary">Instagram can still revise them, so totals may move and nothing is compared with the previous period yet.</span></p></div>
+        <button class="c-btn c-btn--secondary c-btn--sm" type="button">Show final days only</button>
+      </div>
+
+      <section class="l-grid l-grid--4" aria-label="Totals for the period">
+        <article class="c-card c-stat"><p class="c-stat__label">Views</p><p class="c-stat__value"><span class="u-num">838,120</span></p><p class="c-stat__row"><span class="c-badge c-badge--info"><span class="c-icon c-icon--hourglass" aria-hidden="true"></span>Provisional</span></p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Interactions</p><p class="c-stat__value"><span class="u-num">49,870</span></p><p class="c-stat__row"><span class="c-badge c-badge--info"><span class="c-icon c-icon--hourglass" aria-hidden="true"></span>Provisional</span></p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Shares</p><p class="c-stat__value"><span class="u-num">6,032</span></p><p class="c-stat__row"><span class="c-badge c-badge--info"><span class="c-icon c-icon--hourglass" aria-hidden="true"></span>Provisional</span></p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Reach</p><p class="c-stat__value c-stat__value--md is-absent">No total</p><p class="c-stat__row">Reach counts unique accounts each day and cannot be added up. The daily values are below.</p></article>
+      </section>
+
+      <article class="c-card">
+        <div class="c-card__header">
+          <div><h2 class="c-card__title">Views by day</h2><p class="c-card__subtitle">4 March to 2 April 2026</p></div>
+          <div class="l-cluster">
+            <button class="c-chip c-chip--button is-active" type="button" aria-pressed="true">Views</button>
+            <button class="c-chip c-chip--button" type="button" aria-pressed="false">Reach</button>
+            <button class="c-chip c-chip--button" type="button" aria-pressed="false">Interactions</button>
+            <button class="c-chip c-chip--button" type="button" aria-pressed="false">Shares</button>
+            <button class="c-chip c-chip--button" type="button" aria-pressed="false">Saves</button>
+            <button class="c-btn c-btn--ghost c-btn--sm" type="button"><span class="c-icon c-icon--sm c-icon--table-2" aria-hidden="true"></span>Table</button>
+          </div>
+        </div>
+        <div class="c-card__body l-stack">
+          <div class="c-legend">
+            <span class="c-legend__item"><span class="c-legend__line b1"></span>Views <span class="c-legend__value u-num">838,120</span></span>
+            <span class="c-legend__item"><span class="c-legend__swatch" style="background: var(--status-info-bg); border: 1px solid var(--status-info-border)"></span>Provisional days</span>
+          </div>
+          <svg class="c-chart" viewBox="0 0 1100 240" role="img" aria-label="Views by day rose from 12,100 on 4 March to 38,200 on 2 April. The last two days are provisional.">
+            <rect class="c-chart__band" x="1028" y="16" width="56" height="196"></rect>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="163" y2="163"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="114" y2="114"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="65" y2="65"></line>
+            <line class="c-chart__grid" x1="48" x2="1084" y1="16" y2="16"></line>
+            <line class="c-chart__axis" x1="48" x2="1084" y1="212" y2="212"></line>
+            <text x="40" y="216" text-anchor="end">0</text><text x="40" y="167" text-anchor="end">10K</text><text x="40" y="118" text-anchor="end">20K</text><text x="40" y="69" text-anchor="end">30K</text><text x="40" y="20" text-anchor="end">40K</text>
+            <text x="48" y="232" text-anchor="start">4 Mar</text><text x="298" y="232" text-anchor="middle">11 Mar</text><text x="548" y="232" text-anchor="middle">18 Mar</text><text x="798" y="232" text-anchor="middle">25 Mar</text><text x="1084" y="232" text-anchor="end">2 Apr</text>
+            <g transform="translate(48 0) scale(1.5793 1) translate(-48 0)">
+              <path class="c-chart__area f1" d="M48 152.7L70.6 146.3L93.2 149.3L115.9 137.5L138.5 133.6L161.1 141.9L183.7 143.9L206.3 126.3L229 117.9L251.6 121.8L274.2 109.1L296.8 101.3L319.4 109.6L342.1 115L364.7 97.3L387.3 89L409.9 94.4L432.6 80.7L455.2 72.4L477.8 78.7L500.4 85.1L523 67.9L545.7 59.1L568.3 64.5L590.9 51.3L613.5 42.9L636.1 50.3L658.8 37.6L681.4 31.2L704 24.8L704 212L48 212Z"></path>
+              <path class="c-chart__line s1" vector-effect="non-scaling-stroke" d="M48 152.7L70.6 146.3L93.2 149.3L115.9 137.5L138.5 133.6L161.1 141.9L183.7 143.9L206.3 126.3L229 117.9L251.6 121.8L274.2 109.1L296.8 101.3L319.4 109.6L342.1 115L364.7 97.3L387.3 89L409.9 94.4L432.6 80.7L455.2 72.4L477.8 78.7L500.4 85.1L523 67.9L545.7 59.1L568.3 64.5L590.9 51.3L613.5 42.9L636.1 50.3L658.8 37.6L681.4 31.2L704 24.8"></path>
+            </g>
+            <circle class="f1 c-chart__ring" cx="1084" cy="24.8" r="5"></circle>
+            <text class="is-value" x="1076" y="12" text-anchor="end">38.2K</text>
+            <text x="1056" y="206" text-anchor="middle" style="fill: var(--status-info-fg)">Provisional</text>
+          </svg>
+        </div>
+        <div class="c-card__footer"><span class="c-source"><span class="c-glyph c-glyph--instagram" aria-hidden="true"></span>Instagram, <span class="u-ltr">@olive.thyme</span></span><span>Days in UTC</span><span>Synced 3 hours ago</span><span>Final through 31 March</span></div>
+      </article>
+
+      <article class="c-card">
+        <div class="c-card__header">
+          <div><h2 class="c-card__title">Published in this period</h2><p class="c-card__subtitle">23 pieces. Values are lifetime totals as of the last sync, so this list is never compared with an earlier period.</p></div>
+          <div class="l-cluster"><div class="c-seg" role="group" aria-label="Content type"><button class="c-seg__item is-active" type="button">All</button><button class="c-seg__item" type="button">Reels</button><button class="c-seg__item" type="button">Posts</button><button class="c-seg__item" type="button">Stories</button></div></div>
+        </div>
+        <div class="c-card__body c-card__body--flush">
+          <div class="c-table-wrap">
+            <table class="c-table">
+              <thead><tr><th scope="col">Content</th><th scope="col">Published</th><th scope="col" class="is-num" aria-sort="descending">Views <span class="c-icon c-icon--xs c-icon--arrow-down" aria-hidden="true"></span></th><th scope="col" class="is-num">Reach</th><th scope="col" class="is-num">Interactions</th><th scope="col" class="is-num">Saves</th><th scope="col" class="is-num">Shares</th><th scope="col" class="is-num">Avg. watch time</th></tr></thead>
+              <tbody>
+                <tr><td><span class="l-cluster"><span class="c-thumb c-thumb--tall"><span class="c-icon c-icon--sm c-icon--play" aria-hidden="true"></span></span><span><span class="c-table__primary">Ramadan offer teaser</span><span class="c-table__sub">Reel</span></span></span></td><td>14 Mar</td><td class="is-num">48,210</td><td class="is-num">31,870</td><td class="is-num">3,942</td><td class="is-num">1,204</td><td class="is-num">611</td><td class="is-num">0:11</td></tr>
+                <tr><td><span class="l-cluster"><span class="c-thumb c-thumb--tall"><span class="c-icon c-icon--sm c-icon--play" aria-hidden="true"></span></span><span><span class="c-table__primary">How we fold the perfect fatayer</span><span class="c-table__sub">Reel</span></span></span></td><td>6 Mar</td><td class="is-num">36,884</td><td class="is-num">24,019</td><td class="is-num">2,917</td><td class="is-num">988</td><td class="is-num">402</td><td class="is-num">0:14</td></tr>
+                <tr><td><span class="l-cluster"><span class="c-thumb"><span class="c-icon c-icon--sm c-icon--images" aria-hidden="true"></span></span><span><span class="c-table__primary">Iftar menu carousel</span><span class="c-table__sub">Feed post</span></span></span></td><td>11 Mar</td><td class="is-num">21,406</td><td class="is-num">15,932</td><td class="is-num">1,208</td><td class="is-num">540</td><td class="is-num">187</td><td class="is-num is-absent"><span class="c-badge c-badge--plain"><span class="c-icon c-icon--circle-slash" aria-hidden="true"></span>Not for posts</span></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-thumb c-thumb--tall"><span class="c-icon c-icon--sm c-icon--circle-dashed" aria-hidden="true"></span></span><span><span class="c-table__primary">Behind the scenes</span><span class="c-table__sub">Story</span></span></span></td><td>9 Mar</td><td class="is-num">9,871</td><td class="is-num is-absent"><span class="c-badge c-badge--plain"><span class="c-icon c-icon--circle-dashed" aria-hidden="true"></span>Too few to report</span></td><td class="is-num">142</td><td class="is-num is-absent"><span class="c-badge c-badge--plain"><span class="c-icon c-icon--circle-slash" aria-hidden="true"></span>Not for stories</span></td><td class="is-num">38</td><td class="is-num is-absent"><span class="c-badge c-badge--plain"><span class="c-icon c-icon--circle-slash" aria-hidden="true"></span>Not for stories</span></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-thumb c-thumb--tall"><span class="c-icon c-icon--sm c-icon--play" aria-hidden="true"></span></span><span><span class="c-table__primary">Suhoor box unboxing</span><span class="c-table__sub">Reel, published yesterday</span></span></span></td><td>1 Apr</td><td class="is-num">6,402 <span class="c-badge c-badge--info"><span class="c-icon c-icon--hourglass" aria-hidden="true"></span>Provisional</span></td><td class="is-num">4,877</td><td class="is-num">518</td><td class="is-num">96</td><td class="is-num">74</td><td class="is-num">0:09</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="c-card__footer"><span class="c-source"><span class="c-glyph c-glyph--instagram" aria-hidden="true"></span>Instagram, <span class="u-ltr">@olive.thyme</span></span><span>Fetched 3 hours ago</span><span class="l-cluster u-end"><span>1 to 5 of 23</span><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Previous page" disabled><span class="c-icon c-icon--sm c-icon--chevron-left c-icon--mirror" aria-hidden="true"></span></button><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Next page"><span class="c-icon c-icon--sm c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span></button></span></div>
+      </article>
+    </main>
+  </div>
+</div>
+</body>
+</html>

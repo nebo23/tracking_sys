@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Overview on a phone, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+<style>
+  /* A phone-width frame for the reference page; on a real phone the frame is the screen. */
+  body { display: flex; justify-content: center; background: var(--surface-sunken); }
+  .m-phone { inline-size: 100%; max-inline-size: 390px; min-block-size: 100vh; display: flex; flex-direction: column; background: var(--surface-canvas); border-inline: 1px solid var(--border-default); }
+  .m-phone .l-page { padding: var(--space-6) var(--space-6) var(--space-9); gap: var(--space-6); flex: 1; }
+  .m-phone .c-tabbar { position: sticky; inset-block-end: 0; }
+</style>
+</head>
+<body class="c-root">
+<div class="m-phone">
+  <header class="l-topbar" style="padding-inline: var(--space-6); flex-wrap: nowrap">
+    <img class="g-only-light" src="../../brand/connect-mark.svg" alt="Connect" width="28" height="28"><img class="g-only-dark" src="../../brand/connect-mark-reversed.svg" alt="Connect" width="28" height="28">
+    <button class="c-switcher u-grow" type="button" aria-haspopup="menu" aria-label="Switch client" style="padding: 6px 8px; min-block-size: 44px">
+      <span class="c-avatar c-avatar--org">OT</span>
+      <span class="u-grow u-truncate"><span class="c-switcher__name u-truncate">Olive &amp; Thyme</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications" style="inline-size: 44px; min-block-size: 44px"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+  </header>
+
+  <main class="l-page">
+    <div class="l-spread">
+      <h1 class="c-pagehead__title">Overview</h1>
+      <button class="c-select c-select--inline" type="button" aria-label="Date range" style="min-block-size: 44px"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>1 – 30 Mar</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button>
+    </div>
+
+    <div class="c-banner c-banner--danger" role="status">
+      <span class="c-icon c-icon--circle-alert" aria-hidden="true"></span>
+      <div class="c-banner__text"><p class="c-banner__title">YouTube needs to be reconnected</p><p class="u-secondary">Nothing new since 30 March.</p></div>
+      <a class="c-btn c-btn--secondary c-btn--block" href="connections.html" style="min-block-size: 44px">Review connection</a>
+    </div>
+
+    <section class="l-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5)" aria-label="Key figures">
+      <article class="c-card c-stat" style="padding: var(--space-6)"><p class="c-stat__label"><span class="c-glyph c-glyph--instagram c-icon--xs" role="img" aria-label="Instagram"></span>Views</p><p class="c-stat__value c-stat__value--md"><span class="u-num">812,460</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+18.4%</span></span></p></article>
+      <article class="c-card c-stat" style="padding: var(--space-6)"><p class="c-stat__label"><span class="c-glyph c-glyph--instagram c-icon--xs" role="img" aria-label="Instagram"></span>Interactions</p><p class="c-stat__value c-stat__value--md"><span class="u-num">48,210</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+9.2%</span></span></p></article>
+      <article class="c-card c-stat" style="padding: var(--space-6)"><p class="c-stat__label"><span class="c-icon c-icon--xs c-icon--badge-check" role="img" aria-label="Verified payments"></span>Net revenue</p><p class="c-stat__value c-stat__value--md"><span class="u-num">128,450.75</span></p><p class="c-stat__row"><span>EGP</span><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+6.1%</span></span></p></article>
+      <article class="c-card c-stat" style="padding: var(--space-6)"><p class="c-stat__label"><span class="c-glyph c-glyph--meta c-icon--xs" role="img" aria-label="Meta ads"></span>Ad spend</p><p class="c-stat__value c-stat__value--md"><span class="u-num">42,300.00</span></p><p class="c-stat__row"><span>EGP</span><span class="c-badge c-badge--warning"><span class="c-icon c-icon--clock" aria-hidden="true"></span>Stale</span></p></article>
+    </section>
+
+    <article class="c-card">
+      <div class="c-card__header" style="padding: var(--space-6) var(--space-6) 0"><div><h2 class="c-card__title">Views by day</h2><p class="c-card__subtitle">1 to 30 March</p></div><span class="c-legend__value u-num">812,460</span></div>
+      <div class="c-card__body" style="padding: var(--space-5) var(--space-6)">
+        <svg class="c-chart" viewBox="0 0 340 150" role="img" aria-label="Views by day rose from 12,100 on 1 March to 38,200 on 30 March.">
+          <line class="c-chart__grid" x1="32" x2="328" y1="70" y2="70"></line>
+          <line class="c-chart__grid" x1="32" x2="328" y1="16" y2="16"></line>
+          <line class="c-chart__axis" x1="32" x2="328" y1="124" y2="124"></line>
+          <text x="26" y="128" text-anchor="end">0</text><text x="26" y="74" text-anchor="end">20K</text><text x="26" y="20" text-anchor="end">40K</text>
+          <text x="32" y="144" text-anchor="start">1 Mar</text><text x="180" y="144" text-anchor="middle">15 Mar</text><text x="328" y="144" text-anchor="end">30 Mar</text>
+          <path class="c-chart__area f1" d="M32 91.3L42.2 87.8L52.4 89.4L62.6 83L72.8 80.8L83 85.4L93.2 86.5L103.4 76.8L113.7 72.2L123.9 74.3L134.1 67.3L144.3 63L154.5 67.6L164.7 70.5L174.9 60.8L185.1 56.2L195.3 59.2L205.5 51.6L215.7 47.1L225.9 50.6L236.1 54.1L246.3 44.6L256.6 39.8L266.8 42.7L277 35.4L287.2 30.8L297.4 34.9L307.6 27.9L317.8 24.4L328 20.9L328 124L32 124Z"></path>
+          <path class="c-chart__line s1" d="M32 91.3L42.2 87.8L52.4 89.4L62.6 83L72.8 80.8L83 85.4L93.2 86.5L103.4 76.8L113.7 72.2L123.9 74.3L134.1 67.3L144.3 63L154.5 67.6L164.7 70.5L174.9 60.8L185.1 56.2L195.3 59.2L205.5 51.6L215.7 47.1L225.9 50.6L236.1 54.1L246.3 44.6L256.6 39.8L266.8 42.7L277 35.4L287.2 30.8L297.4 34.9L307.6 27.9L317.8 24.4L328 20.9"></path>
+          <circle class="f1 c-chart__ring" cx="328" cy="20.9" r="5"></circle>
+        </svg>
+      </div>
+      <div class="c-card__footer" style="padding-inline: var(--space-6)"><span class="c-source"><span class="c-glyph c-glyph--instagram" aria-hidden="true"></span>Instagram</span><span>UTC days</span><span>Synced 3 h ago</span></div>
+    </article>
+
+    <article class="c-card">
+      <div class="c-card__header" style="padding: var(--space-6) var(--space-6) 0"><h2 class="c-card__title">Sources</h2><a href="connections.html">Manage</a></div>
+      <div class="c-card__body c-card__body--flush">
+        <table class="c-table">
+          <tbody>
+            <tr><td style="padding-inline-start: var(--space-6)"><span class="l-cluster"><span class="c-avatar c-avatar--provider"><span class="c-glyph c-glyph--instagram" aria-hidden="true"></span></span><span><span class="c-table__primary">Instagram</span><span class="c-table__sub">3 hours ago</span></span></span></td><td class="is-num" style="padding-inline-end: var(--space-6)"><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Fresh</span></td></tr>
+            <tr><td style="padding-inline-start: var(--space-6)"><span class="l-cluster"><span class="c-avatar c-avatar--provider"><span class="c-glyph c-glyph--youtube" aria-hidden="true"></span></span><span><span class="c-table__primary">YouTube</span><span class="c-table__sub">Stopped 30 March</span></span></span></td><td class="is-num" style="padding-inline-end: var(--space-6)"><span class="c-badge c-badge--danger"><span class="c-icon c-icon--circle-alert" aria-hidden="true"></span>Reconnect</span></td></tr>
+            <tr><td style="padding-inline-start: var(--space-6)"><span class="l-cluster"><span class="c-avatar c-avatar--provider"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span></span><span><span class="c-table__primary">Meta ads</span><span class="c-table__sub">3 days ago</span></span></span></td><td class="is-num" style="padding-inline-end: var(--space-6)"><span class="c-badge c-badge--warning"><span class="c-icon c-icon--clock" aria-hidden="true"></span>Stale</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </main>
+
+  <nav class="c-tabbar" aria-label="Primary">
+    <a class="c-tabbar__item is-active" href="overview-mobile.html" aria-current="page"><span class="c-icon c-icon--md c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+    <a class="c-tabbar__item" href="content.html"><span class="c-icon c-icon--md c-icon--chart-column" aria-hidden="true"></span>Content</a>
+    <a class="c-tabbar__item" href="revenue.html"><span class="c-icon c-icon--md c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+    <a class="c-tabbar__item" href="links.html"><span class="c-icon c-icon--md c-icon--link" aria-hidden="true"></span>Links</a>
+    <a class="c-tabbar__item" href="connections.html"><span class="c-icon c-icon--md c-icon--menu" aria-hidden="true"></span>More</a>
+  </nav>
+</div>
+</body>
+</html>

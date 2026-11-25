@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect screens</title>
+<link rel="icon" href="../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../ui/connect-icons.css">
+<link rel="stylesheet" href="../ui/connect-ui.css">
+<link rel="stylesheet" href="preview.css">
+<script src="theme.js"></script>
+</head>
+<body class="c-root">
+<header class="g-bar">
+  <img class="g-logo g-only-light" src="../brand/connect-logo.svg" alt="Connect">
+  <img class="g-logo g-only-dark" src="../brand/connect-logo-reversed.svg" alt="Connect">
+  <span class="u-tertiary">Screen designs</span>
+  <a class="c-btn c-btn--secondary c-btn--sm u-end" href="index.html">Design system</a>
+</header>
+<main class="g-main">
+  <section class="g-section">
+    <h1 class="c-pagehead__title">Screens</h1>
+    <p class="c-pagehead__lead">Static designs for specification 018, built from the tokens and reference styles in this folder. All names and figures are sample data. Add <span class="u-mono">#theme-dark</span> to an address to see the dark theme.</p>
+    <article class="c-card">
+      <div class="c-table-wrap">
+        <table class="c-table">
+          <thead><tr><th scope="col">Screen</th><th scope="col">Shows</th><th scope="col">Backed by</th><th scope="col"><span class="u-sr">Open</span></th></tr></thead>
+          <tbody>
+            <tr><td><span class="c-table__primary">Sign in</span></td><td>Email and password, Google sign-in, language choice</td><td>Specification 002</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/sign-in.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Clients</span></td><td>Agency home: every client workspace and its connection health</td><td>Specifications 002, 009</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/clients.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Overview</span></td><td>Content results, revenue and source health for one client</td><td>Specification 016-A</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/overview.html">Light</a> <a class="c-btn c-btn--secondary c-btn--sm" href="screens/overview.html#theme-dark">Dark</a></td></tr>
+            <tr><td><span class="c-table__primary">Overview in Arabic</span></td><td>The same screen from right to left</td><td>Specification 016-A</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/overview-ar.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Overview on a phone</span></td><td>Compact figures, one chart, bottom navigation</td><td>Specification 016-A</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/overview-mobile.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Content</span></td><td>Daily metrics with provisional days, and the published-content list with unsupported and missing values</td><td>Specification 016-A, social report</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/content.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Revenue</span></td><td>Verified, declared and unresolved amounts kept apart; net revenue by day</td><td>Specification 016-A, revenue report</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/revenue.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Connections</span></td><td>Connected accounts, coverage, freshness, quota and reconnect</td><td>Specifications 009 to 011, 014, 015</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/connections.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Links</span></td><td>Managed links and the form that creates one</td><td>Specification 005</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/links.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Team and access</span></td><td>Roles, client grants and financial access</td><td>Specification 002</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/team.html">Open</a></td></tr>
+            <tr><td><span class="c-table__primary">Attribution</span> <span class="c-badge">Concept</span></td><td>Credit by content under three rules, and one journey</td><td>Waits for 006, 008 persistence and 016-B</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="screens/journey.html">Open</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</main>
+</body>
+</html>

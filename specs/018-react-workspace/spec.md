@@ -1,5 +1,5 @@
 # 018-react-workspace — React workspace and user experience
-Status: Draft; implementation is not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: Draft; implementation is not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-074 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md).
 
 ## Sources
 USER React; PDF-013,029,030,065,068,069,098,101,103. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
