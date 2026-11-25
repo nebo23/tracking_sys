@@ -134,7 +134,9 @@ class CollectionForm(Entity, Base):
 
 
 # Opaque pseudonymous subject of one client, created only by an explicit consent grant. Only
-# the SHA-256 digest of its sbj_ bearer token is stored.
+# the SHA-256 digest of its sbj_ bearer token is stored. Specification 006 (D-075) adds the
+# immutable issuance channel (browser, server, or unknown for rows created before 0026), the
+# monotonic identity floor and the write-once shared marker; database triggers enforce them.
 # SELECT id, created_at, last_activity_at
 # FROM public.collection_subjects
 # WHERE client_id = '00000000-0000-0000-0000-000000000003'::uuid
@@ -145,6 +147,9 @@ class CollectionSubject(Base):
         ForeignKeyConstraint(*CLIENT_FK),
         UniqueConstraint("agency_id", "client_id", "id", name="uq_collection_subjects_scope"),
         CheckConstraint(f"token_digest {HEX64}", name="token_digest"),
+        CheckConstraint(
+            "issuance_channel IN ('browser', 'server', 'unknown')", name="valid_issuance"
+        ),
         Index("ix_collection_subjects_client_activity", "client_id", "last_activity_at"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -155,6 +160,9 @@ class CollectionSubject(Base):
     last_activity_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    issuance_channel: Mapped[str] = mapped_column(String(8), server_default="unknown")
+    identity_floor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    identity_shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # Append-only consent choice of one subject (the 003 ConsentRecord contract). received_at comes
@@ -245,6 +253,8 @@ class CollectedEvent(Base):
             ["managed_links.agency_id", "managed_links.client_id", "managed_links.id"],
         ),
         UniqueConstraint("client_id", "event_id", name="uq_collected_events_client_event"),
+        # The scoped target of the erasure-hold foreign key (R006-23, 0026).
+        UniqueConstraint("agency_id", "client_id", "id", name="uq_collected_events_scope"),
         CheckConstraint(
             "event_type IN ('page_view', 'link_click', 'form_submit', 'lead_signal', "
             "'purchase_signal')",
@@ -296,6 +306,9 @@ class CollectedEvent(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Validated, limited-trust link provenance; null for events without a link reference.
     link_id: Mapped[UUID | None] = mapped_column(Uuid)
+    # Write-once (R006-24): set when the event enters an erasure hold or is retained
+    # anonymously; every identity and attribution read excludes it afterwards.
+    identity_excluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # Daily outcome counters by channel and closed reason code; no subject, event ID, or content.
@@ -312,7 +325,7 @@ class EventDiagnostic(Base):
             "client_id", "day", "channel", "outcome", "reason", name="uq_event_diagnostics_key"
         ),
         CheckConstraint(
-            "channel IN ('browser', 'server', 'webhook', 'consent', 'erasure')",
+            "channel IN ('browser', 'server', 'webhook', 'consent', 'erasure', 'identity')",
             name="valid_channel",
         ),
         CheckConstraint(
@@ -396,7 +409,11 @@ class StoredTombstone(Base):
             ["deletion_requests.agency_id", "deletion_requests.client_id", "deletion_requests.id"],
         ),
         CheckConstraint("scope_kind = 'subject'", name="valid_scope"),
-        CheckConstraint("match_type IN ('subject_token', 'event_id')", name="valid_match_type"),
+        CheckConstraint(
+            "match_type IN ('subject_token', 'event_id', 'identity_key', 'assertion_id', "
+            "'assertion_fp')",
+            name="valid_match_type",
+        ),
         CheckConstraint("octet_length(match_key) = 32", name="match_key_length"),
         Index("ix_deletion_tombstones_match", "client_id", "match_type", "match_key"),
     )

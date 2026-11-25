@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import Field
 
 from app.api.dependencies import BrowserDep, RawBody, SessionDep
@@ -24,6 +24,7 @@ from app.payments.paymob import Unverifiable, verify
 from app.security import now_utc
 from app.services.auth import enforce_rate_limit
 from app.services.collection import require_token_keys
+from app.services.ledger_store import is_behind, run_catch_up
 from app.services.payments import (
     PaymentError,
     PaymentSourceAdmin,
@@ -208,7 +209,11 @@ def _limit(request: Request, scope: str, subject: str) -> None:
     },
 )
 def paymob_callback(
-    public_key: str, request: Request, session: SessionDep, body: RawBody
+    public_key: str,
+    request: Request,
+    background: BackgroundTasks,
+    session: SessionDep,
+    body: RawBody,
 ) -> CallbackReceived:
     settings = request.app.state.settings
     now = now_utc()
@@ -228,4 +233,9 @@ def paymob_callback(
     except Unverifiable as error:
         raise PaymentError("invalid_signature", 401) from error
     receive_callback(session, source, verified)
+    # A callback stored while the projection is behind waits for the catch-up (R0607-11).
+    if is_behind(session, source.agency_id, source.client_id):
+        background.add_task(
+            run_catch_up, request.app.state.engine, source.agency_id, source.client_id
+        )
     return CallbackReceived(status="received")

@@ -395,6 +395,29 @@ def _state(transaction: Transaction) -> SaleState:
     )
 
 
+def sale_states(ledger: LedgerCalculation) -> dict[tuple[LedgerScope, str], SaleState]:
+    """The authoritative state of every posted sale transaction, keyed by scope and sale."""
+    return {(t.scope, t.operation_id): _state(t) for t in ledger.transactions}
+
+
+def receipt_payload(record: Evidence) -> str:
+    """The canonical JSON a receipt digest binds: the full record with UTC instants."""
+    normalized = replace(
+        record,
+        effective_at=_utc(record.effective_at, "invalid_effective_at"),
+        received_at=_utc(record.received_at, "invalid_received_at"),
+    )
+    return json.dumps(asdict(normalized), sort_keys=True, separators=(",", ":"), default=str)
+
+
+def receipt_digest(previous: bytes, record: Evidence) -> bytes:
+    """The digest binding one receipt to its ordered prefix (the ledger_feed chain)."""
+    return sha256(previous + receipt_payload(record).encode("utf-8")).digest()
+
+
+JOURNAL_START = _JOURNAL_START
+
+
 def sale_state(ledger: LedgerCalculation, conversion: Conversion) -> SaleState | None:
     """The authoritative state of the conversion's own transaction, or None if nothing posted."""
     if not isinstance(ledger, LedgerCalculation):
@@ -486,8 +509,7 @@ def ledger_feed(records: Iterable[Evidence]) -> tuple[JournalItem, ...]:
     previous_digest = _JOURNAL_START
     for receipt, record in enumerate(log, start=1):
         # Bind the full input, including a pending receipt, to its ordered prefix.
-        payload = json.dumps(asdict(record), sort_keys=True, separators=(",", ":"), default=str)
-        digest = sha256(previous_digest + payload.encode("utf-8")).digest()
+        digest = receipt_digest(previous_digest, record)
         ledger = calculate(log[:receipt])
         if ledger.movements[: len(movements)] != movements:
             raise AttributionInputError("journal_not_append_only")

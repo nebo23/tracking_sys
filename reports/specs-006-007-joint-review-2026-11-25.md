@@ -2,6 +2,8 @@
 
 Reviewed on 2026-11-25 at the owner's request to review the changes independently. The branch's own suites pass, but the review reproduced nineteen defects that those suites do not exercise: three P1, eight P2 and eight P3. Most concern consent withdrawal, erasure, retention and the sale-to-person association. Correct at least the P1 and P2 findings, with the companion regressions, before a pull request or merge decision. This report is not merge approval, and it changes no application code.
 
+Status (2026-11-25, D-076): the owner authorized the correction of all nineteen findings with the recommended options for R0607-10 and R0607-11. They are corrected on the reviewed branch; see the [correction evidence](../specs/006-identity-journey/joint-evidence.md#review-corrections-d-076-2026-11-25).
+
 ## Reviewed revisions and boundaries
 
 - **Branch:** `codex/spec-006-007-identity-ledger`.

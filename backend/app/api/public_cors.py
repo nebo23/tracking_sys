@@ -27,7 +27,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 PUBLIC_PREFIX = "/collect/v1/"
 PUBLIC_ROUTE = re.compile(
-    r"/collect/v1/(pk_[A-Za-z0-9_-]{43})/(events|consent|consent-state|erasure)"
+    r"/collect/v1/(pk_[A-Za-z0-9_-]{43})/(events|consent|consent-state|erasure|identity-handoff)"
 )
 # Request scope key through which a public route reports the Origin it accepted.
 SCOPE_KEY = "tracking.public_cors"

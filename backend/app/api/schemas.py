@@ -157,9 +157,12 @@ class MembershipUpdate(Input):
     status: Literal["active", "disabled"] | None = None
 
 
-# Client grant options; financial visibility is false unless explicitly requested.
+# Client grant options; financial visibility is false unless explicitly requested. Identity
+# visibility (006 D8) is optional: omitted keeps an existing grant's flag and defaults a new
+# grant to false; service keys refuse it.
 class FinancialGrant(Input):
     can_view_financials: bool = False
+    can_view_identities: bool | None = None
 
 
 # One client grant entry used by invitations and service keys.

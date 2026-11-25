@@ -182,6 +182,7 @@ def ingest_consent(
         subject_token=data.subject_token,
         captured_at=data.captured_at,
         recheck=lambda: resolve_scope(session, principal, agency_id, client_id, "events:write"),
+        issuance="server",
     )
     return consent_response(result)
 
@@ -278,6 +279,7 @@ def collect_consent(
         subject_token=data.subject_token,
         captured_at=data.captured_at,
         recheck=lambda: require_live_source(session, "browser", source.id),
+        issuance="browser",
     )
     return consent_response(result)
 
