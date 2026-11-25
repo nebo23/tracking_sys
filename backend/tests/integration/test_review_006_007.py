@@ -92,6 +92,15 @@ def test_review_r0607_01_withdrawal_of_the_last_ambiguous_candidate(idw, db):
     assert idw.public_post("consent", {**withdraw, "subject_token": a}).status_code == 200
     last = idw.public_post("consent", {**withdraw, "subject_token": b})
     assert last.status_code == 200, last.text  # observed: 409 state_conflict, nothing recorded
+    # A later assertion of the contested email names nobody: a neutral segment, accepted.
+    d = idw.browser_subject()["subject_token"]
+    later = idw.via_browser(d, [family()])
+    assert later.status_code == 201, later.text
+    subject = rows(db, select(CollectionSubject).where(CollectionSubject.token_digest == digest(d)))
+    statuses = rows(
+        db, select(IdentityLink.status).where(IdentityLink.collection_subject_id == subject[0].id)
+    )
+    assert statuses == ["neutral"]
 
 
 def test_review_r0607_01_erasure_of_the_last_ambiguous_candidate(idw, db):

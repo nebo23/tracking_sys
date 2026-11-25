@@ -45,6 +45,7 @@ from app.services.identity import (
     cleanup_people,
     drop_subject_evidence,
     event_times,
+    owners_of_keys,
     remove_orphan_keys,
     remove_person,
     settle_holds,
@@ -193,6 +194,20 @@ def run(
         people = {link.subject_id for link in links if link.subject_id is not None}
         people |= {item.subject_id for item in assertions if item.subject_id is not None}
         keys = {UUID(entry["key_id"]) for item in assertions for entry in item.evidence or []}
+        # The owners of keys presented by expiring assertions are checked again (R0607-07).
+        people |= owners_of_keys(session, keys)
+        # F1 (J6): a sale association loses every identifying pointer before its assertion or
+        # segment expires, so no binding still references a deleted assertion (R0607-03).
+        from app.services.revenue_identity import unlink
+
+        unlink(
+            session,
+            client_id,
+            "expired",
+            cutoff,
+            assertion_refs={item.id for item in assertions}
+            | {link.assertion_ref for link in links if link.assertion_ref is not None},
+        )
         for link in links:
             session.delete(link)
         session.flush()

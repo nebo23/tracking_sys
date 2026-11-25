@@ -26,8 +26,8 @@ from datetime import datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Uuid, any_, delete, func, literal, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Uuid, and_, any_, case, delete, func, literal, null, or_, select, update
+from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.orm import Session
 
 from app.collection.keys import TombstoneKeyring
@@ -475,6 +475,13 @@ def reevaluate_dependents(
             link.status, link.subject_id, link.provisional_from = "ambiguous", None, None
             link.candidate_ids, link.merge_id = candidates or [edge.survivor_id], None
             moved["links"].append(str(link.id))
+        if link.status == "ambiguous" or link.subject_id != previous:
+            # An ambiguous segment or a second owner on the device marks it shared (R0607-02).
+            device = session.get(CollectionSubject, link.collection_subject_id)
+            if device is not None:
+                _mark_shared(
+                    session, device, subject_links(session, device.id), journey, journey.now
+                )
         if link.assertion_ref is not None:
             session.execute(
                 update(IdentityAssertion)
@@ -550,10 +557,34 @@ def remove_person(
             )
         ),
     )
+    # The person leaves every candidate and original-owner list (design section 7.2,
+    # R0607-19). An ambiguous segment left without any candidate names nobody and becomes
+    # neutral in the same statement, because an ambiguous row always keeps a candidate
+    # (ck_identity_links_ambiguous_candidates is checked per statement, R0607-01).
+    remaining = func.array_remove(IdentityLink.candidate_ids, person_id)
+    emptied = and_(IdentityLink.status == "ambiguous", func.cardinality(remaining) == 0)
+    none = literal([], ARRAY(Uuid))
     session.execute(
         update(IdentityLink)
-        .where(IdentityLink.client_id == client_id, _member(person_id, IdentityLink.candidate_ids))
-        .values(candidate_ids=func.array_remove(IdentityLink.candidate_ids, person_id))
+        .where(
+            IdentityLink.client_id == client_id,
+            or_(
+                _member(person_id, IdentityLink.candidate_ids),
+                _member(person_id, IdentityLink.original_owner_ids),
+            ),
+        )
+        .values(
+            candidate_ids=remaining,
+            status=case((emptied, "neutral"), else_=IdentityLink.status),
+            original_owner_ids=case(
+                (emptied, none),
+                else_=func.array_remove(IdentityLink.original_owner_ids, person_id),
+            ),
+            key_ids=case((emptied, none), else_=IdentityLink.key_ids),
+            merge_id=case((emptied, null()), else_=IdentityLink.merge_id),
+            assertion_ref=case((emptied, null()), else_=IdentityLink.assertion_ref),
+        )
+        .execution_options(synchronize_session=False)
     )
     session.execute(
         update(IdentityAssertion)
@@ -565,20 +596,18 @@ def remove_person(
     )
     session.execute(
         update(IdentityKey)
-        .where(IdentityKey.client_id == client_id, _member(person_id, IdentityKey.candidate_ids))
-        .values(candidate_ids=func.array_remove(IdentityKey.candidate_ids, person_id))
-    )
-    # An ambiguous segment left without any candidate names nobody: it becomes neutral.
-    session.execute(
-        update(IdentityLink)
         .where(
-            IdentityLink.client_id == client_id,
-            IdentityLink.status == "ambiguous",
-            func.cardinality(IdentityLink.candidate_ids) == 0,
+            IdentityKey.client_id == client_id,
+            or_(
+                _member(person_id, IdentityKey.candidate_ids),
+                _member(person_id, IdentityKey.original_owner_ids),
+            ),
         )
         .values(
-            status="neutral", original_owner_ids=[], key_ids=[], merge_id=None, assertion_ref=None
+            candidate_ids=func.array_remove(IdentityKey.candidate_ids, person_id),
+            original_owner_ids=func.array_remove(IdentityKey.original_owner_ids, person_id),
         )
+        .execution_options(synchronize_session=False)
     )
     session.execute(
         delete(IdentityLink).where(
@@ -639,10 +668,14 @@ def remove_person(
 
 
 def remove_orphan_keys(session: Session, client_id: UUID, key_ids: Iterable[UUID]) -> None:
-    """Delete contested keys that no surviving assertion presents any longer."""
+    """Delete keys, owned or contested, that no surviving assertion presents any longer.
+
+    A key is evidence only while an assertion presents it (has_evidence), so a withdrawn,
+    erased or expired identifier never links a later subject to the old person (R0607-07).
+    """
     for key_id in sorted(set(key_ids), key=str):
         key = session.get(IdentityKey, key_id)
-        if key is None or key.status != "contested":
+        if key is None:
             continue
         if not session.scalar(select(_assertions_presenting(session, client_id, key_id))):
             session.delete(key)
@@ -687,6 +720,21 @@ def _people_of_links(links: Iterable[IdentityLink]) -> set[UUID]:
     return people
 
 
+def owners_of_keys(session: Session, key_ids: Iterable[UUID]) -> set[UUID]:
+    """The owners of the given owned keys: removing an assertion that presents them can leave
+    those persons without evidence, so they are checked again (R0607-07)."""
+    ids = list(set(key_ids))
+    if not ids:
+        return set()
+    return set(
+        session.scalars(
+            select(IdentityKey.subject_id).where(
+                IdentityKey.id.in_(ids), IdentityKey.status == "owned"
+            )
+        )
+    )
+
+
 def _keys_of_assertions(assertions: Iterable[IdentityAssertion]) -> set[UUID]:
     return {
         UUID(item["key_id"])
@@ -725,10 +773,14 @@ def drop_subject_evidence(
             select(IdentityAssertion).where(IdentityAssertion.collection_subject_id == subject.id)
         )
     )
-    people = _people_of_links(links) | {
-        assertion.subject_id for assertion in assertions if assertion.subject_id is not None
-    }
     keys = _keys_of_assertions(assertions)
+    # Persons kept only by the evidence of this subject: segment owners, assertion owners and
+    # the owners of keys its assertions presented, ambiguous assertions included (R0607-07).
+    people = (
+        _people_of_links(links)
+        | {assertion.subject_id for assertion in assertions if assertion.subject_id is not None}
+        | owners_of_keys(session, keys)
+    )
     for person in people:
         journey.touch(person, "unlinked")
     # F1 (007-C, J6): the subject's sale associations lose every identifying pointer first.
@@ -1281,13 +1333,14 @@ def _mark_shared(
     session.flush()
 
 
-def _evidence_item(key: IdentityKey, item: AssertedIdentifier, owner: UUID | None, state: str):
+def _evidence_item(key: IdentityKey, item: AssertedIdentifier, state: str):
+    # The evidence names the key, never a person: an owner follows from the key while it
+    # exists, so an erased person's ID is not kept in surviving assertions (R0607-19).
     return {
         "key_id": str(key.id),
         "kind": item.canonical.kind,
         "method": item.method,
         "verified_at": _iso(item.verified_at),
-        "owner_id": str(owner) if owner else None,
         "state": state,
     }
 
@@ -1412,7 +1465,13 @@ def _apply(
         keep = owners if decision.merge_id is not None else frozenset([person_id])
         previous = set().union(*(_owner_set(link) for link in links)) if links else set()
         _close_open(session, subject, links, keep, "switched", journey, now)
-        if any(link.status != "active" for link in links) or (previous - keep):
+        # A subject records a second original owner when the union of its owners grows
+        # beyond one, a merge-dependent owner set included (design 4.4, R0607-02).
+        if (
+            any(link.status != "active" for link in links)
+            or (previous - keep)
+            or len(previous | keep) > 1
+        ):
             _mark_shared(session, subject, links, journey, now)
     # Step 10: commit evidence, keys and the link.
     evidence: list[dict[str, Any]] = []
@@ -1449,23 +1508,23 @@ def _apply(
             )
             session.add(row)
             session.flush()
-            evidence.append(_evidence_item(row, item, None, "new"))
+            evidence.append(_evidence_item(row, item, "new"))
         elif key.state == "owned" and key.index in decision.contest:
             previous_owner = row.subject_id
             journey.touch(previous_owner, "contested")
             row.status, row.contested_reason, row.subject_id = "contested", "shared", None
             row.candidate_ids = sorted({previous_owner, person_id} - {None}, key=str)
             row.merge_id, row.last_verified_at = None, max(row.last_verified_at, item.verified_at)
-            evidence.append(_evidence_item(row, item, previous_owner, "contested"))
+            evidence.append(_evidence_item(row, item, "contested"))
         elif key.state == "owned":
             row.last_verified_at = max(row.last_verified_at, item.verified_at)
             row.method = item.method
-            evidence.append(_evidence_item(row, item, row.subject_id, "owned"))
+            evidence.append(_evidence_item(row, item, "owned"))
         else:
             if person_id is not None and decision.outcome != "ambiguous":
                 row.candidate_ids = sorted(set(row.candidate_ids) | {person_id}, key=str)
             row.last_verified_at = max(row.last_verified_at, item.verified_at)
-            evidence.append(_evidence_item(row, item, None, "contested"))
+            evidence.append(_evidence_item(row, item, "contested"))
         key_rows.append(row)
     session.flush()
     candidates = list(decision.candidates)
@@ -1489,6 +1548,23 @@ def _apply(
     session.flush()
     period = proof.consent.current
     grant_start = period.start if period is not None else now
+    if decision.outcome == "ambiguous" and not candidates:
+        # Every candidate of the contested keys was removed: the segment names nobody and is
+        # neutral, never an ambiguous segment without a candidate (R0607-01).
+        session.add(
+            IdentityLink(
+                id=uuid4(),
+                agency_id=agency_id,
+                client_id=client_id,
+                collection_subject_id=subject.id,
+                status="neutral",
+                asserted_at=now,
+                eligible_from=now,
+                grant_started_at=grant_start,
+            )
+        )
+        session.flush()
+        return "ambiguous"
     if decision.outcome == "ambiguous":
         session.add(
             IdentityLink(

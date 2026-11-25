@@ -29,6 +29,7 @@ from app.models import (
     CollectedEvent,
     CollectionSubject,
     IdentityAssertion,
+    IdentityChange,
     IdentityErasureHold,
     IdentityKey,
     IdentityLink,
@@ -50,6 +51,7 @@ from app.services.collection import (
     require_tombstone_keys,
 )
 from app.services.identity import (
+    REMOVAL_KINDS,
     IdentityError,
     Journey,
     _raise_floor,
@@ -333,6 +335,7 @@ class IdentityAdmin(TenancyService):
         _, now = self._begin(agency_id, client_id)
         paused = False
         person_id = subject_id
+        key: IdentityKey | None = None
         if identifier is not None:
             try:
                 value = canonical(*identifier)
@@ -381,10 +384,86 @@ class IdentityAdmin(TenancyService):
             status = deletion.transition(status, RequestStatus.PAUSED_FOR_CLARIFICATION)
             request.status = status.value
             request.target_outcomes = {"identity_records": TargetStatus.PENDING.value}
+            if objected:
+                # The objection takes effect when it is received: its identifier tombstones do
+                # not wait for the clarification, so a withdrawal or another erasure of the
+                # person before the resolution cannot lose it (R0607-08).
+                named = [] if key is None else [key]
+                if person_id is not None:
+                    named += list(
+                        self.session.scalars(
+                            select(IdentityKey).where(
+                                IdentityKey.client_id == client_id,
+                                IdentityKey.status == "owned",
+                                IdentityKey.subject_id == person_id,
+                            )
+                        )
+                    )
+                self._objection_tombstones(request, named, now)
         else:
             self._run_erasure(request, status, person_id, now)
         self._audit(agency_id, "identity.erased", "deletion_request", request.id, client_id)
         return request
+
+    def _objection_tombstones(
+        self, request: SubjectDeletionRequest, named: list[IdentityKey], now: datetime
+    ) -> None:
+        keys = require_tombstone_keys(self.settings)
+        for value in sorted({item.key_bytes.hex() for item in named}):
+            match_key, key_id = keys.seal(request.client_id, "identity_key", value)
+            self.session.add(
+                StoredTombstone(
+                    id=uuid4(),
+                    agency_id=request.agency_id,
+                    client_id=request.client_id,
+                    deletion_request_id=request.id,
+                    match_type="identity_key",
+                    match_key=match_key,
+                    match_key_id=key_id,
+                    effective_at=now,
+                    objected=True,
+                )
+            )
+        self.session.flush()
+
+    def _removed_elsewhere(self, client_id: UUID, person_id: UUID) -> bool:
+        """Whether the person no longer exists because W1, an erasure or the lifecycle removed
+        it: its final change record is kept for the change-feed period (30 days)."""
+        if self.session.get(IdentitySubject, person_id) is not None:
+            return False
+        return (
+            self.session.scalar(
+                select(IdentityChange.seq)
+                .where(
+                    IdentityChange.client_id == client_id,
+                    IdentityChange.person_id == person_id,
+                    IdentityChange.kind.in_(REMOVAL_KINDS),
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    def _complete_removed(self, request: SubjectDeletionRequest, now: datetime) -> None:
+        """Complete a paused request whose person was removed by another path (R0607-08)."""
+        status = deletion.transition(
+            RequestStatus.PAUSED_FOR_CLARIFICATION, RequestStatus.VERIFYING
+        )
+        for step in (RequestStatus.ACCEPTED, RequestStatus.IN_PROGRESS):
+            status = deletion.transition(status, step)
+        targets = {
+            "identity_records": TargetStatus.DONE.value,
+            "collected_events": TargetStatus.NOT_APPLICABLE.value,
+            "collection_subjects": TargetStatus.NOT_APPLICABLE.value,
+            "booking_links": TargetStatus.NOT_APPLICABLE.value,
+            "unresolved_events": TargetStatus.NOT_APPLICABLE.value,
+            "financial_associations": TargetStatus.NOT_APPLICABLE.value,
+        }
+        request.target_outcomes = targets
+        final = deletion.outcome({key: TargetStatus(value) for key, value in targets.items()})
+        request.status = deletion.transition(status, final).value
+        request.completed_at = now
+        self.session.flush()
 
     def _needs_clarification(self, person_id: UUID) -> bool:
         person = self.session.get(IdentitySubject, person_id)
@@ -586,13 +665,16 @@ class IdentityAdmin(TenancyService):
         if subject_id is not None:
             if request.status != RequestStatus.PAUSED_FOR_CLARIFICATION.value:
                 raise IdentityError("request_state", 409)
-            self._person(client_id, subject_id)
-            if self._needs_clarification(subject_id):
-                raise IdentityError("clarification_required", 409)
-            status = deletion.transition(
-                RequestStatus.PAUSED_FOR_CLARIFICATION, RequestStatus.VERIFYING
-            )
-            self._run_erasure(request, status, subject_id, now)
+            if self._removed_elsewhere(client_id, subject_id):
+                self._complete_removed(request, now)
+            else:
+                self._person(client_id, subject_id)
+                if self._needs_clarification(subject_id):
+                    raise IdentityError("clarification_required", 409)
+                status = deletion.transition(
+                    RequestStatus.PAUSED_FOR_CLARIFICATION, RequestStatus.VERIFYING
+                )
+                self._run_erasure(request, status, subject_id, now)
         else:
             if request.status != RequestStatus.ON_HOLD.value:
                 raise IdentityError("request_state", 409)
