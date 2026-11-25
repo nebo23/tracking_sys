@@ -304,9 +304,15 @@ def _reader(session, principal, agency_id: UUID, client_id: UUID) -> Reader:
     return Reader(agency_id, client_id, finance, manager)
 
 
-def _release(session, principal, agency_id: UUID, client_id: UUID, body: dict) -> JSONResponse:
-    # Recheck current scope immediately before releasing person-level data (D-075, JV03).
+def _release(
+    session, principal, agency_id: UUID, client_id: UUID, body: dict, *, finance: bool = False
+) -> JSONResponse:
+    # Recheck current scope immediately before releasing person-level data (D-075, JV03). A
+    # body built with finance access carries financial-derived customer status, so that access
+    # is rechecked too (R0607-14).
     resolve_scope(session, principal, agency_id, client_id, "identity:read")
+    if finance:
+        resolve_scope(session, principal, agency_id, client_id, "finance:read")
     return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
 
 
@@ -338,7 +344,7 @@ def list_identity_subjects(
         after=after,
         limit=limit,
     )
-    return _release(session, principal, agency_id, client_id, body)
+    return _release(session, principal, agency_id, client_id, body, finance=reader.finance)
 
 
 @router.get(IDENTITY + "/subjects/{subject_id}")
@@ -347,7 +353,7 @@ def read_identity_subject(
 ) -> JSONResponse:
     reader = _reader(session, principal, agency_id, client_id)
     body = profile(session, reader, subject_id, _clock(session))
-    return _release(session, principal, agency_id, client_id, body)
+    return _release(session, principal, agency_id, client_id, body, finance=reader.finance)
 
 
 @router.get(IDENTITY + "/subjects/{subject_id}/timeline")
@@ -362,7 +368,7 @@ def read_identity_timeline(
 ) -> JSONResponse:
     reader = _reader(session, principal, agency_id, client_id)
     body = timeline(session, reader, subject_id, _clock(session), after=after, limit=limit)
-    return _release(session, principal, agency_id, client_id, body)
+    return _release(session, principal, agency_id, client_id, body, finance=reader.finance)
 
 
 # Verified sales currently associated with a person: identity:read and finance:read both, with
@@ -413,7 +419,7 @@ def read_identity_leads(
         after=after,
         limit=limit,
     )
-    return _release(session, principal, agency_id, client_id, body)
+    return _release(session, principal, agency_id, client_id, body, finance=reader.finance)
 
 
 def _admin(request: Request, session, browser) -> IdentityAdmin:

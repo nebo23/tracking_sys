@@ -488,6 +488,10 @@ def reevaluate_dependents(
                 .where(IdentityAssertion.id == link.assertion_ref)
                 .values(subject_id=link.subject_id)
             )
+            # Its sale associations follow the recomputed owner (R0607-15).
+            from app.services.revenue_identity import follow_link_owner
+
+            follow_link_owner(session, client_id, link.assertion_ref, link.subject_id)
         for person in (previous, link.subject_id):
             journey.touch(person, "unmerged")
     session.execute(

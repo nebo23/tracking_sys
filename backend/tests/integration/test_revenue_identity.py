@@ -209,11 +209,12 @@ def test_wrong_credential_client_or_proof_never_links(idw, api):
     )
     other = api.new_client()
     other.headers["Authorization"] = "Bearer " + issued.json()["key"]
+    # Every refused proof gets the generic acknowledgement and links nothing (R0607-06).
     refused = associate(idw, assertion, "S1", sender=other)
-    assert (refused.status_code, refused.json()["reason"]) == (422, "proof_invalid")
+    assert (refused.status_code, refused.json()["status"]) == (201, "accepted")
     foreign = associate(idw, assertion, "S1", client=w.a2)
-    assert foreign.status_code == 422
-    assert associate(idw, uuid4(), "S1").status_code == 422
+    assert foreign.status_code == 201
+    assert associate(idw, uuid4(), "S1").status_code == 201
     assert bindings(w) == []
     # A read key cannot associate.
     read = idw.owner.post(
@@ -297,17 +298,19 @@ def test_withdrawal_and_erasure_unlink_every_revision(idw):
             )
     assert financial_snapshot(w) == before
     replay = associate(idw, assertion, "S1", request_id=old_request, expected=3)
-    assert replay.status_code == 422  # the erased proof cannot restore a binding
+    # The erased proof cannot restore a binding, and the answer does not reveal the erasure.
+    assert replay.status_code == 201
+    assert all(row.state in {"unlinked", "detached"} for row in bindings(w))
     # Attribution withdrawal alone also unlinks (the second permission of J10).
     subject2, assertion2 = person(idw, "attr@example.test")
     associate(idw, assertion2, "S2")
     idw.server_subject({"attribution": "withdrawn"}, token=subject2["subject_token"])
     latest = [b for b in bindings(w) if b.sale_operation_id == "S2"][-1]
     assert (latest.state, latest.reason) == ("unlinked", "attribution_withdrawn")
-    assert (
-        associate(idw, assertion2, "S2", expected=latest.revision).json()["reason"]
-        == "proof_invalid"
-    )
+    again = associate(idw, assertion2, "S2", expected=latest.revision)
+    assert again.status_code == 201
+    after = [b for b in bindings(w) if b.sale_operation_id == "S2"][-1]
+    assert (after.revision, after.state) == (latest.revision, "unlinked")
 
 
 def test_customer_qualification_survives_a_full_refund_and_needs_both_permissions(idw):

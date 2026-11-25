@@ -797,6 +797,28 @@ class IdentityAdmin(TenancyService):
                 {"id": str(item.id), "status": item.status, "targets": item.target_outcomes}
                 for item in requests
             ],
+            # Conflicting sale associations wait for a review action (R0607-04): detach names
+            # the association ID and the revision shown here.
+            "ambiguous_associations": [
+                {
+                    "association_id": str(row.association_id),
+                    "revision": row.revision,
+                    "reason": row.reason,
+                    "source_account_id": row.source_account_id,
+                    "sale_operation_id": row.sale_operation_id,
+                    "received_at": row.received_at,
+                }
+                for row in session.scalars(
+                    select(RevenueIdentityBinding)
+                    .where(
+                        RevenueIdentityBinding.client_id == client_id,
+                        RevenueIdentityBinding.state == "ambiguous",
+                        RevenueIdentityBinding.closed_at.is_(None),
+                    )
+                    .order_by(RevenueIdentityBinding.received_at, RevenueIdentityBinding.id)
+                    .limit(PAGE)
+                )
+            ],
         }
 
 

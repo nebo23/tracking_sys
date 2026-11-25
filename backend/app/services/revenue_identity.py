@@ -33,12 +33,14 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.identity.segments import ConsentMark, current_period, grant_periods
 from app.models import (
     CollectionSubject,
     IdentityAssertion,
     IdentityLink,
     LedgerTransaction,
     RevenueIdentityBinding,
+    StoredConsentRecord,
 )
 from app.privacy.consent import ConsentState, Purpose
 from app.services.tenancy import AccessDenied, TenancyService
@@ -98,9 +100,14 @@ def _verified_sale(
 def _segment_ok(
     session: Session, assertion: IdentityAssertion, now: datetime
 ) -> IdentityLink | None:
-    """The assertion's owned link while it is unambiguous, open and consented (J10)."""
+    """The assertion's owned link while it is unambiguous and consented (J10).
+
+    A segment that ended normally, for example when another person signed in on the same
+    device, keeps its owner (D-076, R0607-10): the association is removed only by withdrawal,
+    erasure, expiry, ambiguity or a review action, never because the segment is closed.
+    """
     from app.services.collection import consent_view
-    from app.services.identity import identity_consent, link_segment
+    from app.services.identity import identity_consent
 
     link = session.scalar(
         select(IdentityLink).where(
@@ -112,13 +119,28 @@ def _segment_ok(
     consent = identity_consent(session, link.collection_subject_id, now)
     if consent.grant_record_id is None:
         return None
-    segment = link_segment(link, consent.periods)
-    if segment.end is not None:
-        return None
     subject = session.get(CollectionSubject, link.collection_subject_id)
     if consent_view(session, subject, now).states[Purpose.ATTRIBUTION] is not ConsentState.GRANTED:
         return None
     return link
+
+
+def _attribution_start(session: Session, subject_id: UUID, now: datetime) -> datetime | None:
+    """The start of the subject's current uninterrupted attribution grant, if any."""
+    rows = session.scalars(
+        select(StoredConsentRecord)
+        .where(
+            StoredConsentRecord.subject_id == subject_id,
+            StoredConsentRecord.purpose == Purpose.ATTRIBUTION.value,
+        )
+        .order_by(StoredConsentRecord.received_at, StoredConsentRecord.id)
+    )
+    periods = grant_periods(
+        (ConsentMark(row.received_at, row.state == "granted", row.expires_at) for row in rows),
+        now,
+    )
+    period = current_period(periods, now)
+    return period.start if period is not None else None
 
 
 @dataclass(frozen=True)
@@ -179,12 +201,32 @@ def associate(
         and assertion.subject_id is not None
     ):
         link = _segment_ok(session, assertion, now)
+    if link is not None:
+        # New proof for the current attribution grant: an assertion received before a
+        # withdrawal never restores an association after a new grant (F1, R0607-05).
+        start = _attribution_start(session, link.collection_subject_id, now)
+        if start is None or assertion.received_at < start:
+            link = None
     if link is None:
-        return "proof_invalid", 422
+        # The answer is the generic acknowledgement: it never says whether the identifier was
+        # erased, objected to, contested or withdrawn, or whose assertion it was (R0607-06).
+        return "accepted", 201
     key = association_id(client_id, request.source_account_id, request.sale_operation_id)
     current = _current(session, client_id, key)
-    if (current.revision if current else 0) != (request.expected_revision or 0):
+    live = (
+        current is not None
+        and current.closed_at is None
+        and current.state in {"active", "pending", "ambiguous"}
+    )
+    expected = request.expected_revision or 0
+    # Only a live association is versioned against the request: an unlinked or detached one
+    # accepts a request that does not know it, so erasure history stays hidden (R0607-06).
+    if expected != (current.revision if current else 0) and (live or expected != 0):
         return "revision_conflict", 409
+    if live and current.state == "ambiguous":
+        # A conflict is resolved by review only: no request, the challenger's included, makes
+        # itself the owner (R0607-04).
+        return "accepted", 201
     owner = link.subject_id
     if current is not None and current.state in {"active", "pending"} and current.closed_at is None:
         if current.owner_subject_id == owner:
@@ -226,6 +268,30 @@ def associate(
     )
     session.flush()
     return "accepted", 201
+
+
+def follow_link_owner(
+    session: Session, client_id: UUID, assertion_ref: UUID, owner: UUID | None
+) -> None:
+    """An identity correction moves the live associations of an assertion with its segment:
+    unmerge recomputes the owner from the original evidence, and a segment left ambiguous
+    makes the association ambiguous for review (joint design section 3, R0607-15)."""
+    values: dict[str, Any] = (
+        {"owner_subject_id": owner}
+        if owner is not None
+        else {"owner_subject_id": None, "state": "ambiguous", "reason": "conflicting_owner"}
+    )
+    session.execute(
+        update(RevenueIdentityBinding)
+        .where(
+            RevenueIdentityBinding.client_id == client_id,
+            RevenueIdentityBinding.assertion_ref == assertion_ref,
+            RevenueIdentityBinding.closed_at.is_(None),
+            RevenueIdentityBinding.state.in_(["active", "pending"]),
+        )
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def unlink(
