@@ -2,10 +2,10 @@
 Status: Not completed; this is a review checklist, not an implementation instruction.
 
 - [ ] Approve the scope and sources for react workspace and user experience.
-- [ ] Resolve Q-006, Q-009; approve user flows and design before implementation and record the owner decision.
+- [x] Resolve Q-006, Q-009; approve user flows and design before implementation and record the owner decision. (D-075 and D-076. The currency and FX part of Q-006 stays open with specification 007, and the exact package list waits for the [018-A plan](plan-018a.md).)
 - [ ] Verify dependencies: 016-analytics-reporting, 017-saas-lifecycle.
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
+- [x] Define independently reviewable local changes for the approved specification. (D14 in D-076: slices 018-A to 018-D; the first is planned in the [018-A plan](plan-018a.md).)
 - [ ] Implement the first approved slice.
 - [ ] Verify: A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows.
 - [ ] Verify: Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization.

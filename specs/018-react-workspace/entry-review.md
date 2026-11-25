@@ -1,6 +1,6 @@
 # Spec 018 entry review and design decision packet
 
-Prepared: 2026-11-25. Revision: 3 (2026-11-26). Revision 2 followed the owner's design review of 2026-11-25; revision 3 changes the recommendation of D13 and adds D15. Status: design preparation authorized by D-074. D-075 decides D6 (the logo) and approves the sign-in screen and the search field; see section 5.1. The other decisions below are proposals for the owner and are not approved. No React code, dependency, build tool or migration is authorized by this preparation.
+Prepared: 2026-11-25. Revision: 4 (2026-11-26). Revision 2 followed the owner's design review of 2026-11-25; revision 3 changed the recommendation of D13 and added D15; revision 4 records the owner's approval. Status: decided. D-075 decides D6 (the logo) and approves the sign-in screen and the search field (section 5.1). D-076 approves D1-D5 and D7-D15 as recommended (section 5.2). No package is installed and no application code is written until the owner approves the package list of the [018-A plan](plan-018a.md); a migration needs its own decision.
 
 ## 1. Baseline and intended result
 Start from merged `main` at `81977a38110458a75838baa47c73029a0495c2ae` (Spec 016-A, [PR 14](https://github.com/nebo23/tracking_sys/pull/14)). Preparation uses `codex/spec-018-react-workspace` in an isolated worktree. Existing owner files and other worktrees remain intact.
@@ -79,6 +79,12 @@ Two consequences of the sign-in decision need work before the screen is built:
 
 - **Agreement to the terms (D15).** The API has no field or record for it, and the Terms of Service and the Privacy Policy do not exist. Recording who agreed, when and to which version is backend and schema work that needs its own decision. The design keeps both sign-in actions enabled and refuses a sign-in without the tick with a message at the box, because a disabled action does not say what is missing. A lighter alternative the owner may prefer later: ask once at registration and again only when the terms change.
 - **A picture that loops.** A loop beside a form must be stoppable (WCAG 2.2, criterion 2.2.2). The design stops it under the system's reduced-motion setting and adds a pause control on the brand side.
+
+### 5.2 Decided on 2026-11-26 (D-076)
+The owner approved every remaining decision of the table as recommended: D1 to D5 and D7 to D15. Two of them leave work that keeps its own gate:
+
+- **D13** approves the package families. The [018-A plan](plan-018a.md) names thirty packages with exact versions, and that list needs the owner's approval before anything is installed.
+- **D15** approves the record of agreement in principle. Its schema belongs to an amendment of specification 002 with its own review, and the Terms of Service and the Privacy Policy come from the owner.
 
 ## 6. What this preparation does not decide
 - Currencies and the exchange-rate source of Q-006 (they belong to 007).

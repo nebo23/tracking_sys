@@ -1,8 +1,8 @@
 # Connect design language
 
-Status: design proposal for specification 018, prepared 2026-11-25 under D-074 and revised the same day after the owner's review. D-075 approves the logo, the sign-in screen and the pill-shaped search field. Everything else is a proposal until the owner decides the items in the [018 entry review](../../specs/018-react-workspace/entry-review.md). No React code, dependency or build tool is added by this folder.
+Status: the design of specification 018, prepared 2026-11-25 under D-074. D-075 approves the logo, the sign-in screen and the pill-shaped search field. D-076 (2026-11-26) approves the remaining decisions of the [018 entry review](../../specs/018-react-workspace/entry-review.md): the name, both languages, the colors, the typefaces, the themes, the data states, the navigation and the accessibility target. No React code, dependency or build tool is added by this folder; the application is planned in the [018-A plan](../../specs/018-react-workspace/plan-018a.md).
 
-Connect is the working product name the owner uses for this project. The design covers the multi-agency product with both launch capabilities: content performance and financial tracking.
+Connect is the product name in the interface (D-076). A trademark and domain search is still required before any public launch. The design covers the multi-agency product with both launch capabilities: content performance and financial tracking.
 
 ## What is in this folder
 | Path | Content |

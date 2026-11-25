@@ -1,5 +1,5 @@
 # 018-react-workspace — React workspace and user experience
-Status: Draft; implementation is not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-074 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md). Owner design review D-075 (2026-11-25): the logo, the sign-in screen and the search field are approved.
+Status: design decisions approved (D-075, D-076); implementation is not approved until the owner approves the package list of the [018-A plan](plan-018a.md). Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-074 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md). Owner design review D-075 (2026-11-25): the logo, the sign-in screen and the search field are approved. D-076 (2026-11-26): the remaining design decisions are approved as recommended.
 
 ## Sources
 USER React; PDF-013,029,030,065,068,069,098,101,103. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -23,7 +23,7 @@ A typed API client after toolchain approval; define route, permission, and state
 ## Dependencies and open decisions
 Dependencies: [016-analytics-reporting](../016-analytics-reporting/spec.md), [017-saas-lifecycle](../017-saas-lifecycle/spec.md)
 
-Open decisions: Q-006, Q-009; approve user flows and design before implementation. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: the currency and FX part of Q-006, and the exact package list under Q-009. D-076 decides the interface languages and the toolchain families. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-074 (2026-11-25) authorized the design preparation. D-075 (2026-11-25) approved the logo, the sign-in screen and the search field. D-076 (2026-11-26) approved the remaining design decisions and the slices 018-A to 018-D. Implementation of 018-A waits for the owner's approval of the package list in the [018-A plan](plan-018a.md).
