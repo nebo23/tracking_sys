@@ -1,6 +1,6 @@
 # Spec 008-B implementation: persisted attribution
 
-Prepared 2026-11-25 under D-078. It executes once the owner's approval of decisions D1-D14 of the [008-B entry review](entry-review-008b.md) is recorded as D-079. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/008-attribution-engine/implementation-prompt-008b.md` on the branch below.
+Prepared 2026-11-25 under D-078. The owner approved decisions D1-D14 of the [008-B entry review](entry-review-008b.md) as recommended, without amendment, on 2026-11-25; the approval is recorded as D-079, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/008-attribution-engine/implementation-prompt-008b.md` on the branch below.
 
 ## Where to work
 

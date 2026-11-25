@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-25 under D-078.
 - **Baseline:** merged `main` at `3187c70` (PR 15: 006, 007-B/C and the D-076 corrections).
-- **Status:** proposals for the owner. Decisions D1-D14 are not approved until the owner approves them, which will be recorded as D-079.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-25 (D-079), with Linear as each client's default model.
 - **Handoff:** the [implementation handoff](implementation-prompt-008b.md) executes this packet after approval.
 
 ## 1. Intended result
