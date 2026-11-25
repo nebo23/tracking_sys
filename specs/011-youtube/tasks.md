@@ -1,35 +1,37 @@
 # Tasks: 011-youtube
-Status: Merged in PR 11 under D-062, before Phase 4; the open items below that belong to Phase 4 are follow-ups after the merge. This is a review checklist, not an implementation instruction.
+Status: Merged in PR 11 under D-062. Phase 4 ran on 2026-11-25 on `codex/spec-011-youtube-phase4` ([evidence](evidence.md#phase-4-2026-11-25)), pushed under D-051 without a pull request. The open items below are separately gated or wait for the owner. This is a review checklist, not an implementation instruction.
 
 - [x] Prepare the [entry review](entry-review.md) from the official Google documentation read on 2026-11-18, with the 009 contract gaps, the policy constraints, decisions D1-D17 and slices 011-A to 011-D.
 - [x] Approve the scope and sources for youtube analytics: D15 by D-057 (existing project `connectapp`), D1-D14, D16 and D17 as recommended by D-058, with 011-B before 011-A.
 - [x] Google Cloud console steps (owner, 2026-11-18), as adjusted for `connectapp` in [entry review section 10](entry-review.md#10-owner-decisions).
 - [x] Prepare the 011-B [feasibility checklist](feasibility-checklist.md) and the read-only tool `app.youtube_feasibility` with offline tests ([evidence](evidence.md)).
 - [x] Correct review findings R011-01 to R011-09 of the 011-B tool and documents, each with a regression that fails at `bb3263e` (D-059, [corrections](evidence.md#011-b-review-corrections-2026-11-18)).
-- [ ] 011-B feasibility check: the owner's run and answers to F1-F14 with redacted evidence. Answered so far: F1 (a first consent with a scope cleared waits for Phase 4), F2, F3 (without the 7-day check), F4, F5, F6, F7, F8 (without the next-day check), F9, F10, F11 and F14. F3, F12 and F13 follow after 2026-11-24 23:57 UTC under the access rule of the [completion prompt](completion-prompt.md).
+- [x] 011-B feasibility check: the owner's run and answers to F1-F14 with redacted evidence, completed on 2026-11-25. Phase 4 answered the rest: F1 (a first consent with a scope cleared), F3 (the refresh after 7 days), F8 (the comparison over 7 days), F12 and F13 ([Phase 4](evidence.md#phase-4-2026-11-25)).
 - [x] Owner decision on the proposed D9 completeness amendment ([consequences for 011-A](evidence.md#consequences-for-011-a)): approved as D-060.
-- [ ] After 011-B: delete `local-data\youtube-feasibility` once the summary is recorded (R011-08, D-010).
+- [ ] After 011-B: the owner deletes `local-data\youtube-feasibility` with its `digest-key` now that the summary is recorded (R011-08, D-010; [step 7](evidence.md#step-7-clean-up)).
 - [x] 011-A: YouTube-shaped synthetic adapter, runtime extensions and migration 0015 ([design](design-011a.md), [evidence](evidence.md#011-a-youtube-shaped-synthetic-adapter-2026-11-18)). Started before the next-day probe (F8) at the owner's request of 2026-11-18.
 - [x] 011-C: the live adapter, its settings, the operator purge and migration 0016, with fixture tests ([evidence](evidence.md#011-c-live-youtube-adapter-2026-11-18)).
 - [x] 011-C read-only live check with the owner's test channel (2026-11-18): the browser connect and one sync of each stream. It found and corrected the `video_totals` report ([evidence](evidence.md#live-check-with-the-owners-test-channel-2026-11-18)).
-- [ ] 011-C live disconnect check after F3 (Phase 4, a follow-up after the merge under D-062).
+- [x] 011-C live disconnect check after F3 (2026-11-25): revocation, secret destruction and purge in 1.8 seconds, with nothing of the connection left and nothing logged, and the revocation confirmed at Google ([evidence](evidence.md#step-3-the-011-c-live-disconnect-check)).
 - [x] Correct the findings R011-13 to R011-17 of Claude's merge review of PR 11, each code correction with a regression that fails at `d8b6b5d`, and adopt Q1 and Q2 (D-061, [merge review prompt](merge-review-prompt.md), [corrections](evidence.md#merge-review-corrections-d-061-2026-11-18)).
 - [x] Claude's review of the D-061 corrections at `5ccb87a`, and the merge of PR 11 before Phase 4 (D-062, [review](evidence.md#claudes-review-of-the-d-061-corrections-and-the-merge-d-062-2026-11-18)).
-- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner; planned after Phase 4 (D-058, D-061).
-- [ ] Follow-up (Spec 010): the Instagram `account` stream has the day-list pattern that R011-15 corrected for YouTube ([010 follow-ups](../010-instagram/evidence.md#follow-ups-and-limits-after-010-c)).
+- [x] Phase 4 under D-062 ([handoff](phase4-prompt.md), [evidence](evidence.md#phase-4-2026-11-25)): F3, the F8 probe, the live disconnect check, F12, F13, the rest of F1 and `forget`. No result contradicts D1-D14.
+- [ ] Follow-up: rotate the client secret shared in the conversation before any use beyond owner test channels. Requested on 2026-11-18 (completion prompt, Phase 3 step 7) and deferred by the owner; planned after Phase 4 (D-058, D-061). On 2026-11-25 the owner deferred it again and will rotate it alone ([step 8](evidence.md#step-8-the-client-secret-rotation)).
+- [x] Follow-up (Spec 010): the Instagram `account` stream had the day-list pattern that R011-15 corrected for YouTube. PR 13 corrected it as review finding R011 ([010 follow-ups](../010-instagram/evidence.md#follow-ups-and-limits-after-010-c)).
 - [ ] Owner decision (D10): the proposal to reserve each page's actual cost instead of its maximum ([proposal](evidence.md#proposal-for-the-owner-actual-page-cost-d10)).
 - [ ] Owner decision (D11, Q-012): the deleted-video check for connections whose client is archived or whose agency is suspended ([observation](evidence.md#limits-and-observations-after-the-d-061-corrections)).
 - [x] Re-verify the `youtube.authorized_analytics` and `youtube.other_data` rows and mark them current before the live adapter runs (011-C, D-025): verified 2026-11-18, review due 2027-11-18 ([evidence](evidence.md#policy-rows-re-verified-2026-11-18)).
-- [ ] Resolve Q-001, Q-004; provider use-case and policy approval and record the owner decision.
-- [ ] Verify dependencies: 009-connector-runtime.
-- [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
-- [ ] Implement the first approved slice.
-- [ ] Verify: Prove scopes, channel authorization, Analytics access, and actual project quotas before connector release.
-- [ ] Verify: Completeness markers account for incomplete days, reporting delays, and historical coverage.
-- [ ] Verify: Storage, display, and retention follow an applicable provider policy and permitted use case; unrestricted cross-source scoring is excluded.
-- [ ] Verify: Tagged-link attribution is displayed as separate evidence; combining or deriving metrics with YouTube data requires policy review.
-- [ ] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
+- [x] The YouTube part of Q-001 (data sources, streams and catalog: D1, D7 and D8), the YouTube quota rules under Q-004 (D10 and D17), and the use case and policy rules (D5, D6 and D11 to D13): decided by D-058, with D9 amended by D-060. Q-001 stays open for 012 and 013, and the load and budget figures of Q-004 stay open.
+- [x] Verify dependencies: 009-connector-runtime (merged in PR 8).
+- [x] Prepare applicable contracts and synthetic data/permission examples (the 011-A synthetic adapter; `backend/tests/youtube_api.py` with the 011-B answer shapes).
+- [x] Define independently reviewable local changes for the approved specification (slices 011-A to 011-D).
+- [x] Implement the first approved slice (011-A).
+- [x] Verify: Prove scopes, channel authorization, Analytics access, and actual project quotas before connector release (acceptance criterion 1; see [spec.md](spec.md#acceptance-criteria)).
+- [x] Verify: Completeness markers account for incomplete days, reporting delays, and historical coverage (acceptance criterion 2).
+- [x] Verify: Storage, display, and retention follow an applicable provider policy and permitted use case; unrestricted cross-source scoring is excluded (acceptance criterion 3).
+- [ ] Verify: Tagged-link attribution is displayed as separate evidence; combining or deriving metrics with YouTube data requires policy review (acceptance criterion 4). D12 decides the rule and 016-A totals only additive counts within one connection; the separate tagged-link section is verified when 016-B and 018 build it.
+- [x] Update documentation, limitations, and untested assumptions ([connector guide](../../docs/engineering/connectors.md#youtube-providers-011-a-and-011-c), [evidence](evidence.md)).
+- [x] Present a reviewable result to the owner (PR 11, and the Phase 4 report of 2026-11-25).
+- [x] Obtain owner review and upload approval, then push and create or update a PR (D-012): PR 11 merged under D-062; Phase 4 is pushed under D-051, and its pull request and merge remain owner decisions.
+- [ ] Separately gated: 011-D (brand and sensitive-scope verification, the "In production" status, the compliance audit with a quota extension, and the optional derived-metrics terms), a review of the production Google Cloud project, customer channels, native `tracking_sys` migration and deployment.
 - [ ] Record owner acceptance before progressing to dependent work.

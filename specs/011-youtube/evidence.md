@@ -550,3 +550,37 @@ At the owner's request, Claude ran the tool's commands for this step while the o
 - **Check.** `check-access` at 12:47:47 UTC, 0.1 hours after the consent: 400 `invalid_grant`, with the description for an expired or revoked token. The refusal was immediate, so no second check 30 minutes later was needed.
 - **Answer to F13.** After access is removed in the Google Account, the next refresh is refused with `invalid_grant`. It is the same answer as for an expiry (F3) or a revocation (F12): the product cannot tell these cases apart, and it does not need to.
 - **Consequence for D6: none.** A connection whose access was removed gets `invalid_grant` at its next refresh: before its next run, or at the latest at the 7-day authorization check. It then becomes `reconnect_required` (`credential_expired`), and the grace purge removes its data 14 days later. That is within the 30 calendar days that the YouTube API Services Developer Policies (P-1) allow after a revocation in the Google security settings.
+
+### Step 6: the rest of F1, a first consent with one scope cleared
+
+After F13 the account held no grant in `connectapp`.
+
+- **Consent.** Claude ran `authorize --slot b --no-probe` while the owner consented, at 12:49:06 UTC. As asked, the owner cleared the YouTube Analytics scope on the consent screen and kept `youtube.readonly`.
+- **The screen.** The owner did not describe it separately. Clearing one scope while keeping the other needs a choice per scope, and the repeated consent of 2026-11-18 showed a checkbox for each scope (Phase 1, F1).
+- **Granted scopes.** The `scope` field of the answer listed `youtube.readonly` only, with a refresh token and `refresh_token_expires_in` 604,799.
+- **Answer to F1, completed.** On a first consent, clearing a scope narrows the grant to the scopes left ticked. On a repeated consent, the answer reported the account's whole earlier grant, whatever was ticked (2026-11-18). Either way, the `scope` field states what was granted.
+- **Consequence for D2: none.** D2 installs a connection only when the `scope` field holds both scopes. This consent is the case that D2 refuses as `scopes_missing`, which the fixtures test, so no product run was needed.
+- **Removal.** The owner removed the app's access again. `check-access --slot b` at 12:52:37 UTC (token age 0.1 hours) was refused with 400 `invalid_grant`, so no grant of the test account remains in `connectapp`.
+
+### Step 7: clean-up
+
+- **`forget`.** It removed the four `TRACKING_YOUTUBE_FEASIBILITY_*` keys from `.env`. A script that prints key names only found 4 such keys before and 0 after. The connector's `TRACKING_YOUTUBE_CLIENT_ID` and `TRACKING_YOUTUBE_CLIENT_SECRET` stay.
+- **Summary.** This Phase 4 section summarizes the redacted evidence files of 2026-11-25, with the earlier sections for 2026-11-17 and 2026-11-18.
+- **Folder.** The owner's deletion of `C:\Code\Tracking-system\local-data\youtube-feasibility` with its `digest-key` (R011-08, D-010) follows this summary.
+
+### Step 8: the client secret rotation
+
+On 2026-11-25 the owner deferred the rotation and will do it alone: add a new secret to the connector's Web client in `connectapp`, replace `TRACKING_YOUTUBE_CLIENT_SECRET` in `.env`, and disable or delete the old secret. It stays an open follow-up, required before any use beyond the owner's test channels (D-058, D-062). Neither secret is recorded. After a rotation, `.env` must match the console. Otherwise Google rejects the client, and connections keep their data without a working authorization check (`connector_client_rejected`; see the [operator obligations](../../docs/engineering/connectors.md#operator-obligations-q1-and-q2-d-061)).
+
+### Phase 4 summary
+
+| Question | Result on 2026-11-25 | Decision |
+|---|---|---|
+| F1, a first consent with a scope cleared | Narrowed to the scope left ticked | D2 unchanged |
+| F3, refresh after 7 days in Testing | Refused with `invalid_grant` at 168.3 and 180.1 hours | D4 unchanged |
+| F8, stability over 7 days | 21 days compared, none changed; the last day returned had ended 52 hours before the read | D9 unchanged |
+| 011-C live disconnect | Revoked, destroyed and purged in 1.8 seconds, with nothing left and nothing logged; the revocation also ended the account's other consent | D5 unchanged |
+| F12, revoking one consent | Ended the other consent within 10 seconds (`final`) | D5 and D6 unchanged |
+| F13, access removed in the Google Account | The next refresh was refused at once with `invalid_grant` | D6 unchanged |
+
+No result contradicts D1-D14, so no amendment is proposed. With these, every question F1-F14 of the [feasibility checklist](feasibility-checklist.md) is answered. The client secret rotation and the owner decisions on D10 and D11 stay open, as do 011-D, customer channels, native migration and deployment.

@@ -1,6 +1,8 @@
 # Spec 011-B feasibility checklist
 
-Prepared: 2026-11-18. Authority: D-058 (entry review decision D16; D15 decided by D-057). This check is owner-operated and covers acceptance criterion 1. Before the YouTube-shaped synthetic adapter (011-A) and the live adapter (011-C) are built, one owner-controlled channel shows what Google's OAuth 2.0 web server flow, the YouTube Data API v3 and the YouTube Analytics API actually return. Live Google calls happen only when the owner runs the tool below.
+Prepared: 2026-11-18. Authority: D-058 (entry review decision D16; D15 decided by D-057). This check is owner-operated and covers acceptance criterion 1.
+
+**Completed: 2026-11-25** (Phase 4, D-062). Every question F1-F14 is answered in the [evidence](evidence.md), the last of them in [Phase 4](evidence.md#phase-4-2026-11-25). `forget` removed the stored tokens, and the owner deletes the evidence folder after the summary (Part D step 8). Before the YouTube-shaped synthetic adapter (011-A) and the live adapter (011-C) are built, one owner-controlled channel shows what Google's OAuth 2.0 web server flow, the YouTube Data API v3 and the YouTube Analytics API actually return. Live Google calls happen only when the owner runs the tool below.
 
 ## What the check must answer
 
