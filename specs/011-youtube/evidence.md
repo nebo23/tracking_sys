@@ -478,3 +478,26 @@ At 12:04 UTC the owner ran `refresh` on slot a, then `refresh --slot b`. The tok
 - **Not measured.** The exact moment of expiry: no refresh was made between 2 minutes and 168.3 hours after a consent.
 - **Consequence for D4: none.** The grant keeps the reported `refresh_token_expires_in` as its expiry (`grant_expires_at`), and Google refuses the token once that time has passed. A connection made while `connectapp` is in Testing therefore needs a new consent within 7 days. The runtime already makes it `reconnect_required` (`credential_expired`) on `invalid_grant`, and the 14-day grace purge follows.
 - **Access rule.** With F3 recorded, the access rule of the [completion prompt](completion-prompt.md#access-rule-for-the-test-account) ends (D-060, D-062).
+
+### Step 2: F8, the stability probe
+
+At 12:20 UTC (04:20 Pacific) the owner gave a fresh consent on slot a (`authorize`, both scopes), which the tool's probe followed. The probe made 27 calls (8 Data API, 17 Analytics and 2 with an invalid token) and was not throttled.
+
+- **Consent.** Both scopes were granted, with a refresh token, `refresh_token_expires_in` 604,799 (`connectapp` is still in Testing) and `expires_in` 3,599. The answer had the same fields as on 2026-11-17.
+- **Day report.** The whole catalog for the 31 requested days returned 28 rows. The first day returned was 30 days before today and the last 3 days before (2026-11-22). No day was missing between them, and 4 of the 28 rows had zero views. The 3 most recent days were not returned.
+- **Comparison.** The latest earlier probe was that of 2026-11-18 11:11 UTC (03:11 Pacific). 21 days were compared, 2026-10-26 to 2026-11-15 (offsets 10 to 30), and no digest changed.
+- **Gap.** The two probes are 7 days and about one hour (169 hours) apart, not one day as planned. The next-day question is covered by the earlier comparison, 11 hours apart, in which 28 days were unchanged. This comparison adds what happens over 7 days.
+
+Relation to D9:
+- **72-hour bound.** At this read, the last day returned had ended 52 hours earlier, and the day after it (ended 28 hours earlier) was not returned. In the probes of 2026-11-17 and 2026-11-18, the last day returned had ended 40 and 51 hours before the read, and the day after it (16 and 27 hours) was not returned. At these reads, the 72-hour bound sets `complete_through` one or two days before the last day that Google returned.
+- **4-day re-read and provisional marking.** Five of the compared days (2026-11-11 to 2026-11-15) were inside the 193-hour provisional period at the earlier probe, 75 to 171 hours after their start. They were unchanged 7 days later. The 16 older days were already past that period (at least 195 hours) and did not change in the following 169 hours either. The last compared day, 2026-11-15, still has the values first read 40 hours after it ended (the 2026-11-17 probe and the 11-hour comparison).
+- **Consequence for D9: none.** No day changed, inside or after the re-read window, so D9 stays as amended by D-060. This is one low-activity channel and cannot show that larger channels never revise days, so the re-read window remains the safeguard.
+
+The rest of the probe repeated the 2026-11-18 answers unchanged:
+- 26 uploads (22 private, 1 unlisted, 3 public), read in one batch, with the public items equal to `videoCount` and no title returned;
+- 50 IDs accepted and 51 refused, by `videos.list` (`invalidFilters`) and by `batchGetStats` (`badRequest`);
+- the filtered video reports with 24 rows, and the same content-type values;
+- 220 months since 2008-07, 52 of them with views, the earliest 82 months back;
+- 401 `authError` for an invalid token on both APIs.
+
+The slot a token of this consent is kept for the cross-check of step 3.
