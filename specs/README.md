@@ -1,6 +1,6 @@
 # Specification index
 
-Review corrections (2026-11-25, D-076): the nineteen findings of the [independent review](../reports/specs-006-007-joint-review-2026-11-25.md) of the combined 006 and 007-B/C branch are corrected on `codex/spec-006-007-identity-ledger`, each with a regression that fails at `8b03b1c`; see the [correction evidence](006-identity-journey/joint-evidence.md#review-corrections-d-076-2026-11-25). PR and merge await the owner.
+Review corrections (2026-11-25, D-076): the nineteen findings of the [independent review](../reports/specs-006-007-joint-review-2026-11-25.md) of the combined 006 and 007-B/C branch are corrected on `codex/spec-006-007-identity-ledger`, each with a regression that fails at `8b03b1c`; see the [correction evidence](006-identity-journey/joint-evidence.md#review-corrections-d-076-2026-11-25). D-077 authorized the pull request and its merge.
 
 Current priority (2026-11-23, D-074): 016-A merged in [PR 14](https://github.com/nebo23/tracking_sys/pull/14) at `81977a3`. Prepare 006 and 007-B/C together on a new branch from that merge; the [joint packet](006-identity-journey/joint-entry-review.md) contains proposed decisions J1-J12 and links the design, verification and conditional handoff. D-075 approved J1-J12 as recommended; P0-P5 are implemented and verified on `codex/spec-006-007-identity-ledger` (see the [joint evidence](006-identity-journey/joint-evidence.md)). PR and merge await the owner. This does not close 008 persistence or 016-B/C.
 
