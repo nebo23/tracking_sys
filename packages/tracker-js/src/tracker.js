@@ -822,7 +822,11 @@ export function createTracker(config, environment = {}) {
   }
 
   async function sendControl(route, body) {
+    // A retry never starts for a session that restart() ended: the old subject token is not
+    // sent again after the restart (006 section 8, JV23, R0607-16).
+    const owner = session;
     for (let attempt = 0; attempt < LIMITS.maxAttempts; attempt += 1) {
+      if (owner !== session) return false;
       try {
         const reply = await control(route, body, { read: false });
         if (reply.ok || reply.status === 202) return true;
