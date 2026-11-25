@@ -137,6 +137,7 @@ The sign-in screen, as the owner approved it (D-075):
 | Token audit (`build-tokens.mjs`) | Passed: 130 contrast pairs and the chart palette gates, both themes. |
 | Rendering | All thirteen reference pages rendered in Chromium (Playwright 1.64.1) and reviewed as screenshots in light, dark, Arabic and at phone width. |
 | Responsive check | Thirteen pages at 390, 768, 1024 and 1440 pixels (dark at 390 and 1440): no horizontal overflow, no console errors, no pointer target under 24 pixels. |
+| Revision for D-075 | The token audit and the responsive check were run again and passed. Reviewed as screenshots: the sign-in screen in light, in dark and at phone width; its picture frozen at three moments of the loop and under reduced motion; the top bar with the pill search in light, dark, Arabic and at phone width; and the fourteen logo files. The other pages were not reviewed again by eye. |
 
 Not verified: screen readers, keyboard-only walkthroughs, Firefox and Safari, real phones, usability with Arabic-speaking users, review of the Arabic copy by a native editor, provider brand-guideline compliance, and name or trademark clearance.
 
