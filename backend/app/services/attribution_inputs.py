@@ -90,13 +90,12 @@ def touchpoints(
 def sale_conversions(
     session: Session, agency_id: UUID, client_id: UUID, person_id: UUID, now: datetime
 ) -> list[tuple[Conversion, SaleState]]:
-    from app.services.ledger_store import require_current
-    from app.services.revenue import load_rows
+    from app.services.ledger_store import published_state
     from app.services.revenue_identity import _qualifying
 
     root = root_of(session, person_id)
     group = person_group(session, client_id, person_id)
-    state = require_current(session, agency_id, client_id, load_rows(session, agency_id, client_id))
+    state = published_state(session, agency_id, client_id)
     found = []
     for row in _qualifying(session, agency_id, client_id, group, now):
         transaction = session.scalar(

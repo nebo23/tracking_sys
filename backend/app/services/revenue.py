@@ -126,6 +126,18 @@ def append_evidence(
         raise LedgerInputError("invalid_stream")
     if intake not in INTAKES or (intake == "manual_entry") != (intake_id is None):
         raise LedgerInputError("invalid_intake")
+    # A receipt position never goes backwards, on every path, projected or not: a database
+    # clock behind the client's last receipt stores nothing and answers a retryable 503
+    # (joint design 4.1, R0607-13).
+    last = session.scalar(
+        select(func.max(RevenueEvidence.received_at)).where(
+            RevenueEvidence.client_id == item.client_id
+        )
+    )
+    if last is not None and item.received_at < last:
+        from app.services.ledger_store import ReceiptClockBehind
+
+        raise ReceiptClockBehind()
     statement = (
         insert(RevenueEvidence)
         .values(
@@ -213,14 +225,18 @@ class ClientLedger:
         return None
 
 
-# The rows of one client in receipt order: received_at, then the insertion sequence.
-def load_rows(session: Session, agency_id: UUID, client_id: UUID) -> list[RevenueEvidence]:
+# The rows of one client in receipt order: received_at, then the insertion sequence. With
+# through, only the rows up to that sequence: the ones a published state covers (R0607-12).
+def load_rows(
+    session: Session, agency_id: UUID, client_id: UUID, *, through: int | None = None
+) -> list[RevenueEvidence]:
+    query = select(RevenueEvidence).where(
+        RevenueEvidence.agency_id == agency_id, RevenueEvidence.client_id == client_id
+    )
+    if through is not None:
+        query = query.where(RevenueEvidence.sequence <= through)
     return list(
-        session.scalars(
-            select(RevenueEvidence)
-            .where(RevenueEvidence.agency_id == agency_id, RevenueEvidence.client_id == client_id)
-            .order_by(RevenueEvidence.received_at, RevenueEvidence.sequence)
-        )
+        session.scalars(query.order_by(RevenueEvidence.received_at, RevenueEvidence.sequence))
     )
 
 
@@ -254,8 +270,10 @@ def unbound_refunds(rows: Sequence[RevenueEvidence]) -> set[UUID]:
 def client_ledger(session: Session, agency_id: UUID, client_id: UUID) -> ClientLedger:
     from app.services import ledger_store
 
-    rows = load_rows(session, agency_id, client_id)
-    state = ledger_store.require_current(session, agency_id, client_id, rows)
+    state = ledger_store.published_state(session, agency_id, client_id)
+    rows = load_rows(
+        session, agency_id, client_id, through=state.last_evidence_sequence if state else 0
+    )
     held = unbound_refunds(rows)
     evidence = {row.id: _evidence(row) for row in rows}
     kept = [row for row in rows if row.id not in held]

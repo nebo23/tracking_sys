@@ -36,6 +36,9 @@ EVENTS: dict[str, frozenset[str]] = {
     # deleted or disabled client); connections stay active until the operator repairs the
     # client or purges them (specification 011, R011-14); nothing else is logged.
     "connector_client_rejected": frozenset(),
+    # A ledger catch-up after a deferred commit failed (007-B, D-076, R0607-11); the projection
+    # stays behind, reads fail closed and the next intake or the operator backfill continues.
+    "ledger_catch_up_failed": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

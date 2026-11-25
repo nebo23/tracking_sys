@@ -827,12 +827,18 @@ class IdentityAdmin(TenancyService):
 
 
 def customer_status(session: Session, client_id: UUID, group: list[UUID], reader: Reader) -> str:
-    """Financial customer qualification (D13, J5): 007-C supplies verified associations."""
+    """Financial customer qualification (D13, J5): 007-C supplies verified associations. While
+    the published ledger cannot be read the answer is the explicit ledger_unavailable, never a
+    manufactured not_customer (joint design 2 and 4.6, R0607-09)."""
     if not reader.finance:
         return "permission_unavailable"
+    from app.services.ledger_store import LedgerUnavailable
     from app.services.revenue_identity import has_verified_purchase
 
-    return "customer" if has_verified_purchase(session, client_id, group) else "not_customer"
+    try:
+        return "customer" if has_verified_purchase(session, client_id, group) else "not_customer"
+    except LedgerUnavailable:
+        return "ledger_unavailable"
 
 
 def _provenance(session: Session, event: CollectedEvent, cache: dict) -> dict[str, Any]:
@@ -868,6 +874,8 @@ def _stage(entries, has_link: bool, customer: str) -> tuple[str, list[str]]:
         flags.append("lead_reported_unverified")
     if any(e.event_type == "purchase_signal" and e.trust_rank == 2 for e, _ in entries):
         flags.append("purchase_reported")
+    if customer == "ledger_unavailable":
+        flags.append("customer_status_unavailable")
     if not has_link:
         return "unlinked", flags
     if customer == "customer":
@@ -1107,6 +1115,12 @@ def list_people(
     items = []
     for person in session.scalars(query.order_by(IdentitySubject.id)):
         summary = _summary(session, reader, person.id, now)
+        if stage is not None and summary["customer"] == "ledger_unavailable":
+            # A stage filter needs the financial qualification: fail closed and retry, never
+            # leave a customer out of the list (R0607-09).
+            from app.services.ledger_store import LedgerUnavailable
+
+            raise LedgerUnavailable()
         if stage is not None and summary["stage"] != stage:
             continue
         items.append(
@@ -1157,6 +1171,7 @@ def leads(
         query = query.where(tuple_(CollectedEvent.first_received_at, CollectedEvent.id) < bound)
     segments: dict[UUID, list] = {}
     stages: dict[UUID, str] = {}
+    qualifications: dict[UUID, str] = {}
     cache: dict = {}
     items = []
     from app.identity.segments import owner_of
@@ -1171,7 +1186,9 @@ def leads(
         if identified is not None and (person is not None) != identified:
             continue
         if person is not None and person not in stages:
-            stages[person] = _summary(session, reader, person, now)["stage"]
+            summary = _summary(session, reader, person, now)
+            stages[person] = summary["stage"]
+            qualifications[person] = summary["customer"]
         items.append(
             {
                 "event_id": str(event.event_id),
@@ -1180,7 +1197,13 @@ def leads(
                 "occurred_at": event.occurred_at,
                 "received_at": event.first_received_at,
                 "person": (
-                    {"id": str(person), "stage": stages[person]} if person is not None else None
+                    {
+                        "id": str(person),
+                        "stage": stages[person],
+                        "customer_qualification": qualifications[person],
+                    }
+                    if person is not None
+                    else None
                 ),
                 "identified": person is not None,
                 "provenance": _provenance(session, event, cache),

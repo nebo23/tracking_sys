@@ -35,6 +35,7 @@ from app.ledger import (
     current_calculation,
 )
 from app.models import (
+    ClientWorkspace,
     LedgerMovement,
     LedgerProjectionState,
     LedgerReceipt,
@@ -148,9 +149,18 @@ def backfill(
     stop_after_batches: int | None = None,
     before_publish: Callable[[], None] | None = None,
 ) -> str:
-    """Build, resume and publish a client's journal; returns published, interrupted or conflict."""
+    """Build, resume and publish a client's journal; returns published, interrupted, conflict
+    or refused (the agency does not own the client, R0607-18: nothing is changed)."""
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
+    with Session(engine) as session:
+        owned = session.scalar(
+            select(ClientWorkspace.id).where(
+                ClientWorkspace.id == client_id, ClientWorkspace.agency_id == agency_id
+            )
+        )
+    if owned is None:
+        return "refused"
     with Session(engine) as session, session.begin():
         captured, staging = _register(session, agency_id, client_id, restart)
     batches = 0

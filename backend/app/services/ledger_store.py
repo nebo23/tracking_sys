@@ -27,13 +27,15 @@ currency and minor units.
 
 import hashlib
 import json
+import logging
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.attribution.engine import (
@@ -48,7 +50,6 @@ from app.ledger import (
     Currency,
     Evidence,
     LedgerCalculation,
-    LedgerInputError,
     LedgerScope,
     Money,
     Movement,
@@ -66,6 +67,7 @@ from app.models import (
 )
 
 ALGORITHM = "007-A.1/D-070"
+logger = logging.getLogger("tracking")
 
 
 class LedgerUnavailable(Exception):
@@ -73,6 +75,13 @@ class LedgerUnavailable(Exception):
 
     code = "ledger_projection_unavailable"
     status = 503
+
+
+class ReceiptClockBehind(LedgerUnavailable):
+    """The database clock is behind the client's last receipt, so the receipt position would go
+    backwards: nothing is stored, and the sender retries (joint design 4.1, R0607-13)."""
+
+    code = "receipt_clock_behind"
 
 
 Key = tuple[LedgerScope, str]
@@ -374,13 +383,31 @@ def on_evidence_stored(session: Session, agency_id: UUID, client_id: UUID, row_i
 
     rows = load_rows(session, agency_id, client_id)
     if not rows or rows[-1].id != row_id:
-        # A receipt position never moves: a clock behind the published log refuses the write.
-        raise LedgerInputError("clock_moved_backwards")
+        # A receipt position never moves: append_evidence refuses a clock behind the log, so
+        # this is only a defensive check, answered as retryable too (R0607-13).
+        raise ReceiptClockBehind()
     preceding = rows[-2].sequence if len(rows) > 1 else 0
     if state.last_evidence_sequence != preceding:
-        # The projection is behind (a large import or legacy evidence): it stays behind, and
-        # reads fail closed until the operator backfill catches up. Intake is never blocked.
+        # The projection is behind (a deferred import or legacy evidence): this receipt waits
+        # for the catch-up after the commit (catch_up) or the operator backfill, and reads fail
+        # closed meanwhile. Intake is never blocked.
         return
+    apply_rows(session, agency_id, client_id, state, rows, len(rows) - 1)
+
+
+def apply_rows(
+    session: Session,
+    agency_id: UUID,
+    client_id: UUID,
+    state: LedgerProjectionState,
+    rows: Sequence[RevenueEvidence],
+    start: int,
+    *,
+    until: float | None = None,
+) -> int:
+    """Apply the receipts of rows[start:] in order to the published generation (the caller
+    holds the revenue lock and the state row), stopping after the first receipt once the
+    monotonic deadline until has passed. Returns the number of receipts applied."""
     previous = list(
         session.scalars(
             select(LedgerTransaction).where(
@@ -398,47 +425,158 @@ def on_evidence_stored(session: Session, agency_id: UUID, client_id: UUID, row_i
         states_from(previous, agency_id),
     )
     evidence: dict[UUID, Evidence] = {}
-    applied = apply_one(agency_id, client_id, rows, cursor, evidence)
-    session.add(applied.receipt)
-    session.flush()
-    session.add_all(applied.movements)
+    revision: dict[Key, int] = {}
+    applied = None
+    index = start
+    for index in range(start, len(rows)):
+        applied = apply_one(agency_id, client_id, rows[: index + 1], cursor, evidence)
+        session.add(applied.receipt)
+        session.flush()
+        session.add_all(applied.movements)
+        session.flush()
+        revision.update(dict.fromkeys(applied.changed, cursor.ordinal))
+        if until is not None and time.monotonic() >= until:
+            break
+    if applied is None:
+        return 0
     ids = {id(item): row_id_ for row_id_, item in evidence.items()}
     write_transactions(
-        session,
-        agency_id,
-        client_id,
-        state.generation,
-        applied.calculation,
-        ids,
-        dict.fromkeys(applied.changed, cursor.ordinal),
+        session, agency_id, client_id, state.generation, applied.calculation, ids, revision
     )
     state.receipt_ordinal = cursor.ordinal
     state.movement_sequence = cursor.movement
     state.receipt_digest = cursor.digest
-    state.last_evidence_sequence = rows[-1].sequence
-    state.last_received_at = rows[-1].received_at
+    state.last_evidence_sequence = rows[index].sequence
+    state.last_received_at = rows[index].received_at
     state.financial_revision = cursor.ordinal
     state.updated_at = func.now()
     session.flush()
+    return index - start + 1
 
 
-def require_current(
-    session: Session, agency_id: UUID, client_id: UUID, rows: Sequence[RevenueEvidence]
-) -> LedgerProjectionState | None:
-    """The published state when it covers every stored row; None for a client without
-    evidence; LedgerUnavailable otherwise (never an older generation served as current)."""
-    if not rows:
-        return None
+def catch_up(engine: Engine, agency_id: UUID, client_id: UUID, *, budget: float = 120.0) -> str:
+    """Apply the receipts a deferred commit left behind (D-076, R0607-11).
+
+    It runs after the commit, outside the agency lock. Each batch is one transaction under the
+    client revenue lock that stops after about half a second, so the client's intake waits
+    briefly and every batch publishes its progress. Returns caught_up, not_ready (no ready
+    published generation: the operator backfill builds one) or interrupted (budget spent; the
+    next intake or the operator backfill continues).
+    """
+    from app.services.revenue import load_rows, lock_revenue
+
+    deadline = time.monotonic() + budget
+    while True:
+        with Session(engine) as session, session.begin():
+            lock_revenue(session, client_id)
+            state = session.scalar(
+                select(LedgerProjectionState)
+                .where(
+                    LedgerProjectionState.agency_id == agency_id,
+                    LedgerProjectionState.client_id == client_id,
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if state is None or state.status != "ready":
+                return "not_ready"
+            rows = load_rows(session, agency_id, client_id)
+            if state.last_evidence_sequence == 0:
+                start = 0
+            else:
+                found = [
+                    index
+                    for index, row in enumerate(rows)
+                    if row.sequence == state.last_evidence_sequence
+                ]
+                if not found:
+                    return "not_ready"
+                start = found[0] + 1
+            if start >= len(rows):
+                return "caught_up"
+            apply_rows(
+                session, agency_id, client_id, state, rows, start, until=time.monotonic() + 0.5
+            )
+        if time.monotonic() >= deadline:
+            return "interrupted"
+
+
+def run_catch_up(engine: Engine, agency_id: UUID, client_id: UUID) -> None:
+    """Background entry point after an intake request (R0607-11). A failure leaves the
+    projection behind: reads keep failing closed, and the next intake or the operator backfill
+    continues. Only the event name is logged."""
+    try:
+        catch_up(engine, agency_id, client_id)
+    except Exception:  # noqa: BLE001 - background work never raises into the server
+        logger.error("ledger_catch_up_failed")
+
+
+def is_behind(session: Session, agency_id: UUID, client_id: UUID) -> bool:
+    """Whether a ready published projection misses stored rows (a catch-up is due)."""
     state = session.scalar(
         select(LedgerProjectionState).where(
             LedgerProjectionState.agency_id == agency_id,
             LedgerProjectionState.client_id == client_id,
         )
     )
-    latest = max(row.sequence for row in rows)
-    if state is None or state.status != "ready" or state.last_evidence_sequence != latest:
+    if state is None or state.status != "ready":
+        return False
+    latest = session.scalar(
+        select(func.max(RevenueEvidence.sequence)).where(
+            RevenueEvidence.agency_id == agency_id, RevenueEvidence.client_id == client_id
+        )
+    )
+    return latest is not None and latest != state.last_evidence_sequence
+
+
+def published_state(
+    session: Session, agency_id: UUID, client_id: UUID
+) -> LedgerProjectionState | None:
+    """The published state when it covers every stored row; None for a client without
+    evidence; LedgerUnavailable otherwise (never an older generation served as current).
+
+    The state and the latest stored sequence are read in one statement, a consistent snapshot
+    under READ COMMITTED, and later reads are bounded by the state's cursors, so a receipt
+    committed meanwhile neither fails the read nor leaks into it (R0607-12).
+    """
+    latest = (
+        select(func.max(RevenueEvidence.sequence))
+        .where(RevenueEvidence.agency_id == agency_id, RevenueEvidence.client_id == client_id)
+        .scalar_subquery()
+    )
+    found = session.execute(
+        select(LedgerProjectionState, latest)
+        .where(
+            LedgerProjectionState.agency_id == agency_id,
+            LedgerProjectionState.client_id == client_id,
+        )
+        .execution_options(populate_existing=True)
+    ).one_or_none()
+    if found is None:
+        stored = session.scalar(
+            select(RevenueEvidence.id)
+            .where(RevenueEvidence.agency_id == agency_id, RevenueEvidence.client_id == client_id)
+            .limit(1)
+        )
+        if stored is None:
+            return None
+        raise LedgerUnavailable()
+    state, newest = found
+    if newest is None:
+        return None
+    if state.status != "ready" or state.last_evidence_sequence != newest:
         raise LedgerUnavailable()
     return state
+
+
+def require_current(
+    session: Session,
+    agency_id: UUID,
+    client_id: UUID,
+    rows: Sequence[RevenueEvidence] | None = None,
+) -> LedgerProjectionState | None:
+    """Compatibility name of published_state; the rows are no longer needed."""
+    return published_state(session, agency_id, client_id)
 
 
 def stored_movements(
@@ -450,6 +588,7 @@ def stored_movements(
         .where(
             LedgerMovement.client_id == state.client_id,
             LedgerMovement.generation == state.generation,
+            LedgerMovement.movement_sequence <= state.movement_sequence,
         )
         .order_by(LedgerMovement.movement_sequence)
     ):
@@ -483,6 +622,7 @@ def stored_journal(
             select(LedgerMovement.movement_sequence, LedgerMovement.receipt_id).where(
                 LedgerMovement.client_id == state.client_id,
                 LedgerMovement.generation == state.generation,
+                LedgerMovement.movement_sequence <= state.movement_sequence,
             )
         )
     }
@@ -494,6 +634,7 @@ def stored_journal(
         .where(
             LedgerReceipt.client_id == state.client_id,
             LedgerReceipt.generation == state.generation,
+            LedgerReceipt.receipt_ordinal <= state.receipt_ordinal,
         )
         .order_by(LedgerReceipt.receipt_ordinal)
     ):
@@ -542,6 +683,7 @@ def movements_page(
                 LedgerMovement.client_id == state.client_id,
                 LedgerMovement.generation == state.generation,
                 LedgerMovement.movement_sequence > after,
+                LedgerMovement.movement_sequence <= state.movement_sequence,
             )
             .order_by(LedgerMovement.movement_sequence)
             .limit(limit + 1)
@@ -590,8 +732,10 @@ class Issue:
     fingerprint: str
 
 
-def _issue_id(client_id: UUID, kind: str, scope: LedgerScope, operation_id: str, reason: str):
-    raw = json.dumps([str(client_id), kind, scope.source_account_id, operation_id, reason])
+def _issue_id(
+    client_id: UUID, kind: str, scope: LedgerScope, operation_id: str, reason: str, anchor: str
+):
+    raw = json.dumps([str(client_id), kind, scope.source_account_id, operation_id, reason, anchor])
     return UUID(hashlib.sha256(raw.encode()).hexdigest()[:32])
 
 
@@ -608,9 +752,13 @@ def issues(ledger, client_id: UUID) -> list[Issue]:
         fingerprint = hashlib.sha256(
             json.dumps([kind, reason, [str(item) for item in evidence_ids]]).encode()
         ).hexdigest()
+        # The first record of an item anchors its ID: two conflicting deliveries of one
+        # operation are distinct issues, and evidence joining an item later keeps its ID
+        # (R0607-17).
+        first = ids.get(id(evidence[0])) if evidence else None
         found.append(
             Issue(
-                _issue_id(client_id, kind, scope, operation_id, reason),
+                _issue_id(client_id, kind, scope, operation_id, reason, str(first or "")),
                 kind,
                 reason,
                 scope.source_account_id,

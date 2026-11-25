@@ -30,8 +30,12 @@ from app.models import RevenueEvidence, RevenueImport
 from app.services.revenue import append_evidence, content_digest, lock_revenue
 from app.services.tenancy import TenancyService
 
-# The most rows one CSV commit projects inline (007-B, measured: 250 rows about 2.4 s).
-INLINE_RECEIPT_ROWS = 200
+# The most inline projection work of one CSV commit: rows x (stored history + rows). Each
+# inline receipt recalculates the client's whole history under the agency and revenue locks
+# (A3), so a commit above this bound stores its evidence only and the projection catches up
+# after the commit, outside the agency lock (D-076, R0607-11). 40,000 keeps 200 rows of a new
+# client inline (about 2 s measured) and defers a 200-row file on a client with history.
+INLINE_RECEIPT_WORK = 40_000
 
 
 class DeclarationRefused(ValueError):
@@ -106,10 +110,16 @@ class DeclarationService(TenancyService):
         parsed = self._parse(body, received)
         record_id = uuid4()
         stored = duplicate = 0
-        # 007-B (D-075 J11): receipts are applied inline for a bounded commit; a larger file
-        # keeps the existing intake behavior and leaves the persisted projection behind, so
-        # ledger reads fail closed until the operator backfill has caught up (A3 stays open).
-        project = len(parsed.valid) <= INLINE_RECEIPT_ROWS
+        # 007-B (D-075 J11, D-076): receipts are applied inline only while the work stays
+        # small; otherwise the projection catches up after the commit, outside the agency lock
+        # (ledger_store.catch_up), and ledger reads fail closed meanwhile (A3 stays open).
+        history = self.session.scalar(
+            select(func.count())
+            .select_from(RevenueEvidence)
+            .where(RevenueEvidence.client_id == client_id)
+        )
+        count = len(parsed.valid)
+        project = count * ((history or 0) + count) <= INLINE_RECEIPT_WORK
         for item in parsed.valid:
             outcome = append_evidence(
                 self.session,

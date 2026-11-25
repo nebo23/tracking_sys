@@ -78,10 +78,9 @@ def _verified_sale(
     session: Session, agency_id: UUID, client_id: UUID, source_account_id: str, sale: str
 ) -> bool:
     """Whether the current published ledger holds the sale as a verified transaction."""
-    from app.services.ledger_store import require_current
-    from app.services.revenue import load_rows
+    from app.services.ledger_store import published_state
 
-    state = require_current(session, agency_id, client_id, load_rows(session, agency_id, client_id))
+    state = published_state(session, agency_id, client_id)
     if state is None:
         return False
     return (
@@ -366,14 +365,11 @@ def _qualifying(
 
 
 def has_verified_purchase(session: Session, client_id: UUID, group: list[UUID]) -> bool:
-    """Whether any person of the group has a currently associated verified capture."""
-    from app.services.ledger_store import LedgerUnavailable
-
+    """Whether any person of the group has a currently associated verified capture. While the
+    published ledger cannot be read, LedgerUnavailable propagates: the caller answers an
+    explicit unavailable state, never "not a customer" (R0607-09)."""
     now = session.scalar(select(func.clock_timestamp()))
-    try:
-        return bool(_qualifying(session, None, client_id, group, now))
-    except LedgerUnavailable:
-        return False
+    return bool(_qualifying(session, None, client_id, group, now))
 
 
 def person_revenue(
@@ -381,10 +377,9 @@ def person_revenue(
 ) -> dict[str, Any]:
     """The verified sales currently associated with a person (both permissions checked by the
     caller); amounts in their original currency and minor units, never added across currencies."""
-    from app.services.ledger_store import require_current
-    from app.services.revenue import load_rows
+    from app.services.ledger_store import published_state
 
-    state = require_current(session, agency_id, client_id, load_rows(session, agency_id, client_id))
+    state = published_state(session, agency_id, client_id)
     sales = []
     for row in _qualifying(session, agency_id, client_id, group, now):
         transaction = session.scalar(

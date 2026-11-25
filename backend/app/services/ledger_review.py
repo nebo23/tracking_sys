@@ -95,7 +95,9 @@ class ReconciliationService(TenancyService):
             raise ValueError("Unknown action or reason code.")
         actor = self._manager(agency_id, write=True)
         self.get_client(agency_id, client_id)
-        lock_revenue(self.session, client_id)
+        # The review time is the clock read under the revenue lock, so serialized reviews are
+        # ordered as they were decided, not by transaction start (R0607-17).
+        decided_at = lock_revenue(self.session, client_id)
         fingerprint = hashlib.sha256(
             json.dumps(
                 [str(issue_id), expected_financial_revision, action, reason_code, str(actor.id)]
@@ -132,6 +134,7 @@ class ReconciliationService(TenancyService):
             reason_code=reason_code,
             actor_membership_id=actor.id,
             request_fingerprint=fingerprint,
+            created_at=decided_at,
         )
         self.session.add(row)
         self.session.flush()

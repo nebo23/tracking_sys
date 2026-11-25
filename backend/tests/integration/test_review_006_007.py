@@ -290,23 +290,29 @@ def test_review_r0607_09_customer_status_while_the_projection_is_behind(idw):
     )
 
 
-def test_review_r0607_09_customer_status_during_a_concurrent_receipt(idw, monkeypatch):
+def test_review_r0607_09_customer_status_during_a_concurrent_receipt(idw):
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
     w = idw.w
     _, assertion = person(idw, "buyer@example.test")
     (buyer,) = only_person(w)
     sale(w, "S1")
     assert associate(idw, assertion, "S1").status_code == 201
-    original = ledger_store.require_current
     fired = []
 
-    def racing(session, agency_id, client_id, evidence_rows):
-        if not fired:
+    # Another transaction commits an ordinary receipt just before the profile read first
+    # reads the projection state, after it has read the stored evidence.
+    def racing(conn, cursor, statement, parameters, context, executemany):
+        if not fired and "FROM ledger_projection_state" in statement:
             fired.append(True)
             sale(w, "S2")
-        return original(session, agency_id, client_id, evidence_rows)
 
-    monkeypatch.setattr(ledger_store, "require_current", racing)
-    body = profile(idw, buyer)
+    event.listen(Engine, "before_cursor_execute", racing)
+    try:
+        body = profile(idw, buyer)
+    finally:
+        event.remove(Engine, "before_cursor_execute", racing)
     assert fired and body["customer_qualification"] == "customer"  # observed: not_customer
 
 
@@ -321,6 +327,55 @@ def test_review_r0607_10_an_account_switch_keeps_the_first_buyer(idw):
     assert associate(idw, first, "S1").status_code == 201
     ok(idw.via_browser(tablet, [email(idw, "b@example.test")]))
     assert profile(idw, buyer)["customer_qualification"] == "customer"  # observed: not_customer
+
+
+def test_review_r0607_11_projection_work_never_holds_the_agency_lock(
+    authenticated_world, monkeypatch
+):
+    from sqlalchemy.exc import OperationalError
+
+    w = authenticated_world
+    with Session(w.db.runtime) as session, session.begin():
+        clock = lock_revenue(session, w.a1)
+        for index in range(300):
+            item = replace(record(w, f"H{index}", minor=100 + index), received_at=clock)
+            append_evidence(session, item, "csv_import", uuid4(), project=False)
+    with Session(w.db.migration) as session, session.begin():
+        for model in (LedgerMovement, LedgerReceipt, LedgerTransaction, LedgerProjectionState):
+            session.query(model).filter(model.client_id == w.a1).delete()
+    assert backfill(w.db.migration, w.a, w.a1, batch_size=200) == "published"
+    probes = []
+    original = ledger_store.apply_one
+
+    def probing(*args, **kwargs):
+        if not probes:
+            with w.db.migration.connect() as connection:
+                try:
+                    with connection.begin():
+                        connection.execute(
+                            text("SELECT id FROM agencies WHERE id = :a FOR UPDATE NOWAIT"),
+                            {"a": w.a},
+                        )
+                    probes.append("free")
+                except OperationalError:
+                    probes.append("held")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(ledger_store, "apply_one", probing)
+    body = _csv(
+        *(f"NEW-{index},sale,1.00,EGP,2026-11-01T00:00:00Z,,,declared" for index in range(101))
+    )
+    owner = w.signed_in("owner_a")
+    response = owner.post(
+        f"/agencies/{w.a}/clients/{w.a1}/revenue-imports/{declarations.file_digest(body)}",
+        content=body,
+        headers={"Content-Type": "text/csv"},
+    )
+    assert response.status_code == 201, response.text
+    # The projection work ran after the commit, outside the agency lock (observed: held).
+    assert probes == ["free"]
+    # The catch-up after the response published every receipt.
+    assert owner.get(f"/agencies/{w.a}/clients/{w.a1}/revenue").status_code == 200
 
 
 @pytest.mark.skipif(
@@ -396,7 +451,10 @@ def test_review_r0607_13_an_out_of_order_row_is_never_served_without_a_receipt(w
     w = world
     put(w, [record(w, "S1"), record(w, "S2"), record(w, "S3")])
     earliest = stored(w)[0].received_at
-    unprojected(w, "X", received_at=earliest + timedelta(microseconds=1))
+    try:
+        unprojected(w, "X", received_at=earliest + timedelta(microseconds=1))
+    except ledger_store.ReceiptClockBehind:
+        pass  # refused on every path: nothing is stored out of order
     put(w, [record(w, "S4")])
     with Session(w.db.migration) as session:
         receipts = session.scalar(

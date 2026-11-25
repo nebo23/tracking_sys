@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Path, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field
@@ -33,8 +33,8 @@ from app.services.auth import enforce_rate_limit
 from app.services.collection import lock_client
 from app.services.declarations import DeclarationService
 from app.services.ledger_review import ReconciliationService, reconciliation_view
-from app.services.ledger_store import movements_page, require_current
-from app.services.revenue import client_ledger, load_rows, revenue_view
+from app.services.ledger_store import is_behind, movements_page, published_state, run_catch_up
+from app.services.revenue import client_ledger, revenue_view
 from app.services.revenue_identity import AssociationAdmin, AssociationRequest, associate
 
 router = APIRouter(tags=["Revenue"])
@@ -238,6 +238,15 @@ def preview_import(
     )
 
 
+# A projection left behind by a deferred commit catches up after the response, outside the
+# agency lock and in its own transactions (D-076, R0607-11); the request has committed by then.
+def schedule_catch_up(
+    request: Request, background: BackgroundTasks, session, agency_id: UUID, client_id: UUID
+) -> None:
+    if is_behind(session, agency_id, client_id):
+        background.add_task(run_catch_up, request.app.state.engine, agency_id, client_id)
+
+
 # Store the valid rows of the same file once, as unverified declarations; a repeated commit of
 # the same import ID returns the existing record with 200 and stores nothing.
 @router.post(
@@ -252,7 +261,9 @@ def commit_import(
     agency_id: UUID,
     client_id: UUID,
     import_id: ImportId,
+    request: Request,
     response: Response,
+    background: BackgroundTasks,
     session: SessionDep,
     browser: BrowserDep,
     body: RawBody,
@@ -260,6 +271,7 @@ def commit_import(
     result = _declarations(session, browser).commit(agency_id, client_id, import_id, body)
     if not result.created:
         response.status_code = 200
+    schedule_catch_up(request, background, session, agency_id, client_id)
     rows = _rows(result.parsed) if result.parsed is not None else None
     return ImportCommit(import_=_record(result.record), rows=rows)
 
@@ -274,10 +286,13 @@ def declare_revenue(
     agency_id: UUID,
     client_id: UUID,
     data: DeclarationInput,
+    request: Request,
+    background: BackgroundTasks,
     session: SessionDep,
     browser: BrowserDep,
 ) -> DeclarationResult:
     item, status = _declarations(session, browser).declare(agency_id, client_id, data.model_dump())
+    schedule_catch_up(request, background, session, agency_id, client_id)
     return DeclarationResult(
         status=status,
         declaration=DeclarationView(
@@ -321,8 +336,7 @@ def read_revenue_movements(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> JSONResponse:
     resolve_scope(session, principal, agency_id, client_id, "finance:read")
-    rows = load_rows(session, agency_id, client_id)
-    state = require_current(session, agency_id, client_id, rows)
+    state = published_state(session, agency_id, client_id)
     body = movements_page(session, state, after=after, generation=generation, limit=limit)
     resolve_scope(session, principal, agency_id, client_id, "finance:read")
     return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
