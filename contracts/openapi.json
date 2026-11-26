@@ -11021,6 +11021,301 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/attribution/status": {
+      "get": {
+        "tags": [
+          "Attribution"
+        ],
+        "summary": "Read Attribution Status",
+        "operationId": "read_attribution_status_agencies__agency_id__clients__client_id__attribution_status_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionStatusView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/attribution/conversions/{conversion_id}/runs": {
+      "get": {
+        "tags": [
+          "Attribution"
+        ],
+        "summary": "Read Attribution Runs",
+        "operationId": "read_attribution_runs_agencies__agency_id__clients__client_id__attribution_conversions__conversion_id__runs_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "conversion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversion Id"
+            }
+          },
+          {
+            "name": "model_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionRunsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/link-campaigns": {
       "post": {
         "tags": [
@@ -24192,6 +24487,32 @@
         ],
         "title": "AssociationInput"
       },
+      "AttributionStatusView": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "caught_up",
+              "behind",
+              "rebuilding"
+            ],
+            "title": "State"
+          },
+          "consumer": {
+            "$ref": "#/components/schemas/ConsumerView"
+          },
+          "current": {
+            "$ref": "#/components/schemas/WatermarkView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "consumer",
+          "current"
+        ],
+        "title": "AttributionStatusView"
+      },
       "AuditResponse": {
         "properties": {
           "id": {
@@ -25092,6 +25413,90 @@
         ],
         "title": "ConsentStateResponse"
       },
+      "ConsumerView": {
+        "properties": {
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "building",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "incremental",
+                  "rebuild"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "ledger_generation": {
+            "type": "integer",
+            "title": "Ledger Generation"
+          },
+          "receipt_ordinal": {
+            "type": "integer",
+            "title": "Receipt Ordinal"
+          },
+          "identity_seq": {
+            "type": "integer",
+            "title": "Identity Seq"
+          },
+          "model_set_current": {
+            "type": "boolean",
+            "title": "Model Set Current"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generation",
+          "status",
+          "failure_code",
+          "unit",
+          "ledger_generation",
+          "receipt_ordinal",
+          "identity_seq",
+          "model_set_current",
+          "published_at"
+        ],
+        "title": "ConsumerView"
+      },
       "ContentInput": {
         "properties": {
           "external_code": {
@@ -25211,6 +25616,175 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ContentUpdate"
+      },
+      "ConversionRunsView": {
+        "properties": {
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          },
+          "conversion": {
+            "$ref": "#/components/schemas/ConversionView"
+          },
+          "model_version": {
+            "$ref": "#/components/schemas/ModelVersionView"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunView"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generation",
+          "conversion",
+          "model_version",
+          "runs"
+        ],
+        "title": "ConversionRunsView"
+      },
+      "ConversionTransactionView": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_applicable"
+            ],
+            "title": "State"
+          },
+          "source_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Account Id"
+          },
+          "sale_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Operation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "source_account_id",
+          "sale_operation_id"
+        ],
+        "title": "ConversionTransactionView"
+      },
+      "ConversionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "lead"
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "superseded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded Reason"
+          },
+          "scrubbed": {
+            "type": "boolean",
+            "title": "Scrubbed"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "lead_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Event Id"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/ConversionTransactionView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "effective_at",
+          "superseded_at",
+          "superseded_reason",
+          "scrubbed",
+          "person_id",
+          "lead_event_id",
+          "transaction"
+        ],
+        "title": "ConversionView"
       },
       "CostState": {
         "properties": {
@@ -29724,6 +30298,460 @@
         ],
         "title": "RuleView"
       },
+      "RunAllocationView": {
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "title": "Ordinal"
+          },
+          "credited": {
+            "type": "boolean",
+            "title": "Credited"
+          },
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "share": {
+            "$ref": "#/components/schemas/ShareView"
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "touchpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Touchpoint Id"
+          },
+          "evidence_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Class"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "campaign_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Ref"
+          },
+          "content_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Ref"
+          },
+          "link_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ref"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ordinal",
+          "credited",
+          "recipient",
+          "basis",
+          "position",
+          "share",
+          "amount_minor",
+          "touchpoint_id",
+          "evidence_class",
+          "occurred_at",
+          "source",
+          "campaign_ref",
+          "content_ref",
+          "link_ref"
+        ],
+        "title": "RunAllocationView"
+      },
+      "RunDifferenceView": {
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "title": "Ordinal"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Effective At"
+          },
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "touchpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Touchpoint Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "campaign_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Ref"
+          },
+          "content_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Ref"
+          },
+          "link_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ref"
+          },
+          "delta_share": {
+            "$ref": "#/components/schemas/ShareView"
+          },
+          "delta_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Minor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ordinal",
+          "effective_at",
+          "recipient",
+          "touchpoint_id",
+          "source",
+          "campaign_ref",
+          "content_ref",
+          "link_ref",
+          "delta_share",
+          "delta_minor"
+        ],
+        "title": "RunDifferenceView"
+      },
+      "RunExcludedView": {
+        "properties": {
+          "touchpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Touchpoint Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "touchpoint_id",
+          "reason"
+        ],
+        "title": "RunExcludedView"
+      },
+      "RunView": {
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "no_verified_revenue",
+              "net_out_of_range",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "causes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Causes"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "amounts": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_applicable"
+            ],
+            "title": "Amounts"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "currency_exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Exponent"
+          },
+          "verified_net_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Net Minor"
+          },
+          "ledger_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Generation"
+          },
+          "receipt_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Ordinal"
+          },
+          "identity_seq": {
+            "type": "integer",
+            "title": "Identity Seq"
+          },
+          "touch_bound_exceeded": {
+            "type": "boolean",
+            "title": "Touch Bound Exceeded"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/RunAllocationView"
+            },
+            "type": "array",
+            "title": "Allocations"
+          },
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/RunDifferenceView"
+            },
+            "type": "array",
+            "title": "Differences"
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/RunExcludedView"
+            },
+            "type": "array",
+            "title": "Excluded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "revision",
+          "status",
+          "basis",
+          "causes",
+          "recorded_at",
+          "window_start",
+          "window_end",
+          "amounts",
+          "currency",
+          "currency_exponent",
+          "verified_net_minor",
+          "ledger_generation",
+          "receipt_ordinal",
+          "identity_seq",
+          "touch_bound_exceeded",
+          "allocations",
+          "differences",
+          "excluded"
+        ],
+        "title": "RunView"
+      },
       "ServiceKeyInput": {
         "properties": {
           "name": {
@@ -29830,6 +30858,24 @@
           "csrf_token"
         ],
         "title": "SessionResponse"
+      },
+      "ShareView": {
+        "properties": {
+          "numerator": {
+            "type": "integer",
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "integer",
+            "title": "Denominator"
+          }
+        },
+        "type": "object",
+        "required": [
+          "numerator",
+          "denominator"
+        ],
+        "title": "ShareView"
       },
       "SignedRequestResult": {
         "properties": {
@@ -32366,6 +33412,53 @@
           "net"
         ],
         "title": "VerifiedTotal"
+      },
+      "WatermarkView": {
+        "properties": {
+          "ledger": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "none"
+            ],
+            "title": "Ledger"
+          },
+          "ledger_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Generation"
+          },
+          "receipt_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Ordinal"
+          },
+          "identity_seq": {
+            "type": "integer",
+            "title": "Identity Seq"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ledger",
+          "ledger_generation",
+          "receipt_ordinal",
+          "identity_seq"
+        ],
+        "title": "WatermarkView"
       },
       "app__api__collection_schemas__IssuedSource": {
         "properties": {
