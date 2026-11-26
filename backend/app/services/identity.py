@@ -527,6 +527,14 @@ def remove_person(
     session: Session, client_id: UUID, person_id: UUID, kind: str, journey: Journey, now: datetime
 ) -> None:
     """Remove a person that lost its last evidence, closing an active merge edge first."""
+    from app.services import attribution_scrub
+
+    # 008-B (D-079 D9): the events its own segments still assign, read before they are deleted.
+    assigned = (
+        attribution_scrub.person_event_ids(session, client_id, person_id, now)
+        if kind in attribution_scrub.SCRUB_KINDS
+        else []
+    )
     edge = active_edge(session, person_id)
     if edge is not None:
         other = edge.merged_id if edge.survivor_id == person_id else edge.survivor_id
@@ -560,6 +568,12 @@ def remove_person(
                 )
             )
         ),
+    )
+    # 008-B (D-079 D9, D12): stored attribution keeps no pointer to a removed person. Its
+    # conversions are scrubbed for every removal kind; for erasure and expiry, so is every
+    # conversion that references one of its events. Shares, amounts and provenance stay.
+    attribution_scrub.scrub_person(
+        session, journey.agency_id, client_id, person_id, kind, now, assigned
     )
     # The person leaves every candidate and original-owner list (design section 7.2,
     # R0607-19). An ambiguous segment left without any candidate names nobody and becomes
@@ -798,6 +812,18 @@ def drop_subject_evidence(
         collection_subject_id=subject.id,
         assertion_refs=[item.id for item in assertions],
     )
+    # 008-B (D-079 D9): an erased or expired subject's events leave every stored attribution
+    # row. A withdrawal scrubs nothing here: its touches leave the next revision instead.
+    from app.services import attribution_scrub
+
+    if kind in attribution_scrub.SCRUB_KINDS:
+        attribution_scrub.scrub_events(
+            session,
+            subject.agency_id,
+            client_id,
+            attribution_scrub.subject_event_ids(session, client_id, subject.id),
+            now,
+        )
     session.execute(delete(IdentityLink).where(IdentityLink.collection_subject_id == subject.id))
     session.execute(
         delete(IdentityAssertion).where(IdentityAssertion.collection_subject_id == subject.id)

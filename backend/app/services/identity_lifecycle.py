@@ -40,6 +40,7 @@ from app.models import (
     IdentitySubject,
     SubjectDeletionRequest,
 )
+from app.services import attribution_scrub
 from app.services.identity import (
     Journey,
     cleanup_people,
@@ -146,6 +147,15 @@ def run(
                 owner = owner_of(event_times(event), segments[event.subject_id])
                 if owner is not None:
                     journey.touch(owner, "events_changed")
+            if events:
+                # 008-B (D-079 D12): events leaving retention leave stored attribution too.
+                attribution_scrub.scrub_events(
+                    session,
+                    events[0].agency_id,
+                    client_id,
+                    [event.event_id for event in events],
+                    cutoff,
+                )
             held = session.scalar(
                 select(func.count())
                 .select_from(IdentityErasureHold)
@@ -208,6 +218,15 @@ def run(
             assertion_refs={item.id for item in assertions}
             | {link.assertion_ref for link in links if link.assertion_ref is not None},
         )
+        if links:
+            # 008-B (D-079 D12): the events an expiring segment assigned leave stored
+            # attribution with it; shares, amounts and provenance stay.
+            expiring = [
+                event_id
+                for link in links
+                for event_id in attribution_scrub.link_event_ids(session, link, cutoff)
+            ]
+            attribution_scrub.scrub_events(session, links[0].agency_id, client_id, expiring, cutoff)
         for link in links:
             session.delete(link)
         session.flush()

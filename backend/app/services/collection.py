@@ -731,6 +731,12 @@ def erase_subject(
     if had_identity:
         # Reported only when identity evidence existed, so a 004 erasure keeps its outcome set.
         targets["identity_records"] = TargetStatus.DONE
+    from app.services import attribution_scrub
+
+    if attribution_scrub.scrubbed_at(session, client_id, now):
+        # 008-B (D-079 D9): reported only when stored attribution referenced the subject; the
+        # scrub ran in this transaction (drop_subject_evidence), before this outcome is set.
+        targets["attribution"] = TargetStatus.DONE
     final = deletion.outcome(targets)
     if final is None:
         raise RuntimeError("Every erasure target has an outcome.")

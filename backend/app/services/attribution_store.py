@@ -646,10 +646,10 @@ def _closing(stored: StoredRun) -> records.RunValues:
 
 
 def _supersession(current: AttributionConversion, candidate: Candidate | None, latest: dict):
+    if current.scrubbed_at is not None:
+        return "scrubbed"  # its pointers are gone: it can never be recalculated
     if candidate is None:
         return "sale_removed" if current.kind == "sale" else "lead_removed"
-    if current.scrubbed_at is not None:
-        return "scrubbed"
     if current.owner_person_id != candidate.owner:
         return "owner_changed"
     if current.kind == "lead" and current.effective_at != candidate.effective_at:
@@ -1099,13 +1099,14 @@ def _sweep(ctx: _Context, budget: int, hook: Hook | None) -> Step:
     limit = min(SWEEP_LIMIT, budget)
     if limit <= 0:
         return Step("caught_up")
-    conditions = []
+    rows = []
     if state.sweep_after_key is not None:
-        conditions.append(AttributionConversion.slot_key > state.sweep_after_key)
-    rows = ctx.open_conversions(*conditions, limit=limit)
+        rows = ctx.open_conversions(
+            AttributionConversion.slot_key > state.sweep_after_key, limit=limit
+        )
     if not rows:
-        if state.sweep_after_key is not None:
-            _swap(ctx.session, state, sweep_after_key=None)
+        rows = ctx.open_conversions(limit=limit)  # from the start, or wrapped around
+    if not rows:
         return Step("caught_up")
     chunk = [_row_slot(row) for row in rows]
     plans = plan_chunk(ctx, chunk, state.generation)
