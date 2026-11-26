@@ -3,6 +3,7 @@ import { FormattedMessage } from 'react-intl';
 
 import { describeError } from '@/api/errors';
 import { Logo } from '@/components/Logo';
+import { Main, PageMessage } from '@/components/Main';
 import { Notice } from '@/components/Notice';
 import { PageHeading, usePageTitle } from '@/components/PageHeading';
 
@@ -24,7 +25,7 @@ export function ErrorPage({ error }: ErrorComponentProps) {
   usePageTitle('error.page.title');
   const message = describeError(error);
   return (
-    <main className="a-center">
+    <PageMessage>
       <div className="c-empty">
         <PageHeading className="c-empty__title">
           <FormattedMessage id="error.page.title" />
@@ -36,14 +37,14 @@ export function ErrorPage({ error }: ErrorComponentProps) {
           <FormattedMessage id="common.retry" />
         </button>
       </div>
-    </main>
+    </PageMessage>
   );
 }
 
 export function NotFoundPage() {
   usePageTitle('notFound.title');
   return (
-    <main className="a-center">
+    <PageMessage>
       <div className="c-empty">
         <PageHeading className="c-empty__title">
           <FormattedMessage id="notFound.title" />
@@ -55,7 +56,7 @@ export function NotFoundPage() {
           <FormattedMessage id="notFound.home" />
         </Link>
       </div>
-    </main>
+    </PageMessage>
   );
 }
 
@@ -66,7 +67,7 @@ export function NotFoundPage() {
 export function LegalPage({ title }: { title: 'legal.terms.title' | 'legal.privacy.title' }) {
   usePageTitle(title);
   return (
-    <main className="l-page a-legal">
+    <Main className="l-page a-legal">
       <Logo height={28} className="a-auth__logo" />
       <PageHeading>
         <FormattedMessage id={title} />
@@ -74,6 +75,6 @@ export function LegalPage({ title }: { title: 'legal.terms.title' | 'legal.priva
       <Notice tone="warning">
         <FormattedMessage id="legal.pending" />
       </Notice>
-    </main>
+    </Main>
   );
 }

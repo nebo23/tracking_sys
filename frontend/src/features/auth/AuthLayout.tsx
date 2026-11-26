@@ -3,6 +3,7 @@ import { FormattedMessage, useIntl } from 'react-intl';
 
 import { Icon } from '@/components/Icon';
 import { Logo } from '@/components/Logo';
+import { Main } from '@/components/Main';
 import { LanguageSwitch } from '@/components/PreferenceSwitches';
 import { PullPicture } from '@/components/PullPicture';
 
@@ -51,7 +52,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <LanguageSwitch />
       </div>
 
-      <main className="l-auth__form">{children}</main>
+      <Main className="l-auth__form">{children}</Main>
     </div>
   );
 }

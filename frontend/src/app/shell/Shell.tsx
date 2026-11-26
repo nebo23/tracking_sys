@@ -8,6 +8,7 @@ import type { ErrorMessage } from '@/api/errors';
 import { sessionQuery } from '@/api/session';
 import { Icon, type IconName } from '@/components/Icon';
 import { Logo } from '@/components/Logo';
+import { Main } from '@/components/Main';
 import { ErrorNotice } from '@/components/Notice';
 import type { MessageId } from '@/i18n';
 
@@ -105,10 +106,10 @@ export function Shell() {
           </div>
         </header>
 
-        <main className="l-page a-shell__page" id="main" tabIndex={-1}>
+        <Main className="l-page a-shell__page" id="main" tabIndex={-1}>
           <ErrorNotice message={problem} />
           <Outlet />
-        </main>
+        </Main>
 
         <nav className="c-tabbar a-tabbar" aria-label={intl.formatMessage({ id: 'shell.nav.phone' })}>
           {destinations.map((place) => (

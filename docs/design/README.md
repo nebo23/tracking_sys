@@ -12,6 +12,8 @@ Connect is the product name in the interface (D-076). A trademark and domain sea
 | [`ui/`](ui/) | `connect-ui.css`: framework-neutral reference styles for every component. `connect-icons.css`: interface icons and provider glyphs as CSS masks. [Third-party notices](ui/THIRD-PARTY-NOTICES.md). |
 | [`preview/`](preview/index.html) | Static reference pages: the design system (`index.html`) and eleven screens (`screens.html`). Open them in a browser; they need no build step. |
 
+The web application in [`frontend/`](../../frontend/README.md) imports `tokens/tokens.css`, `ui/connect-icons.css` and `ui/connect-ui.css` from this folder, without a copy (D-076, D13). A change to these files changes the application, and the application's browser journeys compare its sign-in screen with `preview/screens/sign-in.html`.
+
 Rebuild and audit the tokens with Node.js 20 or later:
 
 ```

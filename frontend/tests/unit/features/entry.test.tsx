@@ -357,6 +357,8 @@ describe('the other pages', () => {
     const user = userEvent.setup();
     openApp('/sign-in');
     expect(await screen.findByRole('heading', { name: 'This page could not be shown' })).toBeInTheDocument();
+    // The message stands inside the frame of the entry screens, which already has the main region.
+    expect(screen.getAllByRole('main')).toHaveLength(1);
 
     server.routes['GET /auth/me'] = refused(401, 'authentication_required');
     await user.click(screen.getByRole('button', { name: 'Try again' }));

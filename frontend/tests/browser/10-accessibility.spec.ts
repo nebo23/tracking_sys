@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { newPerson, registered, signedInBrowser, withAgency } from './support/people.ts';
+import { stack } from './support/stack.ts';
 
 // axe-core on every screen of the slice, in both languages and both themes (D12: WCAG 2.2 AA).
 // It finds what a machine can find. Screen readers, real phones and people stay to be checked.
@@ -98,6 +99,14 @@ for (const look of looks) {
         await expect(page.locator(shows).first()).toBeVisible();
         found.push(...(await findings(page, screen)));
       }
+
+      // The API cannot be reached: the page says so inside the same frame.
+      await page.goto('about:blank');
+      await page.route(stack.apiOrigin + '/**', (route) => route.abort());
+      await page.goto('/sign-in');
+      await expect(page.locator('.c-empty')).toBeVisible();
+      found.push(...(await findings(page, 'server unreachable')));
+      await page.unroute(stack.apiOrigin + '/**');
 
       await report(testInfo, found);
     });

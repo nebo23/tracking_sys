@@ -33,14 +33,14 @@ All maintained project content and filenames must use formal English. Product lo
 | `backend/app/` | FastAPI, authenticated APIs, tenancy/auth models, scoped services, and local email worker. |
 | `backend/migrations/` | Baseline, tenancy, and auth revisions with restricted runtime privileges and guarded recovery. |
 | `backend/tests/` | Foundation unit checks and real PostgreSQL isolation, permission, migration, and concurrency tests. |
-| `frontend/src/` | Future React application source. |
-| `frontend/tests/` | Future component, interaction, and end-to-end interface tests. |
+| `frontend/src/` | Source of the web application, Connect (specification 018, slice 018-A). See the [frontend guide](frontend/README.md). |
+| `frontend/tests/` | Unit and component tests, and browser journeys that run against the real API on a disposable stack. |
 | `contracts/` | Generated health/auth/access OpenAPI snapshot; later event/provider contracts follow their specs. |
 | `packages/tracker-js/` | First-party website tracker (specification 005): a self-hosted ES module with Node and Playwright tests. Its `node_modules/` (development tooling and test browsers) is local and never committed. |
 | `infra/docker/` | Local API, PostgreSQL, role initialization, migration, and optional mail-worker containers. |
 | `infra/operations/` | Future deployment, monitoring, backup, restore, and incident runbooks. |
 | `docs/` | Maintained product, architecture, planning, decision, and engineering documentation. |
-| `docs/design/` | Design for the product interface, called Connect (D-074): brand assets, design tokens, reference styles and static screen designs for specification 018. D-075 approves the logo, the sign-in screen and the search field, and D-076 the remaining design decisions; see the [018 entry review](specs/018-react-workspace/entry-review.md). Implementation waits for the owner's approval of the package list in the [018-A plan](specs/018-react-workspace/plan-018a.md). |
+| `docs/design/` | Design for the product interface, called Connect (D-074): brand assets, design tokens, reference styles and static screen designs for specification 018. D-075 approves the logo, the sign-in screen and the search field, and D-076 the remaining design decisions; see the [018 entry review](specs/018-react-workspace/entry-review.md). Slice 018-A is implemented in `frontend/` under D-077 and awaits the owner's review; see the [018-A evidence](specs/018-react-workspace/evidence-018a.md). |
 | `specs/` | 22 specifications, numbered 000 through 021. 001 to 005 are merged; the 006 design, the 007-A ledger calculation contract, the 008-A attribution slice, the 009 connector runtime and Specs 010, 011 and 014 are merged; Spec 015 and its review corrections merged in PR 13; Spec 016-A is implemented on its branch under D-072; 012 and 013 are deferred (D-063); later specifications retain their decision gates. |
 | `research_notes/` | Detailed evidence, source links, limitations, and research observations. |
 | `reports/` | Synthesized research and decision reports; not an automatic report after every task. |

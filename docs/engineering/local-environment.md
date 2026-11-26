@@ -6,7 +6,7 @@ Current target schema on this branch: revision 0025_whatsapp (63 application tab
 ## Requirements
 Use Python 3.12 and the owner's existing PostgreSQL 18 installation. The selected development database is tracking_sys on 127.0.0.1:5432. pgAdmin manages this PostgreSQL server; the application connects directly to PostgreSQL. Docker Desktop and Compose are required only for the optional container stack.
 
-Python packages belong only in the project .venv or a container. Frontend packages are not required for this specification. Do not install application packages globally.
+Python packages belong only in the project .venv or a container. Frontend packages are not required for the backend; the web application has its own guide in [frontend/README.md](../../frontend/README.md). Do not install application packages globally.
 
 ## 1. Create the isolated Python environment
 Run from the repository root in PowerShell:

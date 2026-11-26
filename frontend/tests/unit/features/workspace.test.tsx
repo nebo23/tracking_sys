@@ -67,6 +67,14 @@ describe('the way into the workspace', () => {
     expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
   });
 
+  it('says so when the workspace could not load, in a main region of its own', async () => {
+    fakeApi({ ...signedIn(), 'GET /agencies': refused(403, 'access_denied') });
+    openApp('/');
+    expect(await screen.findByRole('heading', { name: 'This page could not be shown' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('You do not have access to this.');
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+  });
+
   it('lets a person without an agency reach their account, where they can close it', async () => {
     fakeApi({ ...signedIn(), 'GET /agencies': json(200, []) });
     const user = userEvent.setup();

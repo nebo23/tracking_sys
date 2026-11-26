@@ -1,5 +1,5 @@
 # Plan: 018-react-workspace
-Status: Draft for the specification as a whole. The first slice has its own plan, [018-A](plan-018a.md), prepared on 2026-11-26 after D-076; it waits for the owner's approval of its package list. This document does not authorize implementation or dependency selection.
+Status: Draft for the specification as a whole. The first slice has its own plan, [018-A](plan-018a.md), approved by D-077 and implemented on 2026-11-26; its results are in the [018-A evidence](evidence-018a.md). This document does not authorize implementation or dependency selection.
 
 ## Expected outcome
 Provide authentication flows, agency/client switching, connections, dashboards, journeys, links, reports, and settings with responsive and accessible interactions.
