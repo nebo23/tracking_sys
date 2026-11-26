@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.advertising import router as advertising_router
+from app.api.attribution import router as attribution_router
 from app.api.auth import router as auth_router
 from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
@@ -41,6 +42,7 @@ from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
 from app.reporting.common import ReportError
 from app.security import AuthError, RateLimited
+from app.services.attribution_models import AttributionError
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
 from app.services.declarations import DeclarationRefused
@@ -210,6 +212,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def ledger_conflict(request: Request, error: LedgerConflict) -> JSONResponse:
         return JSONResponse({"error": error.code}, status_code=error.status)
 
+    # Attribution refusals (008-B) carry a closed code; attribution_stale (503) invites a
+    # retry. Never a person, an event or a value.
+    @application.exception_handler(AttributionError)
+    async def attribution_error(request: Request, error: AttributionError) -> JSONResponse:
+        headers = {"Retry-After": "1"} if error.status == 503 else None
+        return JSONResponse({"error": error.code}, status_code=error.status, headers=headers)
+
     # Association refusals (007-C) carry a closed code; never a person or a sale.
     @application.exception_handler(AssociationError)
     async def association_error(request: Request, error: AssociationError) -> JSONResponse:
@@ -272,6 +281,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)
     application.include_router(identity_router)
+    application.include_router(attribution_router)
     application.include_router(links_router)
     application.include_router(redirect_router)
     application.include_router(connectors_router)

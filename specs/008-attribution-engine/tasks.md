@@ -36,3 +36,16 @@ Reviewed commit `3d772d1`; regressions in `backend/tests/test_attribution_correc
 - [ ] Owner review of the open items in the evidence: the sale association conflict policy, model version ID scope, 007-B persistence of receipt items, and `net_out_of_range` reporting.
 
 - [x] Verify the six follow-up findings on snapshot order, pending receipts, repeated local times, journey recovery, sale currency across models, and financial reads. The [follow-up results](evidence.md#follow-up-verification-against-9892556) cover replay, rejection, and retries.
+
+## 008-B persisted attribution (D-079)
+
+Branch `codex/spec-008-attribution-persistence` from `claude/keen-fermat-otlr9d` at `3d1a472`; [design note](design-008b.md); [evidence](evidence-008b.md).
+
+- [x] P0: inventory of the persisted inputs and the design note (`8462780`).
+- [x] P1: migration `0029_attribution_persistence`, data policy, grants, model versions with lazy defaults and the model routes; AV14, AV19 (`5166057`).
+- [x] P2: the consumer core and `python -m app.attribution_worker`; AV01-AV07, AV11, AV13, AV16 (`f900147`).
+- [x] P3: the scrub in every removal path, the erasure target, the lifecycle steps and the release barrier; AV08-AV10, AV15, AV17, AV20 (`69c57db`).
+- [x] P4: the status and runs routes with the D10 permissions; AV12 (`1a301a3`).
+- [x] P5: the full verification, 17 mutation checks, the AV16 measurements, the evidence and the guides (`faaa067` and the documentation commit).
+- [ ] Independent review of the pull request and the owner's merge decision.
+- [ ] Follow-ups outside 008-B: 016-B reports and ROAS from the stored credit changes, 016-C, native rollout of 0005-0029, live providers and production scheduling (020); A3 and Q-012 stay open.

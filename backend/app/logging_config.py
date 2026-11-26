@@ -39,6 +39,9 @@ EVENTS: dict[str, frozenset[str]] = {
     # A ledger catch-up after a deferred commit failed (007-B, D-076, R0607-11); the projection
     # stays behind, reads fail closed and the next intake or the operator backfill continues.
     "ledger_catch_up_failed": frozenset(),
+    # One client's attribution pass stopped on a database error (008-B, D-079); the pass
+    # continues with the next client, the client stays behind and readers answer stale.
+    "attribution_client_failed": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without
