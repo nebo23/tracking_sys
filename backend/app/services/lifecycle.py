@@ -663,6 +663,19 @@ def run_lifecycle(
                         break
                 else:
                     _mark(incomplete, scoped)
+            # 008-B (D-079 D12): discard the staging rows of failed attribution consumers and
+            # scrub stored conversions whose owner no longer exists. Only non-zero counts are
+            # reported, so a run without attribution work keeps its result shape.
+            from app.services import attribution_lifecycle
+
+            try:
+                counts = attribution_lifecycle.run(connection, cutoff, size)
+                connection.commit()
+                for name, count in counts.items():
+                    deleted[name] = deleted.get(name, 0) + count
+            except OperationalError:
+                connection.rollback()
+                incomplete.append("attribution")
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))

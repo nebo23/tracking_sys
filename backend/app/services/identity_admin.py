@@ -549,6 +549,17 @@ class IdentityAdmin(TenancyService):
             if event.identity_excluded_at is None:
                 event.identity_excluded_at = now
         session.flush()
+        # 008-B (D-079 D9): the person's confirmed and held events leave every stored
+        # attribution row before the confirmed ones are deleted.
+        from app.services import attribution_scrub
+
+        attribution_scrub.scrub_events(
+            session,
+            agency_id,
+            client_id,
+            [event.event_id for event in (*confirmed, *unresolved)],
+            now,
+        )
         confirmed_ids = [event.id for event in confirmed]
         settle_holds(session, client_id, confirmed_ids, "erased_elsewhere", now)
         tombstones: list[tuple[str, str, bool]] = [
@@ -626,6 +637,13 @@ class IdentityAdmin(TenancyService):
             # this transaction by remove_person); amounts and evidence are untouched.
             "financial_associations": (
                 TargetStatus.DONE if associations else TargetStatus.NOT_APPLICABLE
+            ).value,
+            # 008-B (D-079 D9): done only after the scrub, which ran in this transaction
+            # (the person's events above, then remove_person and each exclusive subject).
+            "attribution": (
+                TargetStatus.DONE
+                if attribution_scrub.scrubbed_at(session, client_id, now)
+                else TargetStatus.NOT_APPLICABLE
             ).value,
         }
         request.target_outcomes = targets

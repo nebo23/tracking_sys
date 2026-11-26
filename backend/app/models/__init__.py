@@ -4,8 +4,8 @@
 # and the readiness/model-agreement checks rely on. It covers the 002-A tenancy models, the
 # approved 002-B/C/D authentication and access models, the D-022 identity and verification
 # models, the D-027 event collection models, the D-033 managed-link models, the D-048
-# connector lifecycle models, the D-064 advertising models, and the D-067 revenue and
-# payment models.
+# connector lifecycle models, the D-064 advertising models, the D-067 revenue and payment
+# models, the D-075 identity and ledger models, and the D-079 attribution models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
@@ -13,6 +13,14 @@ from app.models.access import (
     ServiceCredential,
 )
 from app.models.advertising import AdAccount, AdObject, AdSpendFact
+from app.models.attribution import (
+    AttributionAllocation,
+    AttributionConsumerState,
+    AttributionConversion,
+    AttributionCreditChange,
+    AttributionModelVersion,
+    AttributionRun,
+)
 from app.models.auth import (
     AuthRateLimit,
     AuthSession,
@@ -181,4 +189,10 @@ __all__ = [
     "LedgerReconciliationAction",
     "LedgerTransaction",
     "RevenueIdentityBinding",
+    "AttributionAllocation",
+    "AttributionConsumerState",
+    "AttributionConversion",
+    "AttributionCreditChange",
+    "AttributionModelVersion",
+    "AttributionRun",
 ]
