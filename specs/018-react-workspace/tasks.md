@@ -13,6 +13,6 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Verify: Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions.
 - [ ] Verify: Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely. (Checked for 018-A by the bundle search of the [018-A evidence](evidence-018a.md); every later slice repeats it.)
 - [ ] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner. (018-A was pushed to the specification branch under D-051 on 2026-11-26; the later slices are not started.)
+- [ ] Present a reviewable result to the owner. (018-A was pushed to the specification branch under D-051 on 2026-11-26. D-090 authorizes 018-B to 018-D; 018-B follows the [018-B plan](plan-018b.md).)
 - [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012). (018-A: pushed under D-051 and opened as a pull request under D-086; the review and the merge are pending.)
 - [ ] Record owner acceptance before progressing to dependent work.
