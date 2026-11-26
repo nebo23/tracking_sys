@@ -1,6 +1,8 @@
 # Specification index
 
-Current priority (2026-11-25, D-079): 006 and 007-B/C merged in [PR 15](https://github.com/nebo23/tracking_sys/pull/15) at `3187c70` (D-077). D-079 approved the Spec 008-B [decision packet](008-attribution-engine/entry-review-008b.md) as recommended, with Linear as each client's default model; its [implementation handoff](008-attribution-engine/implementation-prompt-008b.md) runs next on `codex/spec-008-attribution-persistence` and ends with a pull request for review. 016-B/C remain open.
+Current priority (2026-11-26, D-079): Spec 008-B, persisted attribution, is implemented on `codex/spec-008-attribution-persistence` under the [decision packet](008-attribution-engine/entry-review-008b.md) approved by D-079 (Linear as each client's default) and awaits review in its pull request; see the [design note](008-attribution-engine/design-008b.md) and the [evidence](008-attribution-engine/evidence-008b.md). 016-B/C remain open.
+
+Previous milestone (2026-11-25, D-077): 006 and 007-B/C merged in [PR 15](https://github.com/nebo23/tracking_sys/pull/15) at `3187c70`.
 
 Review corrections (2026-11-25, D-076): the nineteen findings of the [independent review](../reports/specs-006-007-joint-review-2026-11-25.md) of the combined 006 and 007-B/C branch are corrected on `codex/spec-006-007-identity-ledger`, each with a regression that fails at `8b03b1c`; see the [correction evidence](006-identity-journey/joint-evidence.md#review-corrections-d-076-2026-11-25). D-077 authorized the pull request and its merge.
 
@@ -22,7 +24,7 @@ Each specification contains spec.md, plan.md, and tasks.md. The foundation and a
 | [005-links-tracker](005-links-tracker/spec.md) | L2 | Links, UTM parameters, and website tracker (merged in PR 4, `c251e20`) |
 | [006-identity-journey](006-identity-journey/spec.md) | L2 | Lead identity and customer journey (design merged in PR 5, `ec9a09b`) |
 | [007-revenue-ledger](007-revenue-ledger/spec.md) | L3 | Revenue, refunds, and currencies (007-A calculation contract merged in PR 6, `bc0ff40`; 007-B and 007-C open) |
-| [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine (008-A synthetic slice merged in PR 7, `3f6dc06`) |
+| [008-attribution-engine](008-attribution-engine/spec.md) | L3 | Lead and revenue attribution engine (008-A synthetic slice merged in PR 7, `3f6dc06`; 008-B persisted attribution implemented under D-079 and in review) |
 | [009-connector-runtime](009-connector-runtime/spec.md) | L4 | Connector runtime and OAuth (implemented against the synthetic provider: 009-A under D-048, 009-B to 009-D under D-049, verified with correction R009-11 under D-050 and merged in PR 8, `4abcbc6`; [evidence](009-connector-runtime/evidence.md)) |
 | [010-instagram](010-instagram/spec.md) | L4 | Instagram analytics (010-A to 010-C under D-053 to D-055; the account day cursor corrected as review finding R011 in PR 13; 010-D, access for customer accounts, pending; [evidence](010-instagram/evidence.md)) |
 | [011-youtube](011-youtube/spec.md) | L4 | YouTube analytics ([entry review](011-youtube/entry-review.md) under D-056, decided by D-057 and D-058; tool corrected under D-059; D9 amended and completion ordered by D-060; 011-B [feasibility check](011-youtube/feasibility-checklist.md) partly run; 011-A [implemented](011-youtube/design-011a.md); 011-C [implemented](011-youtube/evidence.md#011-c-live-youtube-adapter-2026-11-18) and checked live, disconnect check after F3; open in [PR 11](https://github.com/nebo23/tracking_sys/pull/11), with the merge review findings R011-13 to R011-17 [corrected](011-youtube/evidence.md#merge-review-corrections-d-061-2026-11-18) under D-061; merged in PR 11 under D-062 before Phase 4, whose checks are follow-ups) |

@@ -1,6 +1,6 @@
 # Spec 008-B design note: persisted attribution
 
-Status: P0 design note under D-079, written 2026-11-25 on `codex/spec-008-attribution-persistence` (from `claude/keen-fermat-otlr9d` at `3d1a472`; `origin/main` is `3187c70`). The source is section 4 of the [008-B entry review](entry-review-008b.md); this note resolves its routine details and lists, in section 10, the resolutions that go slightly beyond the packet's wording. No implementation or test result is claimed here.
+Status: design note under D-079, written 2026-11-25 as P0 on `codex/spec-008-attribution-persistence` (from `claude/keen-fermat-otlr9d` at `3d1a472`; `origin/main` is `3187c70`) and brought in line with the implementation in P5 (2026-11-26). The source is section 4 of the [008-B entry review](entry-review-008b.md); this note resolves its routine details and lists, in section 10, the resolutions that go slightly beyond the packet's wording. Test results are in the [008-B evidence](evidence-008b.md).
 
 ## 1. Inventory of the persisted inputs
 
@@ -306,6 +306,7 @@ The scrub runs in the removal transactions, after the F1 unlinking:
 | Path | Affected conversions |
 |---|---|
 | `remove_person` (any kind; it deletes the person) | those owned by the person, and for `erased` and `expired` also every conversion that references one of the person's events (event IDs of the events its active segments cover, read before its links are deleted) |
+| person erasure (`IdentityAdmin._run_erasure`), before its confirmed events are deleted | every conversion that references one of the person's confirmed or held events |
 | `drop_subject_evidence` with `erased` or `expired` (004 token erasure, person erasure of an exclusive subject, lifecycle expiry of a subject) | every conversion that references an event of the subject, as a touch or as its lead event |
 | identity lifecycle expiry of links and assertions (395 days) | every conversion that references an event covered by an expiring link's segment |
 | identity lifecycle step for collected events leaving retention (the 13-month event retention of D-027) | every conversion that references one of those events |
@@ -326,14 +327,15 @@ No cycle is possible. The identity lifecycle's 100 ms lock timeout makes it retr
 
 ### 6.4 Erasure targets
 
-- A person erasure reports `"attribution": "done"` when the person owned or appeared in a stored conversion before the removal, and `not_applicable` otherwise. The scrub has run in the same transaction when the targets are written.
-- A 004 token erasure adds the `attribution` target only when the subject's events appeared in a stored conversion, so the existing 004 outcome set is unchanged otherwise.
+- A person erasure reports `"attribution": "done"` when its transaction scrubbed a stored conversion (one whose `scrubbed_at` is the transaction's instant), and `not_applicable` otherwise. The scrub has run in the same transaction when the targets are written.
+- A 004 token erasure adds the `attribution` target only in the first case, so the existing 004 outcome set is unchanged otherwise.
 
 ### 6.5 Release barrier (D8)
 
 A person-level read (the runs route) runs in a REPEATABLE READ read-only snapshot and answers `503 attribution_stale` with `Retry-After: 1` unless all of these hold:
-- the state is `ready` with no rebuild unit, and its checkpoint equals the published ledger position and the current feed watermark;
+- the state is `ready` with no unit in progress, and its checkpoint equals the published ledger position and the current feed watermark;
 - the published model-set digest equals the current active set;
+- no state-based change is pending (an association revision, a scrubbed conversion or a passed `recheck_at`); the status route reports `caught_up` on the same conditions;
 - for an open, unscrubbed conversion: the slot's current candidate is this conversion (same owner, lead still assigned, sale still verified), and recalculating the requested version with `attribute(previous = latest)` returns the stored revision unchanged.
 
 This last check covers consent, tombstones, associations and consent expiry at read time.
@@ -408,29 +410,30 @@ Module abbreviations:
 | AV05 | `store::test_av05_incremental_equals_rebuild_after_every_random_step` |
 | AV06 | `store::test_av06_refund_release_chargeback_and_correction_revisions`, `store::test_av06_a_held_refund_changes_nothing_until_it_posts`, `store::test_av06_a_ledger_generation_change_rebuilds` |
 | AV07 | `store::test_av07_ownership_changes_supersede_without_mutation` |
-| AV08 | `privacy::test_av08_withdrawals_remove_touches_from_new_revisions`, `privacy::test_av08_erasure_and_expiry_scrub_every_pointer`, `privacy::test_av08_a_replay_after_erasure_restores_no_pointer` |
+| AV08 | `privacy::test_av08_withdrawals_remove_touches_from_new_revisions`, `privacy::test_av08_a_surviving_person_keeps_its_history_after_w1`, `privacy::test_av08_erasure_and_expiry_scrub_every_pointer`, `privacy::test_av08_a_replay_after_erasure_restores_no_pointer` |
 | AV09 | `privacy::test_av09_marked_events_never_become_touches` |
 | AV10 | `privacy::test_av10_identical_references_in_two_clients_never_mix` |
-| AV11 | `store::test_av11_two_workers_publish_once`, `store::test_av11_a_stale_checkpoint_never_publishes`, `store::test_av11_a_concurrent_rebuild_wins_once`, `store::test_av11_a_pruned_feed_forces_a_rebuild`, `store::test_av11_an_erasure_after_the_snapshot_is_never_restored` |
+| AV11 | `store::test_av11_two_workers_publish_once`, `store::test_av11_a_stale_checkpoint_never_publishes`, `store::test_av11_a_concurrent_rebuild_wins_once`, `store::test_av11_a_pruned_feed_forces_a_rebuild`, `privacy::test_av11_an_erasure_after_the_snapshot_is_never_restored`, `privacy::test_av11_an_erasure_after_the_snapshot_never_reaches_a_new_conversion` |
 | AV12 | `api::test_av12_model_administration_is_owner_admin_and_audited`, `api::test_av12_runs_need_identity_read_and_amounts_need_finance_read`, `api::test_av12_service_keys_reach_models_and_status_only`, `api::test_av12_a_revocation_during_the_request_releases_nothing` |
 | AV13 | `store::test_av13_currencies_stay_apart` |
 | AV14 | `models::test_av14_populated_upgrade_guarded_downgrade_and_privileges`, `models::test_av14_runtime_role_cannot_rewrite_allocations_or_amounts` |
-| AV15 | `privacy::test_av15_lifecycle_scrubs_and_discards_without_touching_money` |
-| AV16 | `store::test_av16_pass_transaction_and_touch_bounds`; measurements `store::test_av16_measurements` (opt-in, `TRACKING_ATTRIBUTION_MEASURE=1`) |
-| AV17 | `privacy::test_av17_stale_while_behind_then_released` |
+| AV15 | `privacy::test_av15_lifecycle_scrubs_and_discards_without_touching_money`, `privacy::test_av15_an_event_leaving_retention_is_scrubbed_from_stored_attribution` |
+| AV16 | `store::test_av16_pass_transaction_and_touch_bounds`, `store::test_worker_command_prints_counts_only`, `store::test_a_database_error_for_one_client_does_not_stop_the_pass`; measurements `store::test_av16_measurements` (opt-in, `TRACKING_ATTRIBUTION_MEASURE=1`) |
+| AV17 | `privacy::test_av17_stale_while_behind_then_released`, `api::test_stale_reads_answer_the_retryable_code` |
 | AV18 | the existing suites, unchanged |
-| AV19 | `models::test_av19_defaults_and_a_retired_default_is_refused` |
+| AV19 | `models::test_av19_defaults_and_a_retired_default_is_refused`, `models::test_model_administration_codes_idempotency_and_audit`, `models::test_service_read_keys_reach_the_models_of_granted_clients_only` |
 | AV20 | `privacy::test_av20_no_contact_value_token_or_identifier_in_rows_responses_or_logs` |
 
-Unit tests in `unit`: slot and conversion keys, the model-set digest, window validation, run reconstruction round trips, credit-change derivation (initial, differences, moved anchor, closing), and the worker output shape.
+Unit tests in `unit` (40 cases): slot and conversion keys, the model-set digest, window validation, run reconstruction round trips for every model, basis and kind, the refusal to reconstruct a scrubbed run, and credit-change derivation (initial, differences, moved anchor, closing) over seeded random sequences.
 
 ## 10. Resolutions beyond the packet's wording
 
 These follow from the approved decisions, and none changes a product choice. They are listed for the review.
 
-1. **Feed record for an attribution consent change.** The feed did not carry attribution-only consent changes, so neither D9's "next pass" nor D8's watermark comparison would see an attribution withdrawal. `record_consent` now appends `events_changed` for the owners of the subject's active links when the effective attribution state changes. The alternative, a timestamp cursor over consent records, needs a new index and is not gap-safe against a clock step.
+1. **Feed record for a consent change.** The feed did not carry attribution-only consent changes, so neither D9's "next pass" nor D8's watermark comparison would see an attribution withdrawal. `record_consent` now appends `events_changed` for the owners of the subject's active links when the effective attribution state changes, or when identity_link is granted again after it lapsed (`identity.on_consent_changed`). The alternative, a timestamp cursor over consent records, needs a new index and is not gap-safe against a clock step.
 2. **Scrub on every person deletion.** D9 names erasure and expiry; D12 says person-linked pointers follow identity retention. A person deleted after a W1 withdrawal therefore also loses its pointers, as F1 already does for every removal kind. A W1 withdrawal that leaves the person in place scrubs nothing.
 3. **Input robustness.** `attribution_inputs.touchpoints` adds content provenance and drops an unusable `utm_campaign` value (the touch becomes a direct visit unless it has a managed link). Without this, one malformed URL would make a client's attribution fail.
 4. **History-preserving rebuild.** A rebuild recalculates every slot against its stored history in a staging generation that becomes visible atomically. It does not copy history into a new generation and discard the old one, which would break D3 ("keeps its history") and AV04. Staged rows are discarded only when the rebuild fails, by the lifecycle step, because the runtime role has no `DELETE`.
 5. **Additional columns.** `binding_id`, `recheck_at`, the allocation rows for uncredited eligible touches, the unit and sweep fields of the consumer state, and `operations` on model versions are needed for change detection, exact revisions, resumable bounds and idempotency. They hold no contact value, token or raw identifier.
 6. **Lead credit.** A lead conversion is the trusted `lead_signal` event itself. Its later attribution consent does not remove it, because consent governs touches. Its owner's merges, unmerges, W1 and erasure do.
+7. **One client's error.** A database error in one client's pass is counted as `unavailable` and logged as the registered event `attribution_client_failed`, without any value; the pass continues with the next client, and the failed client stays behind, so its readers keep answering `attribution_stale`.
