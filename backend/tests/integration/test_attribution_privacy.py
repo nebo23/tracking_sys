@@ -611,3 +611,62 @@ def test_av20_no_contact_value_token_or_identifier_in_rows_responses_or_logs(aw,
         }
         assert session.scalar(select(AttributionConversion.id).limit(1)) is not None
     assert not {"email", "subject_token", "token_digest", "identifier", "key_bytes"} & columns
+
+
+def test_av15_an_event_leaving_retention_is_scrubbed_from_stored_attribution(
+    aw, lifecycle_engine, lifecycle_settings
+):
+    w = aw.w
+    buyer, (first, second) = journey(aw)
+    aw.sale("S1", 10_000, when=later())
+    aw.associate(buyer.assertion, "S1")
+    aw.settle()
+    conversion = aw.conversion("S1")
+    money = kept(aw)
+    with w.db.migration.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE collected_events SET expires_at = now() - interval '1 day' "
+                "WHERE event_id = :e"
+            ),
+            {"e": first},
+        )
+    result = run_lifecycle(lifecycle_engine, lifecycle_settings)
+    assert result["status"] == "completed" and result["deleted"]["collected_events"] == 1
+    stored = dump(aw)
+    # Every touchpoint of the affected conversion is scrubbed, the kept one included (D9).
+    assert str(first) not in stored and str(second) not in stored
+    assert str(buyer.id) not in stored
+    assert_kept(money, kept(aw))
+    totals = aw.settle()
+    assert totals["superseded"] == 1 and totals["opened"] == 1
+    successor = aw.conversion("S1")
+    assert successor.id != conversion.id and successor.owner_person_id == buyer.id
+    values = aw.latest(successor.id)[LINEAR]
+    assert [row.touchpoint_id for row in values.allocations] == [second]
+    assert aw.credit(values) == {"autumn": (ONE, 10_000)}
+    assert sum(minor for _, minor in aw.ledger(LINEAR).values()) == 10_000
+    assert_kept(money, kept(aw))
+    aw.assert_fresh()
+
+
+def test_av11_an_erasure_after_the_snapshot_never_reaches_a_new_conversion(aw):
+    """The pending work opens a conversion the scrub cannot see yet: only the consumer state
+    change that every removal makes first stops the worker's stale publication."""
+    buyer, events = journey(aw)
+    aw.sale("S1", 10_000, when=later())
+    aw.associate(buyer.assertion, "S1")
+    aw.settle()
+    aw.sale("S2", 4_000, when=later())  # a new sale of the same person, not processed yet
+    aw.associate(buyer.assertion, "S2")
+    outer = aw.run(hook=lambda stage: aw.erase(buyer.id))
+    assert outer["outcome"] == "conflict" and not outer.get("opened")
+    stored = dump(aw)
+    assert not [item for item in (buyer.id, *events) if str(item) in stored]
+    assert {row.sale_operation_id for row in aw.conversions()} == {"S1"}
+    aw.settle()
+    stored = dump(aw)
+    assert not [item for item in (buyer.id, *events) if str(item) in stored]
+    for operation, net in (("S1", 10_000), ("S2", 4_000)):
+        assert aw.credit(aw.latest(aw.conversion(operation).id)[LINEAR]) == {"unknown": (ONE, net)}
+    aw.assert_fresh()

@@ -9,7 +9,10 @@ would publish after every step, ownership changes supersede instead of mutating,
 publication follows the compare-and-swap. Synthetic values only.
 """
 
+import json
+import os
 import random
+import time
 from datetime import UTC, datetime, timedelta, timezone
 from fractions import Fraction
 from uuid import uuid4
@@ -18,7 +21,8 @@ import pytest
 from attribution_support import EGP, FIRST, LAST, LINEAR, USD, make_attribution_world
 from identity_support import ATTRIBUTION, make_identity_world, rows
 from report_support import append, evidence
-from sqlalchemy import func, select, text, update
+from sqlalchemy import event, func, select, text, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from test_revenue_identity import financial_snapshot
 
@@ -676,3 +680,101 @@ def test_worker_command_prints_counts_only(aw):
         "rebuilds",
         "swept",
     }
+
+
+def test_a_database_error_for_one_client_does_not_stop_the_pass(aw, monkeypatch, caplog):
+    w = aw.w
+    buyer, _ = buyer_with_touches(aw, campaigns=("spring",))
+    aw.sale("S1", 10_000)
+    aw.associate(buyer.assertion, "S1")
+    original = store.process_client
+
+    def failing(engine, agency_id, client_id, **options):
+        if client_id == w.a2:
+            raise OperationalError("SELECT 1", {}, Exception("synthetic outage"))
+        return original(engine, agency_id, client_id, **options)
+
+    monkeypatch.setattr(store, "process_client", failing)
+    caplog.clear()
+    result = store.run_pass(w.db.runtime)
+    assert result["clients"] == 4 and result["unavailable"] == 1 and result["caught_up"] == 3
+    assert result["opened"] == 1  # the other clients were still processed
+    assert "attribution_client_failed" in caplog.text
+    assert str(w.a2) not in caplog.text and "synthetic outage" not in caplog.text
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRACKING_ATTRIBUTION_MEASURE") != "1",
+    reason="Set TRACKING_ATTRIBUTION_MEASURE=1 to record the AV16 measurements.",
+)
+@pytest.mark.parametrize("size", [50, 200, 1000])
+def test_av16_measurements(aw, size):
+    """One first pass, one incremental step and one rebuild; observations, not limits."""
+    w = aw.w
+    people = [aw.person(f"measure{index}@example.test") for index in range(5)]
+    for person in people:
+        for campaign in ("spring", "autumn", "winter"):
+            aw.touch(person.token, campaign)
+    moment = datetime.now(UTC) + timedelta(hours=1)
+    with Session(w.db.runtime) as session, session.begin():
+        clock = lock_revenue(session, w.a1)
+        for index in range(size):
+            item = Evidence(
+                f"d:M{index}",
+                w.a,
+                w.a1,
+                "shop",
+                f"M{index}",
+                OperationKind.SALE,
+                EvidenceClass.CONFIRMED_CAPTURE,
+                Money(1_000 + index, EGP),
+                moment,
+                clock,
+            )
+            append_evidence(session, item, "csv_import", uuid4(), project=False)
+    # Evidence stored before any projection is published by the operator backfill (007-B).
+    outcome = None
+    for _ in range(50):
+        outcome = backfill(w.db.migration, w.a, w.a1, batch_size=500)
+        if outcome == "published":
+            break
+        assert outcome == "interrupted", outcome
+    assert outcome == "published"
+    for index in range(0, size, 5):  # one sale in five has an owner with three touches
+        aw.associate(people[(index // 5) % 5].assertion, f"M{index}")
+    statements = [0]
+
+    def count(*_):
+        statements[0] += 1
+
+    def measured(action):
+        statements[0] = 0
+        started = time.perf_counter()
+        totals = action()
+        return {
+            "seconds": round(time.perf_counter() - started, 2),
+            "statements": statements[0],
+            "slots": totals.get("slots", 0),
+            "revisions": totals.get("revisions", 0),
+        }
+
+    event.listen(w.db.runtime, "before_cursor_execute", count)
+    try:
+        first = measured(aw.settle)
+        aw.sale("N1", 5_000, when=moment)
+        aw.associate(people[0].assertion, "N1")
+        aw.touch(people[0].token, "late")
+        step = measured(aw.settle)
+        created = aw.idw.owner.post(
+            f"/agencies/{w.a}/clients/{w.a1}/attribution/models",
+            json={"operation_id": str(uuid4()), "model": "linear", "window_days": 7},
+        )
+        assert created.status_code == 201
+        rebuild = measured(aw.settle)
+    finally:
+        event.remove(w.db.runtime, "before_cursor_execute", count)
+    assert len(aw.conversions()) == size + 1
+    print(
+        "ATTRIBUTION_TIMINGS",
+        json.dumps({"conversions": size, "first_pass": first, "step": step, "rebuild": rebuild}),
+    )

@@ -28,6 +28,7 @@ The worker takes no advisory lock (privacy, agency or revenue) and no row lock o
 ledger or association row. Counts only are returned: never an ID or a value.
 """
 
+import logging
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -39,7 +40,7 @@ from uuid import UUID, uuid4
 from psycopg.errors import LockNotAvailable, SerializationFailure
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.attribution import AttributionInputError, ConversionKind, SaleState, Touchpoint, attribute
@@ -82,6 +83,7 @@ OPEN_BINDING_STATES = ("active", "pending")
 CONSENT_PURPOSES = (Purpose.ATTRIBUTION.value, Purpose.IDENTITY_LINK.value)
 
 Hook = Callable[[str], None]
+logger = logging.getLogger("tracking")
 
 
 class _Conflict(Exception):
@@ -1227,7 +1229,14 @@ def run_pass(engine: Engine, *, budget: int = PASS_LIMIT) -> dict[str, int]:
         )
     totals: Counter = Counter({"clients": len(clients)})
     for agency_id, client_id in clients:
-        result = process_client(engine, agency_id, client_id, budget=budget)
+        try:
+            result = process_client(engine, agency_id, client_id, budget=budget)
+        except SQLAlchemyError:
+            # One client's database error never stops the pass. Only the event name is logged:
+            # the client stays behind and readers keep answering attribution_stale.
+            logger.error("attribution_client_failed")
+            totals["unavailable"] += 1
+            continue
         totals[result.pop("outcome")] += 1
         totals.update(result)
     return dict(totals)
