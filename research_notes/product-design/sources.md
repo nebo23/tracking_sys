@@ -77,7 +77,7 @@ For the Arabic wordmark, thirteen families were set as outlines beside the mark.
 ## 8. Name and logo
 - A web search for an existing social analytics or attribution product named "Connect" returned none in this category, but the word is used by many products in other categories, among them [Stripe Connect](https://docs.stripe.com/connect) in payments. No trademark or domain search was made.
 - Logo trend articles for 2026 ([Creative Bloq](https://www.creativebloq.com/design/logos-icons/these-logo-design-trends-will-define-2026), [Shopify](https://www.shopify.com/blog/logo-trends), opinion): simple geometric wordmarks remain usual for software, with one distinctive detail to avoid a generic result.
-- A second round of logo research on 2026-11-25, after the owner's review, is recorded with its sources in the [logo brief](../../docs/design/brand/logo-brief.md): Paul Rand's essay on logos (read in full), the criteria of Chermayeff & Geismar & Haviv, wordmarks that hide one idea in their letters, practice for very small sizes, and the use of the magnet in logos and in marketing language. Six options were drawn; the owner chose "Pure magnet" (D-075).
+- A second round of logo research on 2026-11-25, after the owner's review, is recorded with its sources in the [logo brief](../../docs/design/brand/logo-brief.md): Paul Rand's essay on logos (read in full), the criteria of Chermayeff & Geismar & Haviv, wordmarks that hide one idea in their letters, practice for very small sizes, and the use of the magnet in logos and in marketing language. Six options were drawn; the owner chose "Pure magnet" (D-079).
 
 ## 9. Limits of this research
 - No interviews, surveys or usability tests were run. The audience description comes from the product brief.

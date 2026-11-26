@@ -1,8 +1,8 @@
 # Connect design language
 
-Status: the design of specification 018, prepared 2026-11-25 under D-074. D-075 approves the logo, the sign-in screen and the pill-shaped search field. D-076 (2026-11-26) approves the remaining decisions of the [018 entry review](../../specs/018-react-workspace/entry-review.md): the name, both languages, the colors, the typefaces, the themes, the data states, the navigation and the accessibility target. No React code, dependency or build tool is added by this folder; the application is planned in the [018-A plan](../../specs/018-react-workspace/plan-018a.md).
+Status: the design of specification 018, prepared 2026-11-25 under D-078. D-079 approves the logo, the sign-in screen and the pill-shaped search field. D-080 (2026-11-26) approves the remaining decisions of the [018 entry review](../../specs/018-react-workspace/entry-review.md): the name, both languages, the colors, the typefaces, the themes, the data states, the navigation and the accessibility target. No React code, dependency or build tool is added by this folder; the application is planned in the [018-A plan](../../specs/018-react-workspace/plan-018a.md).
 
-Connect is the product name in the interface (D-076). A trademark and domain search is still required before any public launch. The design covers the multi-agency product with both launch capabilities: content performance and financial tracking.
+Connect is the product name in the interface (D-080). A trademark and domain search is still required before any public launch. The design covers the multi-agency product with both launch capabilities: content performance and financial tracking.
 
 ## What is in this folder
 | Path | Content |
@@ -12,7 +12,7 @@ Connect is the product name in the interface (D-076). A trademark and domain sea
 | [`ui/`](ui/) | `connect-ui.css`: framework-neutral reference styles for every component. `connect-icons.css`: interface icons and provider glyphs as CSS masks. [Third-party notices](ui/THIRD-PARTY-NOTICES.md). |
 | [`preview/`](preview/index.html) | Static reference pages: the design system (`index.html`) and eleven screens (`screens.html`). Open them in a browser; they need no build step. |
 
-The web application in [`frontend/`](../../frontend/README.md) imports `tokens/tokens.css`, `ui/connect-icons.css` and `ui/connect-ui.css` from this folder, without a copy (D-076, D13). A change to these files changes the application, and the application's browser journeys compare its sign-in screen with `preview/screens/sign-in.html`.
+The web application in [`frontend/`](../../frontend/README.md) imports `tokens/tokens.css`, `ui/connect-icons.css` and `ui/connect-ui.css` from this folder, without a copy (D-080, D13). A change to these files changes the application, and the application's browser journeys compare its sign-in screen with `preview/screens/sign-in.html`.
 
 Rebuild and audit the tokens with Node.js 20 or later:
 
@@ -29,7 +29,7 @@ node docs/design/tokens/build-tokens.mjs --check
 5. **Summary before detail.** Key figures, then one chart, then the table. One date range above everything it scopes.
 
 ## Brand
-The capital C of the name is a horseshoe magnet with two teal pole tips, and every other letter is regular: content pulls customers in, and Connect tracks the pull to the sale. The owner chose this logo from six options (D-075). See [brand/README.md](brand/README.md) and the [logo brief](brand/logo-brief.md). The teal of the tips is the one accent of the interface: it marks the active navigation item, the primary action and the first chart series.
+The capital C of the name is a horseshoe magnet with two teal pole tips, and every other letter is regular: content pulls customers in, and Connect tracks the pull to the sale. The owner chose this logo from six options (D-079). See [brand/README.md](brand/README.md) and the [logo brief](brand/logo-brief.md). The teal of the tips is the one accent of the interface: it marks the active navigation item, the primary action and the first chart series.
 
 ## Color
 Authored in OKLCH and compiled to sRGB. Three layers:
@@ -126,7 +126,7 @@ Search is always a pill (`c-search`), in the top bar and above a list, so it is 
 ## Screens
 See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Connections, Links, Team and access, and an Attribution concept. Each screen lists the specification that backs it. The Attribution screen is a concept only: its reports wait for specifications 006, persisted 008 and 016-B.
 
-The sign-in screen, as the owner approved it (D-075):
+The sign-in screen, as the owner approved it (D-079):
 
 - The brand side shows a magnet that pulls people in; on the way they turn into sales. The picture is built from the `c-pull` classes and moves in a loop of 7.2 seconds.
 - The language switch sits in the top corner at the end of the reading direction.
@@ -139,7 +139,7 @@ The sign-in screen, as the owner approved it (D-075):
 | Token audit (`build-tokens.mjs`) | Passed: 130 contrast pairs and the chart palette gates, both themes. |
 | Rendering | All thirteen reference pages rendered in Chromium (Playwright 1.64.1) and reviewed as screenshots in light, dark, Arabic and at phone width. |
 | Responsive check | Thirteen pages at 390, 768, 1024 and 1440 pixels (dark at 390 and 1440): no horizontal overflow, no console errors, no pointer target under 24 pixels. |
-| Revision for D-075 | The token audit and the responsive check were run again and passed. Reviewed as screenshots: the sign-in screen in light, in dark and at phone width; its picture frozen at three moments of the loop and under reduced motion; the top bar with the pill search in light, dark, Arabic and at phone width; and the fourteen logo files. The other pages were not reviewed again by eye. |
+| Revision for D-079 | The token audit and the responsive check were run again and passed. Reviewed as screenshots: the sign-in screen in light, in dark and at phone width; its picture frozen at three moments of the loop and under reduced motion; the top bar with the pill search in light, dark, Arabic and at phone width; and the fourteen logo files. The other pages were not reviewed again by eye. |
 
 Not verified: screen readers, keyboard-only walkthroughs, Firefox and Safari, real phones, usability with Arabic-speaking users, review of the Arabic copy by a native editor, provider brand-guideline compliance, and name or trademark clearance.
 

@@ -1,6 +1,6 @@
 # Connect logo brief
 
-Status: closed. Prepared on 2026-11-25 for the owner's review of the first logo. The owner chose option 2, "Pure magnet", on the same day (D-075). The files of that option are in this folder and are described in the [brand README](README.md). The drawings of the other five options were working material and are not stored.
+Status: closed. Prepared on 2026-11-25 for the owner's review of the first logo. The owner chose option 2, "Pure magnet", on the same day (D-079). The files of that option are in this folder and are described in the [brand README](README.md). The drawings of the other five options were working material and are not stored.
 
 ## 1. Why a second round
 The first logo drew the C as an open ring with a dot that closed it. In review the owner found that the idea did not carry: the dot read as a ball without a reason, and the lowercase e looked unfinished. The owner asked for a logo that works like a magnet, for research into the best logos and into this idea, for several options side by side, and for a result of international standard.
@@ -44,7 +44,7 @@ How each source was used is stated, as in the [research notes](../../../research
 | 6 | Two poles | No picture. The name is set in two colors that meet where the two n touch. | Timeless in form, but the magnet is no longer seen. |
 
 ## 7. Decision
-The owner chose option 2, "Pure magnet" (D-075). It meets every criterion in section 5. To avoid reading the two tips as a colon, they sit flush on the arms in the color versions and are separated by a slit only in the one-ink versions.
+The owner chose option 2, "Pure magnet" (D-079). It meets every criterion in section 5. To avoid reading the two tips as a colon, they sit flush on the arms in the color versions and are separated by a slit only in the one-ink versions.
 
 The pull itself, which the logo only implies, is shown where there is room for it: on the sign-in screen a magnet attracts people, and on the way they turn into sales.
 

@@ -61,7 +61,7 @@ export function NotFoundPage() {
 }
 
 /**
- * The address of a legal text. The texts themselves are not written yet (D-075, D-076): the page
+ * The address of a legal text. The texts themselves are not written yet (D-079, D-080): the page
  * says so instead of showing a placeholder that could be mistaken for terms.
  */
 export function LegalPage({ title }: { title: 'legal.terms.title' | 'legal.privacy.title' }) {

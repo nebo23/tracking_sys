@@ -1,6 +1,6 @@
 # Connect brand assets
 
-Status: the owner approved this logo on 2026-11-25 (D-075), chosen from six options; the [logo brief](logo-brief.md) records the research, the options and the choice. The owner approved the product name and the brand color on 2026-11-26 (D1 and D5 of the [018 entry review](../../../specs/018-react-workspace/entry-review.md), D-076).
+Status: the owner approved this logo on 2026-11-25 (D-079), chosen from six options; the [logo brief](logo-brief.md) records the research, the options and the choice. The owner approved the product name and the brand color on 2026-11-26 (D1 and D5 of the [018 entry review](../../../specs/018-react-workspace/entry-review.md), D-080).
 
 ## The idea
 The capital C is a horseshoe magnet. Good content attracts: a post pulls people in, and some of them become customers. Connect shows which content does the pulling and follows it to the sale. The two teal tips are the poles of the magnet and the only color in the logo. Every other letter is regular, so the name is read at once and the idea is found a moment later.

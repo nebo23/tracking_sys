@@ -1,6 +1,6 @@
 # 018-A plan: toolchain, application shell, sign-in and account flows
 
-Prepared: 2026-11-26, after D-076. Status: approved by D-077 on 2026-11-26, package list included, and implemented on the same day. The results, the corrections to the facts of section 2 and the differences from this plan are in the [018-A evidence](evidence-018a.md). Another package or another version needs a new decision (D-011).
+Prepared: 2026-11-26, after D-080. Status: approved by D-081 on 2026-11-26, package list included, and implemented on the same day. The results, the corrections to the facts of section 2 and the differences from this plan are in the [018-A evidence](evidence-018a.md). Another package or another version needs a new decision (D-011).
 
 ## 1. Goal and boundaries
 018-A is the first slice of [specification 018](spec.md) (D14 of the [entry review](entry-review.md)). It delivers a running application in `frontend/` that a person can open, sign in to and manage an account in, in English and Arabic and in both themes, built on the reference styles the owner approved.

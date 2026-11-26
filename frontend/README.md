@@ -4,7 +4,7 @@ Connect, the web application of the Tracking System (specification 018). Slice 0
 The agreement box of the sign-in and registration screens is enforced in the interface and recorded nowhere yet (D15). No real user may be given the application before that record and the legal texts exist.
 
 ## Requirements
-- Node.js 24.15 or later and npm. Every package is local to this folder and pinned to an exact version; nothing is installed globally (D-011). Another package or another version needs an owner decision (D-077).
+- Node.js 24.15 or later and npm. Every package is local to this folder and pinned to an exact version; nothing is installed globally (D-011). Another package or another version needs an owner decision (D-081).
 - For the browser journeys and the sandbox only: Docker, the project's Python virtual environment with the backend requirements, and the Chromium and Firefox builds of Playwright 1.64.1.
 
 ```powershell

@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { repositoryRoot } from './support/stack.ts';
 
-// The built sign-in screen beside the page the owner approved (D-075):
+// The built sign-in screen beside the page the owner approved (D-079):
 // docs/design/preview/screens/sign-in.html. The comparison is of places and sizes. Both pages are
 // measured without web fonts, so a font that failed to arrive cannot hide or fake a difference;
 // that the application really shows IBM Plex is checked on its own below.
