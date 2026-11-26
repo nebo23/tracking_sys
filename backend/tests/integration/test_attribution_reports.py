@@ -793,3 +793,24 @@ def test_reconciliation_counts_a_negative_net_as_zero(aw):
     (item,) = body["reconciliation"]["items"]
     assert (item["credited_revenue"]["minor"], item["ledger_net"]["minor"]) == (13_000, 3_000)
     assert (item["state"], item["reason"]) == ("difference", "unexplained_difference")
+
+
+def test_review_r016b_02_sale_only_groups_stay_hidden_without_finance(aw):
+    """A group that holds only sale credit is not listed, counted or exported for a reader
+    without finance:read; its lead credit groups stay (review R016B-02)."""
+    w, day = aw.w, sale_day()
+    journeys(aw, day)  # autumn holds sale credit only; spring holds sale and lead credit
+    full = get(aw.idw.owner, w, "attribution", **window(day)).json()
+    assert ("campaign", "autumn") in {(row["recipient"], row["group_ref"]) for row in full["rows"]}
+    analyst = w.signed_in("analyst")
+    for view in ("groups", "models"):
+        response = get(analyst, w, "attribution", view=view, **window(day))
+        assert response.status_code == 200, response.text
+        listed = {(row["recipient"], row["group_ref"]) for row in response.json()["rows"]}
+        assert ("campaign", "spring") in listed
+        assert "autumn" not in response.text
+    funnel = get(analyst, w, "funnel", **window(day))
+    assert funnel.status_code == 200, funnel.text
+    assert "autumn" not in funnel.text
+    csv_text = get(analyst, w, "attribution", format="csv", **window(day)).text
+    assert "autumn" not in csv_text

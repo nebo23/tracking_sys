@@ -184,11 +184,15 @@ def count_groups(
     generation: int,
     bounds: Bounds,
     group_by: str,
+    *,
+    leads_only: bool = False,
 ) -> int:
-    """The bounded number of groups of the current period (cap + 1 at most)."""
+    """The bounded number of groups of the current period (cap + 1 at most). leads_only counts
+    the groups of lead credit alone, for a reader without finance:read."""
     if group_by == "recipient" or not versions:
         return 0
     change = AttributionCreditChange
+    kinds = (change.conversion_kind == "lead",) if leads_only else ()
     inner = (
         select(change.recipient, CREDIT_REFS[group_by])
         .where(
@@ -198,6 +202,7 @@ def count_groups(
             change.generation <= generation,
             change.effective_at >= bounds.split,
             change.effective_at < bounds.high,
+            *kinds,
         )
         .distinct()
         .limit(MAX_GROUPS + 1)
@@ -530,6 +535,12 @@ def inputs_digest(tokens: list[Any], meta: GroupMeta, extra: Iterable[Any] = ())
     return target.hexdigest()
 
 
+def _readable(rows: Iterable[Any], finance: bool) -> list[Any]:
+    """Credit or count rows a reader may see: without finance:read, lead rows only, so that
+    neither a group nor a page count reveals that a sale was credited (D-089 D9)."""
+    return list(rows) if finance else [row for row in rows if row.kind == "lead"]
+
+
 def read_attribution_inputs(
     session: Session,
     access: ScopedAccess,
@@ -544,11 +555,20 @@ def read_attribution_inputs(
     read = read_context(session, access, version_id, models=models)
     context = read.context
     generation = context.generation if context.ready(models) else 0
-    if count_groups(session, access, read.selected, generation, bounds, group_by) > MAX_GROUPS:
+    groups = count_groups(
+        session, access, read.selected, generation, bounds, group_by, leads_only=not finance
+    )
+    if groups > MAX_GROUPS:
         raise ReportError("report_too_large", 422)
-    credit = read_credit(session, access, read.selected, generation, bounds, group_by)
-    counts = read_counts(session, access, read.selected, generation, bounds, group_by)
-    recipient_counts = read_counts(session, access, read.selected, generation, bounds, None)
+    credit = _readable(
+        read_credit(session, access, read.selected, generation, bounds, group_by), finance
+    )
+    counts = _readable(
+        read_counts(session, access, read.selected, generation, bounds, group_by), finance
+    )
+    recipient_counts = _readable(
+        read_counts(session, access, read.selected, generation, bounds, None), finance
+    )
     ledger_state, ledger = (
         read_ledger(session, access, context, bounds)
         if finance
@@ -660,9 +680,15 @@ def read_roas_credit(
 # --- Funnel (016-B P3) -------------------------------------------------------------------------
 
 MAX_LINK_EVENTS = 50_000  # link-tagged page views per funnel report, both periods (D10)
+# The grouped reference of a visit through a managed link, with the precedence of the input
+# adapter (attribution_inputs.touchpoints): the link's registered campaign or content
+# reference, else the utm_campaign or utm_content value of its UTM snapshot, which the
+# redirect composes into the landing URL. Link UTM values are validated codes (005).
 VISIT_REFS = {
-    "campaign": LinkCampaign.public_code,
-    "content": LinkContentReference.external_code,
+    "campaign": func.coalesce(LinkCampaign.public_code, ManagedLink.utm["utm_campaign"].astext),
+    "content": func.coalesce(
+        LinkContentReference.external_code, ManagedLink.utm["utm_content"].astext
+    ),
     "link": ManagedLink.id,
 }
 
@@ -751,13 +777,19 @@ def read_supported(
             session.scalars(
                 select(column)
                 .select_from(link)
-                .join(target, target.id == foreign)
+                .outerjoin(target, target.id == foreign)
                 .where(*scope, column.in_(chunk))
                 .distinct()
             )
         )
     if None in refs:
-        bare = session.scalar(select(link.id).where(*scope, foreign.is_(None)).limit(1))
+        bare = session.scalar(
+            select(link.id)
+            .select_from(link)
+            .outerjoin(target, target.id == foreign)
+            .where(*scope, column.is_(None))
+            .limit(1)
+        )
         if bare is not None:
             found.add(None)
     return frozenset(found)
@@ -802,11 +834,20 @@ def read_funnel_inputs(
     read = read_context(session, access, version_id)
     context = read.context
     generation = context.generation if context.ready() else 0
-    if count_groups(session, access, read.selected, generation, bounds, group_by) > MAX_GROUPS:
+    groups = count_groups(
+        session, access, read.selected, generation, bounds, group_by, leads_only=not finance
+    )
+    if groups > MAX_GROUPS:
         raise ReportError("report_too_large", 422)
-    credit = read_credit(session, access, read.selected, generation, bounds, group_by)
-    counts = read_counts(session, access, read.selected, generation, bounds, group_by)
-    recipient_counts = read_counts(session, access, read.selected, generation, bounds, None)
+    credit = _readable(
+        read_credit(session, access, read.selected, generation, bounds, group_by), finance
+    )
+    counts = _readable(
+        read_counts(session, access, read.selected, generation, bounds, group_by), finance
+    )
+    recipient_counts = _readable(
+        read_counts(session, access, read.selected, generation, bounds, None), finance
+    )
     ledger_state, ledger = (
         read_ledger(session, access, context, bounds)
         if finance

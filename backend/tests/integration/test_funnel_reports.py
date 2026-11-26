@@ -8,6 +8,7 @@ beside the stored credit. Synthetic values only.
 
 from datetime import timedelta
 from fractions import Fraction
+from uuid import UUID
 
 import pytest
 from attribution_support import make_attribution_world
@@ -22,7 +23,7 @@ from credit_support import (
     today,
     visit,
 )
-from identity_support import make_identity_world
+from identity_support import ORIGIN, make_identity_world
 from report_support import grant, key_client, service_key
 from sqlalchemy import text
 
@@ -221,3 +222,36 @@ def test_funnel_pages_release_and_csv(aw, monkeypatch):
     assert sum(leads) == 1
     assert not any(row["metric"] == "rate" or row["metric"].endswith("_rate") for row in cells)
     assert "example.test" not in response.text
+
+
+def test_review_r016b_01_utm_only_link_visits_join_their_credit(aw):
+    """A managed link whose campaign and content exist only in its UTM values groups its
+    visits under the references that the credit of its touches carries (review R016B-01)."""
+    w, owner = aw.w, aw.idw.owner
+    path = f"/agencies/{w.a}/clients/{w.a1}"
+    owner.post(f"{path}/link-destination-origins", json={"origin": ORIGIN})
+    created = owner.post(
+        f"{path}/managed-links",
+        json={
+            "slug": "utm-only",
+            "destination": f"{ORIGIN}/offer",
+            "utm": {"utm_campaign": "spring", "utm_content": "post-1"},
+        },
+    )
+    assert created.status_code == 201, created.text
+    link = created.json()
+    query = "?" + link["target_url"].split("?", 1)[1]
+    buyer = aw.person("buyer@example.test")
+    visit(aw, buyer.token, UUID(link["id"]), query=query)
+    aw.sale("S1", 9_000)
+    aw.associate(buyer.assertion, "S1")
+    aw.settle()
+    window = span(today())
+    for group_by, ref in (("campaign", "spring"), ("content", "post-1")):
+        credit = get(owner, w, "attribution", group_by=group_by, **window).json()
+        assert ("campaign", ref) in {(row["recipient"], row["group_ref"]) for row in credit["rows"]}
+        funnel = get(owner, w, "funnel", group_by=group_by, **window).json()
+        rows = {(row["recipient"], row["group_ref"]): row for row in funnel["rows"]}
+        assert rows[("campaign", ref)]["visits"] == {"state": "available", "count": 1}
+        assert rows[("campaign", ref)]["sales"]["items"][0]["credited_revenue"]["minor"] == 9_000
+        assert ("campaign", None) not in rows
