@@ -1,5 +1,5 @@
 # 008-attribution-engine — Lead and revenue attribution engine
-Status: 008-A, the synthetic calculation slice, is implemented under D-046 with the Q-007 choices of the [entry review](entry-review.md), corrected under D-047 and merged in PR 7 at `3f6dc06`; see the [evidence](evidence.md). 008-B, persisted attribution with the identity integration and the Q-007 production defaults of the [008-B entry review](entry-review-008b.md), is implemented under D-079 on `codex/spec-008-attribution-persistence` and awaits review in its pull request; see the [design note](design-008b.md) and the [008-B evidence](evidence-008b.md). Level: L3.
+Status: 008-A, the synthetic calculation slice, is implemented under D-046 with the Q-007 choices of the [entry review](entry-review.md), corrected under D-047 and merged in PR 7 at `3f6dc06`; see the [evidence](evidence.md). 008-B, persisted attribution with the identity integration and the Q-007 production defaults of the [008-B entry review](entry-review-008b.md), is implemented under D-079 and merged in PR 16 at `f15b6e4` after Claude's [merge review](merge-review-008b.md); see the [design note](design-008b.md) and the [008-B evidence](evidence-008b.md). Level: L3.
 
 ## Sources
 PDF-032,034,035(partial),041,042,069. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

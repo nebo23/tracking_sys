@@ -1,9 +1,13 @@
-"""Report orchestration over stored facts (specification 016-A, D-072 decisions D2, D7 and D8).
+"""Report orchestration over stored facts (specification 016-A, D-072 decisions D2, D7 and D8;
+016-B, D-089 decisions D6, D9 and D10).
 
 Each report request runs in this order:
 
 1. The route authenticates the caller and resolves the client scope with the family's
-   permission (social: client:read; spend and revenue: finance:read).
+   permission (social, attribution and funnel: client:read; spend, revenue and ROAS:
+   finance:read). For attribution and the funnel it also resolves finance:read, which decides
+   whether sale values are built; that flag is bound into the revision and rechecked before
+   release.
 2. read_*_inputs reads every input once inside a separate short READ ONLY REPEATABLE READ
    transaction (report_snapshot), configured before its first statement, so all inputs,
    counts, statuses and both comparison periods come from one snapshot. Every query is scoped
@@ -52,9 +56,13 @@ from app.reporting.common import (
     ReportError,
     page_of,
 )
+from app.reporting.credit import BASIS as CREDIT_BASIS
+from app.reporting.credit import GroupMeta, attribution_report
 from app.reporting.digest import Digest, digest_of
+from app.reporting.funnel import VisitInputs, funnel_report
 from app.reporting.periods import Period
 from app.reporting.revenue import RevenueInputs, RevenueResult, revenue_report
+from app.reporting.roas import credit_totals, roas_family
 from app.reporting.social import (
     SocialInputs,
     SocialRecord,
@@ -71,16 +79,34 @@ from app.reporting.spend import (
 )
 from app.services.access import Principal, ScopedAccess, resolve_scope
 from app.services.advertising import SPEND_PROVIDERS
+from app.services.attribution_records import engine_version
+from app.services.attribution_reports import (
+    Bounds,
+    attribution_release_digest,
+    funnel_release_digest,
+    inputs_digest,
+    read_ad_objects,
+    read_attribution_inputs,
+    read_context,
+    read_funnel_inputs,
+    read_roas_credit,
+)
 from app.services.connector_coverage import _sync_state
 from app.services.revenue import client_ledger
 from app.services.tenancy import AccessDenied
 
-Family_ = Literal["social", "spend", "revenue"]
+Family_ = Literal["social", "spend", "revenue", "attribution", "roas", "funnel"]
 PERMISSIONS: Mapping[str, Literal["client:read", "finance:read"]] = {
     "social": "client:read",
     "spend": "finance:read",
     "revenue": "finance:read",
+    "attribution": "client:read",
+    "roas": "finance:read",
+    "funnel": "client:read",
 }
+# Families whose sale values need finance:read on top of client:read (D-089 D9).
+FINANCE_SPLIT = frozenset({"attribution", "funnel"})
+ATTRIBUTION_FAMILIES = frozenset({"attribution", "roas", "funnel"})
 REPORTABLE_STATUSES = frozenset({"active", "reconnect_required"})
 
 
@@ -566,9 +592,11 @@ class ReportQuery:
     view: str | None = None
     level: str | None = None
     metrics: tuple[str, ...] | None = None
+    group_by: str | None = None
+    model_version: UUID | None = None
 
     def normalized(self) -> dict[str, Any]:
-        return {
+        values = {
             "family": self.family,
             "start": self.start,
             "end": self.end,
@@ -578,12 +606,18 @@ class ReportQuery:
             "level": self.level,
             "metrics": None if self.metrics is None else sorted(self.metrics),
         }
+        if self.family in ATTRIBUTION_FAMILIES:
+            values.update(group_by=self.group_by, model_version=self.model_version)
+        return values
 
-    # The requested period and the previous one; a content cohort is never compared (D3).
+    # The requested period and the previous one; a content cohort and the models view are never
+    # compared (016 D3, D-089 D3), and the models view always shows every active version.
     def periods(self) -> tuple[Period, Period | None]:
         period = Period(self.start, self.end)
-        if self.compare and self.view == "content_cohort":
+        if self.compare and self.view in {"content_cohort", "models"}:
             raise ReportError("comparison_unsupported", 422)
+        if self.view == "models" and self.model_version is not None:
+            raise ReportError("model_version_not_applicable", 422)
         return period, (period.previous() if self.compare else None)
 
 
@@ -596,6 +630,8 @@ class Report:
     total_rows: int
     rows: Callable[[], Iterator[dict[str, Any]]]
     inputs_digest: str
+    finance: bool = False  # whether sale values were built (rechecked before release)
+    refs: tuple[str | None, ...] = ()  # grouped references whose metadata the release rereads
 
 
 def _inputs(
@@ -644,12 +680,12 @@ def build_report(
     access: ScopedAccess,
     query: ReportQuery,
     now: datetime,
+    *,
+    finance: bool = False,
 ) -> Report:
     if access.permission != PERMISSIONS[query.family]:
         raise AccessDenied()
     period, previous = query.periods()
-    with report_snapshot(engine) as session:
-        inputs = _inputs(session, registry, access, query, now)
     base: dict[str, Any] = {
         "contract_version": CONTRACT_VERSION,
         "family": query.family,
@@ -659,6 +695,15 @@ def build_report(
         "comparison_period": None if previous is None else previous.as_dict(),
         "generated_at": now,
     }
+    if query.family in ATTRIBUTION_FAMILIES:
+        # ROAS needs finance:read as its own permission; the others build sale values only
+        # with the finance flag the route resolved, and bind it into the revision.
+        finance = True if query.family == "roas" else finance
+        return _build_credit_report(
+            engine, registry, access, query, now, base, period, previous, finance
+        )
+    with report_snapshot(engine) as session:
+        inputs = _inputs(session, registry, access, query, now)
     source: Any
     if query.family == "social":
         result: SocialResult = social_report(
@@ -707,6 +752,208 @@ def build_report(
     return Report(body, revision, total_rows, rows, inputs.digest)
 
 
+def _credit_bounds(query: ReportQuery, period: Period, previous: Period | None, zone: str):
+    current = period.bounds(zone)
+    return Bounds.of(current, None if previous is None else previous.bounds(zone))
+
+
+def _build_credit_report(
+    engine: Engine,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+    base: dict[str, Any],
+    period: Period,
+    previous: Period | None,
+    finance: bool,
+) -> Report:
+    """The attribution, ROAS and funnel families over stored credit of the published
+    generation."""
+    if query.family == "roas":
+        return _build_roas(engine, registry, access, query, now, base, period, previous)
+    if query.family == "funnel":
+        return _build_funnel(engine, access, query, now, base, period, previous, finance)
+    bounds = _credit_bounds(query, period, previous, "UTC")
+    with report_snapshot(engine) as session:
+        inputs = read_attribution_inputs(
+            session,
+            access,
+            version_id=query.model_version,
+            view_name=query.view or "groups",
+            group_by=query.group_by or "campaign",
+            bounds=bounds,
+            finance=finance,
+        )
+    result = attribution_report(
+        inputs.context,
+        query.group_by or "campaign",
+        query.view or "groups",
+        bounds.labels,
+        inputs.credit,
+        inputs.counts,
+        inputs.recipient_counts,
+        inputs.ledger_state,
+        inputs.ledger,
+        inputs.meta,
+        finance,
+    )
+    body = {**base, "day_zone": "UTC", "basis": CREDIT_BASIS, **result.body}
+    source = ["attribution", list(inputs.selected)]
+    revision = _revision(access, query, source, inputs.digest, {"finance": finance})
+    body["revision"] = revision
+    body["dependencies"] = [dict(item) for item in DEPENDENCIES]
+    return Report(
+        body, revision, result.total_rows, result.rows, inputs.digest, finance, inputs.refs
+    )
+
+
+def _roas_inputs(
+    session: Session,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+) -> tuple[SpendInputs, dict, list, Any, str]:
+    """The spend read of 016-A, the connection's ads and the attribution context; the digest
+    covers what the release check rereads."""
+    assert query.connection_id is not None
+    period, previous = query.periods()
+    periods = [period] + ([previous] if previous is not None else [])
+    spend = read_spend_inputs(session, registry, access, query.connection_id, periods, now)
+    if spend.zone is None:
+        raise ReportError("day_zone_unknown", 409)
+    objects, objects_token = read_ad_objects(session, access, spend.connection_id)
+    read = read_context(session, access, query.model_version)
+    digest = inputs_digest(read.tokens, GroupMeta(), [["spend", spend.digest], objects_token])
+    return spend, objects, objects_token, read, digest
+
+
+def _build_roas(
+    engine: Engine,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+    base: dict[str, Any],
+    period: Period,
+    previous: Period | None,
+) -> Report:
+    """ROAS and cost per lead of one spend connection (016-B P2, D-089 D7)."""
+    with report_snapshot(engine) as session:
+        spend_inputs, objects, _, read, digest = _roas_inputs(session, registry, access, query, now)
+        context = read.context
+        generation = context.generation if context.ready() else 0
+        zone = spend_inputs.zone or "UTC"
+        bounds = _credit_bounds(query, period, previous, zone)
+        rows = read_roas_credit(session, access, read.selected, generation, bounds)
+        selected = next((row for row in read.rows if row.id in read.selected), None)
+        version = (
+            None
+            if selected is None
+            else engine_version(
+                selected.version_key, selected.model, selected.window_seconds, selected.rules
+            )
+        )
+    level = query.level or "ad"
+    spend = spend_report(spend_inputs, level, period, previous, now)
+    periods = [("current", period)] + ([("previous", previous)] if previous is not None else [])
+    result = roas_family(
+        context,
+        spend_inputs,
+        spend,
+        level,
+        periods,
+        credit_totals(rows),
+        version,
+        objects,
+        spend_inputs.connection_id,
+        now,
+    )
+    body = {**base, "day_zone": zone, "basis": CREDIT_BASIS, **result.body}
+    source = ["roas", spend_inputs.connection_id, list(read.selected)]
+    revision = _revision(access, query, source, digest, {"finance": True, "spend": spend.semantic})
+    body["revision"] = revision
+    body["dependencies"] = [dict(item) for item in DEPENDENCIES]
+    return Report(body, revision, result.total_rows, result.rows, digest, True, ())
+
+
+def _build_funnel(
+    engine: Engine,
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+    base: dict[str, Any],
+    period: Period,
+    previous: Period | None,
+    finance: bool,
+) -> Report:
+    """Tracked visits beside stored credit per campaign, content or link (016-B P3, D8)."""
+    bounds = _credit_bounds(query, period, previous, "UTC")
+    group_by = query.group_by or "campaign"
+    with report_snapshot(engine) as session:
+        inputs = read_funnel_inputs(
+            session,
+            access,
+            version_id=query.model_version,
+            group_by=group_by,
+            bounds=bounds,
+            finance=finance,
+        )
+    stored = inputs.attribution
+    result = funnel_report(
+        stored.context,
+        group_by,
+        bounds.labels,
+        stored.credit,
+        stored.counts,
+        stored.recipient_counts,
+        VisitInputs(inputs.visits, inputs.totals, inputs.supported),
+        stored.ledger_state,
+        stored.ledger,
+        stored.meta,
+        finance,
+    )
+    body = {**base, "day_zone": "UTC", "basis": CREDIT_BASIS, **result.body}
+    source = ["funnel", list(stored.selected)]
+    revision = _revision(access, query, source, stored.digest, {"finance": finance})
+    body["revision"] = revision
+    body["dependencies"] = [dict(item) for item in DEPENDENCIES]
+    return Report(
+        body, revision, result.total_rows, result.rows, stored.digest, finance, inputs.refs
+    )
+
+
+def _credit_release_digest(
+    session: Session,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    report: Report,
+    now: datetime,
+) -> str:
+    if query.family == "roas":
+        return _roas_inputs(session, registry, access, query, now)[4]
+    if query.family == "funnel":
+        period, previous = query.periods()
+        return funnel_release_digest(
+            session,
+            access,
+            version_id=query.model_version,
+            group_by=query.group_by or "campaign",
+            bounds=_credit_bounds(query, period, previous, "UTC"),
+            refs=report.refs,
+        )
+    return attribution_release_digest(
+        session,
+        access,
+        version_id=query.model_version,
+        view_name=query.view or "groups",
+        group_by=query.group_by or "campaign",
+        refs=report.refs,
+    )
+
+
 # Check the caller's revision against the built report: a later page needs one, and any
 # difference refuses the whole response with no rows or totals.
 def check_revision(report: Report, expected: str | None, page: PageRequest | None) -> None:
@@ -738,9 +985,14 @@ def release_check(
         )
         if current != access:
             raise AccessDenied()
+        # Sale values built with finance:read are released only while it still holds.
+        if report.finance and query.family in FINANCE_SPLIT:
+            resolve_scope(session, principal, access.agency_id, access.client_id, "finance:read")
         try:
             if query.family == "revenue":
                 digest = revenue_digest(session, access)[1]
+            elif query.family in ATTRIBUTION_FAMILIES:
+                digest = _credit_release_digest(session, registry, access, query, report, now)
             else:
                 digest = _inputs(session, registry, access, query, now).digest
         except ReportError as error:

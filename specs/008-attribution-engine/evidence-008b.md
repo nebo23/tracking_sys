@@ -162,4 +162,4 @@ A database error in one client no longer stops the whole pass.
 - A failed consumer is retried only after the lifecycle runner resets it; a deterministic engine refusal therefore fails again at each lifecycle cycle, visibly in the status route.
 - Retention values are the development values of D12; Q-012 stays open.
 - Not in this slice: the native `tracking_sys` migration, live providers, 016-B and 016-C reports, the React UI and production scheduling (020).
-- The merge is a separate owner decision after the review.
+- The owner decided the merge after Claude's review (D-080); see the [merge review](merge-review-008b.md).

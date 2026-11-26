@@ -968,18 +968,26 @@ def test_v17_v19_no_storage_and_dependency_states(authenticated_world):
     for response in responses:
         assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
     for response in responses[:3]:
+        # 016-B (D-089): each capability is available and names the family that serves it.
         dependencies = {
-            item["capability"]: item["state"] for item in response.json()["dependencies"]
+            item["capability"]: (item["state"], item["family"])
+            for item in response.json()["dependencies"]
         }
         assert dependencies == {
-            "attribution": "dependency_unavailable",
-            "content_revenue": "dependency_unavailable",
-            "funnels": "dependency_unavailable",
-            "roas": "dependency_unavailable",
+            "attribution": ("available", "attribution"),
+            "content_revenue": ("available", "attribution"),
+            "funnels": ("available", "funnel"),
+            "roas": ("available", "roas"),
         }
+        assert response.json()["contract_version"] == "016b.1"
         assert '"roas":' not in response.text.replace('"capability":"roas"', "")
     status = [row for row in _parse(responses[3]) if row["source"] == "dependencies"]
-    assert {row["status"] for row in status} == {"dependency_unavailable"}
+    assert {(row["metric"], row["status"], row["detail"]) for row in status} == {
+        ("attribution", "available", "attribution"),
+        ("content_revenue", "available", "attribution"),
+        ("funnels", "available", "funnel"),
+        ("roas", "available", "roas"),
+    }
     with Session(w.db.migration) as session:
         after = set(
             session.execute(
