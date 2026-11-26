@@ -1,6 +1,6 @@
 # 018-A evidence
 
-Status: implemented and checked as described here on 2026-11-26, and pushed to `codex/spec-018-react-workspace` (D-051) for the owner's review. Slice 018-A is not accepted until the owner has reviewed it. A pull request, a merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
+Status: implemented and checked as described here on 2026-11-26, pushed to `codex/spec-018-react-workspace` (D-051) and presented in a pull request against `main` (D-083) for the owner's review. Slice 018-A is not accepted until the owner has reviewed it. The merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
 
 The slice follows the [018-A plan](plan-018a.md) (D-081). How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
@@ -61,26 +61,26 @@ The lockfile holds `playwright-core` twice: 1.64.1 inside `@playwright/test`, wh
 |---|---|---|
 | Project | `frontend/` | React 19, TypeScript, Vite; exact versions; scripts for development, build, checks, journeys and a sandbox. |
 | Stylesheet | `frontend/src/styles/` | Imports `docs/design/tokens/tokens.css`, `docs/design/ui/connect-icons.css` and `docs/design/ui/connect-ui.css` from where they are, without a copy, IBM Plex from local files, and one file of rules that only a running application needs (prefix `a-`). |
-| API client | `frontend/src/api/` | Types generated from `contracts/openapi.json` (124 operations) with a drift check; the session cookie on every request; the request-forgery token in memory and on every mutation; one table from API error codes to sentences. |
+| API client | `frontend/src/api/` | Types generated from `contracts/openapi.json` (141 operations after the merge of main) with a drift check; the session cookie on every request; the request-forgery token in memory and on every mutation; one table from API error codes to sentences. |
 | Language and theme | `frontend/src/app/preferences.ts`, `frontend/src/i18n/` | English and Arabic messages (ICU), `lang` and `dir` on the root element, Western digits and the Gregorian calendar in Arabic (`ar-u-ca-gregory-nu-latn`), device, light or dark theme. |
 | Screens before the workspace | `frontend/src/features/auth/`, `frontend/src/features/agency/WelcomePage.tsx` | Sign in, register, verify the code, forgotten and reset password, accept an invitation, Google completion, first agency. |
 | Workspace | `frontend/src/app/shell/`, `frontend/src/features/agency/HomePage.tsx`, `frontend/src/features/account/` | Sidebar, top bar, phone tab bar, agency switcher, account menu with language and theme, overview, account page with password change, sign-out, Google link and account closure. |
 | Disposable stack | `frontend/tests/browser/support/` | Starts a PostgreSQL container of its own, applies the migrations, runs the real API and serves the built application, each on a port nothing else in the project uses; removes all of it afterwards. Backs the journeys and `npm run sandbox`. |
 
 ## 3. Checks on 2026-11-26
-Every check below ran on the tree of the commit that adds this file.
+The checks below ran on the branch after it was brought up to date with main (section 3.5), except the removed protections, which ran just before on frontend sources that the merge did not change.
 
 | Check | Command | Result |
 |---|---|---|
 | Types | `npm run typecheck` | No error (strict mode, with unchecked index access reported). |
 | Static rules | `npm run lint` | No finding. ESLint 9.39.5 with the recommended rules of `typescript-eslint`, the recommended accessibility rules of `eslint-plugin-jsx-a11y` and the two rules of hooks. |
-| Contract types | `npm run api:check` | `src/api/schema.d.ts` (17,227 lines) equals what `contracts/openapi.json` generates. |
-| Unit and component tests | `npm test` | 199 tests in 14 files pass (about 15 seconds). |
+| Contract types | `npm run api:check` | `src/api/schema.d.ts` (19,464 lines) equals what `contracts/openapi.json` generates. |
+| Unit and component tests | `npm test` | 199 tests in 14 files pass (about 11 seconds). |
 | Removed protections | scratch tool, not in the repository | Each of 29 protections was removed in turn; every time at least one unit test failed, and the file was restored byte for byte. Section 3.1. |
 | Production build | `npm run build` | 95 files, 2,134 KiB. One script of 641 kB (196 kB compressed) and one stylesheet of 149 kB (34 kB compressed); the rest are font files. |
 | Bundle search | `npm run build:check` | No secret, key, token or backend setting. A control file that names a backend setting fails the check. Section 3.4. |
-| Journeys in Chromium | `npm run test:browser -- --project=chromium` | 38 of 38 pass in 2.5 minutes. Chromium 156.0.8078.4 (Playwright 1.64.1, build 1248). |
-| Journeys in Firefox | `npm run test:browser -- --project=firefox` | 38 of 38 pass in 4.0 minutes. Firefox 157.0 (build 1555). |
+| Journeys in Chromium | `npm run test:browser -- --project=chromium` | 38 of 38 pass in 3.0 minutes. Chromium 156.0.8078.4 (Playwright 1.64.1, build 1248). |
+| Journeys in Firefox | `npm run test:browser -- --project=firefox` | 38 of 38 pass in 4.6 minutes. Firefox 157.0 (build 1555). |
 
 The journeys ran with one worker and no retry.
 
@@ -120,6 +120,14 @@ axe-core finds what a machine can find, which is a part of WCAG 2.2 AA. It does 
 `scripts/check-bundle.mjs` reads every file of `dist/` and fails on: a backend setting name (`TRACKING_...`), a private key, a database address, a Google client secret, API key or client id, an AWS access key, a signed token, a key of this project's kinds (service, webhook, ingest, integration), a payment provider key, a session cookie value, or a source map. It found none.
 
 The addresses the build names are `http://127.0.0.1:8000` (the default API origin, a public build setting), `http://localhost` and `http://www.w3.org` (constants inside libraries), and `https://react.dev` and `https://formatjs.github.io` (links in library error messages). The application's two settings, `VITE_API_ORIGIN` and `VITE_GOOGLE_SIGN_IN`, are public by design (acceptance criterion 5).
+
+### 3.5 Bringing the branch up to date with main
+Before the pull request was opened, main had moved: PR 15 merged specifications 006 and 007-B/C (main at `3187c70`), with the migrations `0026` to `0028` and seventeen new API operations.
+
+- Main was merged into the branch (`9a1cfdf`). `AGENTS.md` and the decision register had one conflict each, because both sides had added decisions at the same place; both sets were kept.
+- Both workstreams had numbered their decisions from D-074. The 018 decisions became D-078 to D-082 in every file that names them (`42d1e58`); the decision register carries a note.
+- The drift check failed on the merged contract, as it should: the contract had grown from 124 to 141 operations. The types were generated again, and no call of this slice changed.
+- The type check, the static rules, the unit tests, the build, the bundle search and all 38 journeys in both browsers were run again on the merged branch, with the API at migration `0028`. The results are the ones in the table above.
 
 ## 4. Isolation of the checks
 - The journeys and the sandbox use the Compose project `tracking-e2e-frontend`: database `tracking_e2e_frontend` on `127.0.0.1:56434`, the API on `127.0.0.1:8010` and the application on `127.0.0.1:5183`. The container, its volume, the captured mail and the build are removed when a run ends.
@@ -166,7 +174,7 @@ The addresses the build names are `http://127.0.0.1:8000` (the default API origi
 4. The search pill of the top bar (section 6).
 5. The only owner of an agency cannot close their account, by the API's rule, and the interface has no way to hand over or delete an agency yet (018-B).
 6. The moderate `minimatch` advisory and the ESLint 9 notice of section 1 stay open (D-082).
-7. A pull request for the slice, and its merge.
+7. The merge of the pull request that D-083 opened.
 
 ### 8.2 Carried to later slices
 - Clients, team and access, connections (018-B); reports with charts (018-C); links, tracking and integrations (018-D).
