@@ -1,7 +1,7 @@
 # Delivery roadmap
 Updated: 2026-11-26. Proposed sequence; no delivery dates or cost estimates have been approved.
 
-Current state (2026-11-26, D-089): 006 and 007-B/C merged in PR 15 (`3187c70`). Spec 008-B, persisted attribution with the Q-007 production defaults, merged in PR 16 (`f15b6e4`); see its [evidence](../../specs/008-attribution-engine/evidence-008b.md). 016-B (attribution reports, ROAS, a funnel and a conversions list from stored credit) is approved in its [entry review](../../specs/016-analytics-reporting/entry-review-016b.md) (D-089) and ready to implement; 016-C, native rollout, live providers and deployment stay separately gated.
+Current state (2026-11-26, D-089): 006 and 007-B/C merged in PR 15 (`3187c70`). Spec 008-B, persisted attribution with the Q-007 production defaults, merged in PR 16 (`f15b6e4`); see its [evidence](../../specs/008-attribution-engine/evidence-008b.md). 016-B (attribution reports, ROAS, a funnel and a conversions list from stored credit) is implemented under D-089 and open for review in its pull request (see the [016-B evidence](../../specs/016-analytics-reporting/evidence-016b.md)); 016-C, native rollout, live providers and deployment stay separately gated.
 
 The first commercial release must combine social analytics, attribution, and multi-agency access. Development milestones do not redefine launch scope.
 

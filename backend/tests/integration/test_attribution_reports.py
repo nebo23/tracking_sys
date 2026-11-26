@@ -770,3 +770,26 @@ def test_bv18_csv_equals_json_and_bounds(aw):
         if row["source"] == "dependencies"
     }
     assert dependencies["roas"] == ("available", "roas")
+
+
+def test_reconciliation_counts_a_negative_net_as_zero(aw):
+    # The worker credits a sale with max(net, 0), so the reconciliation counts a negative
+    # ledger net as zero. The ledger keeps nets from falling below zero, so the stored
+    # projection is set directly here to exercise the rule.
+    w, day = aw.w, sale_day()
+    buyer = aw.person("buyer@example.test")
+    aw.touch(buyer.token, "spring")
+    aw.sale("S1", 10_000, when=at(day, 10))
+    aw.associate(buyer.assertion, "S1")
+    aw.sale("S2", 3_000, when=at(day, 11))
+    aw.settle()
+    _migrate(
+        w,
+        "UPDATE ledger_transactions SET refunded = 12000, net = -2000 "
+        "WHERE client_id = :c AND operation_id = 'S1'",
+        {"c": w.a1},
+    )
+    body = get(aw.idw.owner, w, "attribution", **span(day)).json()
+    (item,) = body["reconciliation"]["items"]
+    assert (item["credited_revenue"]["minor"], item["ledger_net"]["minor"]) == (13_000, 3_000)
+    assert (item["state"], item["reason"]) == ("difference", "unexplained_difference")

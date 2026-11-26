@@ -37,7 +37,17 @@ COPY_EVENT = (
 
 @pytest.fixture
 def aw(authenticated_world, api):
-    return make_attribution_world(make_identity_world(authenticated_world, api))
+    world = make_attribution_world(make_identity_world(authenticated_world, api))
+    yield world
+    # The bulk rows go at once, before the shared teardown deletes every table row by row
+    # (50,000 events with their foreign key checks can outlast its statement timeout).
+    with world.w.db.migration.begin() as connection:
+        connection.execute(
+            text(
+                "TRUNCATE collected_events, attribution_credit_changes, "
+                "attribution_allocations, attribution_runs, attribution_conversions CASCADE"
+            )
+        )
 
 
 def test_bv14_link_event_bound(aw):

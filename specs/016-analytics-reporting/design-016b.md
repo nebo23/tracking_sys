@@ -1,6 +1,6 @@
 # Spec 016-B design: attribution reports
 
-Prepared: 2026-11-26 under D-089. Revision: 1. Status: approved scope ([D1-D14](entry-review-016b.md#3-decisions-for-the-owner), D-089, without amendment); this note fixes the exact statements, answers, states and tests before any code. Section 4 of the entry review is its source. Section 11 lists the routine details resolved here; no material new choice was found that needed the owner.
+Prepared: 2026-11-26 under D-089. Revision: 1. Status: approved scope ([D1-D14](entry-review-016b.md#3-decisions-for-the-owner), D-089, without amendment); this note fixed the exact statements, answers, states and tests before any code, and the implementation follows it (see the [evidence](evidence-016b.md), which also records one change found by the measurements: the conversion counts join by key). Section 4 of the entry review is its source. Section 11 lists the routine details resolved here; no material new choice was found that needed the owner.
 
 Inputs confirmed on the branch (P0 inventory):
 
