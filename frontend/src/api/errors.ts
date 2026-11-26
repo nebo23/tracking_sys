@@ -49,6 +49,8 @@ const byCode: Record<string, MessageId> = {
   google_identity_in_use: 'google.error.google_identity_in_use',
   google_already_linked: 'google.error.google_already_linked',
   google_sign_in_failed: 'google.error.other',
+  google_sign_in_conflict: 'google.error.other',
+  google_unavailable: 'google.error.other',
 };
 
 export function describeError(error: unknown, overrides: Partial<Record<string, MessageId>> = {}): ErrorMessage {

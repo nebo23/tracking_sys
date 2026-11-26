@@ -99,7 +99,6 @@
   "invitation.error.token": "انتهت صلاحية هذه الدعوة أو سُحبت أو تخص بريدًا آخر.",
   "invitation.error.unverified": "أكِّد بريدك الإلكتروني قبل قبول الدعوة.",
 
-  "google.working": "جارٍ إكمال تسجيل الدخول",
   "google.failed.title": "لم يكتمل الدخول بحساب Google",
   "google.error.google_link_required": "يوجد حساب يستخدم هذا البريد بالفعل. سجِّل الدخول بكلمة المرور، ثم اربط Google من صفحة حسابك.",
   "google.error.google_email_not_verified": "لم يؤكد Google هذا البريد الإلكتروني. استخدم حساب Google آخر أو سجِّل الدخول بكلمة مرور.",
@@ -174,7 +173,6 @@
   "legal.terms.title": "شروط الخدمة",
   "legal.privacy.title": "سياسة الخصوصية",
   "legal.pending": "لم يُنشر هذا النص بعد.",
-  "legal.back": "رجوع",
 
   "notFound.title": "الصفحة غير موجودة",
   "notFound.text": "ربما كُتب العنوان خطأً، أو نُقلت الصفحة.",

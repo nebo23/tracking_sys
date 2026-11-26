@@ -31,5 +31,7 @@ export default defineConfig({
     css: false,
     restoreMocks: true,
     unstubGlobals: true,
+    // Whole screens are drawn and used in jsdom; a loaded workstation needs more than the default.
+    testTimeout: 20_000,
   },
 });

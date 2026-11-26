@@ -14,6 +14,7 @@ import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { LanguageSwitch, ThemeSwitch } from '@/components/PreferenceSwitches';
 import { SubmitButton } from '@/components/SubmitButton';
 import type { MessageId } from '@/i18n';
+import { goTo, isSecureAddress } from '@/lib/browser';
 import { cx } from '@/lib/cx';
 import { focusFirstInvalid } from '@/lib/focusFirstInvalid';
 import { newPasswordError, PASSWORD_MAX, requiredError } from '@/lib/validation';
@@ -139,7 +140,7 @@ function GoogleCard() {
     mutationFn: linkGoogle,
     onSuccess({ authorization_url: address }) {
       // The API answers with Google's own address. Anything that is not an https address is refused.
-      if (URL.canParse(address) && new URL(address).protocol === 'https:') window.location.assign(address);
+      if (isSecureAddress(address)) goTo(address);
       else setProblem({ id: 'google.error.other' });
     },
     onError(error) {

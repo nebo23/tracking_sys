@@ -23,7 +23,7 @@ export function CloseAccount() {
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
 
   const request = useMutation({
-    mutationFn: () => closeAccount(password === '' ? null : password),
+    mutationFn: () => closeAccount(password),
     onSuccess: () => end('closed'),
     onError(error) {
       setProblem(

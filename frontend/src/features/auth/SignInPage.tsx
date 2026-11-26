@@ -13,6 +13,7 @@ import { ErrorNotice, Notice } from '@/components/Notice';
 import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { SubmitButton } from '@/components/SubmitButton';
 import type { MessageId } from '@/i18n';
+import { goTo } from '@/lib/browser';
 import { focusFirstInvalid } from '@/lib/focusFirstInvalid';
 import { heldLinkToken } from '@/lib/linkToken';
 import { safeNext } from '@/lib/safeNext';
@@ -90,7 +91,7 @@ export function SignInPage() {
 
   const startGoogle = () => {
     // Google sign-in is a visit to the API, which sends the browser on to Google.
-    if (!agreementMissing()) window.location.assign(`${apiOrigin}/auth/google/start`);
+    if (!agreementMissing()) goTo(`${apiOrigin}/auth/google/start`);
   };
 
   return (

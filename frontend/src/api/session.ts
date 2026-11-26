@@ -75,8 +75,9 @@ export function changePassword(currentPassword: string, newPassword: string) {
   return call(api.POST('/auth/change-password', { body: { current_password: currentPassword, new_password: newPassword } }));
 }
 
-export function closeAccount(password: string | null) {
-  return call(api.POST('/auth/close-account', { body: password ? { password } : {} }));
+/** An account without a password sends none; the API then asks for a recent Google sign-in. */
+export function closeAccount(password: string) {
+  return call(api.POST('/auth/close-account', { body: password === '' ? {} : { password } }));
 }
 
 export function linkGoogle() {
