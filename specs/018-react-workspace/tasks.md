@@ -7,13 +7,13 @@ Status: Not completed; this is a review checklist, not an implementation instruc
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
 - [x] Define independently reviewable local changes for the approved specification. (D14 in D-083: slices 018-A to 018-D; the first is planned in the [018-A plan](plan-018a.md).)
 - [x] Implement the first approved slice. (018-A under D-084; see the [018-A evidence](evidence-018a.md). The owner's review is pending.)
-- [ ] Implement the second slice. (018-B under D-090: clients, connections, invitations and keys are implemented, see the [018-B evidence](evidence-018b.md). Members, grants, archived clients and the audit log wait for the decision of the [018-B plan](plan-018b.md), section 3.2.)
+- [ ] Implement the second slice. (018-B under D-093: clients, connections, invitations and keys are implemented, see the [018-B evidence](evidence-018b.md). Members, grants, archived clients and the audit log wait for the decision of the [018-B plan](plan-018b.md), section 3.2.)
 - [ ] Verify: A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows.
 - [ ] Verify: Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization. (Checked for the screens of 018-B by unit tests and by journeys with two agencies and with an analyst who was given one of two clients, see the [018-B evidence](evidence-018b.md); every later slice repeats it for its screens.)
 - [ ] Verify: Approved RTL/LTR layouts, keyboard navigation, and loading, empty, error, stale, and partial states work correctly. (Checked for the screens of 018-A, see the [018-A evidence](evidence-018a.md); stale and partial states arrive with the data screens of later slices.)
 - [ ] Verify: Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions.
 - [ ] Verify: Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely. (Checked for 018-A by the bundle search of the [018-A evidence](evidence-018a.md); every later slice repeats it.)
 - [ ] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner. (018-A was pushed to the specification branch under D-051 on 2026-11-26. D-090 authorizes 018-B to 018-D; 018-B follows the [018-B plan](plan-018b.md).)
+- [ ] Present a reviewable result to the owner. (018-A was pushed to the specification branch under D-051 on 2026-11-26. D-093 authorizes 018-B to 018-D; 018-B follows the [018-B plan](plan-018b.md).)
 - [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012). (018-A: pushed under D-051 and opened as a pull request under D-086; the review and the merge are pending.)
 - [ ] Record owner acceptance before progressing to dependent work.

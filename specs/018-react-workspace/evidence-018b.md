@@ -1,6 +1,6 @@
 # 018-B evidence
 
-Status: the parts of slice 018-B that the present API can back are implemented and checked as described here on 2026-11-26, and pushed to `codex/spec-018-workspace-screens` (D-051, D-090). The members tab, the grants of a member, archived clients and the audit log are not built: they wait for the owner's decision on the API amendment of the [018-B plan](plan-018b.md), section 3.2. The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
+Status: the parts of slice 018-B that the present API can back are implemented and checked as described here on 2026-11-26, and pushed to `codex/spec-018-workspace-screens` (D-051, D-093). The members tab, the grants of a member, archived clients and the audit log are not built: they wait for the owner's decision on the API amendment of the [018-B plan](plan-018b.md), section 3.2. The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
 
 How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
@@ -10,7 +10,7 @@ How to run the application and its checks is in the [frontend guide](../../front
 | Packages | None added and none changed: `frontend/package.json` and `package-lock.json` are those of 018-A (the thirty packages of D-084). |
 | API, contract, schema | Nothing in `backend/` or `contracts/` changed. `npm run api:check` still matches the contract of 147 operations. |
 | Reference styles | Nothing in `docs/design/` changed. The new screens use the existing classes; `frontend/src/styles/app.css` gains rules of the running application only (prefix `a-`). |
-| Pull request 17 | Untouched. This work is on a branch stacked on the 018-A branch (D-090). |
+| Pull request 17 | Untouched. This work is on a branch stacked on the 018-A branch (D-093). |
 
 ## 2. What was built
 | Part | Where | What it does |
