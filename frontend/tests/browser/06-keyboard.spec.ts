@@ -1,11 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { accountMenu, agreement, newPerson, registered, signedInBrowser, withAgency } from './support/people.ts';
+import { withClient } from './support/tenants.ts';
 
-/** Presses Tab until a control has focus, as a person without a mouse does. */
-async function tabTo(page: Page, control: Locator, limit = 25): Promise<void> {
+/** Presses Tab, or Shift+Tab to go back, until a control has focus, as a person without a mouse does. */
+async function tabTo(page: Page, control: Locator, limit = 25, key: 'Tab' | 'Shift+Tab' = 'Tab'): Promise<void> {
   for (let presses = 0; presses < limit; presses += 1) {
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(key);
     if (await control.evaluate((element) => element === document.activeElement)) return;
   }
   throw new Error('Tab never reached the control.');
@@ -45,7 +46,7 @@ test('a person signs in with the keyboard alone', async ({ page }, testInfo) => 
   expect(await showsFocus(submit)).toBe(true);
   await page.keyboard.press('Enter');
 
-  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeFocused();
 });
 
 test('the workspace is used with the keyboard alone', async ({ page, context }, testInfo) => {
@@ -53,7 +54,7 @@ test('the workspace is used with the keyboard alone', async ({ page, context }, 
   await withAgency(person, 'Lumen Studio');
   await signedInBrowser(context, person);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
 
   await test.step('the first Tab offers to skip to the content', async () => {
     await page.keyboard.press('Tab');
@@ -65,8 +66,10 @@ test('the workspace is used with the keyboard alone', async ({ page, context }, 
   });
 
   await test.step('the account menu opens, moves and closes with keys', async () => {
+    // From the content, the top bar is one step back. A browser does not always wrap from the
+    // last control of a page to its first, so the journey goes the way a person would.
     const trigger = accountMenu(page, person);
-    await tabTo(page, trigger);
+    await tabTo(page, trigger, 5, 'Shift+Tab');
     expect(await showsFocus(trigger)).toBe(true);
     await page.keyboard.press('Enter');
     const menu = page.getByRole('menu');
@@ -107,5 +110,62 @@ test('the workspace is used with the keyboard alone', async ({ page, context }, 
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByText('You are signed out.')).toBeVisible();
+  });
+});
+
+test('clients are added, opened and left with the keyboard alone', async ({ page, context }, testInfo) => {
+  const person = await registered(newPerson(testInfo));
+  const agencyId = await withAgency(person, 'Lumen Studio');
+  await withClient(person, agencyId, 'Olive & Thyme');
+  await signedInBrowser(context, person);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
+  const add = page.getByRole('button', { name: 'Add client' });
+
+  await test.step('a dialog opens from its button, keeps focus inside and gives it back on Escape', async () => {
+    await tabTo(page, add, 40);
+    expect(await showsFocus(add)).toBe(true);
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Add a client' });
+    await expect(dialog.getByLabel('Client name')).toBeFocused();
+    for (let presses = 0; presses < 6; presses += 1) {
+      await page.keyboard.press('Tab');
+      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(add).toBeFocused();
+  });
+
+  await test.step('a client is added by typing its name and pressing Enter', async () => {
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog').getByLabel('Client name')).toBeFocused();
+    await page.keyboard.type('Cedar Fitness');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Connections', level: 1 })).toBeFocused();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Cedar Fitness')).toBeVisible();
+  });
+
+  await test.step('the switcher is a menu that the arrow keys move through', async () => {
+    const switcher = page.getByRole('complementary').getByRole('button', { name: /Switch client or agency/ });
+    await tabTo(page, switcher, 12, 'Shift+Tab');
+    expect(await showsFocus(switcher)).toBe(true);
+    await page.keyboard.press('Enter');
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Home');
+    await expect(menu.getByRole('menuitemradio', { name: 'All clients' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitemradio', { name: 'Cedar Fitness' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitemradio', { name: 'Olive & Thyme' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Olive & Thyme')).toBeVisible();
+
+    await switcher.press('Enter');
+    await page.keyboard.press('Home');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
+    await expect(page.getByText('2 clients', { exact: true })).toBeVisible();
   });
 });

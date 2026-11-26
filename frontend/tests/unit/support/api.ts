@@ -1,5 +1,7 @@
 import { vi } from 'vitest';
 
+import type { Connection, Coverage } from '@/api/connections';
+
 // A stand-in for the API: answers by method and path, and keeps what was sent so a test can
 // look at it. Every value here is synthetic.
 
@@ -93,7 +95,8 @@ export const otherClient = {
 export const connectionsPath = `${clientsPath}/${client.id}/connections`;
 
 /** A connection as the API lists it. Fields a test cares about are given; the rest are quiet defaults. */
-export const connection = (given: Record<string, unknown> = {}) => ({
+export const connection = (given: Record<string, unknown> = {}): Connection =>
+  ({
   id: 'd1111111-1111-4111-8111-111111111111',
   provider: 'synthetic',
   account: { external_account_id: 'acct-1', label: '@olive.thyme' },
@@ -106,12 +109,13 @@ export const connection = (given: Record<string, unknown> = {}) => ({
   disconnect: null,
   grant_expires_at: null,
   ...given,
-});
+}) as Connection;
 
 const quietRun = { state: 'idle', kind: null, reason: null, next_attempt_at: null };
 
 /** The coverage of a connection, quiet and complete unless a test says otherwise. */
-export const coverage = (given: Record<string, unknown> = {}) => ({
+export const coverage = (given: Record<string, unknown> = {}): Coverage =>
+  ({
   connection_id: 'd1111111-1111-4111-8111-111111111111',
   source: { provider: 'synthetic', adapter_version: 'synthetic-1', account_kind: 'business' },
   status: 'active',
@@ -141,7 +145,7 @@ export const coverage = (given: Record<string, unknown> = {}) => ({
     buckets: [],
   },
   ...given,
-});
+}) as Coverage;
 
 /** The answers of an API where Mona is signed in and owns one agency, which has no client yet. */
 export const signedIn = (): Record<string, Answer> => ({

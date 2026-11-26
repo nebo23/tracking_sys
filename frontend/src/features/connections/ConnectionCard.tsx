@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Day, dayFormat, Moment, RelativeTime } from '@/components/Time';
 import { cx } from '@/lib/cx';
 
-import { coverageBar, runReason, statusReason, streamName } from './coverage';
+import { allowanceName, coverageBar, runReason, statusReason, streamName } from './coverage';
 import { DisconnectDialog } from './DisconnectDialog';
 import { connectionErrors } from './errors';
 import { leaveForProvider } from './leaveForProvider';
@@ -359,7 +359,10 @@ export function ConnectionCard({ agencyId, clientId, connection, manager }: Conn
               coverage.data.cost.buckets.map((bucket) => (
                 <div key={bucket.bucket} className="a-contents">
                   <dt>
-                    <FormattedMessage id="connections.allowance.bucket" values={{ bucket: <span className="u-mono u-ltr">{bucket.bucket}</span> }} />
+                    <FormattedMessage
+                      id={allowanceName(bucket.bucket) ?? 'connections.allowance.bucket'}
+                      values={{ bucket: <span className="u-mono u-ltr">{bucket.bucket}</span> }}
+                    />
                   </dt>
                   <dd>
                     <Allowance cost={bucket} />

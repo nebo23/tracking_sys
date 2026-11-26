@@ -196,6 +196,10 @@ body {
 .a-pad {
   padding: var(--space-7);
 }
+/* A day is read as one thing; it is not broken across two lines. */
+.a-nowrap {
+  white-space: nowrap;
+}
 .a-row-actions {
   justify-content: flex-end;
   flex-wrap: nowrap;

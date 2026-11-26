@@ -254,6 +254,8 @@
   "connections.stream.objects": "السجلات",
   "connections.allowance": "الحد اليومي",
   "connections.allowance.bucket": "الحد اليومي، {bucket}",
+  "connections.allowance.youtube_data": "الحد اليومي، Data API",
+  "connections.allowance.youtube_analytics": "الحد اليومي، Analytics API",
   "connections.allowance.used": "استُخدم {used} من {of} اليوم",
   "connections.allowance.connection_allocation": "استنفد هذا الحساب حدَّه لهذا اليوم.",
   "connections.allowance.provider_quota": "بلغ المزوِّد حدَّه لهذا اليوم.",

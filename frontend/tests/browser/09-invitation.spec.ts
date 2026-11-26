@@ -29,10 +29,11 @@ test('an invited person signs in and joins the agency through the mailed link', 
   });
 
   await test.step('the agency opens with the role of the invitation', async () => {
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-    const main = page.getByRole('main');
-    await expect(main.getByText('Northlight Media')).toBeVisible();
-    await expect(main.getByText('Admin')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Northlight Media')).toBeVisible();
+    // An admin manages the agency: its team and its keys are offered.
+    await expect(page.getByRole('link', { name: 'Team and access' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'API keys' })).toBeVisible();
   });
 
   await test.step('the link cannot be used again', async () => {

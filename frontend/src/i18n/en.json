@@ -254,6 +254,8 @@
   "connections.stream.objects": "Records",
   "connections.allowance": "Daily allowance",
   "connections.allowance.bucket": "Allowance, {bucket}",
+  "connections.allowance.youtube_data": "Daily allowance, Data API",
+  "connections.allowance.youtube_analytics": "Daily allowance, Analytics API",
   "connections.allowance.used": "{used} of {of} used today",
   "connections.allowance.connection_allocation": "This account has used its allowance for today.",
   "connections.allowance.provider_quota": "The provider's limit for today is reached.",

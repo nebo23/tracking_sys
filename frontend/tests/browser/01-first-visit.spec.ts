@@ -69,12 +69,13 @@ test('a new person creates an account and an agency, then signs out', async ({ p
   await test.step('the new agency opens the workspace', async () => {
     await page.getByLabel('Agency name').fill('Lumen Studio');
     await page.getByRole('button', { name: 'Create agency' }).click();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeFocused();
-    const main = page.getByRole('main');
-    await expect(main.getByText('Lumen Studio')).toBeVisible();
-    await expect(main.getByText('Owner')).toBeVisible();
-    await expect(main.getByText(person.email)).toBeVisible();
-    await expect(page).toHaveTitle('Overview · Connect');
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeFocused();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Lumen Studio')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No clients yet' })).toBeVisible();
+    // The owner manages the agency: its team and its keys are offered.
+    await expect(page.getByRole('link', { name: 'Team and access' })).toBeVisible();
+    await expect(page).toHaveURL(/\/agencies\/[0-9a-f-]{36}\/clients$/);
+    await expect(page).toHaveTitle('Clients · Connect');
   });
 
   await test.step('the session is a cookie scripts cannot read, and nothing secret is stored', async () => {
@@ -89,8 +90,8 @@ test('a new person creates an account and an agency, then signs out', async ({ p
 
   await test.step('a reload keeps the person signed in', async () => {
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-    await expect(page.getByRole('main').getByText('Lumen Studio')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Lumen Studio')).toBeVisible();
   });
 
   await test.step('signing out closes the workspace, also for the Back button', async () => {

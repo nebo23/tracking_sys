@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 import { agreement, newPerson, registered, withAgency } from './support/people.ts';
+import { withClient } from './support/tenants.ts';
 
 test('the sign-in screen and the workspace read right to left in Arabic', async ({ page }, testInfo) => {
   const person = await registered(newPerson(testInfo, 'منى حسن'));
-  await withAgency(person, 'استوديو لومن');
+  const agencyId = await withAgency(person, 'استوديو لومن');
+  await withClient(person, agencyId, 'زيتون وزعتر');
   const width = page.viewportSize()?.width ?? 0;
 
   await test.step('the switch turns the whole screen', async () => {
@@ -43,22 +45,31 @@ test('the sign-in screen and the workspace read right to left in Arabic', async 
     await expect(page.getByText('ضع علامة الموافقة قبل المتابعة.')).toBeVisible();
     await agreement(page).check();
     await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'نظرة عامة', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'العملاء', level: 1 })).toBeVisible();
   });
 
   await test.step('the workspace is mirrored, with Western digits and Gregorian dates', async () => {
     const sidebar = await page.getByRole('complementary').boundingBox();
     expect(sidebar?.x).toBeGreaterThan(width / 2);
+    await expect(page.getByRole('navigation', { name: 'مسار التنقل' }).getByText('استوديو لومن')).toBeVisible();
     const main = page.getByRole('main');
-    await expect(main.getByText('استوديو لومن')).toBeVisible();
-    await expect(main.getByText('مالك')).toBeVisible();
-    await expect(main.getByText('منى حسن')).toBeVisible();
+    const row = main.getByRole('row', { name: /زيتون وزعتر/ });
+    await expect(row.getByText('اربط أول حساب')).toBeVisible();
+    // The first column of the table starts at the right edge.
+    const first = await row.getByRole('cell').first().boundingBox();
+    const last = await row.getByRole('cell').last().boundingBox();
+    expect(first?.x ?? 0).toBeGreaterThan(last?.x ?? 0);
 
-    const created = main.locator('dl').first().locator('dd').nth(2);
-    await expect(created).toHaveText(/^\d{1,2} \S+ 20\d\d$/);
-    await expect(created).not.toHaveText(/[٠-٩]/);
-    expect(await main.getByText(person.email).evaluate((element) => getComputedStyle(element).direction)).toBe('ltr');
-    await expect(page).toHaveTitle('نظرة عامة · كونكت');
+    const added = row.locator('time');
+    await expect(added).toHaveText(/^\d{1,2} \S+ 20\d\d$/);
+    await expect(added).not.toHaveText(/[٠-٩]/);
+    await expect(main.getByText('1', { exact: true }).first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'الحساب: منى حسن' }).click();
+    const email = page.getByText(person.email);
+    expect(await email.evaluate((element) => getComputedStyle(element).direction)).toBe('ltr');
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveTitle('العملاء · كونكت');
   });
 
   await test.step('nothing spills past the edge of the page', async () => {

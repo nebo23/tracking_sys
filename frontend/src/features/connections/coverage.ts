@@ -35,6 +35,14 @@ const streamNames: Partial<Record<string, MessageId>> = {
 
 export const streamName = (stream: string): MessageId | null => streamNames[stream] ?? null;
 
+// A provider with several daily limits names each one (specification 011: the two YouTube APIs).
+const allowanceNames: Partial<Record<string, MessageId>> = {
+  youtube_data: 'connections.allowance.youtube_data',
+  youtube_analytics: 'connections.allowance.youtube_analytics',
+};
+
+export const allowanceName = (bucket: string): MessageId | null => allowanceNames[bucket] ?? null;
+
 // Why the latest run waits or failed (the run's error kind). Anything else gets the general sentence.
 const runReasons: Partial<Record<string, MessageId>> = {
   rate_limited: 'connections.run.reason.rate_limited',

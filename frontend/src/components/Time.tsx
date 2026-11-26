@@ -38,7 +38,7 @@ export function RelativeTime({ value }: { value: string }) {
 /** A day, written out in the language of the interface. */
 export function Day({ value }: { value: string }) {
   return (
-    <time dateTime={value}>
+    <time dateTime={value} className="a-nowrap">
       <FormattedDate value={value} {...dayFormat} />
     </time>
   );
@@ -47,7 +47,7 @@ export function Day({ value }: { value: string }) {
 /** A day and the time of day. */
 export function Moment({ value }: { value: string }) {
   return (
-    <time dateTime={value}>
+    <time dateTime={value} className="a-nowrap">
       <FormattedDate value={value} {...dayFormat} hour="numeric" minute="2-digit" />
     </time>
   );

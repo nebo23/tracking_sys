@@ -54,7 +54,7 @@ test('changing the password ends every session and only the new password works',
   await expect(page.getByRole('alert')).toContainText('The email or password is not correct.');
   await page.getByLabel('Password', { exact: true }).fill(next);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
 });
 
 test('signing out everywhere ends the session of another browser too', async ({ page, context, browser }, testInfo) => {
