@@ -277,6 +277,13 @@ class CollectedEvent(Base):
         Index("ix_collected_events_subject_id", "subject_id"),
         Index("ix_collected_events_expires_at", "expires_at"),
         Index("ix_collected_events_link_id", "link_id"),
+        # 016-B (0030): the funnel counts link-tagged page views by receipt time.
+        Index(
+            "ix_collected_events_client_link_received",
+            "client_id",
+            "first_received_at",
+            postgresql_where=text("link_id IS NOT NULL"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     agency_id: Mapped[UUID] = mapped_column(Uuid)

@@ -59,6 +59,7 @@ from app.reporting.common import (
 from app.reporting.credit import BASIS as CREDIT_BASIS
 from app.reporting.credit import GroupMeta, attribution_report
 from app.reporting.digest import Digest, digest_of
+from app.reporting.funnel import VisitInputs, funnel_report
 from app.reporting.periods import Period
 from app.reporting.revenue import RevenueInputs, RevenueResult, revenue_report
 from app.reporting.roas import credit_totals, roas_family
@@ -82,10 +83,12 @@ from app.services.attribution_records import engine_version
 from app.services.attribution_reports import (
     Bounds,
     attribution_release_digest,
+    funnel_release_digest,
     inputs_digest,
     read_ad_objects,
     read_attribution_inputs,
     read_context,
+    read_funnel_inputs,
     read_roas_credit,
 )
 from app.services.connector_coverage import _sync_state
@@ -628,7 +631,7 @@ class Report:
     rows: Callable[[], Iterator[dict[str, Any]]]
     inputs_digest: str
     finance: bool = False  # whether sale values were built (rechecked before release)
-    refs: tuple[str, ...] = ()  # the grouped references whose metadata the release rereads
+    refs: tuple[str | None, ...] = ()  # grouped references whose metadata the release rereads
 
 
 def _inputs(
@@ -769,6 +772,8 @@ def _build_credit_report(
     generation."""
     if query.family == "roas":
         return _build_roas(engine, registry, access, query, now, base, period, previous)
+    if query.family == "funnel":
+        return _build_funnel(engine, access, query, now, base, period, previous, finance)
     bounds = _credit_bounds(query, period, previous, "UTC")
     with report_snapshot(engine) as session:
         inputs = read_attribution_inputs(
@@ -873,6 +878,52 @@ def _build_roas(
     return Report(body, revision, result.total_rows, result.rows, digest, True, ())
 
 
+def _build_funnel(
+    engine: Engine,
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+    base: dict[str, Any],
+    period: Period,
+    previous: Period | None,
+    finance: bool,
+) -> Report:
+    """Tracked visits beside stored credit per campaign, content or link (016-B P3, D8)."""
+    bounds = _credit_bounds(query, period, previous, "UTC")
+    group_by = query.group_by or "campaign"
+    with report_snapshot(engine) as session:
+        inputs = read_funnel_inputs(
+            session,
+            access,
+            version_id=query.model_version,
+            group_by=group_by,
+            bounds=bounds,
+            finance=finance,
+        )
+    stored = inputs.attribution
+    result = funnel_report(
+        stored.context,
+        group_by,
+        bounds.labels,
+        stored.credit,
+        stored.counts,
+        stored.recipient_counts,
+        VisitInputs(inputs.visits, inputs.totals, inputs.supported),
+        stored.ledger_state,
+        stored.ledger,
+        stored.meta,
+        finance,
+    )
+    body = {**base, "day_zone": "UTC", "basis": CREDIT_BASIS, **result.body}
+    source = ["funnel", list(stored.selected)]
+    revision = _revision(access, query, source, stored.digest, {"finance": finance})
+    body["revision"] = revision
+    body["dependencies"] = [dict(item) for item in DEPENDENCIES]
+    return Report(
+        body, revision, result.total_rows, result.rows, stored.digest, finance, inputs.refs
+    )
+
+
 def _credit_release_digest(
     session: Session,
     registry: Mapping[str, ConnectorProvider],
@@ -883,6 +934,16 @@ def _credit_release_digest(
 ) -> str:
     if query.family == "roas":
         return _roas_inputs(session, registry, access, query, now)[4]
+    if query.family == "funnel":
+        period, previous = query.periods()
+        return funnel_release_digest(
+            session,
+            access,
+            version_id=query.model_version,
+            group_by=query.group_by or "campaign",
+            bounds=_credit_bounds(query, period, previous, "UTC"),
+            refs=report.refs,
+        )
     return attribution_release_digest(
         session,
         access,

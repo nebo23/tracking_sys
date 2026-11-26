@@ -471,4 +471,107 @@ def roas_csv(body: Mapping[str, Any], rows: Iterable[Mapping[str, Any]], total_r
     return builder.encode()
 
 
-SERIALIZERS = {"attribution": attribution_csv, "roas": roas_csv}
+def funnel_csv(
+    body: Mapping[str, Any], rows: Iterable[Mapping[str, Any]], total_rows: int
+) -> bytes:
+    builder = _builder(body, body["group_by"])
+    _metadata(builder, body)
+    for stage, basis in body["bases"].items():
+        builder.add("metadata", metric="stage_basis", source=stage, detail=basis)
+    _freshness(builder, body["attribution"])
+    _dependencies(builder, body["dependencies"])
+    for item in body["totals"]:
+        cells = _period_cells(body, item["period"])
+        builder.add(
+            "total", **cells, source="visits", metric="page_views", count=item["page_views"]
+        )
+        builder.add(
+            "total",
+            **cells,
+            source="visits",
+            metric="link_page_views",
+            count=item["link_page_views"],
+        )
+        leads = item["leads"]
+        builder.add(
+            "total",
+            **cells,
+            source="leads",
+            metric="credited_leads",
+            unit="share",
+            status=leads["state"],
+            **ratio(leads["credited_leads"]),
+        )
+        builder.add(
+            "total",
+            **cells,
+            source="leads",
+            metric="lead_conversions",
+            count=leads["lead_conversions"],
+        )
+        sales = item["sales"]
+        builder.add(
+            "total",
+            **cells,
+            source="sales",
+            metric="sales",
+            status=sales["state"],
+            detail=sales["ledger"],
+        )
+        for entry in sales["items"] or ():
+            money_cells = {
+                **cells,
+                "source": "sales",
+                "currency": entry["currency"],
+                "exponent": entry["exponent"],
+            }
+            builder.add(
+                "total",
+                **money_cells,
+                metric="credited_sales",
+                unit="share",
+                **ratio(entry["credited_sales"]),
+            )
+            builder.add(
+                "total",
+                **money_cells,
+                metric="credited_revenue",
+                unit="money",
+                **money(entry["credited_revenue"]),
+            )
+            builder.add(
+                "total",
+                **money_cells,
+                metric="ledger_net",
+                unit="money",
+                **money(entry["ledger_net"]),
+            )
+            for metric in ("sale_conversions", "associated", "unassociated"):
+                builder.add("total", **money_cells, metric=metric, count=entry[metric])
+    comparison(builder, body.get("comparison") or (), "funnel")
+    builder.reserve(total_rows)
+    for row in rows:
+        cells = group_cells(body, row)
+        visits = row["visits"]
+        builder.add(
+            "value",
+            **cells,
+            metric="tracked_visits",
+            availability=visits["state"],
+            count=visits["count"],
+        )
+        credit_values(builder, cells, row["sales"], row["leads"])
+        for item in row["content_items"] or ():
+            builder.add(
+                "value",
+                **cells,
+                metric="content_item",
+                connection_id=item["connection_id"],
+                object_id=item["content_id"],
+                source=item["provider"],
+                detail=item["stream"],
+            )
+    return builder.encode()
+
+
+SERIALIZERS = {"attribution": attribution_csv, "roas": roas_csv, "funnel": funnel_csv}

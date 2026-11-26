@@ -676,12 +676,104 @@ class RoasReportResult(Output):
     dependencies: list[Dependency]
 
 
+# --- funnel (016-B) ---------------------------------------------------------------------------
+
+
+class FunnelBases(Output):
+    visits: Literal["received_date"]
+    leads: Literal["conversion_date"]
+    sales: Literal["conversion_date"]
+    revenue: Literal["conversion_date"]
+
+
+class FunnelVisits(Output):
+    state: Literal["available", "unsupported"]
+    count: int | None
+
+
+class FunnelRow(Output):
+    recipient: Literal["campaign", "direct", "unknown"]
+    group_ref: str | None
+    registered: bool | None
+    content_items: list[SocialContentItem] | None
+    visits: FunnelVisits
+    leads: CreditLeads | None
+    sales: CreditSales | None
+
+
+class FunnelLeadsTotal(Output):
+    state: Literal["available", "not_ready"]
+    credited_leads: ExactShare | None
+    lead_conversions: int | None
+
+
+class FunnelSaleItem(Output):
+    currency: str
+    exponent: int
+    credited_sales: ExactShare
+    credited_revenue: Amount
+    sale_conversions: int
+    associated: int
+    unassociated: int
+    ledger_net: Amount | None
+
+
+class FunnelSalesTotal(Output):
+    state: Literal["available", "permission_unavailable", "not_ready"]
+    ledger: Literal["available", "unavailable", "none"] | None
+    items: list[FunnelSaleItem] | None
+
+
+class FunnelTotal(Output):
+    period: Literal["current", "previous"]
+    page_views: int
+    link_page_views: int
+    leads: FunnelLeadsTotal
+    sales: FunnelSalesTotal
+
+
+class FunnelComparison(Output):
+    metric: str
+    currency: str | None
+    exponent: int | None
+    current_value: Amount | ExactShare | int | None
+    previous_value: Amount | ExactShare | int | None
+    difference: Amount | ExactShare | int | None
+    percent_change: str | None
+    comparable: bool
+    reason: str | None
+
+
+class FunnelReportResult(Output):
+    contract_version: str
+    family: Literal["funnel"]
+    client_id: UUID
+    group_by: Literal["campaign", "content", "link"]
+    period: PeriodView
+    comparison_period: PeriodView | None
+    day_zone: Literal["UTC"]
+    basis: Literal["conversion_date"]
+    bases: FunnelBases
+    generated_at: datetime
+    revision: str
+    model_version: ReportModelVersion | None
+    attribution: AttributionFreshness
+    finance: Literal["available", "permission_unavailable"]
+    values: ValuesState
+    totals: list[FunnelTotal]
+    comparison: list[FunnelComparison] | None
+    rows: list[FunnelRow]
+    page: PageView
+    dependencies: list[Dependency]
+
+
 MODELS = {
     "social": SocialReportResult,
     "spend": SpendReportResult,
     "revenue": RevenueReportResult,
     "attribution": AttributionReportResult,
     "roas": RoasReportResult,
+    "funnel": FunnelReportResult,
 }
 
 
@@ -929,6 +1021,49 @@ def roas_report(
         compare is not None,
         connection_id=connection_id,
         level=level,
+        model_version=model_version,
+    )
+    query.periods()
+    return _serve(
+        request,
+        session,
+        principal,
+        agency_id,
+        client_id,
+        query,
+        format,
+        page,
+        page_size,
+        expected_revision,
+    )
+
+
+# Funnel of tracked visits, credited leads, credited sales and credited revenue per campaign,
+# content or link (016-B, D-089 D8); no rate between stages is reported.
+@router.get(f"{BASE}/funnel", response_model=FunnelReportResult, responses=CSV_RESPONSE)
+def funnel_report(
+    agency_id: UUID,
+    client_id: UUID,
+    request: Request,
+    session: SessionDep,
+    principal: ReaderDep,
+    start: Annotated[CalendarDate, Query()],
+    end: Annotated[CalendarDate, Query()],
+    group_by: Annotated[Literal["campaign", "content", "link"], Query()] = "campaign",
+    model_version: Annotated[UUID | None, Query()] = None,
+    compare: Compare | None = None,
+    page: Page = 1,
+    page_size: PageSize = 100,
+    expected_revision: Revision | None = None,
+    format: Format = "json",
+) -> Any:
+    _strict(request, "funnel", format)
+    query = ReportQuery(
+        "funnel",
+        start,
+        end,
+        compare is not None,
+        group_by=group_by,
         model_version=model_version,
     )
     query.periods()

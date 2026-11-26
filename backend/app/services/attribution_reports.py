@@ -30,6 +30,7 @@ from app.models import (
     AttributionCreditChange,
     AttributionModelVersion,
     AttributionRun,
+    CollectedEvent,
     ConnectorConnection,
     ConnectorRecord,
     LedgerTransaction,
@@ -659,3 +660,196 @@ def read_roas_credit(
             .group_by(*keys)
         )
     ]
+
+
+# --- Funnel (016-B P3) -------------------------------------------------------------------------
+
+MAX_LINK_EVENTS = 50_000  # link-tagged page views per funnel report, both periods (D10)
+VISIT_REFS = {
+    "campaign": LinkCampaign.public_code,
+    "content": LinkContentReference.external_code,
+    "link": ManagedLink.id,
+}
+
+
+def _page_views(access: ScopedAccess, bounds: Bounds) -> tuple:
+    event = CollectedEvent
+    return (
+        event.agency_id == access.agency_id,
+        event.client_id == access.client_id,
+        event.event_type == "page_view",
+        event.identity_excluded_at.is_(None),
+        event.first_received_at >= bounds.low,
+        event.first_received_at < bounds.high,
+    )
+
+
+def read_visits(
+    session: Session, access: ScopedAccess, bounds: Bounds, group_by: str
+) -> tuple[dict[tuple[str, str | None], int], dict[str, tuple[int, int]]]:
+    """Tracked visits per (period, grouped reference) and the page view totals per period."""
+    event = CollectedEvent
+    scope = _page_views(access, bounds)
+    inner = (
+        select(event.id)
+        .where(*scope, event.link_id.is_not(None))
+        .limit(MAX_LINK_EVENTS + 1)
+        .subquery()
+    )
+    if int(session.scalar(select(func.count()).select_from(inner)) or 0) > MAX_LINK_EVENTS:
+        raise ReportError("report_too_large", 422)
+    period = _period(event.first_received_at, bounds)
+    reference = event.link_id if group_by == "link" else VISIT_REFS[group_by]
+    found: dict[tuple[str, str | None], int] = {}
+    for label, ref, number in session.execute(
+        select(period, reference, func.count())
+        .select_from(event)
+        .join(
+            ManagedLink,
+            (ManagedLink.id == event.link_id)
+            & (ManagedLink.agency_id == event.agency_id)
+            & (ManagedLink.client_id == event.client_id),
+        )
+        .outerjoin(LinkCampaign, LinkCampaign.id == ManagedLink.campaign_id)
+        .outerjoin(
+            LinkContentReference, LinkContentReference.id == ManagedLink.content_reference_id
+        )
+        .where(*scope, event.link_id.is_not(None))
+        .group_by(period, reference)
+    ):
+        found[(label, _text(ref))] = int(number)
+    totals = {
+        label: (int(views), int(linked))
+        for label, views, linked in session.execute(
+            select(period, func.count(), func.count().filter(event.link_id.is_not(None)))
+            .where(*scope)
+            .group_by(period)
+        )
+    }
+    return found, totals
+
+
+def read_supported(
+    session: Session, access: ScopedAccess, group_by: str, refs: Sequence[str | None]
+) -> frozenset[str | None]:
+    """The grouped references that a managed link of the client carries; None stands for a
+    managed link without that reference."""
+    link = ManagedLink
+    scope = (link.agency_id == access.agency_id, link.client_id == access.client_id)
+    found: set[str | None] = set()
+    named = [ref for ref in refs if ref is not None]
+    if group_by == "link":
+        ids = _uuids(named)
+        for start in range(0, len(ids), BATCH):
+            found |= {
+                str(item)
+                for item in session.scalars(
+                    select(link.id).where(*scope, link.id.in_(ids[start : start + BATCH]))
+                )
+            }
+        return frozenset(found)
+    column = VISIT_REFS[group_by]
+    target = LinkCampaign if group_by == "campaign" else LinkContentReference
+    foreign = link.campaign_id if group_by == "campaign" else link.content_reference_id
+    for chunk in _batches(named):
+        found |= set(
+            session.scalars(
+                select(column)
+                .select_from(link)
+                .join(target, target.id == foreign)
+                .where(*scope, column.in_(chunk))
+                .distinct()
+            )
+        )
+    if None in refs:
+        bare = session.scalar(select(link.id).where(*scope, foreign.is_(None)).limit(1))
+        if bare is not None:
+            found.add(None)
+    return frozenset(found)
+
+
+@dataclass(frozen=True)
+class FunnelInputs:
+    attribution: AttributionInputs
+    visits: dict[tuple[str, str | None], int]
+    totals: dict[str, tuple[int, int]]
+    supported: frozenset[str | None]
+    refs: tuple[str | None, ...]
+
+
+def _funnel_refs(
+    credit: Sequence[CreditRow], visits: Iterable[tuple[str, str | None]]
+) -> tuple[str | None, ...]:
+    refs = {row.ref for row in credit if row.recipient == "campaign"}
+    refs |= {ref for label, ref in visits if label == "current"}
+    return tuple(sorted(refs, key=lambda ref: (ref is None, ref or "")))
+
+
+def _funnel_token(visits, totals, supported) -> list[Any]:
+    return [
+        "funnel",
+        sorted([label, ref or "", number] for (label, ref), number in visits.items()),
+        sorted([label, *values] for label, values in totals.items()),
+        sorted("" if ref is None else ref for ref in supported),
+        None in supported,
+    ]
+
+
+def read_funnel_inputs(
+    session: Session,
+    access: ScopedAccess,
+    *,
+    version_id: UUID | None,
+    group_by: str,
+    bounds: Bounds,
+    finance: bool,
+) -> FunnelInputs:
+    read = read_context(session, access, version_id)
+    context = read.context
+    generation = context.generation if context.ready() else 0
+    if count_groups(session, access, read.selected, generation, bounds, group_by) > MAX_GROUPS:
+        raise ReportError("report_too_large", 422)
+    credit = read_credit(session, access, read.selected, generation, bounds, group_by)
+    counts = read_counts(session, access, read.selected, generation, bounds, group_by)
+    recipient_counts = read_counts(session, access, read.selected, generation, bounds, None)
+    ledger_state, ledger = (
+        read_ledger(session, access, context, bounds)
+        if finance
+        else (context.current["ledger"], [])
+    )
+    visits, totals = read_visits(session, access, bounds, group_by)
+    refs = _funnel_refs(credit, visits)
+    supported = read_supported(session, access, group_by, refs)
+    named = tuple(ref for ref in refs if ref is not None)
+    meta = read_meta(session, access, group_by, named)
+    digest = inputs_digest(read.tokens, meta, [_funnel_token(visits, totals, supported)])
+    attribution = AttributionInputs(
+        context=context,
+        selected=read.selected,
+        credit=tuple(credit),
+        counts=tuple(counts),
+        recipient_counts=tuple(recipient_counts),
+        ledger_state=ledger_state,
+        ledger=tuple(ledger),
+        meta=meta,
+        refs=named,
+        digest=digest,
+    )
+    return FunnelInputs(attribution, visits, totals, supported, refs)
+
+
+def funnel_release_digest(
+    session: Session,
+    access: ScopedAccess,
+    *,
+    version_id: UUID | None,
+    group_by: str,
+    bounds: Bounds,
+    refs: Sequence[str | None],
+) -> str:
+    read = read_context(session, access, version_id)
+    visits, totals = read_visits(session, access, bounds, group_by)
+    supported = read_supported(session, access, group_by, list(refs))
+    named = tuple(ref for ref in refs if ref is not None)
+    meta = read_meta(session, access, group_by, named)
+    return inputs_digest(read.tokens, meta, [_funnel_token(visits, totals, supported)])

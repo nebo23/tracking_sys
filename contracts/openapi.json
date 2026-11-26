@@ -20332,6 +20332,270 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/reports/funnel": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Funnel Report",
+        "operationId": "funnel_report_agencies__agency_id__clients__client_id__reports_funnel_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "campaign",
+                "content",
+                "link"
+              ],
+              "type": "string",
+              "default": "campaign",
+              "title": "Group By"
+            }
+          },
+          {
+            "name": "model_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunnelReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
       "post": {
         "tags": [
@@ -29244,6 +29508,595 @@
           "updated_at"
         ],
         "title": "FormResponse"
+      },
+      "FunnelBases": {
+        "properties": {
+          "visits": {
+            "type": "string",
+            "const": "received_date",
+            "title": "Visits"
+          },
+          "leads": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Leads"
+          },
+          "sales": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Sales"
+          },
+          "revenue": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Revenue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "visits",
+          "leads",
+          "sales",
+          "revenue"
+        ],
+        "title": "FunnelBases"
+      },
+      "FunnelComparison": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exponent"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "currency",
+          "exponent",
+          "current_value",
+          "previous_value",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "FunnelComparison"
+      },
+      "FunnelLeadsTotal": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "not_ready"
+            ],
+            "title": "State"
+          },
+          "credited_leads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lead_conversions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Conversions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "credited_leads",
+          "lead_conversions"
+        ],
+        "title": "FunnelLeadsTotal"
+      },
+      "FunnelReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "funnel",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "content",
+              "link"
+            ],
+            "title": "Group By"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "type": "string",
+            "const": "UTC",
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Basis"
+          },
+          "bases": {
+            "$ref": "#/components/schemas/FunnelBases"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportModelVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/AttributionFreshness"
+          },
+          "finance": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable"
+            ],
+            "title": "Finance"
+          },
+          "values": {
+            "$ref": "#/components/schemas/ValuesState"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FunnelComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "group_by",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "bases",
+          "generated_at",
+          "revision",
+          "model_version",
+          "attribution",
+          "finance",
+          "values",
+          "totals",
+          "comparison",
+          "rows",
+          "page",
+          "dependencies"
+        ],
+        "title": "FunnelReportResult"
+      },
+      "FunnelRow": {
+        "properties": {
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "group_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Ref"
+          },
+          "registered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registered"
+          },
+          "content_items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SocialContentItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Items"
+          },
+          "visits": {
+            "$ref": "#/components/schemas/FunnelVisits"
+          },
+          "leads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditLeads"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sales": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditSales"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipient",
+          "group_ref",
+          "registered",
+          "content_items",
+          "visits",
+          "leads",
+          "sales"
+        ],
+        "title": "FunnelRow"
+      },
+      "FunnelSaleItem": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "credited_sales": {
+            "$ref": "#/components/schemas/ExactShare"
+          },
+          "credited_revenue": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "sale_conversions": {
+            "type": "integer",
+            "title": "Sale Conversions"
+          },
+          "associated": {
+            "type": "integer",
+            "title": "Associated"
+          },
+          "unassociated": {
+            "type": "integer",
+            "title": "Unassociated"
+          },
+          "ledger_net": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "exponent",
+          "credited_sales",
+          "credited_revenue",
+          "sale_conversions",
+          "associated",
+          "unassociated",
+          "ledger_net"
+        ],
+        "title": "FunnelSaleItem"
+      },
+      "FunnelSalesTotal": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_ready"
+            ],
+            "title": "State"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FunnelSaleItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "ledger",
+          "items"
+        ],
+        "title": "FunnelSalesTotal"
+      },
+      "FunnelTotal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "page_views": {
+            "type": "integer",
+            "title": "Page Views"
+          },
+          "link_page_views": {
+            "type": "integer",
+            "title": "Link Page Views"
+          },
+          "leads": {
+            "$ref": "#/components/schemas/FunnelLeadsTotal"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/FunnelSalesTotal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "page_views",
+          "link_page_views",
+          "leads",
+          "sales"
+        ],
+        "title": "FunnelTotal"
+      },
+      "FunnelVisits": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unsupported"
+            ],
+            "title": "State"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "count"
+        ],
+        "title": "FunnelVisits"
       },
       "HandoffResponse": {
         "properties": {
