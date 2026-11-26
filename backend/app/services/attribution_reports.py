@@ -322,16 +322,11 @@ def read_counts(
             ),
         )
         .select_from(latest)
-        .join(
-            allocation,
-            (allocation.run_id == latest.c.id)
-            & (allocation.client_id == access.client_id)
-            & allocation.credited,
-        )
-        .join(
-            conversion,
-            (conversion.id == latest.c.conversion_id) & (conversion.client_id == access.client_id),
-        )
+        # The runs are scoped by agency and client, and their allocations and conversions are
+        # bound to the same client by scoped foreign keys, so both join by key alone: a client
+        # constant here lets the planner scan a client-wide index for every run (fresh tables).
+        .join(allocation, (allocation.run_id == latest.c.id) & allocation.credited)
+        .join(conversion, conversion.id == latest.c.conversion_id)
         .where(
             latest.c.status == "complete",
             latest.c.window_end >= bounds.low,
