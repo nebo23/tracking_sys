@@ -136,6 +136,22 @@ export async function startServers() {
       collector.consent.delete(body.subject_token);
       collector.expiries.delete(body.subject_token);
     }
+    if (route === "identity-handoff") {
+      // 006 D3: a one-time code only for a known subject whose identity_link grant is current.
+      const granted =
+        collector.consent.get(body.subject_token)?.identity_link === "granted" &&
+        (collector.expiries.get(body.subject_token)?.identity_link ?? 0) > Date.now();
+      if (!granted) return [200, { status: "unavailable" }];
+      tokens += 1;
+      return [
+        201,
+        {
+          status: "issued",
+          code: `ihc_${String(tokens).padStart(43, "h")}`,
+          expires_at: new Date(Date.now() + 600_000).toISOString(),
+        },
+      ];
+    }
     return [202, { status: "received" }];
   }
 

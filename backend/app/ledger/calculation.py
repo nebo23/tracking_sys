@@ -552,6 +552,10 @@ def calculate(records: Iterable[Evidence]) -> LedgerCalculation:
     for count in range(1, len(arrival) + 1):
         state = _derive(arrival[:count])
         _record_movements(state, committed, movements, arrival[count - 1])
+    return _view(state, tuple(movements))
+
+
+def _view(state: _State, movements: tuple[Movement, ...]) -> LedgerCalculation:
     return LedgerCalculation(
         transactions=tuple(state.transactions),
         adjustments=tuple(sorted(state.adjustments, key=lambda a: (a.scope, a.operation_id))),
@@ -559,8 +563,50 @@ def calculate(records: Iterable[Evidence]) -> LedgerCalculation:
         unverified=tuple(state.unverified),
         excluded=tuple(state.excluded),
         outcomes=tuple(state.outcomes),
-        movements=tuple(movements),
+        movements=movements,
     )
+
+
+def _arrival(records: Iterable[Evidence]) -> list[Evidence]:
+    items = list(records)
+    for item in items:
+        if not isinstance(item, Evidence):
+            raise LedgerInputError("invalid_evidence")
+    return sorted(items, key=_receipt_instant)  # stable: ties keep the supplied order
+
+
+def current_calculation(
+    records: Iterable[Evidence], movements: tuple[Movement, ...] = ()
+) -> LedgerCalculation:
+    """The provisional calculation over the receipt log in one pass (007-B, D-075 J8).
+
+    Unlike calculate(), no receipt prefix is recomputed: the movement journal is not derived
+    here, and a caller that persisted it passes its stored movements, which belong to the view
+    unchanged.
+    """
+    return _view(_derive(_arrival(records)), movements)
+
+
+def next_movements(
+    committed: dict[tuple[LedgerScope, str], RevenueEntry],
+    records: Iterable[Evidence],
+    trigger: Evidence,
+    first_sequence: int,
+) -> tuple[tuple[Movement, ...], LedgerCalculation]:
+    """The movements one new receipt appends, and the calculation after it (007-B, J8).
+
+    committed holds the effects already persisted (the current postings, keyed by scope and
+    operation ID); records is the receipt log up to and including the trigger's receipt, with
+    the evidence held at that receipt left out. The same comparison as calculate() decides the
+    releases and postings, so a persisted journal built one receipt at a time is identical to
+    calculate() for the same log. committed is updated in place.
+    """
+    if first_sequence < 1:
+        raise LedgerInputError("invalid_sequence")
+    state = _derive(_arrival(records))
+    movements: list[Movement] = []
+    _record_movements(state, committed, movements, trigger, offset=first_sequence - 1)
+    return tuple(movements), _view(state, ())
 
 
 def _record_movements(
@@ -568,6 +614,7 @@ def _record_movements(
     committed: dict[_Key, RevenueEntry],
     movements: list[Movement],
     trigger: Evidence,
+    offset: int = 0,
 ) -> None:
     """Append the movements that bring the committed effects in line with the new state."""
     changes: list[tuple[RevenueEntry, MovementType, str | None]] = []
@@ -591,7 +638,7 @@ def _record_movements(
             amount = entry.amount
         movements.append(
             Movement(
-                len(movements) + 1,
+                offset + len(movements) + 1,
                 entry.scope,
                 entry.transaction_id,
                 entry.operation_id,

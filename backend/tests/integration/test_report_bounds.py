@@ -209,7 +209,11 @@ def test_v14_v18_revenue_bound_counts_the_whole_client(authenticated_world, monk
     def forbidden(*_args, **_kwargs):
         raise AssertionError("The prefix journal must not be evaluated for reports.")
 
-    monkeypatch.setattr("app.services.revenue.ledger_feed", forbidden)
+    # 007-B: reads use the stored journal; neither the prefix journal nor the prefix
+    # calculation may run for a report.
+    monkeypatch.setattr("app.attribution.engine.ledger_feed", forbidden)
+    monkeypatch.setattr("app.ledger.calculation.calculate", forbidden)
+    monkeypatch.setattr("app.ledger.calculate", forbidden)
     october = midnight(date(2026, 10, 1))
     append(
         w,

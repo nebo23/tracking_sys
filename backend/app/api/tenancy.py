@@ -212,7 +212,11 @@ def grant_client(
     browser: BrowserDep,
 ) -> Response:
     TenancyService(session, browser.user.id).grant_client(
-        agency_id, client_id, membership_id, can_view_financials=data.can_view_financials
+        agency_id,
+        client_id,
+        membership_id,
+        can_view_financials=data.can_view_financials,
+        can_view_identities=data.can_view_identities,
     )
     return Response(status_code=204)
 
