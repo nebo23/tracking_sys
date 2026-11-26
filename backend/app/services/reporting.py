@@ -57,10 +57,11 @@ from app.reporting.common import (
     page_of,
 )
 from app.reporting.credit import BASIS as CREDIT_BASIS
-from app.reporting.credit import attribution_report
+from app.reporting.credit import GroupMeta, attribution_report
 from app.reporting.digest import Digest, digest_of
 from app.reporting.periods import Period
 from app.reporting.revenue import RevenueInputs, RevenueResult, revenue_report
+from app.reporting.roas import credit_totals, roas_family
 from app.reporting.social import (
     SocialInputs,
     SocialRecord,
@@ -77,10 +78,15 @@ from app.reporting.spend import (
 )
 from app.services.access import Principal, ScopedAccess, resolve_scope
 from app.services.advertising import SPEND_PROVIDERS
+from app.services.attribution_records import engine_version
 from app.services.attribution_reports import (
     Bounds,
     attribution_release_digest,
+    inputs_digest,
+    read_ad_objects,
     read_attribution_inputs,
+    read_context,
+    read_roas_credit,
 )
 from app.services.connector_coverage import _sync_state
 from app.services.revenue import client_ledger
@@ -759,7 +765,10 @@ def _build_credit_report(
     previous: Period | None,
     finance: bool,
 ) -> Report:
-    """The attribution family (016-B P1) over stored credit of the published generation."""
+    """The attribution, ROAS and funnel families over stored credit of the published
+    generation."""
+    if query.family == "roas":
+        return _build_roas(engine, registry, access, query, now, base, period, previous)
     bounds = _credit_bounds(query, period, previous, "UTC")
     with report_snapshot(engine) as session:
         inputs = read_attribution_inputs(
@@ -794,6 +803,76 @@ def _build_credit_report(
     )
 
 
+def _roas_inputs(
+    session: Session,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+) -> tuple[SpendInputs, dict, list, Any, str]:
+    """The spend read of 016-A, the connection's ads and the attribution context; the digest
+    covers what the release check rereads."""
+    assert query.connection_id is not None
+    period, previous = query.periods()
+    periods = [period] + ([previous] if previous is not None else [])
+    spend = read_spend_inputs(session, registry, access, query.connection_id, periods, now)
+    if spend.zone is None:
+        raise ReportError("day_zone_unknown", 409)
+    objects, objects_token = read_ad_objects(session, access, spend.connection_id)
+    read = read_context(session, access, query.model_version)
+    digest = inputs_digest(read.tokens, GroupMeta(), [["spend", spend.digest], objects_token])
+    return spend, objects, objects_token, read, digest
+
+
+def _build_roas(
+    engine: Engine,
+    registry: Mapping[str, ConnectorProvider],
+    access: ScopedAccess,
+    query: ReportQuery,
+    now: datetime,
+    base: dict[str, Any],
+    period: Period,
+    previous: Period | None,
+) -> Report:
+    """ROAS and cost per lead of one spend connection (016-B P2, D-089 D7)."""
+    with report_snapshot(engine) as session:
+        spend_inputs, objects, _, read, digest = _roas_inputs(session, registry, access, query, now)
+        context = read.context
+        generation = context.generation if context.ready() else 0
+        zone = spend_inputs.zone or "UTC"
+        bounds = _credit_bounds(query, period, previous, zone)
+        rows = read_roas_credit(session, access, read.selected, generation, bounds)
+        selected = next((row for row in read.rows if row.id in read.selected), None)
+        version = (
+            None
+            if selected is None
+            else engine_version(
+                selected.version_key, selected.model, selected.window_seconds, selected.rules
+            )
+        )
+    level = query.level or "ad"
+    spend = spend_report(spend_inputs, level, period, previous, now)
+    periods = [("current", period)] + ([("previous", previous)] if previous is not None else [])
+    result = roas_family(
+        context,
+        spend_inputs,
+        spend,
+        level,
+        periods,
+        credit_totals(rows),
+        version,
+        objects,
+        spend_inputs.connection_id,
+        now,
+    )
+    body = {**base, "day_zone": zone, "basis": CREDIT_BASIS, **result.body}
+    source = ["roas", spend_inputs.connection_id, list(read.selected)]
+    revision = _revision(access, query, source, digest, {"finance": True, "spend": spend.semantic})
+    body["revision"] = revision
+    body["dependencies"] = [dict(item) for item in DEPENDENCIES]
+    return Report(body, revision, result.total_rows, result.rows, digest, True, ())
+
+
 def _credit_release_digest(
     session: Session,
     registry: Mapping[str, ConnectorProvider],
@@ -802,6 +881,8 @@ def _credit_release_digest(
     report: Report,
     now: datetime,
 ) -> str:
+    if query.family == "roas":
+        return _roas_inputs(session, registry, access, query, now)[4]
     return attribution_release_digest(
         session,
         access,

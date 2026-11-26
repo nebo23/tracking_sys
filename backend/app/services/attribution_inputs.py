@@ -12,7 +12,11 @@ not run, store or schedule attribution, which remains the successor work of spec
   interaction; anything else is a direct visit. A managed link supplies its campaign code and
   its content reference code. A utm_campaign value the engine would refuse as a reference
   (empty, longer than 256 characters, padded or unprintable) is ignored, so one malformed URL
-  never fails a person's whole journey (008-B, D-079).
+  never fails a person's whole journey (008-B, D-079). Since 016-B (D-089 D7a), a campaign
+  interaction without a managed-link content reference takes the retained utm_content value
+  under the same rule; the class of a touch never changes. This is input adapter revision 2
+  (attribution_records.INPUT_ADAPTER_REVISION), which joins the model-set digest so that each
+  client rebuilds once against its stored history.
 - A conversion exists for every currently qualifying association (owned segment, current
   identity_link and attribution consent, verified sale in the published ledger). Its ID binds
   the association to the person's visible root, so an ownership change (merge, unmerge or
@@ -96,10 +100,20 @@ def touchpoints(
                 links[event.link_id] = (row[0], row[1]) if row is not None else (None, None)
             campaign, content = links[event.link_id]
         url = (event.payload or {}).get("url")
+        tags: dict[str, str] | None = None
         if campaign is None and isinstance(url, str):
-            tagged_value = dict(parse_qsl(urlsplit(url).query)).get("utm_campaign")
+            tags = dict(parse_qsl(urlsplit(url).query))
+            tagged_value = tags.get("utm_campaign")
             campaign = tagged_value if usable_reference(tagged_value) else None
         tagged = campaign is not None or link_ref is not None
+        # 016-B (D-089 D7a): a campaign interaction whose managed link has no content reference
+        # takes the retained utm_content value under the same text rule. A managed link's
+        # content reference wins, and a direct visit keeps no provenance.
+        if content is None and tagged and isinstance(url, str):
+            if tags is None:
+                tags = dict(parse_qsl(urlsplit(url).query))
+            tagged_content = tags.get("utm_content")
+            content = tagged_content if usable_reference(tagged_content) else None
         result.append(
             Touchpoint(
                 str(event.event_id),

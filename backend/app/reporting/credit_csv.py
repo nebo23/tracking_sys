@@ -323,4 +323,152 @@ def attribution_csv(
     return builder.encode()
 
 
-SERIALIZERS = {"attribution": attribution_csv}
+def _date(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def _spend_source(builder: CsvBuilder, body: Mapping[str, Any]) -> None:
+    source = body["spend_source"]
+    builder.add("status", source="spend", metric="provider", detail=source["provider"])
+    builder.add("status", source="spend", metric="adapter_state", status=source["adapter_state"])
+    builder.add(
+        "status", source="spend", metric="connection_status", status=source["connection_status"]
+    )
+    account = source.get("account") or {}
+    if account:
+        builder.add(
+            "status", source="spend", metric="account_currency", currency=account["currency"]
+        )
+    stream = source["stream"]
+    builder.add(
+        "status",
+        source=stream["stream"],
+        metric="coverage",
+        detail=_date(stream["covered_from"]),
+        reason=None,
+        availability=None,
+    )
+    builder.add(
+        "status",
+        source=stream["stream"],
+        metric="complete_through",
+        detail=_date(stream["complete_through"]),
+    )
+    freshness = stream["freshness"]
+    builder.add(
+        "status",
+        source=stream["stream"],
+        metric="freshness",
+        status=freshness["state"],
+        timestamp=freshness["last_stream_success_at"],
+    )
+    sync = stream["sync"]
+    builder.add(
+        "status",
+        source=stream["stream"],
+        metric="sync",
+        status=sync["state"],
+        reason=sync["reason"],
+        detail="in_progress" if sync["in_progress"] else "idle",
+    )
+    for period in source["periods"]:
+        cells = _period_cells(body, period["period"])
+        builder.add(
+            "status",
+            **cells,
+            source=stream["stream"],
+            metric="period",
+            status=period["status"],
+            reason=period["reason"],
+            detail=period["coverage"],
+            count=period["facts"],
+        )
+        for reason, number in period["refused"].items():
+            builder.add(
+                "status",
+                **cells,
+                source=stream["stream"],
+                metric="refused",
+                reason=reason,
+                count=number,
+            )
+
+
+def roas_values(
+    builder: CsvBuilder, row_type: str, cells: Mapping[str, object], item: Mapping[str, Any]
+) -> None:
+    values = {
+        **cells,
+        "level": item["level"],
+        "object_id": item["object_id"],
+        "campaign_id": item["campaign_id"],
+        "adset_id": item["adset_id"],
+        "currency": item["currency"],
+        "exponent": item["exponent"],
+        "availability": item["spend_state"],
+    }
+    builder.add(row_type, **values, metric="spend", unit="money", **money(item["spend"]))
+    builder.add(
+        row_type,
+        **values,
+        metric="credited_revenue",
+        unit="money",
+        **money(item["credited_revenue"]),
+    )
+    builder.add(
+        row_type,
+        **values,
+        metric="roas",
+        unit="ratio",
+        **ratio(item["roas"]),
+        reason=item["roas_reason"],
+    )
+    builder.add(
+        row_type, **values, metric="credited_leads", unit="share", **ratio(item["credited_leads"])
+    )
+    builder.add(
+        row_type,
+        **values,
+        metric="cost_per_lead",
+        unit="money_per_lead",
+        **ratio(item["cost_per_lead"]),
+        reason=item["cost_per_lead_reason"],
+    )
+
+
+def roas_csv(body: Mapping[str, Any], rows: Iterable[Mapping[str, Any]], total_rows: int) -> bytes:
+    builder = _builder(body, body["level"])
+    _metadata(builder, body)
+    _freshness(builder, body["attribution"])
+    _spend_source(builder, body)
+    _dependencies(builder, body["dependencies"])
+    for item in body["totals"]:
+        roas_values(builder, "total", _period_cells(body, item["period"]), item)
+    for item in body.get("unmatched") or ():
+        builder.add(
+            "total",
+            **_period_cells(body, item["period"]),
+            source="unmatched",
+            metric="credited_revenue",
+            unit="money",
+            currency=item["currency"],
+            exponent=item["exponent"],
+            **money(item["credited_revenue"]),
+        )
+    for item in body.get("unmatched_leads") or ():
+        builder.add(
+            "total",
+            **_period_cells(body, item["period"]),
+            source="unmatched",
+            metric="credited_leads",
+            unit="share",
+            **ratio(item["credited_leads"]),
+        )
+    comparison(builder, body.get("comparison") or (), "account")
+    builder.reserve(total_rows * 5)
+    for row in rows:
+        roas_values(builder, "value", _period_cells(body, "current"), row)
+    return builder.encode()
+
+
+SERIALIZERS = {"attribution": attribution_csv, "roas": roas_csv}

@@ -602,11 +602,86 @@ class AttributionReportResult(Output):
     dependencies: list[Dependency]
 
 
+# --- ROAS (016-B) -----------------------------------------------------------------------------
+
+
+class RoasValue(Output):
+    level: Literal["ad", "adset", "campaign", "account"]
+    object_id: str
+    campaign_id: str | None
+    adset_id: str | None
+    currency: str | None
+    exponent: int | None
+    spend: Amount | None
+    credited_revenue: Amount | None
+    roas: ExactShare | None
+    roas_reason: str | None
+    spend_state: Literal["complete", "provisional", "incomplete"]
+    credited_leads: ExactShare | None
+    cost_per_lead: ExactShare | None
+    cost_per_lead_reason: str | None
+
+
+class RoasTotal(RoasValue):
+    period: Literal["current", "previous"]
+
+
+class RoasUnmatched(Output):
+    period: Literal["current", "previous"]
+    currency: str
+    exponent: int
+    credited_revenue: Amount
+
+
+class RoasUnmatchedLeads(Output):
+    period: Literal["current", "previous"]
+    credited_leads: ExactShare
+
+
+class RoasComparison(Output):
+    metric: Literal["spend", "credited_revenue", "credited_leads"]
+    currency: str | None
+    exponent: int | None
+    current_value: Amount | ExactShare | None
+    previous_value: Amount | ExactShare | None
+    difference: Amount | ExactShare | None
+    percent_change: str | None
+    comparable: bool
+    reason: str | None
+
+
+class RoasReportResult(Output):
+    contract_version: str
+    family: Literal["roas"]
+    client_id: UUID
+    connection_id: UUID
+    level: Literal["ad", "adset", "campaign"]
+    period: PeriodView
+    comparison_period: PeriodView | None
+    day_zone: str
+    basis: Literal["conversion_date"]
+    generated_at: datetime
+    revision: str
+    model_version: ReportModelVersion | None
+    attribution: AttributionFreshness
+    finance: Literal["available"]
+    values: ValuesState
+    totals: list[RoasTotal]
+    unmatched: list[RoasUnmatched] | None
+    unmatched_leads: list[RoasUnmatchedLeads] | None
+    comparison: list[RoasComparison] | None
+    rows: list[RoasValue]
+    page: PageView
+    spend_source: SpendSource
+    dependencies: list[Dependency]
+
+
 MODELS = {
     "social": SocialReportResult,
     "spend": SpendReportResult,
     "revenue": RevenueReportResult,
     "attribution": AttributionReportResult,
+    "roas": RoasReportResult,
 }
 
 
@@ -809,6 +884,51 @@ def attribution_report(
         compare is not None,
         view=view,
         group_by=group_by,
+        model_version=model_version,
+    )
+    query.periods()
+    return _serve(
+        request,
+        session,
+        principal,
+        agency_id,
+        client_id,
+        query,
+        format,
+        page,
+        page_size,
+        expected_revision,
+    )
+
+
+# ROAS and cost per lead of one spend connection from stored credit (016-B, D-089 D7): rows per
+# ad, ad set or campaign under the 014-C rules, on the ad account's own days.
+@router.get(f"{BASE}/roas", response_model=RoasReportResult, responses=CSV_RESPONSE)
+def roas_report(
+    agency_id: UUID,
+    client_id: UUID,
+    request: Request,
+    session: SessionDep,
+    principal: ReaderDep,
+    connection_id: Annotated[UUID, Query()],
+    start: Annotated[CalendarDate, Query()],
+    end: Annotated[CalendarDate, Query()],
+    level: Annotated[Literal["ad", "adset", "campaign"], Query()] = "ad",
+    model_version: Annotated[UUID | None, Query()] = None,
+    compare: Compare | None = None,
+    page: Page = 1,
+    page_size: PageSize = 100,
+    expected_revision: Revision | None = None,
+    format: Format = "json",
+) -> Any:
+    _strict(request, "roas", format)
+    query = ReportQuery(
+        "roas",
+        start,
+        end,
+        compare is not None,
+        connection_id=connection_id,
+        level=level,
         model_version=model_version,
     )
     query.periods()

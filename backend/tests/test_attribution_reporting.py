@@ -288,3 +288,182 @@ def test_csv_identifier_prefix_and_record_bound():
     empty = report([], generation=0)
     text = attribution_csv(_body(empty), empty.rows(), 0).decode("utf-8")
     assert "attribution_not_ready" in text and "EGP" not in text
+
+
+# --- ROAS from stored credit (BV11, BV13) ----------------------------------------------------
+
+
+def _credit_of(runs, local_period, zone):
+    """The CreditTotal items stored credit would hold for these latest runs in the period."""
+    from zoneinfo import ZoneInfo
+
+    from app.advertising.roas import CreditTotal
+
+    found: dict = {}
+    for run in runs:
+        instant = run.sale.effective_at if run.sale is not None else run.conversion.instant
+        if instant.astimezone(ZoneInfo(zone)).date() not in local_period:
+            continue
+        for allocation in run.allocations:
+            touch = allocation.touch
+            sale = allocation.amount is not None
+            key = (
+                touch.campaign_ref if touch else None,
+                touch.content_ref if touch else None,
+                "sale" if sale else "lead",
+                allocation.amount.currency.code if sale else None,
+            )
+            entry = found.setdefault(key, [0, Fraction(0)])
+            entry[0] += allocation.amount.minor if sale else 0
+            entry[1] += allocation.share
+    return [CreditTotal(*key, *value) for key, value in found.items()]
+
+
+def test_roas_from_credit_equals_roas_report():
+    from datetime import timedelta
+
+    from test_advertising_roas import (
+        AD,
+        ADSET,
+        AGENCY,
+        AS_OF,
+        CAMPAIGN,
+        CLIENT,
+        CONNECTION,
+        COVERED,
+        FIRST,
+        LINEAR,
+        OTHER_AD,
+        PERIOD,
+        SALE,
+        TOUCH,
+        ZONE,
+        _fact,
+        _runs,
+        _touch,
+    )
+
+    from app.advertising.roas import roas_from_credit, roas_report
+
+    objects = {AD: (CAMPAIGN, ADSET), OTHER_AD: (CAMPAIGN, ADSET), "331": ("112", "212")}
+    cases = [
+        # Ads, ad sets and campaigns with spend and matched credit.
+        (
+            [_fact(PERIOD.since + timedelta(days=n)) for n in range(7)],
+            [_runs(SALE, [_touch("t1", TOUCH)], LINEAR)],
+            COVERED,
+        ),
+        # Zero spend, an ad with credit and no spend, and unmatched credit.
+        (
+            [_fact(PERIOD.since, 0)],
+            [
+                _runs(
+                    SALE, [_touch("t1", TOUCH, content="331", campaign="112")], FIRST, operation="a"
+                ),
+                _runs(SALE, [_touch("t2", TOUCH, campaign="999")], FIRST, operation="b"),
+                _runs(SALE, [], FIRST, operation="c"),
+            ],
+            COVERED,
+        ),
+        # Mixed currencies, provisional and refused facts, uncovered days.
+        (
+            [
+                _fact(PERIOD.since, currency="EUR"),
+                _fact(PERIOD.since, ad=OTHER_AD, provisional=AS_OF + timedelta(days=1)),
+                _fact(PERIOD.since + timedelta(days=1), refusal="unparseable_amount"),
+            ],
+            [
+                _runs(SALE, [_touch("t1", TOUCH)], FIRST, operation="d"),
+                _runs(
+                    SALE, [_touch("t2", TOUCH, content=OTHER_AD)], FIRST, operation="e", refund=500
+                ),
+            ],
+            (PERIOD.since + timedelta(days=1), PERIOD.until),
+        ),
+    ]
+    for facts, runs, covered in cases:
+        version = runs[0].model_version
+        options = dict(
+            connection_id=CONNECTION,
+            period=PERIOD,
+            zone=ZONE,
+            model_version=version,
+            as_of=AS_OF,
+            covered=covered,
+            objects=objects,
+        )
+        expected = roas_report(facts, runs, agency_id=AGENCY, client_id=CLIENT, **options)
+        built = roas_from_credit(facts, _credit_of(runs, PERIOD, ZONE), **options)
+        assert built.report.rows == expected.rows
+        assert built.report.unmatched == expected.unmatched
+        assert [item.row for item in built.rows] == list(expected.rows)
+    # A touch whose traffic source is not Meta still matches stored credit (D7b), while the
+    # in-memory contract keeps its source test.
+    run = _runs(SALE, [_touch("t1", TOUCH, source="tracker")], FIRST, operation="f")
+    options = dict(
+        connection_id=CONNECTION,
+        period=PERIOD,
+        zone=ZONE,
+        model_version=FIRST,
+        as_of=AS_OF,
+        covered=COVERED,
+        objects=objects,
+    )
+    stored = roas_from_credit([_fact(PERIOD.since)], _credit_of([run], PERIOD, ZONE), **options)
+    contract = roas_report(
+        [_fact(PERIOD.since)], [run], agency_id=AGENCY, client_id=CLIENT, **options
+    )
+    ad = {row.object_id: row for row in stored.report.rows if row.level == "ad"}[AD]
+    assert ad.credited.minor == 5000 and contract.unmatched[0].minor == 5000
+
+
+def test_cost_per_lead_rules():
+    from datetime import date
+
+    from app.advertising.roas import CreditTotal, Period, SpendFactView, roas_from_credit
+    from app.attribution import AttributionModel, ModelVersion
+
+    version = ModelVersion("linear-v1", AttributionModel.LINEAR)
+    period = Period(date(2026, 11, 1), date(2026, 11, 1))
+    as_of = datetime(2026, 12, 31, tzinfo=UTC)
+
+    def fact(ad, minor, currency="EGP"):
+        return SpendFactView(ad, "s1", "c1", date(2026, 11, 1), currency, minor, None, as_of)
+
+    facts = [
+        fact("a1", 10_000),
+        fact("a2", 0),
+        fact("a3", 500),
+        fact("a4", 300, "USD"),
+        fact("a4", 300),
+    ]
+    credit = [
+        CreditTotal("c1", "a1", "lead", None, 0, Fraction(3)),
+        CreditTotal("c1", "a2", "lead", None, 0, Fraction(1, 2)),
+        CreditTotal("c1", "a4", "lead", None, 0, Fraction(1)),
+        CreditTotal("c9", "a1", "lead", None, 0, Fraction(1, 3)),  # another campaign: unmatched
+    ]
+    built = roas_from_credit(
+        facts,
+        credit,
+        connection_id=uuid4(),
+        period=period,
+        zone="UTC",
+        model_version=version,
+        as_of=as_of,
+        covered=(date(2026, 10, 1), date(2026, 11, 30)),
+    )
+    rows = {item.row.object_id: item for item in built.rows if item.row.level == "ad"}
+    one = rows["a1"]
+    assert (one.leads, one.cost_per_lead, one.cost_per_lead_text) == (
+        Fraction(3),
+        Fraction(10_000, 3),
+        "33.33",
+    )
+    assert rows["a2"].cost_per_lead_reason == "zero_spend"
+    assert (rows["a3"].leads, rows["a3"].cost_per_lead_reason) == (0, "zero_leads")
+    assert rows["a4"].cost_per_lead_reason == "currency_mismatch"
+    assert built.unmatched_leads == Fraction(1, 3)
+    campaign = next(item for item in built.rows if item.row.level == "campaign")
+    assert campaign.leads == Fraction(9, 2) and campaign.cost_per_lead_reason == "currency_mismatch"
+    assert built.total.row.level == "account" and built.total.leads == Fraction(9, 2)

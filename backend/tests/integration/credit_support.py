@@ -152,3 +152,25 @@ def lead_total(body, *, recipient="all", period="current"):
 def parse_csv(response) -> list[dict[str, str]]:
     assert response.headers["content-type"].startswith("text/csv"), response.headers
     return list(csv.DictReader(io.StringIO(response.content.decode("utf-8"))))
+
+
+def ad_objects(w, connection_id, items) -> None:
+    """Stored ads of a spend connection: items of (ad ID, ad set ID, campaign ID)."""
+    from sqlalchemy.orm import Session
+
+    from app.models import AdObject, ConnectorConnection
+
+    with Session(w.db.migration) as session, session.begin():
+        row = session.get(ConnectorConnection, connection_id)
+        for ad, adset, campaign_id in items:
+            session.add(
+                AdObject(
+                    agency_id=row.agency_id,
+                    client_id=row.client_id,
+                    connection_id=connection_id,
+                    object_id=ad,
+                    level="ad",
+                    campaign_id=campaign_id,
+                    adset_id=adset,
+                )
+            )

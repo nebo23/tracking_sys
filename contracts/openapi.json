@@ -20058,6 +20058,280 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/reports/roas": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Roas Report",
+        "operationId": "roas_report_agencies__agency_id__clients__client_id__reports_roas_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ad",
+                "adset",
+                "campaign"
+              ],
+              "type": "string",
+              "default": "ad",
+              "title": "Level"
+            }
+          },
+          {
+            "name": "model_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoasReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
       "post": {
         "tags": [
@@ -31630,6 +31904,685 @@
           "reason_code"
         ],
         "title": "ReviewInput"
+      },
+      "RoasComparison": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "enum": [
+              "spend",
+              "credited_revenue",
+              "credited_leads"
+            ],
+            "title": "Metric"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exponent"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "currency",
+          "exponent",
+          "current_value",
+          "previous_value",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "RoasComparison"
+      },
+      "RoasReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "roas",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign"
+            ],
+            "title": "Level"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "type": "string",
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Basis"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportModelVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/AttributionFreshness"
+          },
+          "finance": {
+            "type": "string",
+            "const": "available",
+            "title": "Finance"
+          },
+          "values": {
+            "$ref": "#/components/schemas/ValuesState"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/RoasTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "unmatched": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoasUnmatched"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unmatched"
+          },
+          "unmatched_leads": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoasUnmatchedLeads"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unmatched Leads"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoasComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RoasValue"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "spend_source": {
+            "$ref": "#/components/schemas/SpendSource"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "connection_id",
+          "level",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "generated_at",
+          "revision",
+          "model_version",
+          "attribution",
+          "finance",
+          "values",
+          "totals",
+          "unmatched",
+          "unmatched_leads",
+          "comparison",
+          "rows",
+          "page",
+          "spend_source",
+          "dependencies"
+        ],
+        "title": "RoasReportResult"
+      },
+      "RoasTotal": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign",
+              "account"
+            ],
+            "title": "Level"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "adset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adset Id"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exponent"
+          },
+          "spend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credited_revenue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roas_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roas Reason"
+          },
+          "spend_state": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "provisional",
+              "incomplete"
+            ],
+            "title": "Spend State"
+          },
+          "credited_leads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_per_lead": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_per_lead_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Lead Reason"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "object_id",
+          "campaign_id",
+          "adset_id",
+          "currency",
+          "exponent",
+          "spend",
+          "credited_revenue",
+          "roas",
+          "roas_reason",
+          "spend_state",
+          "credited_leads",
+          "cost_per_lead",
+          "cost_per_lead_reason",
+          "period"
+        ],
+        "title": "RoasTotal"
+      },
+      "RoasUnmatched": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "credited_revenue": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "currency",
+          "exponent",
+          "credited_revenue"
+        ],
+        "title": "RoasUnmatched"
+      },
+      "RoasUnmatchedLeads": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "credited_leads": {
+            "$ref": "#/components/schemas/ExactShare"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "credited_leads"
+        ],
+        "title": "RoasUnmatchedLeads"
+      },
+      "RoasValue": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign",
+              "account"
+            ],
+            "title": "Level"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "adset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adset Id"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exponent"
+          },
+          "spend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credited_revenue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roas_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roas Reason"
+          },
+          "spend_state": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "provisional",
+              "incomplete"
+            ],
+            "title": "Spend State"
+          },
+          "credited_leads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_per_lead": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_per_lead_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Lead Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "object_id",
+          "campaign_id",
+          "adset_id",
+          "currency",
+          "exponent",
+          "spend",
+          "credited_revenue",
+          "roas",
+          "roas_reason",
+          "spend_state",
+          "credited_leads",
+          "cost_per_lead",
+          "cost_per_lead_reason"
+        ],
+        "title": "RoasValue"
       },
       "Role": {
         "type": "string",

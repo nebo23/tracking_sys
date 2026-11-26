@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdObject,
     AttributionAllocation,
     AttributionConsumerState,
     AttributionConversion,
@@ -37,7 +38,7 @@ from app.models import (
     ManagedLink,
 )
 from app.reporting.catalog import FAMILIES
-from app.reporting.common import ReportError
+from app.reporting.common import MAX_SOURCE_ROWS, ReportError
 from app.reporting.credit import (
     MAX_GROUPS,
     AttributionContext,
@@ -584,3 +585,77 @@ def attribution_release_digest(
 ) -> str:
     read = read_context(session, access, version_id, models=view_name == "models")
     return inputs_digest(read.tokens, read_meta(session, access, group_by, refs))
+
+
+# --- ROAS (016-B P2) ---------------------------------------------------------------------------
+
+
+def read_ad_objects(
+    session: Session, access: ScopedAccess, connection_id: UUID
+) -> tuple[dict[str, tuple[str, str | None]], list[Any]]:
+    """The ads stored under the spend connection: ad ID to (campaign ID, ad set ID), bounded."""
+    scope = (
+        AdObject.agency_id == access.agency_id,
+        AdObject.client_id == access.client_id,
+        AdObject.connection_id == connection_id,
+        AdObject.level == "ad",
+    )
+    inner = select(AdObject.id).where(*scope).limit(MAX_SOURCE_ROWS + 1).subquery()
+    if int(session.scalar(select(func.count()).select_from(inner)) or 0) > MAX_SOURCE_ROWS:
+        raise ReportError("report_too_large", 422)
+    found: dict[str, tuple[str, str | None]] = {}
+    for object_id, campaign_id, adset_id in session.execute(
+        select(AdObject.object_id, AdObject.campaign_id, AdObject.adset_id)
+        .where(*scope)
+        .order_by(AdObject.object_id)
+    ):
+        found[object_id] = (campaign_id, adset_id)
+    return found, ["ad_objects", sorted([key, *value] for key, value in found.items())]
+
+
+def read_roas_credit(
+    session: Session,
+    access: ScopedAccess,
+    versions: Sequence[UUID],
+    generation: int,
+    bounds: Bounds,
+) -> list[tuple]:
+    """Stored credit of the published generation by campaign and content reference, kind,
+    currency and share denominator, over the account-local bounds of each period."""
+    if not versions or generation <= 0:
+        return []
+    change = AttributionCreditChange
+    scope = (
+        change.agency_id == access.agency_id,
+        change.client_id == access.client_id,
+        change.model_version_id.in_(list(versions)),
+        change.generation <= generation,
+        change.effective_at >= bounds.low,
+        change.effective_at < bounds.high,
+    )
+    inner = (
+        select(change.campaign_ref, change.content_ref)
+        .where(*scope)
+        .distinct()
+        .limit(MAX_GROUPS + 1)
+        .subquery()
+    )
+    if int(session.scalar(select(func.count()).select_from(inner)) or 0) > MAX_GROUPS:
+        raise ReportError("report_too_large", 422)
+    period = _period(change.effective_at, bounds)
+    keys = [
+        period,
+        change.campaign_ref,
+        change.content_ref,
+        change.conversion_kind,
+        change.currency,
+        change.delta_share_denominator,
+    ]
+    return [
+        tuple(row)
+        for row in session.execute(
+            select(*keys, func.sum(change.delta_share_numerator), func.sum(change.delta_minor))
+            .where(*scope)
+            .group_by(*keys)
+        )
+    ]
