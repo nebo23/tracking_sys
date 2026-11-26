@@ -1,8 +1,8 @@
 # 018-A evidence
 
-Status: implemented and checked as described here on 2026-11-26, pushed to `codex/spec-018-react-workspace` (D-051) and presented in a pull request against `main` (D-083) for the owner's review. Slice 018-A is not accepted until the owner has reviewed it. The merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
+Status: implemented and checked as described here on 2026-11-26, pushed to `codex/spec-018-react-workspace` (D-051) and presented in a pull request against `main` (D-086) for the owner's review. Slice 018-A is not accepted until the owner has reviewed it. The merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
 
-The slice follows the [018-A plan](plan-018a.md) (D-081). How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
+The slice follows the [018-A plan](plan-018a.md) (D-084). How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
 ## 1. Installation on 2026-11-26
 Environment: Windows 11, Node.js 24.17.0, npm 11.13.0. The install ran inside `frontend/` from `package.json`, in which every version is exact, and created `package-lock.json`.
@@ -15,7 +15,7 @@ Environment: Windows 11, Node.js 24.17.0, npm 11.13.0. The install ran inside `f
 | Browsers | None downloaded. |
 
 ### 1.1 Security audit
-`npm audit` reports no critical and no high finding, and seven of moderate severity. All seven are one advisory: `minimatch` can be made slow by a crafted pattern. It is reached only through `typescript-eslint` 8.72.2 and its `@typescript-eslint` packages, which are used for static checks during development. The patterns it reads come from this project's own configuration, and the package is not part of the application that a browser loads. Removing the finding means another version of `typescript-eslint`, which needs a decision (D-081).
+`npm audit` reports no critical and no high finding, and seven of moderate severity. All seven are one advisory: `minimatch` can be made slow by a crafted pattern. It is reached only through `typescript-eslint` 8.72.2 and its `@typescript-eslint` packages, which are used for static checks during development. The patterns it reads come from this project's own configuration, and the package is not part of the application that a browser loads. Removing the finding means another version of `typescript-eslint`, which needs a decision (D-084).
 
 ### 1.2 Notice from the registry
 npm marks `eslint` 9.39.5 as no longer supported by its maintainers. ESLint 9 was chosen because `eslint-plugin-jsx-a11y` 6.10.2, which carries the accessibility rules, accepts ESLint up to 9 (plan, section 4.3). The tool runs only during development.
@@ -51,7 +51,7 @@ Section 4.5 of the plan approves MIT, Apache-2.0, BSD, ISC, OFL-1.1 and MPL-2.0.
 
 Assessment: all eight are permissive. None requires publishing source code and none restricts commercial use. 0BSD, the Unlicense and CC0-1.0 ask for nothing at all; BlueOak-1.0.0 and Python-2.0 ask to keep the licence text; CC-BY-4.0 covers a data file used by a development tool and asks for attribution if that data is redistributed, which the application does not do. This is an engineering reading, not legal advice.
 
-Gate: section 4.5 sends such a finding to the owner before any code is written. The owner accepted the eight packages at their locked versions on 2026-11-26 (D-082).
+Gate: section 4.5 sends such a finding to the owner before any code is written. The owner accepted the eight packages at their locked versions on 2026-11-26 (D-085).
 
 ### 1.5 A second copy of one package
 The lockfile holds `playwright-core` twice: 1.64.1 inside `@playwright/test`, which runs the journeys, and 1.65.1 as the peer package that npm adds for `@axe-core/playwright`. Only its type definitions are read from the second copy; no browser of 1.65.1 is downloaded or started. Both were part of the install that sections 1.1 to 1.4 describe.
@@ -125,7 +125,7 @@ The addresses the build names are `http://127.0.0.1:8000` (the default API origi
 Before the pull request was opened, main had moved: PR 15 merged specifications 006 and 007-B/C (main at `3187c70`), with the migrations `0026` to `0028` and seventeen new API operations.
 
 - Main was merged into the branch (`9a1cfdf`). `AGENTS.md` and the decision register had one conflict each, because both sides had added decisions at the same place; both sets were kept.
-- Both workstreams had numbered their decisions from D-074. The 018 decisions became D-078 to D-082 in every file that names them (`42d1e58`); the decision register carries a note.
+- Both workstreams had numbered their decisions from D-074. The 018 decisions became D-078 to D-082 in every file that names them (`42d1e58`); they were renumbered once more afterwards (section 3.6), and the decision register carries a note.
 - The drift check failed on the merged contract, as it should: the contract had grown from 124 to 141 operations. The types were generated again, and no call of this slice changed.
 - The type check, the static rules, the unit tests, the build, the bundle search and all 38 journeys in both browsers were run again on the merged branch, with the API at migration `0028`. The results are the ones in the table above.
 
@@ -152,7 +152,7 @@ Before the pull request was opened, main had moved: PR 15 merged specifications 
 | Section 8, step 3: the first screenshot comparison after the styles. | The comparison runs as journey `11-design`, with the other journeys. | It needs the built screen. |
 | Section 2: "A 401 ends the session in the interface." | Correction 1 of section 5. | The API uses 401 for a wrong password as well. |
 | Reference styles used unchanged. | Three small changes in `docs/design/ui/connect-ui.css`: the icons of the pause control do not take the pointer, a menu row shows keyboard focus, and one comment follows the new logo. | Found by the journeys and by keyboard use. The two published design pages were not refreshed for these changes; nothing in a still picture differs. |
-| Not in the plan. | `/terms` and `/privacy` exist and say that the text is not published yet. | The agreement box links to them (D-079); the texts need their own decision. |
+| Not in the plan. | `/terms` and `/privacy` exist and say that the text is not published yet. | The agreement box links to them (D-082); the texts need their own decision. |
 | Not in the plan. | `npm run sandbox` starts the disposable stack for trying the application by hand. | It is the stack of the journeys with a loop that prints captured mail. |
 
 ## 7. Not run
@@ -173,8 +173,8 @@ Before the pull request was opened, main had moved: PR 15 merged specifications 
 3. The approved sign-in design hides the brand side below 900 pixels, so the sign-in screen on a phone shows no logo.
 4. The search pill of the top bar (section 6).
 5. The only owner of an agency cannot close their account, by the API's rule, and the interface has no way to hand over or delete an agency yet (018-B).
-6. The moderate `minimatch` advisory and the ESLint 9 notice of section 1 stay open (D-082).
-7. The merge of the pull request that D-083 opened.
+6. The moderate `minimatch` advisory and the ESLint 9 notice of section 1 stay open (D-085).
+7. The merge of the pull request that D-086 opened.
 
 ### 8.2 Carried to later slices
 - Clients, team and access, connections (018-B); reports with charts (018-C); links, tracking and integrations (018-D).

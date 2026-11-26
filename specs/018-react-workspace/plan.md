@@ -1,5 +1,5 @@
 # Plan: 018-react-workspace
-Status: Draft for the specification as a whole. The first slice has its own plan, [018-A](plan-018a.md), approved by D-081 and implemented on 2026-11-26; its results are in the [018-A evidence](evidence-018a.md). This document does not authorize implementation or dependency selection.
+Status: Draft for the specification as a whole. The first slice has its own plan, [018-A](plan-018a.md), approved by D-084 and implemented on 2026-11-26; its results are in the [018-A evidence](evidence-018a.md). This document does not authorize implementation or dependency selection.
 
 ## Expected outcome
 Provide authentication flows, agency/client switching, connections, dashboards, journeys, links, reports, and settings with responsive and accessible interactions.
@@ -9,7 +9,7 @@ Provide authentication flows, agency/client switching, connections, dashboards, 
 - Map agency/client authorization across every relevant resource, job, cache, and export.
 - Identify data classes, consent, retention, and field provenance before migrations.
 - Define success, error, retry, limits, backfill, and disconnection behavior where applicable.
-- Distinguish confirmed decisions from proposals and resolve: Q-006, Q-009; approve user flows and design before implementation. Done for the interface by D-079 and D-080; the currency and FX part of Q-006 stays with specification 007.
+- Distinguish confirmed decisions from proposals and resolve: Q-006, Q-009; approve user flows and design before implementation. Done for the interface by D-082 and D-083; the currency and FX part of Q-006 stays with specification 007.
 
 ## Proposed review slices
 1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.

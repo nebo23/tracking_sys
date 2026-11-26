@@ -9,7 +9,7 @@ import { PullPicture } from '@/components/PullPicture';
 
 /**
  * The frame of the screens a person sees before the workspace: the brand side with the moving
- * picture, the language switch in the top corner and the form (D-079).
+ * picture, the language switch in the top corner and the form (D-082).
  */
 export function AuthLayout({ children }: { children: ReactNode }) {
   const intl = useIntl();
