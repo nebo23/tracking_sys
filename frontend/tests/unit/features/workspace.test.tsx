@@ -174,11 +174,11 @@ describe('the address', () => {
 });
 
 describe('the workspace', () => {
-  it('offers an owner the agency level: the clients, the team and the keys', async () => {
+  it('offers an owner the agency level: the clients, the team, the keys and the audit log', async () => {
     fakeApi(signedIn());
     openApp('/');
     const navigation = await primary();
-    expect(linkTexts(navigation)).toEqual(['Clients', 'Team and access', 'API keys', 'Account']);
+    expect(linkTexts(navigation)).toEqual(['Clients', 'Team and access', 'API keys', 'Audit log', 'Account']);
     expect(navigation.getByRole('link', { name: 'Clients' })).toHaveAttribute('aria-current', 'page');
     expect(navigation.getByRole('link', { name: 'Account' })).not.toHaveAttribute('aria-current');
     expect(navigation.getByRole('group', { name: 'Agency' })).toBeInTheDocument();
@@ -191,12 +191,14 @@ describe('the workspace', () => {
     expect(linkTexts(await primary())).toEqual(['Clients', 'Account']);
   });
 
-  it.each(['team', 'keys'])('has no %s page for a person who does not manage the agency', async (page) => {
+  it.each(['team', 'keys', 'audit'])('has no %s page for a person who does not manage the agency', async (page) => {
     const server = fakeApi(asRole('analyst', signedIn()));
     openApp(`/agencies/${agency.id}/${page}`);
     expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
     expect(server.sent(`GET /agencies/${agency.id}/invitations`)).toHaveLength(0);
     expect(server.sent(`GET /agencies/${agency.id}/service-credentials`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${agency.id}/audit`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${agency.id}/members`)).toHaveLength(0);
   });
 
   it('does not ask for the agency profile of a client viewer, who may not read it', async () => {
@@ -222,6 +224,17 @@ describe('the workspace', () => {
     expect(crumbs.getByText('Olive & Thyme')).toBeInTheDocument();
     expect(switcher()).toHaveTextContent('Olive & Thyme');
     expect(switcher()).toHaveTextContent('Lumen Studio');
+  });
+
+  it('names the way back to the agency while its name is unknown, and never marks it as the page', async () => {
+    fakeApi({ ...withClients([client], { [client.id]: [] }), [`GET /agencies/${agency.id}`]: refused(403, 'access_denied') });
+    openApp(connectionsPath);
+    await screen.findByRole('heading', { name: 'Connections', level: 1 });
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    const back = await crumbs.findByRole('link', { name: 'Clients' });
+    expect(back).toHaveAttribute('href', clientsPath);
+    expect(back).not.toHaveAttribute('aria-current');
+    for (const logo of screen.getAllByRole('link', { name: 'Connect' })) expect(logo).not.toHaveAttribute('aria-current');
   });
 
   it('moves between clients from the switcher', async () => {
@@ -277,7 +290,7 @@ describe('the workspace', () => {
     expect(await screen.findByRole('heading', { name: 'العملاء', level: 1 })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     const navigation = within(screen.getByRole('navigation', { name: 'التنقل الرئيسي' }));
-    expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'الحساب']);
+    expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'سجل التدقيق', 'الحساب']);
   });
 
   it('moves to another agency and drops what was loaded for the first', async () => {

@@ -1,9 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { PAGE_SIZE, readAll } from '@/api/pages';
 import { relativeParts } from '@/components/Time';
+import { auditAction, knownAuditActions } from '@/features/audit/actions';
 import { summarize } from '@/features/clients/summary';
 import { coverageBar, runReason, statusReason, streamName } from '@/features/connections/coverage';
 import { connectionErrors } from '@/features/connections/errors';
@@ -11,13 +13,14 @@ import { pendingConnection } from '@/features/connections/pendingConnection';
 import { connectable, providerLabel, providerOf } from '@/features/connections/providers';
 import { returnErrorMessage, returnErrors } from '@/features/connections/returnErrors';
 import { keyState } from '@/features/keys/KeysPage';
+import { activeGrants, assignableRoles, clientAccess, isRestricted, mayChange, peopleWithAccess } from '@/features/team/members';
 import { invitationState } from '@/features/team/TeamPage';
 import { messages } from '@/i18n';
 import { isIdentifier } from '@/lib/identifier';
 import { byName } from '@/lib/sort';
 import { KEY_NAME_MAX } from '@/lib/validation';
 
-import { connection } from '../support/api';
+import { connection, member } from '../support/api';
 import { inRepository } from '../support/files';
 
 afterEach(() => window.sessionStorage.clear());
@@ -297,5 +300,92 @@ describe('names in order', () => {
   it('follow the language, with numbers in their natural order', () => {
     const names = ['Olive 10', 'olive 2', 'Cedar', 'Élan'].map((name) => ({ name }));
     expect(names.sort(byName('en')).map((item) => item.name)).toEqual(['Cedar', 'Élan', 'olive 2', 'Olive 10']);
+  });
+});
+
+describe('the access of a member', () => {
+  const active = ['c1', 'c2', 'c3'];
+  const grant = (clientId: string, financials = false) => ({ client_id: clientId, can_view_financials: financials, can_view_identities: false });
+
+  it('is every client for a manager, whatever their grants', () => {
+    expect(clientAccess(member({ role: 'owner' }), active)).toEqual({ kind: 'all' });
+    expect(clientAccess(member({ role: 'admin', clients: [grant('c1')] }), active)).toEqual({ kind: 'all' });
+  });
+
+  it('counts only the grants to clients that are active now', () => {
+    const analyst = member({ role: 'analyst', clients: [grant('c1', true), grant('archived', true), grant('c3')] });
+    expect(clientAccess(analyst, active)).toEqual({ kind: 'some', clients: 2, financial: 1, onlyClient: null });
+    expect(activeGrants(analyst, active).map((item) => item.client_id)).toEqual(['c1', 'c3']);
+    expect(clientAccess(member({ role: 'client_viewer', clients: [grant('c2')] }), active)).toEqual({ kind: 'some', clients: 1, financial: 0, onlyClient: 'c2' });
+    expect(clientAccess(member({ role: 'analyst', clients: [grant('archived')] }), active)).toEqual({ kind: 'none' });
+  });
+
+  it('may be changed by an owner for anyone else, and by an admin for anyone but an owner', () => {
+    const others = { owner: member({ user_id: 'x1', role: 'owner' }), admin: member({ user_id: 'x2', role: 'admin' }), analyst: member({ user_id: 'x3', role: 'analyst' }) };
+    expect([mayChange('owner', 'me', others.owner), mayChange('owner', 'me', others.admin), mayChange('owner', 'me', others.analyst)]).toEqual([true, true, true]);
+    expect([mayChange('admin', 'me', others.owner), mayChange('admin', 'me', others.admin), mayChange('admin', 'me', others.analyst)]).toEqual([false, true, true]);
+    expect(mayChange('analyst', 'me', others.analyst)).toBe(false);
+    expect(mayChange('owner', 'me', member({ user_id: 'me', role: 'admin' }))).toBe(false);
+    expect(mayChange('owner', 'me', member({ user_id: 'x4', account: 'closed' }))).toBe(false);
+  });
+
+  it('gives the owner role only from an owner', () => {
+    expect(assignableRoles('owner')).toContain('owner');
+    expect(assignableRoles('admin')).not.toContain('owner');
+    expect(isRestricted('analyst') && isRestricted('client_viewer')).toBe(true);
+    expect(isRestricted('owner') || isRestricted('admin')).toBe(false);
+  });
+
+  it('counts the people who can open a client among the active members only', () => {
+    const everyone = [
+      member({ role: 'owner' }),
+      member({ role: 'admin', status: 'disabled' }),
+      member({ role: 'admin', account: 'disabled' }),
+      member({ role: 'analyst', clients: [grant('c1')] }),
+      member({ role: 'analyst', account: 'closed', clients: [grant('c1')] }),
+      member({ role: 'client_viewer', clients: [grant('c2')] }),
+    ];
+    expect(peopleWithAccess(everyone, 'c1')).toBe(2);
+    expect(peopleWithAccess(everyone, 'c2')).toBe(2);
+    expect(peopleWithAccess(everyone, 'c3')).toBe(1);
+  });
+});
+
+describe('the audit log', () => {
+  /** Every action code the API writes, read from its source: in an audit call, or assigned as an action. */
+  function actionCodes(): Map<string, string> {
+    const codes = new Map<string, string>();
+    const services = inRepository('backend', 'app');
+    const files = readdirSync(services, { recursive: true, encoding: 'utf8' }).filter((name) => name.endsWith('.py'));
+    for (const name of files) {
+      const source = readFileSync(path.join(services, name), 'utf8');
+      const blocks = [
+        ...[...source.matchAll(/_audit\((?:[^()]|\([^()]*\))*?\)/gs)].map((match) => match[0]),
+        ...[...source.matchAll(/\baction\s*=\s*([^\n]+)/g)].map((match) => match[1] ?? ''),
+      ];
+      for (const block of blocks) {
+        for (const code of block.matchAll(/"([a-z_]+\.[a-z_]+)"/g)) codes.set(code[1] as string, name);
+      }
+    }
+    return codes;
+  }
+
+  it('has a sentence for every action the API records', () => {
+    const codes = actionCodes();
+    expect(codes.size).toBeGreaterThanOrEqual(60);
+    expect([...codes.keys()].filter((code) => auditAction(code) === null)).toEqual([]);
+  });
+
+  it('knows no action the API does not record', () => {
+    const codes = actionCodes();
+    expect(knownAuditActions().filter((code) => !codes.has(code))).toEqual([]);
+  });
+
+  it('has each sentence in both languages', () => {
+    for (const code of knownAuditActions()) {
+      const found = auditAction(code);
+      expect(messages.en[found?.message ?? 'error.unknown'], code).toMatch(/\S/);
+      expect(messages.ar[found?.message ?? 'error.unknown'], code).toMatch(/\S/);
+    }
   });
 });

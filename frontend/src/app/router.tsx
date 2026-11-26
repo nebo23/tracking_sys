@@ -17,6 +17,7 @@ import { isApiError } from '@/api/errors';
 import { sessionQuery } from '@/api/session';
 import { AccountPage } from '@/features/account/AccountPage';
 import { WelcomePage } from '@/features/agency/WelcomePage';
+import { AuditPage } from '@/features/audit/AuditPage';
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage';
 import { AuthLayout } from '@/features/auth/AuthLayout';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
@@ -247,6 +248,13 @@ const keysRoute = createRoute({
   component: KeysPage,
 });
 
+const auditRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'audit',
+  loader: managersOnly,
+  component: AuditPage,
+});
+
 // ------------------------------------------------------------- A client --
 const clientRoute = createRoute({
   getParentRoute: () => agencyRoute,
@@ -338,6 +346,7 @@ const routeTree = rootRoute.addChildren([
       clientsRoute,
       teamRoute,
       keysRoute,
+      auditRoute,
       clientRoute.addChildren([clientIndexRoute, connectionsRoute]),
     ]),
   ]),

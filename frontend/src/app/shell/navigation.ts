@@ -46,7 +46,7 @@ export const clientsDestination = (agencyId: string): Destination => ({
 });
 
 /**
- * The agency level (D11): the clients, and for the people who manage the agency its team and keys.
+ * The agency level (D11): the clients, and for the people who manage the agency its team, keys and audit log.
  * Destinations of later slices are absent, not disabled.
  */
 export function agencyGroups(agencyId: string, manager: boolean): DestinationGroup[] {
@@ -68,6 +68,13 @@ export function agencyGroups(agencyId: string, manager: boolean): DestinationGro
           icon: 'key-round',
           label: 'shell.nav.keys',
           link: linkOptions({ to: '/agencies/$agencyId/keys', params: { agencyId } }),
+        },
+        {
+          key: 'audit',
+          icon: 'scroll-text',
+          label: 'shell.nav.audit',
+          shortLabel: 'shell.nav.audit.short',
+          link: linkOptions({ to: '/agencies/$agencyId/audit', params: { agencyId } }),
         },
       ],
     });

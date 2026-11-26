@@ -95,7 +95,8 @@ export function Shell() {
       </a>
 
       <aside className="l-sidebar" aria-label={intl.formatMessage({ id: 'shell.sidebar' })}>
-        <Link className="c-logo" to="/" activeProps={{}}>
+        {/* The start page is no page of its own: the logo never marks itself as the current page. */}
+        <Link className="c-logo" to="/" activeOptions={{ exact: true }} activeProps={{}}>
           <Logo />
         </Link>
         {access ? <Switcher current={access} clientId={clientId} /> : null}
@@ -125,15 +126,23 @@ export function Shell() {
 
       <div className="l-main">
         <header className="l-topbar">
-          <Link className="a-phone" to="/" activeProps={{}}>
+          <Link className="a-phone" to="/" activeOptions={{ exact: true }} activeProps={{}}>
             <Logo variant="mark" height={28} />
           </Link>
           <div className="a-phone u-grow">{access ? <Switcher current={access} clientId={clientId} compact /> : null}</div>
           <nav className="c-crumbs a-desktop" aria-label={intl.formatMessage({ id: 'shell.breadcrumb' })}>
             {access && clientId ? (
               <>
-                <Link to="/agencies/$agencyId/clients" params={{ agencyId: access.agency_id }} activeProps={{}}>
-                  {agencyName ?? <FormattedMessage id="shell.nav.clients" />}
+                <Link to="/agencies/$agencyId/clients" params={{ agencyId: access.agency_id }} activeOptions={{ exact: true }} activeProps={{}}>
+                  {agency.data?.name ?? (
+                    // While the name loads, or for a client viewer who may not read it, the link still has a name.
+                    <>
+                      {mayNameAgency ? <span className="c-skel a-skel--name" aria-hidden="true" /> : null}
+                      <span className={mayNameAgency ? 'u-sr' : undefined}>
+                        <FormattedMessage id="shell.nav.clients" />
+                      </span>
+                    </>
+                  )}
                 </Link>
                 {separator}
                 <span>{client.data?.name ?? <span className="c-skel a-skel--name" />}</span>

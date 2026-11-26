@@ -18,6 +18,10 @@ test('an owner invites people with the clients they may open, and withdraws an i
   await page.goto('/');
   await page.getByRole('link', { name: 'Team and access' }).click();
   await expect(page.getByRole('heading', { name: 'Team and access', level: 1 })).toBeFocused();
+  // The members come first: so far the owner alone.
+  await expect(page.getByRole('tab', { name: /Members/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
+  await page.getByRole('tab', { name: /Invitations/ }).click();
   await expect(page.getByRole('heading', { name: 'No invitations yet' })).toBeVisible();
 
   await test.step('an invitation needs an address and, for an analyst, a client', async () => {
@@ -61,6 +65,12 @@ test('an owner invites people with the clients they may open, and withdraws an i
     await theirs.close();
 
     await page.reload();
+    // The analyst is now a member, named, with the one client and its financial data.
+    const member = page.getByRole('row', { name: /Youssef Salah/ });
+    await expect(member.getByText(analyst.email)).toBeVisible();
+    await expect(member.getByText('Olive & Thyme')).toBeVisible();
+    await expect(member.getByText('Active')).toBeVisible();
+    await page.getByRole('tab', { name: /Invitations/ }).click();
     await expect(row(analyst.email).getByText('Accepted')).toBeVisible();
     await expect(row(analyst.email).getByRole('button')).toHaveCount(0);
   });

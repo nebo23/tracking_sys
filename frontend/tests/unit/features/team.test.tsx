@@ -61,6 +61,13 @@ const choose = async (user: UserEvent, scope: ReturnType<typeof within>, field: 
   await user.click(await screen.findByRole('option', { name: option }));
 };
 
+/** Opens the team page on its second tab. */
+async function openInvitations(user = userEvent.setup()) {
+  openApp(teamPath);
+  await user.click(await screen.findByRole('tab', { name: /^Invitations/ }));
+  return user;
+}
+
 describe('the invitations of an agency', () => {
   it('shows each invitation with its state, newest first', async () => {
     fakeApi(
@@ -71,7 +78,7 @@ describe('the invitations of an agency', () => {
         invitation({ id: 'e4', role: 'owner', email_normalized: 'karim@lumen.example' }),
       ]),
     );
-    openApp(teamPath);
+    await openInvitations();
 
     await screen.findByText('karim@lumen.example');
     const emails = [...document.querySelectorAll('tbody .c-table__primary')].map((cell) => cell.textContent);
@@ -91,18 +98,17 @@ describe('the invitations of an agency', () => {
     expect(expired.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('says what each role can do, and that members are not listed yet', async () => {
+  it('says when nothing was sent yet, and what each role can do', async () => {
     fakeApi(team([]));
-    openApp(teamPath);
+    await openInvitations();
     expect(await screen.findByRole('heading', { name: 'No invitations yet' })).toBeInTheDocument();
     const roles = within(screen.getByRole('heading', { name: 'What each role can do' }).closest('section') as HTMLElement);
     expect(roles.getAllByRole('term').map((term) => term.textContent)).toEqual(['Owner', 'Admin', 'Analyst', 'Client viewer']);
-    expect(screen.getByText(/The list of members, with their clients, arrives in a later update\./)).toBeInTheDocument();
   });
 
   it('lets only an owner withdraw an invitation to become an owner', async () => {
     fakeApi(asRole('admin', team([invitation({ role: 'owner' })])));
-    openApp(teamPath);
+    await openInvitations();
     await screen.findByText('youssef@lumen.example');
     expect(screen.queryByRole('button', { name: /Withdraw/ })).not.toBeInTheDocument();
   });
@@ -119,8 +125,7 @@ describe('the invitations of an agency', () => {
         },
       }),
     );
-    const user = userEvent.setup();
-    openApp(teamPath);
+    const user = await openInvitations();
 
     await user.click(await screen.findByRole('button', { name: 'Withdraw the invitation to youssef@lumen.example' }));
     const dialog = within(await screen.findByRole('alertdialog', { name: 'Withdraw this invitation?' }));

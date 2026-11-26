@@ -3633,6 +3633,65 @@ export interface components {
              */
             password: string;
         };
+        /** MemberClientGrant */
+        MemberClientGrant: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Can View Financials */
+            can_view_financials: boolean;
+            /** Can View Identities */
+            can_view_identities: boolean;
+        };
+        /** MemberDetail */
+        MemberDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Agency Id
+             * Format: uuid
+             */
+            agency_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            role: components["schemas"]["Role"];
+            /** Status */
+            status: string;
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            /**
+             * Display Name
+             * @description Null for an account its person closed.
+             */
+            display_name: string | null;
+            /**
+             * Email Normalized
+             * @description Null for an account its person closed.
+             */
+            email_normalized: string | null;
+            /**
+             * Account
+             * @description closed after the person closed it; disabled when an administrator disabled it.
+             * @enum {string}
+             */
+            account: "active" | "disabled" | "closed";
+            /**
+             * Clients
+             * @description Explicit client grants, archived clients included. Owners and Admins read every active client whatever their grants.
+             */
+            clients: components["schemas"]["MemberClientGrant"][];
+        };
         /** MembershipResponse */
         MembershipResponse: {
             /**
@@ -7367,6 +7426,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                status?: "active" | "archived";
             };
             header?: never;
             path: {
@@ -7786,7 +7846,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MembershipResponse"][];
+                    "application/json": components["schemas"]["MemberDetail"][];
                 };
             };
             /** @description Bad Request */

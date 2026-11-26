@@ -102,12 +102,17 @@ describe('the list of clients', () => {
     }));
     const server = fakeApi({
       ...signedIn(),
-      [clients]: (sent) => json(200, new URL(sent.url).searchParams.get('offset') === '0' ? many : [third]),
+      [clients]: (sent) => {
+        const asked = new URL(sent.url).searchParams;
+        if (asked.get('status') === 'archived') return json(200, []);
+        return json(200, asked.get('offset') === '0' ? many : [third]);
+      },
     });
     openApp('/');
 
     expect(await screen.findByText('101 clients', undefined, { timeout: 15_000 })).toBeInTheDocument();
-    expect(server.sent(clients).map((request) => new URL(request.url).search)).toEqual(['?limit=100&offset=0', '?limit=100&offset=100']);
+    const active = server.sent(clients).filter((request) => !request.url.includes('status='));
+    expect(active.map((request) => new URL(request.url).search)).toEqual(['?limit=100&offset=0', '?limit=100&offset=100']);
     expect(tile('Active clients').getByText('101')).toBeInTheDocument();
   });
 
@@ -144,7 +149,7 @@ describe('what a role may do with clients', () => {
     openApp('/');
     const row = await rowOf('Olive & Thyme');
     expect(screen.getByRole('button', { name: 'Add client' })).toBeInTheDocument();
-    expect(row.getByRole('button', { name: 'Rename Olive & Thyme' })).toBeInTheDocument();
+    expect(row.getByRole('button', { name: 'Actions for Olive & Thyme' })).toBeInTheDocument();
   });
 
   it.each(['analyst', 'client_viewer'] as const)('shows a %s their clients and no way to change them', async (role) => {
@@ -153,7 +158,9 @@ describe('what a role may do with clients', () => {
     const row = await rowOf('Olive & Thyme');
     expect(screen.getByText('Clients you can open')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add client' })).not.toBeInTheDocument();
-    expect(row.queryByRole('button', { name: /Rename/ })).not.toBeInTheDocument();
+    expect(row.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Show' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'People with access' })).not.toBeInTheDocument();
     // A client with nothing connected is opened, not set up, by someone who cannot connect.
     expect(await row.findByRole('link', { name: 'Open: Olive & Thyme' })).toBeInTheDocument();
   });
@@ -235,7 +242,8 @@ describe('adding and renaming a client', () => {
     const user = userEvent.setup();
     openApp('/');
 
-    await user.click((await rowOf('Olive & Thyme')).getByRole('button', { name: 'Rename Olive & Thyme' }));
+    await user.click((await rowOf('Olive & Thyme')).getByRole('button', { name: 'Actions for Olive & Thyme' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Rename Olive & Thyme' }));
     const field = dialog.getByLabelText('Client name');
     expect(field).toHaveValue('Olive & Thyme');
@@ -254,8 +262,8 @@ describe('adding and renaming a client', () => {
     const user = userEvent.setup();
     openApp('/');
 
-    const rename = (await rowOf('Olive & Thyme')).getByRole('button', { name: 'Rename Olive & Thyme' });
-    await user.click(rename);
+    await user.click((await rowOf('Olive & Thyme')).getByRole('button', { name: 'Actions for Olive & Thyme' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

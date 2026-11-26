@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 
 import type { Connection, Coverage } from '@/api/connections';
+import type { Member } from '@/api/team';
 
 // A stand-in for the API: answers by method and path, and keeps what was sent so a test can
 // look at it. Every value here is synthetic.
@@ -148,17 +149,41 @@ export const coverage = (given: Record<string, unknown> = {}): Coverage =>
 }) as Coverage;
 
 /** The answers of an API where Mona is signed in and owns one agency, which has no client yet. */
+/** A member of the agency as the API lists members to its owners and admins (018-B plan, B1). */
+export const member = (given: Partial<Member> = {}): Member => ({
+  id: 'b1111111-1111-4111-8111-111111111111',
+  agency_id: agency.id,
+  user_id: person.id,
+  role: 'owner',
+  status: 'active',
+  joined_at: '2026-11-21T09:00:00Z',
+  display_name: person.display_name,
+  email_normalized: person.email_normalized,
+  account: 'active',
+  clients: [],
+  ...given,
+});
+
+/** The list of clients, active or archived as the address asks (018-B plan, B2). */
+export const clientList = (active: unknown[], archived: unknown[] = []) => (sent: Sent) =>
+  json(200, new URL(sent.url).searchParams.get('status') === 'archived' ? archived : active);
+
 export const signedIn = (): Record<string, Answer> => ({
   'GET /auth/me': json(200, session),
   'GET /agencies': json(200, [{ agency_id: agency.id, role: 'owner' }]),
   [`GET /agencies/${agency.id}`]: json(200, agency),
-  [`GET /agencies/${agency.id}/clients`]: json(200, []),
+  [`GET /agencies/${agency.id}/clients`]: clientList([]),
+  [`GET /agencies/${agency.id}/members`]: json(200, [member()]),
 });
 
 /** The same agency with clients, each with the connections given for it (none by default). */
-export const withClients = (clients: Array<typeof client>, connections: Record<string, unknown[]> = {}): Record<string, Answer> => ({
+export const withClients = (
+  clients: Array<typeof client>,
+  connections: Record<string, unknown[]> = {},
+  archived: Array<typeof client> = [],
+): Record<string, Answer> => ({
   ...signedIn(),
-  [`GET /agencies/${agency.id}/clients`]: json(200, clients),
+  [`GET /agencies/${agency.id}/clients`]: clientList(clients, archived),
   ...Object.fromEntries(
     clients.flatMap((item) => [
       [`GET /agencies/${agency.id}/clients/${item.id}`, json(200, item)],

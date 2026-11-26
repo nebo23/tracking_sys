@@ -200,6 +200,20 @@ body {
 .a-nowrap {
   white-space: nowrap;
 }
+/* The number beside the name of a tab: members, or invitations still waiting. */
+.a-tab-count {
+  margin-inline-start: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+/* A member's avatar, name and email stay on one line beside each other. */
+.a-person {
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
 .a-row-actions {
   justify-content: flex-end;
   flex-wrap: nowrap;

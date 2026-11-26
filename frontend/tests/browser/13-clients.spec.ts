@@ -66,7 +66,8 @@ test('an owner adds, opens, renames and finds clients', async ({ page, context }
   });
 
   await test.step('a client is renamed, and the list is searched', async () => {
-    await page.getByRole('button', { name: 'Rename Cedar Fitness' }).click();
+    await page.getByRole('button', { name: 'Actions for Cedar Fitness' }).click();
+    await page.getByRole('menuitem', { name: 'Rename' }).click();
     const dialog = page.getByRole('dialog', { name: 'Rename Cedar Fitness' });
     await expect(dialog.getByLabel('Client name')).toHaveValue('Cedar Fitness');
     await dialog.getByLabel('Client name').fill('Cedar Gyms');

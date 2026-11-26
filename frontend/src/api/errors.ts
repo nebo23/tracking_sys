@@ -42,6 +42,8 @@ const byCode: Record<string, MessageId> = {
   validation_failed: 'error.validation_failed',
   request_too_large: 'error.request_too_large',
   temporarily_unavailable: 'error.temporarily_unavailable',
+  // A plan limit of specification 017-A (D-092), answered on creations and reactivations once it merges.
+  plan_limit_reached: 'error.plan_limit_reached',
   // Google sign-in. The same codes arrive in the address of the completion page.
   google_link_required: 'google.error.google_link_required',
   google_email_not_verified: 'google.error.google_email_not_verified',

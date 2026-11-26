@@ -3,7 +3,8 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { newPerson, registered, send, signedIn, signedInBrowser, withAgency } from './support/people.ts';
 import { stack } from './support/stack.ts';
-import { inviteAs, standInAccount, withClient, withConnection, workerPass } from './support/tenants.ts';
+import { linkIn } from './support/mail.ts';
+import { acceptInvitation, inviteAs, standInAccount, withClient, withConnection, workerPass } from './support/tenants.ts';
 
 // axe-core on every screen of the slice, in both languages and both themes (D12: WCAG 2.2 AA).
 // It finds what a machine can find. Screen readers, real phones and people stay to be checked.
@@ -54,8 +55,12 @@ async function agencyInUse(testInfo: TestInfo) {
   await withClient(session, agencyId, 'Nile Home');
   await withConnection(session, agencyId, clientId, standInAccount('@olive.thyme'));
   workerPass();
-  await inviteAs(session, agencyId, newPerson(testInfo, 'Youssef Salah').email, 'analyst', [{ client_id: clientId }]);
+  // A member who accepted, so the members list has a row with actions, and one invitation still waiting.
+  const analyst = await registered(newPerson(testInfo, 'Youssef Salah'));
+  await inviteAs(session, agencyId, analyst.email, 'analyst', [{ client_id: clientId }]);
+  await inviteAs(session, agencyId, newPerson(testInfo, 'Sara Fouad').email, 'client_viewer', [{ client_id: clientId }]);
   await send('POST /auth/logout', undefined, session);
+  await acceptInvitation(analyst, linkIn(analyst.email, 'Agency invitation').split('#token=')[1] ?? '');
   return { owner, agencyId, clientId, connections: `/agencies/${agencyId}/clients/${clientId}/connections` };
 }
 
@@ -181,8 +186,25 @@ for (const look of looks) {
 
       await page.goto(`/agencies/${agencyId}/team`);
       await ready(page);
-      await expect(page.locator('main table')).toBeVisible();
-      found.push(...(await findings(page, 'team and access')));
+      await expect(page.locator('main table .c-btn--icon')).toBeVisible();
+      found.push(...(await findings(page, 'members')));
+      await page.locator('main table .c-btn--icon').click();
+      await expect(page.getByRole('menu')).toBeVisible();
+      found.push(...(await findings(page, 'member menu')));
+      await page.getByRole('menuitem').first().click();
+      await expect(dialog(page).locator('.a-grants')).toBeVisible();
+      found.push(...(await findings(page, 'member access dialog')));
+      await page.keyboard.press('Escape');
+      await expect(dialog(page)).toBeHidden();
+      await page.locator('main table .c-btn--icon').click();
+      await page.getByRole('menuitem').last().click();
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      found.push(...(await findings(page, 'pause dialog')));
+      await page.keyboard.press('Escape');
+      await expect(dialog(page)).toBeHidden();
+      await page.getByRole('tab').last().click();
+      await expect(page.locator('main table .c-badge--info')).toBeVisible();
+      found.push(...(await findings(page, 'invitations')));
       await pageAction(page).click();
       await dialogSubmit(page).click();
       await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
@@ -208,6 +230,28 @@ for (const look of looks) {
       await dialog(page).locator('.c-dialog__footer .c-btn').click();
       await expect(page.locator('main table')).toBeVisible();
       found.push(...(await findings(page, 'keys')));
+
+      await page.goto(`/agencies/${agencyId}/audit`);
+      await ready(page);
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      found.push(...(await findings(page, 'audit log')));
+
+      // The archived clients, with the dialog that archives one.
+      await page.goto(`/agencies/${agencyId}/clients`);
+      await ready(page);
+      await page.locator('main .c-card__header .c-seg__item').last().click();
+      await expect(page.locator('main .a-none')).toBeVisible();
+      found.push(...(await findings(page, 'archived clients, none')));
+      await page.locator('main .c-card__header .c-seg__item').first().click();
+      await page.locator('main table .c-btn--icon').first().click();
+      await page.getByRole('menuitem').last().click();
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      found.push(...(await findings(page, 'archive dialog')));
+      await dialogSubmit(page).click();
+      await expect(page.getByRole('alertdialog')).toBeHidden();
+      await page.locator('main .c-card__header .c-seg__item').last().click();
+      await expect(page.locator('main table tbody tr')).toHaveCount(1);
+      found.push(...(await findings(page, 'archived clients')));
 
       // A page that does not exist for this person, inside the frame of the workspace.
       await page.goto(`/agencies/${agencyId}/clients/00000000-0000-4000-8000-000000000000/connections`);
