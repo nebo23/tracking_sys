@@ -34,7 +34,8 @@ def test_migrated_schema_matches_registry(db):
     # revenue_imports (0022); 015-D the integration, booking and CRM tables (0023, 0024);
     # 015-E the WhatsApp tables (0025); 006 the eleven identity tables (0026, D-075); 007-B the
     # five ledger tables (0027); 007-C revenue_identity_bindings (0028); 008-B the six
-    # attribution tables (0029).
-    assert len(schema) == 87
-    assert len(references) == 10
+    # attribution tables (0029); 017-A the plan, assignment, closure and agreement tables
+    # (0031), whose user_agreements.user_id is the eleventh single-column user reference.
+    assert len(schema) == 91
+    assert len(references) == 11
     assert registry_problems(schema, [tuple(row) for row in references]) == []

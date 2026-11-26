@@ -289,10 +289,12 @@ def test_successful_changes_have_scoped_identifier_only_audit(world: SimpleNames
             w.a1,
         )
         assert events[0].occurred_at.tzinfo is not None
+    # 017-A (D7) adds actor_kind, a closed code that names the platform operator as an actor.
     assert set(AuditEvent.__table__.columns.keys()) == {
         "id",
         "agency_id",
         "client_id",
+        "actor_kind",
         "actor_user_id",
         "action",
         "resource_type",

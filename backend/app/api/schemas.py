@@ -213,12 +213,14 @@ class IssuedServiceKey(Output):
     key: str
 
 
-# Audit event projection: identifiers and action codes only, without payload data.
+# Audit event projection: identifiers and action codes only, without payload data. The actor
+# is a member, or the platform operator (017-A, D7), who has no user ID.
 class AuditResponse(Output):
     id: UUID
     agency_id: UUID
     client_id: UUID | None
-    actor_user_id: UUID
+    actor_kind: Literal["user", "platform_operator"]
+    actor_user_id: UUID | None
     action: str
     resource_type: str
     resource_id: UUID

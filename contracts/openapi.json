@@ -26003,9 +26003,24 @@
             ],
             "title": "Client Id"
           },
-          "actor_user_id": {
+          "actor_kind": {
             "type": "string",
-            "format": "uuid",
+            "enum": [
+              "user",
+              "platform_operator"
+            ],
+            "title": "Actor Kind"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Actor User Id"
           },
           "action": {
@@ -26032,6 +26047,7 @@
           "id",
           "agency_id",
           "client_id",
+          "actor_kind",
           "actor_user_id",
           "action",
           "resource_type",

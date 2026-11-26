@@ -52,6 +52,7 @@ from app.services.integrations import IntegrationError
 from app.services.ledger_store import LedgerConflict, LedgerUnavailable
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
+from app.services.plans import PlanUnavailable
 from app.services.revenue_identity import AssociationError
 from app.services.tenancy import AccessDenied, MembershipConflict
 from app.services.whatsapp import WhatsappError
@@ -238,6 +239,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.exception_handler(AccessDenied)
     async def access_error(request: Request, error: AccessDenied) -> JSONResponse:
         return JSONResponse({"error": "access_denied"}, status_code=403)
+
+    # An agency without a current plan, or no default plan for a new agency (017-A); never
+    # expected, because the migration and agency creation assign one.
+    @application.exception_handler(PlanUnavailable)
+    async def plan_unavailable(request: Request, error: PlanUnavailable) -> JSONResponse:
+        return JSONResponse({"error": PlanUnavailable.code}, status_code=409)
 
     # Allowed requests that would break membership invariants, such as removing a last Owner.
     @application.exception_handler(MembershipConflict)

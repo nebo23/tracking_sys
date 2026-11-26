@@ -25,7 +25,9 @@ deliveries with their acknowledgements 30 days after they end. A 015 booking can
 subject after the subject's own retention has run out; in the batch that deletes such a subject,
 booking_links first clears the booking's subject_id and linked_at together, and the subject is
 deleted only once no booking references it (review finding R002, D-070). The booking itself is
-kept until its own retention.
+kept until its own retention. Specification 017-A (D-092) deletes the agreement records of a
+closed account with its credential state, and completes agency closures whose grace period has
+ended (app.services.agency_lifecycle).
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -85,6 +87,7 @@ from app.models import (
     RevenueImport,
     StoredConsentRecord,
     User,
+    UserAgreement,
     VerificationChallenge,
     WhatsappMessage,
 )
@@ -279,6 +282,11 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         # Deleting the identity frees the Google subject for a new sign-up (D-024).
         return ExternalIdentity.user_id.in_(closed)
 
+    # 017-A (D-092, entry review 4.1): agreement records follow the closed account's
+    # credential state; keeping proof of agreement longer awaits legal advice (Q-012).
+    def closed_agreements(cutoff: datetime) -> ColumnElement[bool]:
+        return UserAgreement.user_id.in_(closed)
+
     def events(cutoff: datetime) -> ColumnElement[bool]:
         limit = before(settings.event_retention_days, cutoff)
         return or_(CollectedEvent.expires_at < cutoff, CollectedEvent.first_received_at < limit)
@@ -370,6 +378,7 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             closed_credentials,
         ),
         Target("external_identities", ExternalIdentity, ExternalIdentity.id, closed_identities),
+        Target("user_agreements", UserAgreement, UserAgreement.id, closed_agreements),
         Target("auth_sessions", AuthSession, AuthSession.id, sessions),
         Target("auth_tokens", AuthToken, AuthToken.id, tokens),
         Target(
