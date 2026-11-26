@@ -1,6 +1,6 @@
 # 018-B plan: clients, team and access, connections
 
-Prepared: 2026-11-26, after D-090. Status: in implementation under D-090 on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other. Section 3 lists what the API cannot supply for the approved screens; the parts of the slice that depend on it wait for the owner's decision on section 3.2. Results go into the 018-B evidence file when the slice is checked.
+Prepared: 2026-11-26, after D-090. Status: steps 1 to 5 of section 7 are implemented under D-090 on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other; the results, the corrections and the differences from this plan are in the [018-B evidence](evidence-018b.md). Section 3 lists what the API cannot supply for the approved screens; step 6 waits for the owner's decision on section 3.2.
 
 ## 1. Goal and boundaries
 018-B is the second slice of [specification 018](spec.md) (D14 of the [entry review](entry-review.md)). After it, a person can move between the agency and one client, manage the clients of the agency, invite people, issue keys, and connect, watch and remove the accounts of a client, in English and Arabic and in both themes, on the reference styles the owner approved.

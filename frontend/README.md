@@ -1,5 +1,10 @@
 # Frontend
-Connect, the web application of the Tracking System (specification 018). Slice 018-A is implemented: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page, in English and Arabic and in both themes. It is presented for the owner's review; see the [018-A evidence](../specs/018-react-workspace/evidence-018a.md) for what was checked and what was not. Later slices (018-B to 018-D) are not started.
+Connect, the web application of the Tracking System (specification 018), in English and Arabic and in both themes.
+
+- Slice 018-A: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page. See the [018-A evidence](../specs/018-react-workspace/evidence-018a.md).
+- Slice 018-B: the agency and the client in the address, the list of clients, the connections of a client, invitations and API keys. The members of an agency, archived clients and the audit log wait for a decision about the API. See the [018-B evidence](../specs/018-react-workspace/evidence-018b.md).
+
+Both are presented for the owner's review; each evidence file says what was checked and what was not. Slices 018-C and 018-D are not started.
 
 The agreement box of the sign-in and registration screens is enforced in the interface and recorded nowhere yet (D15). No real user may be given the application before that record and the legal texts exist.
 
@@ -16,7 +21,9 @@ npm ci
 npm run sandbox
 ```
 
-This starts a PostgreSQL container of its own, applies the migrations, runs the real API on `http://127.0.0.1:8010` and serves the built application on `http://127.0.0.1:5183`. Mail is captured, never sent: every few seconds the terminal prints new messages, so the six-digit code of a registration and the link of a password reset can be read there. Ctrl+C removes the container, its data and the captured mail. The owner's database is never used (D-015): the stack sets every database setting itself and checks them before it connects.
+This starts a PostgreSQL container of its own, applies the migrations, runs the real API on `http://127.0.0.1:8010` and serves the built application on `http://127.0.0.1:5183`. It then prepares an agency with three clients, three connected sample accounts and one invitation, and prints an email address and a password to sign in with; the password is random and lasts as long as the sandbox.
+
+Mail is captured, never sent: every few seconds the terminal prints new messages, so the six-digit code of a registration and the link of an invitation or a password reset can be read there. The connector worker runs in the same rhythm, so a requested sync or removal is carried out. The sample accounts belong to stand-in providers that keep made-up data in files and contact nobody. A new sample account cannot be connected by hand, because a stand-in provider has no consent page a browser can open; the browser journeys stand in for it. Ctrl+C removes the container, its data and the captured mail. The owner's database is never used (D-015): the stack sets every database setting itself and checks them before it connects.
 
 The stack looks for the Python interpreter of the project's virtual environment in `.venv` at the repository root, and for a git worktree at the root of the main checkout. Set `TRACKING_E2E_PYTHON` to its path when it is somewhere else.
 
@@ -27,12 +34,13 @@ npm run dev
 
 The development server listens on `http://127.0.0.1:5173`, an origin the API already allows. It expects the API on `http://127.0.0.1:8000`; start it as the [local environment guide](../docs/engineering/local-environment.md) describes. That API uses the database of its own configuration, so accounts created this way are rows in that database: use synthetic people only, and read codes and links from its captured mail as the [authentication guide](../docs/engineering/authentication.md) describes.
 
-Two settings exist, both public because they are compiled into the bundle that every visitor downloads. Copy `.env.example` to `.env.local` to change them:
+Three settings exist, all public because they are compiled into the bundle that every visitor downloads. Copy `.env.example` to `.env.local` to change them:
 
 | Setting | Meaning |
 |---|---|
 | `VITE_API_ORIGIN` | Origin of the API. The API must list this application's origin among its allowed origins. |
 | `VITE_GOOGLE_SIGN_IN` | `true` shows the Google sign-in controls. The API must have Google sign-in enabled as well. |
+| `VITE_SYNTHETIC_PROVIDERS` | `true` lists the stand-in providers when connecting an account. For local development against an API that has `TRACKING_CONNECTOR_SYNTHETIC_STATE` set, and for the journeys. Never in a build for real users. |
 
 Never put a secret in a `VITE_` setting.
 
@@ -65,12 +73,16 @@ index.html, vite.config.ts, tsconfig.json, eslint.config.js, playwright.config.t
 scripts/                    contract drift check, bundle search
 src/
   main.tsx                  start: link token, preferences, router, session watch
-  app/                      providers, routes and guards, session life cycle, preferences, shell
-  api/                      generated contract types, client, session, agencies, error table
+  app/                      providers, routes and guards, session life cycle, the agency and client of a page, preferences, shell
+  api/                      generated contract types, client, session, agencies, clients, connections, invitations, keys, error table
   components/               thin wrappers over the reference markup
   features/auth/            sign in, register, verify, forgotten and reset password, invitation, Google completion
-  features/agency/          first agency, overview
+  features/agency/          first agency
   features/account/         account page, account closure
+  features/clients/         the list of clients, add and rename
+  features/connections/     the accounts of a client, connect, the return from a provider
+  features/team/            invitations and roles
+  features/keys/            API keys
   i18n/                     en.json and ar.json with the same keys
   lib/                      small helpers: link tokens, safe return path, field rules
   styles/                   one entry that imports the design files, and app.css
@@ -84,7 +96,9 @@ tests/
 - **Text.** No sentence is written in a component. Every message has a key in `src/i18n/en.json` and `ar.json`; a key missing from Arabic is a type error and a test failure. Arabic uses Western digits and the Gregorian calendar (D3).
 - **Session.** The session is an `HttpOnly` cookie this code never sees. The request-forgery token comes from sign-in and from `GET /auth/me`, lives in memory only, and goes on every mutation.
 - **Secrets in transit.** A password, a code or a link token travels in a request body and nowhere else: not in an address, not in storage, not in the query cache, not in a log. The token of a mail link is taken out of the address bar before the router reads the address.
-- **Tenants.** Data that belongs to one agency is cached under a key that starts with that agency. Signing out, an ended session and a move to another agency empty the cache.
+- **Tenants.** The address names the agency and the client of a page, and it is not permission: the API decides, and what it refuses is shown as "not found". Data that belongs to one agency is cached under a key that starts with that agency, and data of one client under a key that also carries the client. Leaving a client removes its data, a move to another agency removes the data of the first, and signing out or an ended session empties the cache.
+- **Roles.** The interface shows a person what their role may do and hides the rest. The API refuses it in any case; hiding is not the protection.
+- **Providers.** The application follows the address the API hands over for an authorization only when it is an https address. The code and the state of an authorization travel between the provider and the API and never through the application. A key the API issues is shown once and kept nowhere.
 - **Redirects.** After sign-in the application goes only to a path of its own.
 - **Markup.** No `dangerouslySetInnerHTML`. Text from the API is rendered as text.
 - **Errors.** `src/api/errors.ts` maps every error code of the API to one sentence in both languages. A unit test reads the API source and fails when a code has no sentence.
