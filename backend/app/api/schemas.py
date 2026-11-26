@@ -151,6 +151,30 @@ class MembershipResponse(Output):
     status: str
 
 
+# One client grant of a member as the agency's Owners and Admins see it (018-B plan, B1;
+# D-094): the client and the two optional visibilities.
+class MemberClientGrant(Output):
+    client_id: UUID
+    can_view_financials: bool
+    can_view_identities: bool
+
+
+# A membership with the person's name, email and account state, the date the person joined and
+# their client grants, for the Owners and Admins who may list members (018-B plan, B1; D-094).
+# A closed account is never named: its pseudonyms are not returned, and account says closed.
+class MemberDetail(MembershipResponse):
+    joined_at: datetime
+    display_name: str | None = Field(description="Null for an account its person closed.")
+    email_normalized: str | None = Field(description="Null for an account its person closed.")
+    account: Literal["active", "disabled", "closed"] = Field(
+        description="closed after the person closed it; disabled when an administrator disabled it."
+    )
+    clients: list[MemberClientGrant] = Field(
+        description="Explicit client grants, archived clients included. Owners and Admins read "
+        "every active client whatever their grants."
+    )
+
+
 # Partial membership update; the route rejects a body with neither field.
 class MembershipUpdate(Input):
     role: Role | None = None

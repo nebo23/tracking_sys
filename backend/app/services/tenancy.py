@@ -4,9 +4,12 @@ Use tenancy_transaction for each unit of work. HTTP routes derive actor identifi
 from authenticated sessions; never accept an actor identifier from request data.
 """
 
+from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import Engine, Select, func, select
@@ -37,6 +40,21 @@ class Role(StrEnum):
 
 # Roles allowed to administer agency settings, clients, members, grants, audit, and keys.
 MANAGERS = frozenset({Role.OWNER, Role.ADMIN})
+
+
+# A membership with its person and explicit client grants, as list_member_details returns it.
+@dataclass(frozen=True)
+class MemberDetailRow:
+    membership: AgencyMembership
+    user: User
+    grants: tuple[ClientGrant, ...]
+
+    # closed after a self-service closure (D-024), disabled after an administrator's action.
+    @property
+    def account(self) -> Literal["active", "disabled", "closed"]:
+        if self.user.closed_at is not None:
+            return "closed"
+        return "active" if self.user.status == "active" else "disabled"
 
 
 # Context manager for non-HTTP callers and tests: one Session/transaction per unit of work.
@@ -184,14 +202,31 @@ class TenancyService:
             )
         return query.execution_options(populate_existing=True)
 
-    # List visible active clients in stable ID order for any active member.
+    # List visible active clients in stable ID order for any active member. Archived clients are
+    # listed only for Owner/Admin managers, who may restore them (018-B plan, B2; D-094).
     def list_clients(
-        self, agency_id: UUID, *, limit: int = 100, offset: int = 0
+        self,
+        agency_id: UUID,
+        *,
+        status: Literal["active", "archived"] = "active",
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[ClientWorkspace]:
-        member = self._membership(agency_id)
+        if status == "archived":
+            self._manager(agency_id)
+            query = select(ClientWorkspace).where(
+                ClientWorkspace.agency_id == agency_id, ClientWorkspace.status == "archived"
+            )
+        elif status == "active":
+            query = self._client_query(self._membership(agency_id))
+        else:
+            raise ValueError("Invalid workspace status.")
         return list(
             self.session.scalars(
-                self._client_query(member).order_by(ClientWorkspace.id).limit(limit).offset(offset)
+                query.order_by(ClientWorkspace.id)
+                .limit(limit)
+                .offset(offset)
+                .execution_options(populate_existing=True)
             )
         )
 
@@ -209,6 +244,40 @@ class TenancyService:
                 .offset(offset)
             )
         )
+
+    # List memberships with the person's name, email and account state and their explicit client
+    # grants, for Owner/Admin managers (018-B plan, B1; D-094), in stable membership order. The
+    # route never returns a closed account's pseudonyms.
+    def list_member_details(
+        self, agency_id: UUID, *, limit: int = 100, offset: int = 0
+    ) -> list[MemberDetailRow]:
+        self._manager(agency_id)
+        rows = list(
+            self.session.execute(
+                select(AgencyMembership, User)
+                .join(User, User.id == AgencyMembership.user_id)
+                .where(AgencyMembership.agency_id == agency_id)
+                .order_by(AgencyMembership.id)
+                .limit(limit)
+                .offset(offset)
+                .execution_options(populate_existing=True)
+            )
+        )
+        grants: defaultdict[UUID, list[ClientGrant]] = defaultdict(list)
+        if rows:
+            for grant in self.session.scalars(
+                select(ClientGrant)
+                .where(
+                    ClientGrant.agency_id == agency_id,
+                    ClientGrant.membership_id.in_([membership.id for membership, _ in rows]),
+                )
+                .order_by(ClientGrant.membership_id, ClientGrant.client_id)
+            ):
+                grants[grant.membership_id].append(grant)
+        return [
+            MemberDetailRow(membership, user, tuple(grants[membership.id]))
+            for membership, user in rows
+        ]
 
     # Return one visible active client or raise AccessDenied.
     def get_client(self, agency_id: UUID, client_id: UUID) -> ClientWorkspace:
