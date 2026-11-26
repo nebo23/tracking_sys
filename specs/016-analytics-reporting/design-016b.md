@@ -201,7 +201,7 @@ WHERE e.agency_id = :agency AND e.client_id = :client
 GROUP BY 1, 2;
 ```
 
-`:dimension` is `c.public_code`, `r.external_code` or `e.link_id`. The bound counts the link-tagged page views of both periods first (`LIMIT 50001`): more than 50,000 answers `report_too_large`. The page view totals are one `count(*) ... FILTER (WHERE link_id IS NOT NULL)` statement. Every stored event has a consent basis (004), so a stored page view is a consenting visitor's view; traffic labels are not filtered, as in the attribution touches.
+`:dimension` is `coalesce(c.public_code, l.utm->>'utm_campaign')`, `coalesce(r.external_code, l.utm->>'utm_content')` or `e.link_id`, so a visit takes the reference that the input adapter gives its touches (corrected under D-090, finding R016B-01 of the [merge review](merge-review-016b.md)). Without `finance:read`, the credit and count rows that shape the groups are lead rows only (R016B-02). The bound counts the link-tagged page views of both periods first (`LIMIT 50001`): more than 50,000 answers `report_too_large`. The page view totals are one `count(*) ... FILTER (WHERE link_id IS NOT NULL)` statement. Every stored event has a consent basis (004), so a stored page view is a consenting visitor's view; traffic labels are not filtered, as in the attribution touches.
 
 ## 7. Conversions list and release corrections
 

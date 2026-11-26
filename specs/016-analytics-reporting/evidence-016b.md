@@ -124,6 +124,21 @@ The statement count is the same at every size. The ROAS report aggregates only b
 - **Test journeys.** An event dated before its subject's identity link is never assigned to the person, and a lead cannot be dated ahead, so the tests place touches and leads at the current time and sales on future dates.
 - **Negative nets.** The ledger keeps a transaction's net at zero or above (an oversized correction stays pending), so the reconciliation's zero floor is defensive; its regression sets the stored projection directly.
 
+## Review corrections (D-090)
+
+Claude's [merge review](merge-review-016b.md) of `2958b9e` found two defects, and the owner chose to correct both before the merge (D-090):
+- **R016B-01.** A funnel visit through a managed link whose campaign or content exists only in its UTM values was counted under "no campaign", while its credit was booked under the UTM value. Visits now take the reference that the input adapter gives the touch.
+- **R016B-02.** Without `finance:read`, a group that held only sale credit was listed. Only lead credit now shapes the groups, the row count, the group bound and the export for such a reader.
+
+Regressions: `test_funnel_reports.py::test_review_r016b_01_utm_only_link_visits_join_their_credit` and `test_attribution_reports.py::test_review_r016b_02_sale_only_groups_stay_hidden_without_finance`. Both fail at `2958b9e` and pass with the corrections (`4b2acb1`).
+
+Verification of `4b2acb1` in Claude's review environment, on a fresh disposable PostgreSQL 18.6:
+- `ruff check` and `ruff format --check`: clean (295 files).
+- Unit: 933 passed.
+- Integration with `TRACKING_RUN_BROWSER_TESTS=1`, Chromium: 685 passed. Seven opt-in measurements were skipped, and the Firefox journey case was not run.
+
+The tracker is unchanged by the corrections. At `2958b9e` its unit tests passed (73) and its Chromium browser tests passed (25).
+
 ## Limits
 
 - Comparisons cover the report totals, not each group (design section 11).
@@ -135,4 +150,4 @@ The statement count is the same at every size. The ROAS report aggregates only b
 
 ## What remains
 
-016-C (retained, scheduled and white-label reports and full AC5), the React UI, native `tracking_sys` migration (0005-0030), live providers, production scheduling (020) and deployment. The merge of this branch is the owner's decision after review.
+016-C (retained, scheduled and white-label reports and full AC5), the React UI, native `tracking_sys` migration (0005-0030), live providers, production scheduling (020) and deployment. The owner decided the merge after Claude's review and the D-090 corrections.
