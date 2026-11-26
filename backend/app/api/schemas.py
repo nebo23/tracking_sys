@@ -70,16 +70,47 @@ class EmailInput(Input):
         return normalize_email(value)
 
 
-# Registration input: inherits the normalized email and adds display name and new password.
+# The Terms of Service and Privacy Policy versions a person accepted (017-A, D10).
+class AgreementAcceptance(Input):
+    terms: str = Field(min_length=1, max_length=32)
+    privacy: str = Field(min_length=1, max_length=32)
+
+
+# The current versions, and whether their texts are published (GET /auth/agreements).
+class AgreementVersions(Output):
+    terms: str
+    privacy: str
+    published: bool
+
+
+# 422 agreement_required: the request did not accept the current versions, which it returns.
+class AgreementRequiredError(ErrorResponse):
+    agreements: AgreementVersions | None = None
+
+
+AGREEMENT_REQUIRED = {
+    422: {
+        "model": AgreementRequiredError,
+        "description": "agreement_required with the current versions, or validation_failed.",
+    }
+}
+
+
+# Registration input: inherits the normalized email and adds display name, new password and the
+# accepted agreement versions. The versions are optional in the schema, so that a request
+# without them is answered with agreement_required rather than validation_failed.
 class Registration(EmailInput):
     display_name: Name
     password: Password
+    agreements: AgreementAcceptance | None = None
 
 
 # Login input: accepts any submitted password up to 128 characters. The new-password length
-# policy is not reapplied here; Argon2 verification decides.
+# policy is not reapplied here; Argon2 verification decides. Every sign-in sends the accepted
+# agreement versions (017-A, D10).
 class Login(EmailInput):
     password: SecretStr = Field(min_length=1, max_length=128)
+    agreements: AgreementAcceptance | None = None
 
 
 # Numeric verification request (D-022): the normalized email plus a six-digit code kept as a

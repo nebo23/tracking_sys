@@ -254,21 +254,23 @@ class AuthService:
         self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
 
     # Create an unverified active account with its password credential, a verification code
-    # challenge, an encrypted outbox entry, and a security event in the caller's transaction.
-    # An existing email returns silently without changing that account or its password.
-    def register(self, email: str, display_name: str, password: str) -> None:
+    # challenge, an encrypted outbox entry, and a security event in the caller's transaction,
+    # and return it so the caller can record the agreement (017-A). An existing email returns
+    # None silently without changing that account or its password.
+    def register(self, email: str, display_name: str, password: str) -> User | None:
         email = normalize_email(email)
         hashed = password_hash.hash(password)
         self._serialize_email(email)
         existing = self.session.scalar(select(User.id).where(User.email_normalized == email))
         if existing is not None:
-            return
+            return None
         user = User(email_normalized=email, display_name=display_name.strip())
         self.session.add(user)
         self.session.flush()
         self.session.add(PasswordCredential(user_id=user.id, password_hash=hashed))
         self._issue_verification(user)
         self.event("registered", user.id)
+        return user
 
     # Reissue a verification code only for an active, still unverified account and only after
     # the resend cooldown since its latest challenge; otherwise do nothing, so the route's

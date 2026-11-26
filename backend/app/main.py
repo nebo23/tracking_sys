@@ -44,6 +44,7 @@ from app.logging_config import configure_logging
 from app.reporting.common import ReportError
 from app.security import AuthError, RateLimited
 from app.services.agency_closure import ClosureRefused
+from app.services.agreements import AgreementRequired
 from app.services.attribution_models import AttributionError
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
@@ -122,8 +123,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "reports over stored facts on source-native days, with previous-period "
             "comparisons, revision-bound pages and bounded CSV downloads. "
             "Plans (specification 017-A): every agency has a plan whose limits the server "
-            "enforces on creation, a usage view, and agency closure by its Owner with a "
-            "30-day grace period."
+            "enforces on creation, a usage view, agency closure by its Owner with a "
+            "30-day grace period, and the record of agreement to the Terms of Service and "
+            "the Privacy Policy at registration and every sign-in."
         ),
         lifespan=lifespan,
         responses={
@@ -154,6 +156,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
+        # D11 (017-A): the interface may read how long to wait after a rate limit; no other
+        # response header is exposed.
+        expose_headers=["Retry-After"],
     )
     application.add_middleware(
         PublicCollectionCors,
@@ -257,6 +262,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "used": error.used,
             },
             status_code=409,
+        )
+
+    # A registration or sign-in without the current agreement versions (017-A, D10) is told
+    # which versions are current and whether their texts are published.
+    @application.exception_handler(AgreementRequired)
+    async def agreement_required(request: Request, error: AgreementRequired) -> JSONResponse:
+        current = error.current
+        return JSONResponse(
+            {
+                "error": AgreementRequired.code,
+                "agreements": {
+                    "terms": current.terms,
+                    "privacy": current.privacy,
+                    "published": current.published,
+                },
+            },
+            status_code=422,
         )
 
     # Agency closure refusals (017-A, D8) carry a closed code.

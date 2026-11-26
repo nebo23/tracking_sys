@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_support import AGREEMENTS
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from sqlalchemy import Engine, select, text
@@ -185,8 +186,12 @@ def api(db, database_settings, tmp_path: Path, collection_keyrings):
                 tokens.append((str(message["To"]), str(message["Subject"]), value))
             return tokens
 
+        # Every sign-in sends the current agreement versions (017-A, D10).
         def login(client, email, password=TEST_PASSWORD):
-            response = client.post("/auth/login", json={"email": email, "password": password})
+            response = client.post(
+                "/auth/login",
+                json={"email": email, "password": password, "agreements": AGREEMENTS},
+            )
             assert response.status_code == 200, response.text
             client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
             return response
@@ -198,6 +203,7 @@ def api(db, database_settings, tmp_path: Path, collection_keyrings):
             mail_tokens=mail_tokens,
             login=login,
             password=TEST_PASSWORD,
+            agreements=AGREEMENTS,
         )
 
 

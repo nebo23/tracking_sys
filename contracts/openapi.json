@@ -2,10 +2,111 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads. Plans (specification 017-A): every agency has a plan whose limits the server enforces on creation, a usage view, and agency closure by its Owner with a 30-day grace period.",
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads. Plans (specification 017-A): every agency has a plan whose limits the server enforces on creation, a usage view, agency closure by its Owner with a 30-day grace period, and the record of agreement to the Terms of Service and the Privacy Policy at registration and every sign-in.",
     "version": "0.5.0"
   },
   "paths": {
+    "/auth/agreements": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Agreement Versions",
+        "operationId": "agreement_versions_auth_agreements_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgreementVersions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/register": {
       "post": {
         "tags": [
@@ -105,14 +206,14 @@
             "description": "Request Entity Too Large"
           },
           "422": {
+            "description": "agreement_required with the current versions, or validation_failed.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AgreementRequiredError"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "429": {
             "content": {
@@ -615,14 +716,14 @@
             "description": "Request Entity Too Large"
           },
           "422": {
+            "description": "agreement_required with the current versions, or validation_failed.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AgreementRequiredError"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "429": {
             "content": {
@@ -1636,89 +1737,125 @@
         ],
         "summary": "Start",
         "operationId": "start_auth_google_start_get",
+        "parameters": [
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Terms"
+            }
+          },
+          {
+            "name": "privacy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Privacy"
+            }
+          }
+        ],
         "responses": {
           "303": {
             "description": "Successful Response"
           },
           "400": {
-            "description": "Bad Request",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Bad Request"
           },
           "401": {
-            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Forbidden"
           },
           "409": {
-            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Conflict"
           },
           "413": {
-            "description": "Request Entity Too Large",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
-            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Entity"
           },
           "429": {
-            "description": "Too Many Requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Too Many Requests"
           },
           "503": {
-            "description": "Service Unavailable",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -26192,6 +26329,75 @@
         ],
         "title": "AgentApproval"
       },
+      "AgreementAcceptance": {
+        "properties": {
+          "terms": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Terms"
+          },
+          "privacy": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Privacy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "terms",
+          "privacy"
+        ],
+        "title": "AgreementAcceptance"
+      },
+      "AgreementRequiredError": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "agreements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgreementVersions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "AgreementRequiredError"
+      },
+      "AgreementVersions": {
+        "properties": {
+          "terms": {
+            "type": "string",
+            "title": "Terms"
+          },
+          "privacy": {
+            "type": "string",
+            "title": "Privacy"
+          },
+          "published": {
+            "type": "boolean",
+            "title": "Published"
+          }
+        },
+        "type": "object",
+        "required": [
+          "terms",
+          "privacy",
+          "published"
+        ],
+        "title": "AgreementVersions"
+      },
       "Amount": {
         "properties": {
           "minor": {
@@ -32024,6 +32230,16 @@
             "format": "password",
             "title": "Password",
             "writeOnly": true
+          },
+          "agreements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgreementAcceptance"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -33593,6 +33809,16 @@
             "format": "password",
             "title": "Password",
             "writeOnly": true
+          },
+          "agreements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgreementAcceptance"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

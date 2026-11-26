@@ -4,8 +4,11 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.dependencies import BrowserDep, SessionDep, require_origin
 from app.api.schemas import (
+    AGREEMENT_REQUIRED,
     AccountClosure,
     Acknowledgement,
+    AgreementAcceptance,
+    AgreementVersions,
     EmailInput,
     Login,
     PasswordChange,
@@ -18,6 +21,7 @@ from app.api.schemas import (
 )
 from app.config import Settings
 from app.security import AuthError, csrf_token
+from app.services import agreements
 from app.services.auth import AuthService, enforce_rate_limit
 
 # All browser authentication routes live under /auth and share one OpenAPI tag.
@@ -45,20 +49,43 @@ def throttle(request: Request, scope: str, subject: str | None = None) -> None:
         )
 
 
-# Self-service registration. Requires an allowed Origin, throttles by peer and email, and
-# atomically stores an unverified account, credential, token digest, and encrypted outbox
-# entry. The generic 202 response is identical for existing emails and returns no token.
+# Refuse a request that did not accept the current agreement versions (017-A, D10).
+def require_agreement(settings: Settings, data: AgreementAcceptance | None) -> None:
+    agreements.require(
+        settings,
+        data.terms if data is not None else None,
+        data.privacy if data is not None else None,
+    )
+
+
+# The current Terms of Service and Privacy Policy versions that registration and every sign-in
+# must send, and whether their texts are published. Public; reads only the settings.
+@router.get("/agreements", response_model=AgreementVersions)
+def agreement_versions(request: Request) -> AgreementVersions:
+    now = agreements.current(request.app.state.settings)
+    return AgreementVersions(terms=now.terms, privacy=now.privacy, published=now.published)
+
+
+# Self-service registration. Requires an allowed Origin, throttles by peer and email, requires
+# the current agreement versions, and atomically stores an unverified account, credential,
+# token digest, encrypted outbox entry and one agreement row per document. The generic 202
+# response is identical for existing emails, records nothing for them and returns no token.
 @router.post(
     "/register",
     status_code=202,
     response_model=Acknowledgement,
     dependencies=[Depends(require_origin)],
+    responses=AGREEMENT_REQUIRED,
 )
 def register(data: Registration, request: Request, session: SessionDep) -> Acknowledgement:
     throttle(request, "register", data.email)
-    AuthService(session, request.app.state.settings).register(
+    settings = request.app.state.settings
+    require_agreement(settings, data.agreements)
+    user = AuthService(session, settings).register(
         data.email, data.display_name, data.password.get_secret_value()
     )
+    if user is not None:
+        agreements.record(session, settings, user.id, "registration")
     return Acknowledgement()
 
 
@@ -114,15 +141,23 @@ def set_session_cookie(response: Response, settings: Settings, raw: str) -> None
     )
 
 
-# Password login for a verified active account. On success, set the HttpOnly session cookie
-# and return the user plus the session-bound CSRF token. A failure records login_failed in an
+# Password login for a verified active account. The current agreement versions are required
+# before the credential check, so a refusal reveals nothing about the account (017-A, D10). On
+# success, set the HttpOnly session cookie, record a new agreement version once, and return
+# the user plus the session-bound CSRF token. A credential failure records login_failed in an
 # independent transaction before the request transaction rolls back.
-@router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_origin)])
+@router.post(
+    "/login",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_origin)],
+    responses=AGREEMENT_REQUIRED,
+)
 def login(
     data: Login, request: Request, response: Response, session: SessionDep
 ) -> SessionResponse:
     throttle(request, "login", data.email)
     settings = request.app.state.settings
+    require_agreement(settings, data.agreements)
     service = AuthService(session, settings)
     try:
         user, raw = service.login(data.email, data.password.get_secret_value())
@@ -133,6 +168,7 @@ def login(
         with Session(request.app.state.security_engine) as audit, audit.begin():
             AuthService(audit, settings).event("login_failed")
         raise
+    agreements.record(session, settings, user.id, "password_sign_in")
     set_session_cookie(response, settings, raw)
     return SessionResponse(
         user=UserResponse.model_validate(user), csrf_token=csrf_token(settings, raw)

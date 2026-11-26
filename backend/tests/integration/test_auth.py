@@ -33,6 +33,7 @@ def register(api, client=None, email=EMAIL, password=None):
             "email": email,
             "display_name": "Synthetic Person",
             "password": password or api.password,
+            "agreements": api.agreements,
         },
     )
 
@@ -56,6 +57,7 @@ def test_registration_verification_and_authenticated_agency_flow(api, db):
             json={
                 "email": EMAIL,
                 "password": api.password,
+                "agreements": api.agreements,
             },
         ).status_code
         == 403
@@ -242,7 +244,10 @@ def test_recovery_is_generic_and_reset_revokes_all_sessions(api):
         == 400
     )
     assert (
-        api.client.post("/auth/login", json={"email": EMAIL, "password": api.password}).status_code
+        api.client.post(
+            "/auth/login",
+            json={"email": EMAIL, "password": api.password, "agreements": api.agreements},
+        ).status_code
         == 401
     )
     api.login(api.client, EMAIL, replacement)
@@ -337,7 +342,10 @@ def test_csrf_cannot_be_reused_across_sessions_and_missing_origin_is_denied(api)
     assert result.status_code == 403
     del other.headers["Origin"]
     assert (
-        other.post("/auth/login", json={"email": EMAIL, "password": api.password}).status_code
+        other.post(
+            "/auth/login",
+            json={"email": EMAIL, "password": api.password, "agreements": api.agreements},
+        ).status_code
         == 403
     )
 
@@ -345,7 +353,7 @@ def test_csrf_cannot_be_reused_across_sessions_and_missing_origin_is_denied(api)
 def test_failed_login_rate_limits_are_shared_and_persist_after_rollback(api, db):
     config = api.config.model_copy(update={"login_attempts_per_minute": 2})
     clients = [api.new_client(config), api.new_client(config)]
-    payload = {"email": EMAIL, "password": "incorrect"}
+    payload = {"email": EMAIL, "password": "incorrect", "agreements": api.agreements}
     for client in clients:
         assert client.post("/auth/login", json=payload).status_code == 401
     blocked = clients[0].post("/auth/login", json=payload)
@@ -377,7 +385,10 @@ def test_validation_body_limit_and_errors_do_not_echo_secrets(api, capsys):
     assert response.status_code == 422 and secret not in response.text
     oversized = api.client.post("/auth/register", content=b"x" * 16385)
     assert oversized.status_code == 413
-    response = api.client.post("/auth/login", json={"email": EMAIL, "password": secret})
+    response = api.client.post(
+        "/auth/login",
+        json={"email": EMAIL, "password": secret, "agreements": api.agreements},
+    )
     assert response.status_code == 401 and secret not in response.text
     assert secret not in capsys.readouterr().err
     assert api.client.get("/agencies").status_code == 401

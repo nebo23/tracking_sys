@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import ExternalIdentity, OAuthTransaction, User
 from app.security import AuthError, digest, keyed_digest, new_token, normalize_email, now_utc
+from app.services import agreements
 from app.services.auth import AuthService
 
 DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
@@ -117,9 +118,10 @@ def oidc_nonce(settings: Settings, raw_state: str) -> str:
 
 
 # Start an authorization: store a single-use transaction (state and browser-binding digests,
-# purpose, link user, ten-minute expiry) in the caller's transaction and build the Google
-# authorization URL with the identity scopes, state, nonce, and S256 PKCE challenge. Returns
-# the URL and the raw binding value for the HttpOnly binding cookie.
+# purpose, link user, ten-minute expiry, and for a sign-in the agreement versions accepted at
+# the start, 017-A D10) in the caller's transaction and build the Google authorization URL
+# with the identity scopes, state, nonce, and S256 PKCE challenge. Returns the URL and the raw
+# binding value for the HttpOnly binding cookie.
 def begin_authorization(
     session: Session,
     settings: Settings,
@@ -127,6 +129,7 @@ def begin_authorization(
     purpose: Purpose,
     user_id: UUID | None = None,
     session_token: str | None = None,
+    accepted: tuple[str, str] | None = None,
 ) -> tuple[str, str]:
     raw_state, binding = new_token(), new_token()
     if purpose == "link" and not session_token:
@@ -142,6 +145,8 @@ def begin_authorization(
                 else digest(binding)
             ),
             expires_at=now_utc() + timedelta(seconds=TRANSACTION_SECONDS),
+            terms_version=accepted[0] if purpose == "login" and accepted else None,
+            privacy_version=accepted[1] if purpose == "login" and accepted else None,
         )
     )
     challenge = (
@@ -308,8 +313,10 @@ def apply_account_policy(
 # binding, no prior use, and no expiry, then consume it in the caller's transaction. The code
 # exchange, token validation, account policy, and (for login) session issuance run in a
 # savepoint, so a rejected sign-in rolls back its partial work while the consumed transaction
-# still commits and cannot be replayed. Returns the user, the purpose, and the raw session
-# token for login (None for link).
+# still commits and cannot be replayed. A sign-in whose stored agreement versions are no longer
+# the current ones is refused before the code exchange (017-A, D10); a successful one records
+# them with its session. Returns the user, the purpose, and the raw session token for login
+# (None for link).
 def complete_authorization(
     session: Session,
     settings: Settings,
@@ -342,6 +349,10 @@ def complete_authorization(
     purpose: Purpose = "link" if transaction.purpose == "link" else "login"
     link_user_id = transaction.user_id
     session.flush()
+    if purpose == "login" and not agreements.accepted(
+        settings, transaction.terms_version, transaction.privacy_version
+    ):
+        raise AuthError("agreement_required", 422)
     with session.begin_nested():
         tokens = provider.exchange(code, pkce_verifier(settings, raw_state))
         claims = validated_claims(settings, provider, tokens, raw_state)
@@ -352,5 +363,8 @@ def complete_authorization(
             if linked_user.id != link_user_id:
                 raise AuthError("google_sign_in_failed", 400)
         user = apply_account_policy(session, settings, claims, purpose, link_user_id)
-        raw = AuthService(session, settings).issue_session(user) if purpose == "login" else None
+        raw = None
+        if purpose == "login":
+            raw = AuthService(session, settings).issue_session(user)
+            agreements.record(session, settings, user.id, "google_sign_in")
     return user, purpose, raw
