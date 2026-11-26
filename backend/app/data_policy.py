@@ -662,6 +662,51 @@ CLASSES: dict[str, DataClass] = {
             "007",
         ),
         DataClass(
+            "attribution.model",
+            "Per-client attribution model versions: model, lookback window, rule set, default "
+            "flag, retirement and the idempotency record of their administration.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept for the client workspace lifetime with the credit history it explains "
+            "(D-079 D3, D12).",
+            "008",
+        ),
+        DataClass(
+            "attribution.credit",
+            "Non-identifying stored attribution: conversion kinds and statuses, revisions, "
+            "causes, exact shares, amounts in minor units of the original currency, reporting "
+            "dates and campaign, content, link and source provenance.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.DERIVED,
+            "Kept for the client workspace lifetime under the financial policy; failed staging "
+            "rows are discarded (D-079 D12).",
+            "008",
+        ),
+        DataClass(
+            "attribution.pointer",
+            "Identity person, lead event and touchpoint (collected event) references of stored "
+            "attribution rows, and the keys derived from them; never a contact value, token or "
+            "raw identifier.",
+            Sensitivity.HIGH,
+            Personal.PSEUDONYMOUS,
+            Provenance.DERIVED,
+            "Scrubbed with the person or its evidence: erasure, expiry (395 days) or deletion "
+            "of the person (D-079 D9, D12).",
+            "008",
+        ),
+        DataClass(
+            "attribution.state",
+            "Per-client attribution consumer state: published generation, checkpoint over the "
+            "ledger journal and the identity feed, unit of work and counters.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept for the client workspace lifetime (D-079).",
+            "008",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -684,6 +729,17 @@ def _row(status: RuleStatus, reference: str, description: str) -> EndOfLifeRule:
 
 def _same(code: str, *columns: str) -> dict[str, str]:
     return dict.fromkeys(columns, code)
+
+
+# 008-B (D-079 D9, D12): the end-of-life rule of the four attribution history tables.
+ATTRIBUTION_RULE = _row(
+    APPROVED,
+    "D-079",
+    "Person, lead event and touchpoint pointers are scrubbed (D9) in the transaction "
+    "that erases, expires or deletes the person or its evidence; the non-identifying "
+    "record is kept for the workspace lifetime, and rows of a failed staging generation "
+    "are deleted by tracking_lifecycle (D12).",
+)
 
 
 TABLES: dict[str, TablePolicy] = {
@@ -2526,6 +2582,179 @@ TABLES: dict[str, TablePolicy] = {
                 "or expiry of the person; the non-identifying record follows the ledger.",
             ),
         ),
+    ),
+    "attribution_model_versions": TablePolicy(
+        {
+            **_same(
+                "attribution.model",
+                "id",
+                "agency_id",
+                "client_id",
+                "version_key",
+                "model",
+                "window_seconds",
+                "rules",
+                "is_default",
+                "status",
+                "operations",
+                "created_at",
+                "retired_at",
+            ),
+            "created_by_membership_id": "tenancy.configuration",
+        },
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-079; 017",
+                "Kept for the client workspace lifetime; a retired version keeps its history.",
+            ),
+        ),
+    ),
+    "attribution_conversions": TablePolicy(
+        {
+            **_same(
+                "attribution.credit",
+                "id",
+                "agency_id",
+                "client_id",
+                "generation",
+                "kind",
+                "association_id",
+                "binding_id",
+                "source_account_id",
+                "sale_operation_id",
+                "effective_at",
+                "status",
+                "superseded_generation",
+                "superseded_at",
+                "superseded_reason",
+                "scrubbed_at",
+                "recheck_at",
+                "created_at",
+            ),
+            **_same(
+                "attribution.pointer",
+                "owner_person_id",
+                "lead_event_id",
+                "slot_key",
+                "conversion_key",
+            ),
+        },
+        (ATTRIBUTION_RULE,),
+    ),
+    "attribution_runs": TablePolicy(
+        {
+            **_same(
+                "attribution.credit",
+                "id",
+                "agency_id",
+                "client_id",
+                "generation",
+                "conversion_id",
+                "model_version_id",
+                "revision",
+                "status",
+                "basis",
+                "causes",
+                "currency",
+                "currency_exponent",
+                "verified_net_minor",
+                "window_start",
+                "window_end",
+                "ledger_generation",
+                "receipt_ordinal",
+                "identity_seq",
+                "excluded_reasons",
+                "touch_bound_exceeded",
+                "recorded_at",
+            ),
+            "excluded_touchpoint_ids": "attribution.pointer",
+        },
+        (ATTRIBUTION_RULE,),
+    ),
+    "attribution_allocations": TablePolicy(
+        {
+            **_same(
+                "attribution.credit",
+                "id",
+                "agency_id",
+                "client_id",
+                "run_id",
+                "ordinal",
+                "credited",
+                "recipient",
+                "basis",
+                "position",
+                "share_numerator",
+                "share_denominator",
+                "amount_minor",
+                "evidence_class",
+                "source",
+                "campaign_ref",
+                "content_ref",
+                "link_ref",
+            ),
+            **_same("attribution.pointer", "touchpoint_id", "occurred_at"),
+        },
+        (ATTRIBUTION_RULE,),
+    ),
+    "attribution_credit_changes": TablePolicy(
+        {
+            **_same(
+                "attribution.credit",
+                "id",
+                "agency_id",
+                "client_id",
+                "run_id",
+                "model_version_id",
+                "generation",
+                "ordinal",
+                "conversion_kind",
+                "effective_at",
+                "recipient",
+                "source",
+                "campaign_ref",
+                "content_ref",
+                "link_ref",
+                "delta_share_numerator",
+                "delta_share_denominator",
+                "delta_minor",
+                "currency",
+                "currency_exponent",
+                "recorded_at",
+            ),
+            "touchpoint_id": "attribution.pointer",
+        },
+        (ATTRIBUTION_RULE,),
+    ),
+    "attribution_consumer_state": TablePolicy(
+        _same(
+            "attribution.state",
+            "client_id",
+            "agency_id",
+            "version",
+            "generation",
+            "status",
+            "ledger_generation",
+            "receipt_ordinal",
+            "identity_seq",
+            "model_set_digest",
+            "unit_kind",
+            "staging_generation",
+            "target_ledger_generation",
+            "target_receipt_ordinal",
+            "target_identity_seq",
+            "target_model_set_digest",
+            "unit_started_at",
+            "progress_key",
+            "sweep_after_key",
+            "scrub_epoch",
+            "failure_code",
+            "published_at",
+            "updated_at",
+            "created_at",
+        ),
+        (_row(RuleStatus.DEFERRED, "D-079; 017", "Kept for the client workspace lifetime."),),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},
