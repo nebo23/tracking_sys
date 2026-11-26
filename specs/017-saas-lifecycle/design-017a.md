@@ -1,6 +1,6 @@
 # Spec 017-A design: plans, limits and agency closure
 
-Prepared: 2026-11-26 under D-092. Revision: 1. Status: approved scope ([D1-D14](entry-review-017a.md#3-decisions-for-the-owner), D-092, without amendment). This note fixes the exact statements, answers, error codes, grants and tests before any code; section 4 of the entry review is its source. Section 12 lists the routine details resolved here. No material new choice was found that needs the owner.
+Prepared: 2026-11-26 under D-092. Revision: 2 (2026-11-27). Status: approved scope ([D1-D14](entry-review-017a.md#3-decisions-for-the-owner), D-092, without amendment), implemented. This note fixed the exact statements, answers, error codes, grants and tests before any code; section 4 of the entry review is its source. Section 12 lists the routine details resolved here. No material new choice was found that needs the owner. Revision 2 aligns the test inventory of section 11.2 with the implemented test names; the [evidence](evidence-017a.md) records the results and the details found during implementation (section 7).
 
 ## 1. Inventory on the branch (P0)
 
@@ -354,25 +354,25 @@ Documented changes that are not additions:
 | Case | Test (modules under `backend/tests/`) |
 |---|---|
 | SV01 | `integration/test_saas_plans.py::test_sv01_new_agencies_get_the_current_default_plan`; the existing agencies in SV18 |
-| SV02 | `test_saas_plans.py::test_sv02_each_limit_refuses_exactly_the_creation_beyond_it` (four limits), `::test_sv02_changes_that_raise_use_are_limited`, `::test_sv02_a_missing_limit_never_refuses` |
-| SV03 | `test_saas_plans.py::test_sv03_concurrent_creations_at_the_limit_have_one_winner` (clients, invitations, connections, links), `::test_sv03_a_waiting_creation_counts_after_the_lock` |
+| SV02 | `test_saas_plans.py::test_sv02_clients_limit_refuses_exactly_the_creation_beyond_it`, `::test_sv02_seats_count_members_and_pending_invitations`, `::test_sv02_connections_are_limited_at_the_start_and_at_installation`, `::test_sv02_managed_links_limit_counts_active_links`, `::test_sv02_a_missing_limit_never_refuses` |
+| SV03 | `test_saas_plans.py::test_sv03_concurrent_creations_at_the_limit_have_one_winner` (clients, invitations, links, connector callbacks), `::test_sv03_a_waiting_creation_counts_after_the_lock` |
 | SV04 | `test_saas_plans.py::test_sv04_a_smaller_plan_keeps_everything_and_refuses_only_new_creations` |
 | SV05 | `test_saas_plans.py::test_sv05_reads_syncs_redirects_collection_erasure_archival_and_revocation_are_never_refused` |
-| SV06 | `test_saas_plans.py::test_sv06_events_beyond_the_allowance_are_accepted_and_counted_by_utc_month` |
+| SV06 | `test_saas_plans.py::test_sv06_events_beyond_the_allowance_are_accepted_and_counted_by_utc_month`, `::test_sv06_the_count_is_bounded` |
 | SV07 | `test_saas_plans.py::test_sv07_usage_view_roles_keys_and_answer` |
-| SV08 | `test_saas_plans.py::test_sv08_operator_command_subcommands_audit_and_refusals`; `test_agency_plans_command.py` (argument checks, `--confirm`) |
+| SV08 | `test_saas_plans.py::test_sv08_operator_command_subcommands_audit_and_refusals`, `::test_sv08_operator_command_runs_as_its_own_process`; `test_agency_plans_command.py` (argument checks, `--confirm`) |
 | SV09 | `test_saas_plans.py::test_sv09_suspension_stops_the_agency_and_reactivation_restores_it`; the `suspended` cases of SV11 |
-| SV10 | `integration/test_agency_closure.py::test_sv10_closure_request_is_owner_only_named_and_reauthenticated` |
+| SV10 | `integration/test_agency_closure.py::test_sv10_closure_request_is_owner_only_named_and_reauthenticated`, `::test_sv10_the_closure_throttle_and_the_reauthentication_without_a_password` |
 | SV11 | `integration/test_agency_closure_stops.py`, each case for `suspended` and `closing`: member routes and keys, collection, redirects, payments, integrations, WhatsApp, the connector worker, the delivery worker, the attribution worker |
 | SV12 | `test_agency_closure.py::test_sv12_cancellation_restores_the_agency_and_its_connections` |
-| SV13 | `test_agency_closure.py::test_sv13_lifecycle_completes_due_closures_once_and_in_bounded_batches` |
-| SV14 | `test_agency_closure.py::test_sv14_sole_owner_account_closure_by_agency_status` (active, suspended, closing, closed) |
+| SV13 | `test_agency_closure.py::test_sv13_lifecycle_completes_due_closures_once_and_in_bounded_batches`, `::test_sv13_a_cancellation_holding_the_agency_lock_leaves_the_step_incomplete` |
+| SV14 | `test_agency_closure.py::test_sv14_sole_owner_account_closure_by_agency_status` (active, suspended, closing, closed), `::test_sv14_a_sole_owner_is_still_held_by_another_active_agency` |
 | SV15 | `integration/test_agreements.py::test_sv15_registration_requires_and_records_the_current_versions` |
 | SV16 | `test_agreements.py::test_sv16_password_sign_in_records_a_new_version_once`, `::test_sv16_outdated_versions_are_refused_before_the_credential_check`, `::test_sv16_google_sign_in_carries_the_versions_in_its_transaction` |
 | SV17 | `test_agreements.py::test_sv17_retry_after_is_readable_from_the_application_origin` |
-| SV18 | `test_saas_plans.py::test_sv18_upgrade_seeds_and_assigns_grants_and_guarded_downgrade` |
+| SV18 | `test_saas_plans.py::test_sv18_upgrade_seeds_and_assigns_grants_and_guarded_downgrade`, `::test_agreements_of_closed_accounts_follow_the_credential_state` |
 | SV19 | `test_saas_plans.py::test_sv19_agencies_never_see_each_other_and_output_carries_no_secret`; `test_agency_closure.py::test_sv19_closure_isolation_and_logs` |
-| SV20 | every existing module unchanged apart from section 11.1; `test_contract.py`; the semantic OpenAPI diff of section 10 |
+| SV20 | every existing module unchanged apart from section 11.1 and evidence section 5; `test_contract.py`; the semantic OpenAPI diff of section 10 |
 
 The mutation check of P5 disables, one at a time, the four limit checks, the agency lock (`_membership` without `FOR UPDATE`), the status change of the closure request (intake and workers), the Owner-only rule, the closure reauthentication, the completion step, the D9 sole-Owner rule (both directions), the agreement check, the single record per version and `--confirm`, and records which tests fail.
 
