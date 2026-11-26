@@ -129,6 +129,32 @@ Before the pull request was opened, main had moved: PR 15 merged specifications 
 - The drift check failed on the merged contract, as it should: the contract had grown from 124 to 141 operations. The types were generated again, and no call of this slice changed.
 - The type check, the static rules, the unit tests, the build, the bundle search and all 38 journeys in both browsers were run again on the merged branch, with the API at migration `0028`. The results are the ones in the table above.
 
+### 3.6 Bringing the branch up to date a second time (D-087)
+PR 16 then merged Spec 008-B into main (`f15b6e4`), with migration `0029` and six new API operations. Claude brought the branch up to date on the owner's instruction (D-087).
+
+- **Decision numbers.** Main holds D-078 to D-080 for Spec 008-B, so the six 018 decisions moved from D-078 to D-083 to D-081 to D-086 in every file that names them (`60b0619`). The note in the decision register explains both renumberings.
+- **Merge.** Main was merged with the D-080 records of its own merge (`587e429`). `AGENTS.md` and the decision register conflicted again where both sides had added decisions, and the register also on two neighbouring rows of its open questions; both sides were kept.
+- **Contract types.** The drift check failed on the merged contract, which had grown from 141 to 147 operations. The types were generated again: 979 lines were added and none removed, and no call of this slice changed. `src/api/schema.d.ts` now has 20,443 lines.
+
+The checks ran again on the merged branch in Claude's review environment (Linux, Node.js 24.22.3), with the API at migration `0029`.
+
+| Check | Result |
+|---|---|
+| `npm ci` | 404 packages, as locked. |
+| `npm run typecheck`, `npm run lint`, `npm run api:check` | No error, no finding, and the types match the contract. |
+| `npm test` | 199 of 199 pass. |
+| `npm run build`, `npm run build:check` | Built; no secret, key, token or backend setting was found. |
+| Journeys in Chromium | Every one of the 38 cases passed: 35 in the full run, and the other 3 when they were run again on their own (see below). The browser was Chrome for Testing 158.0.8127.36, the build installed in that environment, in place of Playwright's own build 1248. |
+
+Not run again: the journeys in Firefox, which that environment does not have, and the removed protections of section 3.1, whose sources the merge did not change.
+
+**An intermittent failure of the journeys' own requests.** In the full run, three of the four variants of "the first-agency screen has no serious accessibility finding" stopped at their first statement with `fetch failed` (`other side closed`), before any page was opened. A second run of that file stopped one variant in the same way, and all four variants passed when they were run on their own. The cause is in the test support, not in the application or the API:
+- the request that a test itself sends to the API (`tests/browser/support/people.ts`) reuses an idle connection;
+- the API closes an idle connection after five seconds;
+- the test before this one spends about five seconds in the browser without such a request.
+
+Making these requests open a new connection, or try once more, is carried to the next slice (section 8.2).
+
 ## 4. Isolation of the checks
 - The journeys and the sandbox use the Compose project `tracking-e2e-frontend`: database `tracking_e2e_frontend` on `127.0.0.1:56434`, the API on `127.0.0.1:8010` and the application on `127.0.0.1:5183`. The container, its volume, the captured mail and the build are removed when a run ends.
 - Before anything connects to a database, the stack asks the backend which settings it will use and stops unless they name that database, local mail capture, Google sign-in off and the application's origin. Inherited `TRACKING_`, `PG`, `PYTHON` and `VITE_` variables are dropped, and every secret is random for one run.
@@ -180,3 +206,4 @@ Before the pull request was opened, main had moved: PR 15 merged specifications 
 - Clients, team and access, connections (018-B); reports with charts (018-C); links, tracking and integrations (018-D).
 - The agency and the client in the address, so a deep link names its tenant. In this slice the chosen agency is remembered by its identifier in the browser and forgotten at sign-out.
 - Splitting the script by route, once there is more than the first two pages of the workspace.
+- The journeys' own requests to the API can meet a connection that the API has just closed (section 3.6); they should open a new connection or try once more.

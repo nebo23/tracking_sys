@@ -948,6 +948,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Attribution Models */
+        get: operations["list_attribution_models_agencies__agency_id__clients__client_id__attribution_models_get"];
+        put?: never;
+        /** Create Attribution Model */
+        post: operations["create_attribution_model_agencies__agency_id__clients__client_id__attribution_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/models/{version_id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Default Attribution Model */
+        post: operations["set_default_attribution_model_agencies__agency_id__clients__client_id__attribution_models__version_id__default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/models/{version_id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retire Attribution Model */
+        post: operations["retire_attribution_model_agencies__agency_id__clients__client_id__attribution_models__version_id__retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Attribution Status */
+        get: operations["read_attribution_status_agencies__agency_id__clients__client_id__attribution_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/conversions/{conversion_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Attribution Runs */
+        get: operations["read_attribution_runs_agencies__agency_id__clients__client_id__attribution_conversions__conversion_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agencies/{agency_id}/clients/{client_id}/link-campaigns": {
         parameters: {
             query?: never;
@@ -2158,6 +2244,16 @@ export interface components {
             /** Expected Revision */
             expected_revision?: number | null;
         };
+        /** AttributionStatusView */
+        AttributionStatusView: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "caught_up" | "behind" | "rebuilding";
+            consumer: components["schemas"]["ConsumerView"];
+            current: components["schemas"]["WatermarkView"];
+        };
         /** AuditResponse */
         AuditResponse: {
             /**
@@ -2493,6 +2589,30 @@ export interface components {
              */
             server_time: string;
         };
+        /** ConsumerView */
+        ConsumerView: {
+            /** Generation */
+            generation: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "building" | "failed";
+            /** Failure Code */
+            failure_code: string | null;
+            /** Unit */
+            unit: ("incremental" | "rebuild") | null;
+            /** Ledger Generation */
+            ledger_generation: number;
+            /** Receipt Ordinal */
+            receipt_ordinal: number;
+            /** Identity Seq */
+            identity_seq: number;
+            /** Model Set Current */
+            model_set_current: boolean;
+            /** Published At */
+            published_at: string | null;
+        };
         /** ContentInput */
         ContentInput: {
             /** External Code */
@@ -2535,6 +2655,61 @@ export interface components {
             platform_label?: string | null;
             /** Status */
             status?: ("active" | "archived") | null;
+        };
+        /** ConversionRunsView */
+        ConversionRunsView: {
+            /** Generation */
+            generation: number;
+            conversion: components["schemas"]["ConversionView"];
+            model_version: components["schemas"]["ModelVersionView"];
+            /** Runs */
+            runs: components["schemas"]["RunView"][];
+        };
+        /** ConversionTransactionView */
+        ConversionTransactionView: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable" | "not_applicable";
+            /** Source Account Id */
+            source_account_id: string | null;
+            /** Sale Operation Id */
+            sale_operation_id: string | null;
+        };
+        /** ConversionView */
+        ConversionView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sale" | "lead";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "superseded";
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /** Superseded At */
+            superseded_at: string | null;
+            /** Superseded Reason */
+            superseded_reason: string | null;
+            /** Scrubbed */
+            scrubbed: boolean;
+            /** Person Id */
+            person_id: string | null;
+            /** Lead Event Id */
+            lead_event_id: string | null;
+            transaction: components["schemas"]["ConversionTransactionView"];
         };
         /** CostState */
         CostState: {
@@ -3546,6 +3721,71 @@ export interface components {
             /** Reason */
             reason: ("not_returned" | "below_threshold") | null;
         };
+        /** ModelOperationInput */
+        ModelOperationInput: {
+            /**
+             * Operation Id
+             * Format: uuid
+             */
+            operation_id: string;
+        };
+        /** ModelVersionInput */
+        ModelVersionInput: {
+            /**
+             * Operation Id
+             * Format: uuid
+             */
+            operation_id: string;
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "first_click" | "last_click" | "linear";
+            /** Window Days */
+            window_days: number;
+        };
+        /** ModelVersionList */
+        ModelVersionList: {
+            /** Versions */
+            versions: components["schemas"]["ModelVersionView"][];
+            /** Default Version Id */
+            default_version_id: string | null;
+            /** Active Limit */
+            active_limit: number;
+        };
+        /** ModelVersionView */
+        ModelVersionView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Version Key */
+            version_key: string;
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "first_click" | "last_click" | "linear";
+            /** Window Days */
+            window_days: number;
+            /** Rules */
+            rules: string;
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "retired";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Retired At */
+            retired_at: string | null;
+        };
         /** NumberInput */
         NumberInput: {
             /** Phone Number Id */
@@ -4141,6 +4381,122 @@ export interface components {
              */
             updated_at: string;
         };
+        /** RunAllocationView */
+        RunAllocationView: {
+            /** Ordinal */
+            ordinal: number;
+            /** Credited */
+            credited: boolean;
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "campaign" | "direct" | "unknown";
+            /** Basis */
+            basis: string;
+            /** Position */
+            position: number;
+            share: components["schemas"]["ShareView"];
+            /** Amount Minor */
+            amount_minor: number | null;
+            /** Touchpoint Id */
+            touchpoint_id: string | null;
+            /** Evidence Class */
+            evidence_class: string | null;
+            /** Occurred At */
+            occurred_at: string | null;
+            /** Source */
+            source: string | null;
+            /** Campaign Ref */
+            campaign_ref: string | null;
+            /** Content Ref */
+            content_ref: string | null;
+            /** Link Ref */
+            link_ref: string | null;
+        };
+        /** RunDifferenceView */
+        RunDifferenceView: {
+            /** Ordinal */
+            ordinal: number;
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "campaign" | "direct" | "unknown";
+            /** Touchpoint Id */
+            touchpoint_id: string | null;
+            /** Source */
+            source: string | null;
+            /** Campaign Ref */
+            campaign_ref: string | null;
+            /** Content Ref */
+            content_ref: string | null;
+            /** Link Ref */
+            link_ref: string | null;
+            delta_share: components["schemas"]["ShareView"];
+            /** Delta Minor */
+            delta_minor: number | null;
+        };
+        /** RunExcludedView */
+        RunExcludedView: {
+            /** Touchpoint Id */
+            touchpoint_id: string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** RunView */
+        RunView: {
+            /** Revision */
+            revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "no_verified_revenue" | "net_out_of_range" | "superseded";
+            /** Basis */
+            basis: string | null;
+            /** Causes */
+            causes: string[];
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Window Start */
+            window_start: string | null;
+            /** Window End */
+            window_end: string | null;
+            /**
+             * Amounts
+             * @enum {string}
+             */
+            amounts: "available" | "permission_unavailable" | "not_applicable";
+            /** Currency */
+            currency: string | null;
+            /** Currency Exponent */
+            currency_exponent: number | null;
+            /** Verified Net Minor */
+            verified_net_minor: number | null;
+            /** Ledger Generation */
+            ledger_generation: number | null;
+            /** Receipt Ordinal */
+            receipt_ordinal: number | null;
+            /** Identity Seq */
+            identity_seq: number;
+            /** Touch Bound Exceeded */
+            touch_bound_exceeded: boolean;
+            /** Allocations */
+            allocations: components["schemas"]["RunAllocationView"][];
+            /** Differences */
+            differences: components["schemas"]["RunDifferenceView"][];
+            /** Excluded */
+            excluded: components["schemas"]["RunExcludedView"][];
+        };
         /** ServiceKeyInput */
         ServiceKeyInput: {
             /** Name */
@@ -4193,6 +4549,13 @@ export interface components {
             user: components["schemas"]["UserResponse"];
             /** Csrf Token */
             csrf_token: string;
+        };
+        /** ShareView */
+        ShareView: {
+            /** Numerator */
+            numerator: number;
+            /** Denominator */
+            denominator: number;
         };
         /** SignedRequestResult */
         SignedRequestResult: {
@@ -5028,6 +5391,20 @@ export interface components {
             corrected: string;
             /** Net */
             net: string;
+        };
+        /** WatermarkView */
+        WatermarkView: {
+            /**
+             * Ledger
+             * @enum {string}
+             */
+            ledger: "available" | "unavailable" | "none";
+            /** Ledger Generation */
+            ledger_generation: number | null;
+            /** Receipt Ordinal */
+            receipt_ordinal: number | null;
+            /** Identity Seq */
+            identity_seq: number;
         };
         /** IssuedSource */
         app__api__collection_schemas__IssuedSource: {
@@ -11604,6 +11981,608 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonErasureResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_attribution_models_agencies__agency_id__clients__client_id__attribution_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelVersionList"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_attribution_model_agencies__agency_id__clients__client_id__attribution_models_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelVersionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelVersionView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_default_attribution_model_agencies__agency_id__clients__client_id__attribution_models__version_id__default_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelOperationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelVersionView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retire_attribution_model_agencies__agency_id__clients__client_id__attribution_models__version_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelOperationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelVersionView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_attribution_status_agencies__agency_id__clients__client_id__attribution_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributionStatusView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_attribution_runs_agencies__agency_id__clients__client_id__attribution_conversions__conversion_id__runs_get: {
+        parameters: {
+            query?: {
+                model_version?: string | null;
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+                conversion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversionRunsView"];
                 };
             };
             /** @description Bad Request */
