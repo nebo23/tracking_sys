@@ -43,6 +43,7 @@ from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
 from app.reporting.common import ReportError
 from app.security import AuthError, RateLimited
+from app.services.agency_closure import ClosureRefused
 from app.services.attribution_models import AttributionError
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
@@ -121,7 +122,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "reports over stored facts on source-native days, with previous-period "
             "comparisons, revision-bound pages and bounded CSV downloads. "
             "Plans (specification 017-A): every agency has a plan whose limits the server "
-            "enforces on creation, and a usage view."
+            "enforces on creation, a usage view, and agency closure by its Owner with a "
+            "30-day grace period."
         ),
         lifespan=lifespan,
         responses={
@@ -256,6 +258,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             status_code=409,
         )
+
+    # Agency closure refusals (017-A, D8) carry a closed code.
+    @application.exception_handler(ClosureRefused)
+    async def closure_refused(request: Request, error: ClosureRefused) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
 
     # An agency without a current plan, or no default plan for a new agency (017-A); never
     # expected, because the migration and agency creation assign one.

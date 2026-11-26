@@ -86,7 +86,10 @@ def test_registration_verification_and_authenticated_agency_flow(api, db):
     agency = api.client.post("/agencies", json={"name": "Synthetic Agency"})
     assert agency.status_code == 201
     aid = agency.json()["id"]
-    assert api.client.get("/agencies").json() == [{"agency_id": aid, "role": "owner"}]
+    # 017-A (D8) adds the agency's status to the list.
+    assert api.client.get("/agencies").json() == [
+        {"agency_id": aid, "role": "owner", "status": "active"}
+    ]
     client = api.client.post(f"/agencies/{aid}/clients", json={"name": "Synthetic Client"})
     assert client.status_code == 201
     assert api.client.get(f"/agencies/{aid}/clients").json() == [client.json()]

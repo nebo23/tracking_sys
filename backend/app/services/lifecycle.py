@@ -685,6 +685,11 @@ def run_lifecycle(
             except OperationalError:
                 connection.rollback()
                 incomplete.append("attribution")
+            # 017-A (D-092 D8): mark agencies closed whose closure grace period has ended,
+            # in bounded batches; reported only when a closure was completed.
+            completed = _complete_closures(connection, cutoff, size, max_batches, incomplete)
+            if completed:
+                deleted["agency_closures_completed"] = completed
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))
@@ -698,6 +703,33 @@ def run_lifecycle(
         "deleted": {**deleted, "local_mail_files": files["deleted"]},
         "incomplete": incomplete,
     }
+
+
+def _complete_closures(
+    connection: Any,
+    cutoff: datetime,
+    size: int,
+    max_batches: int | None,
+    incomplete: list[str],
+) -> int:
+    from app.services import agency_lifecycle
+
+    completed = batches = 0
+    while max_batches is None or batches < max_batches:
+        try:
+            count = agency_lifecycle.complete_closures(connection, cutoff, size)
+            connection.commit()
+        except OperationalError:
+            connection.rollback()
+            incomplete.append("agency_closures")
+            break
+        batches += 1
+        completed += count
+        if count < size:
+            break
+    else:
+        incomplete.append("agency_closures")
+    return completed
 
 
 def _mark(incomplete: list[str], scoped: Sequence[Target]) -> None:

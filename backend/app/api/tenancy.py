@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import (
@@ -51,25 +51,32 @@ def create_agency(data: AgencyInput, session: SessionDep, browser: BrowserDep) -
     )
 
 
-# List the caller's active memberships in active agencies (agency ID and role only).
+# List the caller's active memberships in active agencies (agency ID, role and status), and
+# the closing agencies in which the caller is an active Owner (017-A, D8).
 @router.get("/agencies", response_model=list[AgencyAccess])
 def list_agencies(
     session: SessionDep, browser: BrowserDep, limit: Limit = 100, offset: Offset = 0
 ) -> list[AgencyAccess]:
     # Client viewers learn their scope IDs without receiving the private agency profile.
-    memberships = session.scalars(
-        select(AgencyMembership)
+    rows = session.execute(
+        select(AgencyMembership.agency_id, AgencyMembership.role, Agency.status)
         .join(Agency, Agency.id == AgencyMembership.agency_id)
         .where(
             AgencyMembership.user_id == browser.user.id,
             AgencyMembership.status == "active",
-            Agency.status == "active",
+            or_(
+                Agency.status == "active",
+                and_(Agency.status == "closing", AgencyMembership.role == "owner"),
+            ),
         )
         .order_by(AgencyMembership.agency_id)
         .limit(limit)
         .offset(offset)
     )
-    return [AgencyAccess.model_validate(member) for member in memberships]
+    return [
+        AgencyAccess(agency_id=agency_id, role=role, status=status)
+        for agency_id, role, status in rows
+    ]
 
 
 # Read an agency profile; denied to ClientViewer members and non-members.

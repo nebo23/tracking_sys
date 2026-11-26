@@ -143,10 +143,15 @@ class AgencyResponse(Output):
     created_at: datetime
 
 
-# Membership summary for the agency list: agency identifier and the caller's role only.
+# Membership summary for the agency list: agency identifier, the caller's role and the agency's
+# status. A closing agency (017-A, D8) is listed only for its Owners, who can still read and
+# cancel its closure; suspended and closed agencies are not listed.
 class AgencyAccess(Output):
     agency_id: UUID
     role: Role
+    status: Literal["active", "closing"] = Field(
+        description="active, or closing for an Owner whose agency awaits its closure."
+    )
 
 
 # Partial client update; the route rejects a body with neither field.
@@ -263,6 +268,27 @@ class AgencyPlanResponse(Output):
     limits: list[PlanLimitUse]
     tracked_events: TrackedEventsUse
     as_of: datetime
+
+
+# Agency closure (017-A, D8): the agency's exact name, and the current password for an account
+# that has one; an account without a password omits it and must use a recent session.
+class AgencyClosureInput(Input):
+    confirm_name: str = Field(min_length=1, max_length=200)
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=128)
+
+
+class OpenAgencyClosure(Output):
+    id: UUID
+    requested_at: datetime
+    closes_at: datetime
+    requested_by_membership_id: UUID
+
+
+# The closure state of an agency for its Owners: closing with its open closure, or active.
+class AgencyClosureResponse(Output):
+    agency_id: UUID
+    agency_status: Literal["active", "closing"]
+    closure: OpenAgencyClosure | None
 
 
 # Audit event projection: identifiers and action codes only, without payload data. The actor
