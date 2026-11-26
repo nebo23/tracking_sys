@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-26 under D-088.
 - **Baseline:** merged `main` at `f15b6e4` (PR 16: Spec 008-B, persisted attribution).
-- **Status:** proposals for the owner. Decisions D1-D14 are not approved until the owner approves them, which will be recorded as D-089.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-26 (D-089), including ROAS down to the ad with the adapter change of D7.
 - **Handoff:** the [implementation handoff](implementation-prompt-016b.md) executes this packet after approval.
 
 The decisions below are numbered within this packet. D1-D12 of the [016 entry review](entry-review.md), which D-072 approved for 016-A, stay in force and are cited as "016 D1" to "016 D12".

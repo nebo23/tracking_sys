@@ -1,6 +1,6 @@
 # Spec 016-B implementation: attribution reports
 
-Prepared 2026-11-26 under D-088. It executes once the owner's approval of decisions D1-D14 of the [016-B entry review](entry-review-016b.md) is recorded as D-089. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/016-analytics-reporting/implementation-prompt-016b.md` on the branch below.
+Prepared 2026-11-26 under D-088. The owner approved decisions D1-D14 of the [016-B entry review](entry-review-016b.md) as recommended, without amendment, on 2026-11-26; the approval is recorded as D-089, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/016-analytics-reporting/implementation-prompt-016b.md` on the branch below.
 
 ## Where to work
 
