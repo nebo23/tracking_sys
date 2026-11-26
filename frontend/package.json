@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "sandbox": "node tests/browser/support/sandbox.ts",
     "api:types": "openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts",
     "api:check": "node scripts/check-api-types.mjs"
   },

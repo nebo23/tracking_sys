@@ -1,0 +1,48 @@
+import type { ReactNode } from 'react';
+import { FormattedMessage } from 'react-intl';
+
+import type { ErrorMessage } from '@/api/errors';
+import { cx } from '@/lib/cx';
+
+import { Icon, type IconName } from './Icon';
+
+type Tone = 'info' | 'success' | 'warning' | 'danger';
+
+const icons: Record<Tone, IconName> = {
+  info: 'info',
+  success: 'circle-check',
+  warning: 'triangle-alert',
+  danger: 'circle-alert',
+};
+
+interface NoticeProps {
+  tone?: Tone;
+  title?: ReactNode;
+  children: ReactNode;
+  /** A link or button that resolves the notice. */
+  action?: ReactNode;
+}
+
+/** A message about the page. Problems are announced at once; other notices wait their turn. */
+export function Notice({ tone = 'info', title, children, action }: NoticeProps) {
+  return (
+    <div className={cx('c-banner', tone !== 'info' && `c-banner--${tone}`)} role={tone === 'danger' ? 'alert' : 'status'}>
+      <Icon name={icons[tone]} />
+      <div className="c-banner__text">
+        {title ? <p className="c-banner__title">{title}</p> : null}
+        <p>{children}</p>
+        {action ? <p>{action}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/** The sentence for a failed request, or nothing while there is no failure. */
+export function ErrorNotice({ message, action }: { message: ErrorMessage | null; action?: ReactNode }) {
+  if (!message) return null;
+  return (
+    <Notice tone="danger" action={action}>
+      <FormattedMessage id={message.id} values={message.values} />
+    </Notice>
+  );
+}

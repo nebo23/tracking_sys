@@ -1,6 +1,6 @@
 # 018-A evidence
 
-Status: in progress. Step 2 of the [018-A plan](plan-018a.md) is paused at its installation gate (section 4.5): the licence check found eight packages whose licence is not on the approved list. No application code has been written.
+Status: in progress. The installation gate of the [018-A plan](plan-018a.md) (section 4.5) was passed on 2026-11-26: the owner accepted the eight packages of section 1.4 (D-078).
 
 ## 1. Installation on 2026-11-26
 Environment: Windows 11, Node.js 24.17.0, npm 11.13.0. The install ran inside `frontend/` from `package.json`, in which every version is exact, and created `package-lock.json`.
@@ -49,4 +49,4 @@ Section 4.5 of the plan approves MIT, Apache-2.0, BSD, ISC, OFL-1.1 and MPL-2.0.
 
 Assessment: all eight are permissive. None requires publishing source code and none restricts commercial use. 0BSD, the Unlicense and CC0-1.0 ask for nothing at all; BlueOak-1.0.0 and Python-2.0 ask to keep the licence text; CC-BY-4.0 covers a data file used by a development tool and asks for attribution if that data is redistributed, which the application does not do. This is an engineering reading, not legal advice.
 
-Gate: section 4.5 sends such a finding to the owner before any code is written. The decision is pending.
+Gate: section 4.5 sends such a finding to the owner before any code is written. The owner accepted the eight packages at their locked versions on 2026-11-26 (D-078).
