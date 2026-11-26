@@ -35,6 +35,24 @@ class ErrorResponse(Output):
     error: str
 
 
+# A 409 answer of a route that creates or enables a counted resource (017-A, D4): a state
+# conflict, or plan_limit_reached with the limit, its value and the current use. It extends
+# ErrorResponse, so every other 409 code keeps its shape.
+class PlanLimitError(ErrorResponse):
+    limit: Literal["clients", "seats", "connections", "managed_links"] | None = None
+    value: int | None = None
+    used: int | None = None
+
+
+PLAN_LIMIT = {
+    409: {
+        "model": PlanLimitError,
+        "description": "plan_limit_reached with the limit, its value and the use, or another "
+        "state conflict.",
+    }
+}
+
+
 # Generic acknowledgement for registration and recovery requests; it is identical whether or
 # not an eligible account exists, which limits account enumeration.
 class Acknowledgement(Output):
@@ -211,6 +229,40 @@ class ServiceKeyResponse(Output):
 class IssuedServiceKey(Output):
     credential: ServiceKeyResponse
     key: str
+
+
+# The usage view of an agency (017-A, D6): its current plan, the use of each counted limit and
+# the current UTC month's tracked events. It names no client, person or event.
+class PlanSummary(Output):
+    key: str
+    name: str
+    assigned_at: datetime
+
+
+class PlanLimitUse(Output):
+    limit: Literal["clients", "seats", "connections", "managed_links"]
+    value: int | None = Field(description="The plan's limit; null when unlimited.")
+    used: int
+    state: Literal["within", "at_limit", "unlimited"]
+
+
+class TrackedEventsUse(Output):
+    period_start: datetime
+    period_end: datetime
+    count: int
+    count_capped: bool = Field(
+        description="True when more events exist than the bounded count reports."
+    )
+    allowance: int | None = Field(description="The monthly allowance; null when unlimited.")
+    state: Literal["within", "over_allowance", "unlimited"]
+
+
+class AgencyPlanResponse(Output):
+    agency_id: UUID
+    plan: PlanSummary
+    limits: list[PlanLimitUse]
+    tracked_events: TrackedEventsUse
+    as_of: datetime
 
 
 # Audit event projection: identifiers and action codes only, without payload data. The actor

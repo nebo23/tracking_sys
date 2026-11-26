@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads.",
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads. Plans (specification 017-A): every agency has a plan whose limits the server enforces on creation, and a usage view.",
     "version": "0.5.0"
   },
   "paths": {
@@ -2784,14 +2784,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "plan_limit_reached with the limit, its value and the use, or another state conflict.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -3243,14 +3243,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "plan_limit_reached with the limit, its value and the use, or another state conflict.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -3605,14 +3605,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "plan_limit_reached with the limit, its value and the use, or another state conflict.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -4294,14 +4294,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "plan_limit_reached with the limit, its value and the use, or another state conflict.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -5278,6 +5278,163 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/plan": {
+      "get": {
+        "tags": [
+          "Plans and closure"
+        ],
+        "summary": "Agency Plan",
+        "operationId": "agency_plan_agencies__agency_id__plan_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgencyPlanResponse"
+                }
+              }
+            }
           },
           "400": {
             "content": {
@@ -14628,11 +14785,11 @@
             "description": "Forbidden"
           },
           "409": {
-            "description": "Host or uniqueness conflict.",
+            "description": "Host or uniqueness conflict, or plan_limit_reached with the limit, its value and the use.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
             }
@@ -14975,14 +15132,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "Host or uniqueness conflict, or plan_limit_reached with the limit, its value and the use.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -15267,14 +15424,14 @@
             "description": "Forbidden"
           },
           "409": {
+            "description": "plan_limit_reached with the limit, its value and the use, or another state conflict.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/PlanLimitError"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
             "content": {
@@ -25401,6 +25558,42 @@
         ],
         "title": "AgencyInput"
       },
+      "AgencyPlanResponse": {
+        "properties": {
+          "agency_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Agency Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanSummary"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/PlanLimitUse"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "tracked_events": {
+            "$ref": "#/components/schemas/TrackedEventsUse"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agency_id",
+          "plan",
+          "limits",
+          "tracked_events",
+          "as_of"
+        ],
+        "title": "AgencyPlanResponse"
+      },
       "AgencyResponse": {
         "properties": {
           "id": {
@@ -32325,6 +32518,129 @@
         ],
         "title": "PersonErasureResponse"
       },
+      "PlanLimitError": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "clients",
+                  "seats",
+                  "connections",
+                  "managed_links"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "used": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "PlanLimitError"
+      },
+      "PlanLimitUse": {
+        "properties": {
+          "limit": {
+            "type": "string",
+            "enum": [
+              "clients",
+              "seats",
+              "connections",
+              "managed_links"
+            ],
+            "title": "Limit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "The plan's limit; null when unlimited."
+          },
+          "used": {
+            "type": "integer",
+            "title": "Used"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "within",
+              "at_limit",
+              "unlimited"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "limit",
+          "value",
+          "used",
+          "state"
+        ],
+        "title": "PlanLimitUse"
+      },
+      "PlanSummary": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "assigned_at"
+        ],
+        "title": "PlanSummary"
+      },
       "ReadinessResponse": {
         "properties": {
           "status": {
@@ -37102,6 +37418,60 @@
           "token"
         ],
         "title": "TokenInput"
+      },
+      "TrackedEventsUse": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Period End"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "count_capped": {
+            "type": "boolean",
+            "title": "Count Capped",
+            "description": "True when more events exist than the bounded count reports."
+          },
+          "allowance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowance",
+            "description": "The monthly allowance; null when unlimited."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "within",
+              "over_allowance",
+              "unlimited"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end",
+          "count",
+          "count_capped",
+          "allowance",
+          "state"
+        ],
+        "title": "TrackedEventsUse"
       },
       "Unresolved": {
         "properties": {

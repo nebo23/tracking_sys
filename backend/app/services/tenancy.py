@@ -160,9 +160,11 @@ class TenancyService:
         self._audit(agency_id, "agency.updated", "agency", agency_id)
         return agency
 
-    # Create a client workspace under the manager write lock; audited with its client ID.
+    # Create a client workspace under the manager write lock, within the plan's client limit
+    # (017-A, D4); audited with its client ID.
     def create_client(self, agency_id: UUID, name: str) -> ClientWorkspace:
         self._manager(agency_id, write=True)
+        plans.require_capacity(self.session, agency_id, "clients")
         client = ClientWorkspace(agency_id=agency_id, name=self._name(name))
         self.session.add(client)
         self.session.flush()
@@ -264,7 +266,7 @@ class TenancyService:
                 raise AccessDenied()
 
     # Rename or change the status of a client (including archived ones) under the manager write
-    # lock; audited.
+    # lock; reactivating an archived client counts like a creation (017-A, D4). Audited.
     def update_client(
         self,
         agency_id: UUID,
@@ -283,6 +285,8 @@ class TenancyService:
             raise AccessDenied()
         if status is not None and status not in {"active", "archived"}:
             raise ValueError("Invalid workspace status.")
+        if status == "active" and client.status != "active":
+            plans.require_capacity(self.session, agency_id, "clients")
         if name is not None:
             client.name = self._name(name)
         if status is not None:
@@ -291,8 +295,12 @@ class TenancyService:
         return client
 
     # Add an active user as a member under the manager write lock. Only an Owner may add an Owner;
-    # an existing membership in the agency conflicts. Audited as the acting manager.
-    def add_member(self, agency_id: UUID, user_id: UUID, role: Role) -> AgencyMembership:
+    # an existing membership in the agency conflicts. A new seat must fit the plan's seat limit
+    # (017-A, D4); an accepted invitation already holds its seat (seat_reserved). Audited as the
+    # acting manager.
+    def add_member(
+        self, agency_id: UUID, user_id: UUID, role: Role, *, seat_reserved: bool = False
+    ) -> AgencyMembership:
         actor = self._manager(agency_id, write=True)
         role = Role(role)
         if role == Role.OWNER and actor.role != Role.OWNER:
@@ -305,6 +313,8 @@ class TenancyService:
         )
         if existing is not None:
             raise MembershipConflict("This user already has a membership in the agency.")
+        if not seat_reserved:
+            plans.require_capacity(self.session, agency_id, "seats")
         member = AgencyMembership(agency_id=agency_id, user_id=user_id, role=role.value)
         self.session.add(member)
         self.session.flush()
@@ -324,7 +334,8 @@ class TenancyService:
 
     # Change role/status under the agency write lock. Admins cannot change or create Owners. Because
     # the lock serializes all agency mutations, the active-Owner count cannot race: removing or
-    # demoting the last active Owner whose user is active raises MembershipConflict. Audited.
+    # demoting the last active Owner whose user is active raises MembershipConflict. Enabling a
+    # disabled membership takes a seat like a creation (017-A, D4). Audited.
     def update_member(
         self,
         agency_id: UUID,
@@ -359,6 +370,8 @@ class TenancyService:
             )
             if owners is None or owners <= 1:
                 raise MembershipConflict("An agency must retain an active Owner.")
+        if next_status == "active" and member.status != "active":
+            plans.require_capacity(self.session, agency_id, "seats")
         member.role, member.status = next_role.value, next_status
         self._audit(agency_id, "membership.updated", "membership", member.id)
         return member

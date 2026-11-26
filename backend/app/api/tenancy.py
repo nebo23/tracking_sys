@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import (
+    PLAN_LIMIT,
     AgencyAccess,
     AgencyInput,
     AgencyResponse,
@@ -89,8 +90,14 @@ def update_agency(
     )
 
 
-# Create a client workspace in the agency (Owner/Admin); audited.
-@router.post("/agencies/{agency_id}/clients", status_code=201, response_model=ClientResponse)
+# Create a client workspace in the agency (Owner/Admin) within the plan's client limit;
+# audited.
+@router.post(
+    "/agencies/{agency_id}/clients",
+    status_code=201,
+    response_model=ClientResponse,
+    responses=PLAN_LIMIT,
+)
 def create_client(
     agency_id: UUID, data: AgencyInput, session: SessionDep, browser: BrowserDep
 ) -> ClientResponse:
@@ -152,8 +159,11 @@ def get_client(
     return ClientResponse.model_validate(client)
 
 
-# Rename or archive/reactivate a client (Owner/Admin); requires at least one field; audited.
-@router.patch("/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse)
+# Rename or archive/reactivate a client (Owner/Admin); requires at least one field; a
+# reactivation must fit the plan's client limit; audited.
+@router.patch(
+    "/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse, responses=PLAN_LIMIT
+)
 def update_client(
     agency_id: UUID, client_id: UUID, data: ClientUpdate, session: SessionDep, browser: BrowserDep
 ) -> ClientResponse:
@@ -183,8 +193,13 @@ def list_members(
     ]
 
 
-# Change a member's role or status under Owner rules and last-active-Owner protection; audited.
-@router.patch("/agencies/{agency_id}/members/{membership_id}", response_model=MembershipResponse)
+# Change a member's role or status under Owner rules and last-active-Owner protection; enabling
+# a disabled member must fit the plan's seat limit; audited.
+@router.patch(
+    "/agencies/{agency_id}/members/{membership_id}",
+    response_model=MembershipResponse,
+    responses=PLAN_LIMIT,
+)
 def update_member(
     agency_id: UUID,
     membership_id: UUID,
@@ -254,6 +269,7 @@ def access(request: Request, session: SessionDep, browser: BrowserDep) -> Access
     status_code=201,
     response_model=InvitationResponse,
     tags=["Invitations"],
+    responses=PLAN_LIMIT,
 )
 def issue_invitation(
     agency_id: UUID,

@@ -29,6 +29,7 @@ from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
 from app.api.payments import callback_router as payment_callback_router
 from app.api.payments import router as payments_router
+from app.api.plans import router as plans_router
 from app.api.public_cors import PlatformCors, PublicCollectionCors
 from app.api.reports import router as reports_router
 from app.api.revenue import router as revenue_router
@@ -52,7 +53,7 @@ from app.services.integrations import IntegrationError
 from app.services.ledger_store import LedgerConflict, LedgerUnavailable
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
-from app.services.plans import PlanUnavailable
+from app.services.plans import PlanLimitReached, PlanUnavailable
 from app.services.revenue_identity import AssociationError
 from app.services.tenancy import AccessDenied, MembershipConflict
 from app.services.whatsapp import WhatsappError
@@ -118,7 +119,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "CRM stage changes through signed integration sources, and WhatsApp referrals. "
             "Reports (specification 016-A): social, advertising spend and recorded-revenue "
             "reports over stored facts on source-native days, with previous-period "
-            "comparisons, revision-bound pages and bounded CSV downloads."
+            "comparisons, revision-bound pages and bounded CSV downloads. "
+            "Plans (specification 017-A): every agency has a plan whose limits the server "
+            "enforces on creation, and a usage view."
         ),
         lifespan=lifespan,
         responses={
@@ -240,6 +243,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def access_error(request: Request, error: AccessDenied) -> JSONResponse:
         return JSONResponse({"error": "access_denied"}, status_code=403)
 
+    # A creation beyond a limit of the agency's plan (017-A, D4): the limit, its value and the
+    # current use, never a name or an identifier.
+    @application.exception_handler(PlanLimitReached)
+    async def plan_limit(request: Request, error: PlanLimitReached) -> JSONResponse:
+        return JSONResponse(
+            {
+                "error": PlanLimitReached.code,
+                "limit": error.limit,
+                "value": error.value,
+                "used": error.used,
+            },
+            status_code=409,
+        )
+
     # An agency without a current plan, or no default plan for a new agency (017-A); never
     # expected, because the migration and agency creation assign one.
     @application.exception_handler(PlanUnavailable)
@@ -284,6 +301,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router)
     application.include_router(google_router)
     application.include_router(tenancy_router)
+    application.include_router(plans_router)
     application.include_router(collection_router)
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)

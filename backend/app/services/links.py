@@ -56,6 +56,7 @@ from app.models import (
     LinkUtmTemplate,
     ManagedLink,
 )
+from app.services import plans
 from app.services.tenancy import AccessDenied, TenancyService
 
 HOST_NAMESPACE = 5005
@@ -416,7 +417,8 @@ class LinkAdmin(TenancyService):
 
     # Issue a link. The destination must fall under an active registered origin of this client;
     # campaign, content, and template must be active. The issued target URL, UTM snapshot,
-    # and provenance never change afterwards.
+    # and provenance never change afterwards. An active link must fit the plan's managed-link
+    # limit (017-A, D4).
     def create_link(
         self,
         agency_id: UUID,
@@ -432,6 +434,7 @@ class LinkAdmin(TenancyService):
         expires_at: datetime | None = None,
     ) -> ManagedLink:
         self._write(agency_id, client_id)
+        plans.require_capacity(self.session, agency_id, "managed_links")
         validate_slug(slug)
         loopback = self.settings.link_allow_loopback_destinations
         parts_origin = destination_origin(destination, allow_loopback=loopback)
@@ -489,7 +492,8 @@ class LinkAdmin(TenancyService):
         self._audit(agency_id, "link.created", "link", item.id, client_id)
         return item
 
-    # Status and expiry are the only mutable link fields.
+    # Status and expiry are the only mutable link fields. Enabling a disabled link counts like a
+    # creation (017-A, D4).
     def update_link(
         self,
         agency_id: UUID,
@@ -503,6 +507,8 @@ class LinkAdmin(TenancyService):
         self._write(agency_id, client_id)
         item = self._row(ManagedLink, agency_id, client_id, link_id)
         if self._status(status, {"active", "disabled"}) is not None:
+            if status == "active" and item.status != "active":
+                plans.require_capacity(self.session, agency_id, "managed_links")
             item.status = status
         if clear_expiry:
             item.expires_at = None

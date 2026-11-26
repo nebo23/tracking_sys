@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import distinct, func, literal, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
@@ -51,6 +51,17 @@ class PlanUnavailable(Exception):
     """The agency has no plan assignment, or no default plan exists; never expected."""
 
     code = "plan_unavailable"
+
+
+class PlanLimitReached(Exception):
+    """A creation would exceed a limit of the agency's current plan (D4): 409 with the limit,
+    its value and the current use."""
+
+    code = "plan_limit_reached"
+
+    def __init__(self, limit: Limit, value: int, used: int) -> None:
+        self.limit, self.value, self.used = limit, value, used
+        super().__init__(self.code)
 
 
 @dataclass(frozen=True)
@@ -193,6 +204,21 @@ def use(session: Session, agency_id: UUID, limit: Limit, now: datetime | None = 
     return int(session.scalar(query) or 0)
 
 
+# Refuse a creation, or a status change that raises use, that would exceed the current plan's
+# limit (D4). The caller holds the agency row lock, so the count includes every committed
+# creation and no concurrent creation can pass the same check. A missing limit never refuses;
+# nothing that exists is changed.
+def require_capacity(
+    session: Session, agency_id: UUID, limit: Limit, now: datetime | None = None
+) -> None:
+    value = getattr(current_plan(session, agency_id).plan, COLUMNS[limit])
+    if value is None:
+        return
+    used = use(session, agency_id, limit, now)
+    if used + 1 > value:
+        raise PlanLimitReached(limit, value, used)
+
+
 # The UTC calendar month containing an instant: [start, end).
 def month_of(instant: datetime) -> tuple[datetime, datetime]:
     moment = instant.astimezone(UTC)
@@ -213,8 +239,10 @@ def tracked_events(
     )
     count = 0
     if clients:
+        # The selected id is part of the (client_id, first_received_at, id) index, so the
+        # bounded scan can be index-only.
         bounded = (
-            select(literal(1))
+            select(CollectedEvent.id)
             .where(
                 CollectedEvent.agency_id == agency_id,
                 CollectedEvent.client_id.in_(clients),

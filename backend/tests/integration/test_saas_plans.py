@@ -1,23 +1,43 @@
-"""Plans, assignments, the operator command and migration 0031 (017-A, D-092).
+"""Plans, limits, usage, the operator command and migration 0031 (017-A, D-092).
 
-Cases SV01, SV08, SV09 and SV18 of the entry review's verification matrix, on synthetic data
-in the disposable database only. Later phases add the limit, usage and isolation cases.
+Cases SV01-SV09, SV18 and the plan part of SV19 of the entry review's verification matrix, on
+synthetic data in the disposable database only. Fixture imports deliberately expose the
+existing collection and managed-link fixtures to pytest.
 """
+
+# ruff: noqa: F811
 
 import json
 import subprocess
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
+from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import select, text
+from connector_support import make_lab
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.orm import Session
+from test_collection import c, envelope  # noqa: F401
+from test_links import SHOP, links, new_link, visit  # noqa: F401
 
 from app import agency_plans
 from app.config import BACKEND_ROOT
-from app.models import AgencyPlanAssignment, AuditEvent, SaasPlan
+from app.models import (
+    Agency,
+    AgencyPlanAssignment,
+    AuditEvent,
+    ClientWorkspace,
+    CollectedEvent,
+    ConnectorConnection,
+    SaasPlan,
+)
+from app.security import now_utc
+from app.services import plans
 from app.services.lifecycle import run_lifecycle
 from app.services.tenancy import tenancy_transaction
 
@@ -403,9 +423,9 @@ def test_sv18_upgrade_seeds_and_assigns_grants_and_guarded_downgrade(world):
         "user": w.users.owner_a,
         "digest": "c" * 64,
     }
-    for insert, cleanup in stored:
+    for statement, cleanup in stored:
         with w.db.migration.begin() as connection:
-            connection.execute(text(insert), {**values, "id": uuid4()})
+            connection.execute(text(statement), {**values, "id": uuid4()})
         with pytest.raises(RuntimeError, match="stored plan, closure or agreement state"):
             command.downgrade(CONFIG, PREVIOUS)
         assert _version(w.db) == HEAD
@@ -474,3 +494,472 @@ def test_agreements_of_closed_accounts_follow_the_credential_state(
     assert left == [(w.users.outsider,)]
     again = run_lifecycle(lifecycle_engine, lifecycle_settings)
     assert again["deleted"]["user_agreements"] == 0
+
+
+# --- P2: limits (SV02-SV05), tracked events (SV06), the usage view (SV07) and isolation (SV19)
+
+
+@pytest.fixture
+def lab(authenticated_world, api, tmp_path):
+    return make_lab(authenticated_world, api, tmp_path)
+
+
+def _limits(db, agency, **values) -> str:
+    key = f"tight-{uuid4().hex[:8]}"
+    _create(db, key, {**UNLIMITED, **{f"{name}_limit": value for name, value in values.items()}})
+    code, result = agency_plans.run(
+        db.runtime, "assign", agency=agency, plan=key, reason="plan_change"
+    )
+    assert code == 0, result
+    return key
+
+
+def _refused(response, limit: str, value: int, used: int) -> None:
+    assert response.status_code == 409, response.text
+    assert response.json() == {
+        "error": "plan_limit_reached",
+        "limit": limit,
+        "value": value,
+        "used": used,
+    }
+
+
+def _count(db, model, *where) -> int:
+    with Session(db.migration) as session:
+        return session.scalar(select(func.count()).select_from(model).where(*where))
+
+
+def test_sv02_clients_limit_refuses_exactly_the_creation_beyond_it(authenticated_world):
+    w = authenticated_world
+    owner = w.signed_in("owner_a")
+    base = f"/agencies/{w.a}/clients"
+    _limits(w.db, w.a, clients=3)
+    third = owner.post(base, json={"name": "Synthetic third"})
+    assert third.status_code == 201
+    _refused(owner.post(base, json={"name": "Synthetic fourth"}), "clients", 3, 3)
+    assert _count(w.db, ClientWorkspace, ClientWorkspace.agency_id == w.a) == 3
+    assert len(_audits(w.db, "client.created")) == 2 + 2 + 1  # world: A1, A2, B1, B2; third
+    # Archiving frees a place; reactivating an archived client counts like a creation.
+    assert owner.patch(f"{base}/{w.a1}", json={"status": "archived"}).status_code == 200
+    assert owner.post(base, json={"name": "Synthetic fourth"}).status_code == 201
+    _refused(owner.patch(f"{base}/{w.a1}", json={"status": "active"}), "clients", 3, 3)
+    assert owner.patch(f"{base}/{w.a1}", json={"name": "Renamed while archived"}).status_code == 200
+    # The other agency keeps its own plan and use.
+    assert (
+        w.signed_in("owner_b").post(f"/agencies/{w.b}/clients", json={"name": "B3"}).status_code
+        == 201
+    )
+
+
+def test_sv02_seats_count_members_and_pending_invitations(authenticated_world, api):
+    w = authenticated_world
+    owner = w.signed_in("owner_a")
+    base = f"/agencies/{w.a}"
+
+    def invite(email):
+        return owner.post(f"{base}/invitations", json={"email": email, "role": "analyst"})
+
+    _limits(w.db, w.a, seats=6)  # four active members
+    assert invite("second_owner@example.test").status_code == 201
+    assert invite("seat.two@example.test").status_code == 201
+    _refused(invite("seat.three@example.test"), "seats", 6, 6)
+    # Revoking an invitation frees its seat.
+    pending = {
+        item["email_normalized"]: item["id"] for item in owner.get(f"{base}/invitations").json()
+    }
+    assert owner.delete(f"{base}/invitations/{pending['seat.two@example.test']}").status_code == 204
+    assert invite("seat.three@example.test").status_code == 201
+    # An accepted invitation keeps its seat, also after a move to a smaller plan.
+    token = [t for to, subject, t in api.mail_tokens() if subject == "Agency invitation"][0]
+    _limits(w.db, w.a, seats=1)
+    accepted = w.signed_in("second_owner").post("/invitations/accept", json={"token": token})
+    assert accepted.status_code == 200, accepted.text
+    # Re-enabling a disabled member takes a seat like a creation.
+    assert owner.patch(f"{base}/members/{w.viewer}", json={"status": "disabled"}).status_code == 200
+    _refused(owner.patch(f"{base}/members/{w.viewer}", json={"status": "active"}), "seats", 1, 5)
+    assert owner.patch(f"{base}/members/{w.viewer}", json={"role": "analyst"}).status_code == 200
+
+
+def test_sv02_connections_are_limited_at_the_start_and_at_installation(lab):
+    w = lab.w
+    _limits(w.db, w.a, connections=1)
+    # Each authorization is bound to the browser that started it, so the admin starts this one
+    # while the agency has no live connection.
+    early = lab.start("admin", w.a, w.a2)
+    first = lab.connect("owner_a", w.a, w.a1, account="syn-acct-first")
+    started = lab.browser("owner_a").post(
+        f"/agencies/{w.a}/clients/{w.a2}/connections", json={"provider": "synthetic"}
+    )
+    _refused(started, "connections", 1, 1)
+    result, _ = lab.finish("admin", early, account="syn-acct-second")
+    assert result == {"error": "plan_limit_reached"}
+    assert lab.provider.grants()[-1] == ("syn-acct-second", True)  # the grant was disposed of
+    assert _count(w.db, ConnectorConnection, ConnectorConnection.agency_id == w.a) == 1
+    # A disconnect frees the place at once; a reconnect is never limited.
+    assert lab.disconnect("owner_a", w.a, w.a1, first).status_code == 202
+    assert lab.connect("owner_a", w.a, w.a2, account="syn-acct-third")
+
+
+def test_sv02_managed_links_limit_counts_active_links(links):
+    w = links.w
+    _limits(w.db, w.a, managed_links=2)
+    one, _two = new_link(links, "limit-one"), new_link(links, "limit-two")
+    body = {"slug": "limit-three", "destination": f"{SHOP}/offer?ref=spring"}
+    _refused(links.owner.post(f"{links.path}/managed-links", json=body), "managed_links", 2, 2)
+    path = f"{links.path}/managed-links/{one['id']}"
+    assert links.owner.patch(path, json={"status": "disabled"}).status_code == 200
+    assert links.owner.post(f"{links.path}/managed-links", json=body).status_code == 201
+    _refused(links.owner.patch(path, json={"status": "active"}), "managed_links", 2, 2)
+    # Changing an active link's expiry is never limited.
+    later = (now_utc() + timedelta(days=30)).isoformat()
+    second = f"{links.path}/managed-links/{_two['id']}"
+    assert links.owner.patch(second, json={"expires_at": later}).status_code == 200
+
+
+def test_sv02_a_missing_limit_never_refuses(authenticated_world):
+    w = authenticated_world
+    owner = w.signed_in("owner_a")
+    _limits(w.db, w.a)  # every limit unlimited
+    for index in range(5):  # beyond the development plan's five clients
+        assert (
+            owner.post(f"/agencies/{w.a}/clients", json={"name": f"Many {index}"}).status_code
+            == 201
+        )
+    assert _count(w.db, ClientWorkspace, ClientWorkspace.agency_id == w.a) == 7
+
+
+def _race(first, second):
+    barrier = Barrier(2)
+
+    def run(call):
+        barrier.wait(timeout=10)
+        return call()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        return sorted(executor.map(run, (first, second)))
+
+
+def test_sv03_concurrent_creations_at_the_limit_have_one_winner(authenticated_world, lab, links):
+    w = authenticated_world
+    owner, admin = w.signed_in("owner_a"), w.signed_in("admin")
+    base = f"/agencies/{w.a}"
+    _limits(w.db, w.a, clients=3, seats=5, connections=1, managed_links=1)
+    # Clients: two concurrent creations for the last place.
+    statuses = _race(
+        lambda: owner.post(f"{base}/clients", json={"name": "Race one"}).status_code,
+        lambda: admin.post(f"{base}/clients", json={"name": "Race two"}).status_code,
+    )
+    assert statuses == [201, 409]
+    assert _count(w.db, ClientWorkspace, ClientWorkspace.agency_id == w.a) == 3
+    # Invitations: the last seat.
+    statuses = _race(
+        lambda: (
+            owner.post(
+                f"{base}/invitations", json={"email": "race.one@example.test", "role": "analyst"}
+            ).status_code
+        ),
+        lambda: (
+            admin.post(
+                f"{base}/invitations", json={"email": "race.two@example.test", "role": "analyst"}
+            ).status_code
+        ),
+    )
+    assert statuses == [201, 409]
+    # Links: the last place.
+    statuses = _race(
+        lambda: (
+            owner.post(
+                f"{links.path}/managed-links",
+                json={"slug": "race-one", "destination": f"{SHOP}/offer?ref=one"},
+            ).status_code
+        ),
+        lambda: (
+            admin.post(
+                f"{links.path}/managed-links",
+                json={"slug": "race-two", "destination": f"{SHOP}/offer?ref=two"},
+            ).status_code
+        ),
+    )
+    assert statuses == [201, 409]
+    # Connections: two connects that both passed their start complete concurrently.
+    urls = (lab.start("owner_a", w.a, w.a1), lab.start("admin", w.a, w.a2))
+    outcomes = _race(
+        lambda: lab.finish("owner_a", urls[0], account="syn-race-one")[0].get("error", "ok"),
+        lambda: lab.finish("admin", urls[1], account="syn-race-two")[0].get("error", "ok"),
+    )
+    assert outcomes == ["ok", "plan_limit_reached"]
+    assert _count(w.db, ConnectorConnection, ConnectorConnection.agency_id == w.a) == 1
+
+
+def _waiting_on_agency_lock(db) -> bool:
+    with db.runtime.connect() as connection:
+        return bool(
+            connection.exec_driver_sql(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                "AND wait_event_type = 'Lock' AND query ILIKE '%%FROM agencies%%FOR UPDATE%%'"
+            ).scalar_one()
+        )
+
+
+def test_sv03_a_waiting_creation_counts_after_the_lock(authenticated_world):
+    w = authenticated_world
+    owner = w.signed_in("owner_a")
+    _limits(w.db, w.a, clients=3)
+    with w.db.runtime.connect() as holder, ThreadPoolExecutor(max_workers=1) as executor:
+        # A concurrent creation holds the agency lock and has inserted the third client.
+        holder.execute(select(Agency.id).where(Agency.id == w.a).with_for_update())
+        holder.execute(insert(ClientWorkspace).values(id=uuid4(), agency_id=w.a, name="Held third"))
+        pending = executor.submit(
+            owner.post, f"/agencies/{w.a}/clients", json={"name": "Waiting fourth"}
+        )
+        deadline = time.monotonic() + 5
+        while not _waiting_on_agency_lock(w.db):
+            assert time.monotonic() < deadline and not pending.done()
+            time.sleep(0.02)
+        holder.commit()
+        response = pending.result(timeout=10)
+    _refused(response, "clients", 3, 3)
+
+
+def _snapshot(owner, base: str, links, lab, connection: UUID) -> dict:
+    w = lab.w
+    return {
+        "clients": owner.get(f"{base}/clients").json(),
+        "members": owner.get(f"{base}/members").json(),
+        "invitations": owner.get(f"{base}/invitations").json(),
+        "links": owner.get(f"{links.path}/managed-links").json(),
+        "connection": lab.view("owner_a", w.a, w.a1, connection).json()["status"],
+    }
+
+
+def test_sv04_a_smaller_plan_keeps_everything_and_refuses_only_new_creations(lab, links):
+    w = lab.w
+    owner = w.signed_in("owner_a")
+    base = f"/agencies/{w.a}"
+    connection = lab.connect("owner_a", w.a, w.a1)
+    new_link(links, "kept-link")
+    invited = owner.post(
+        f"{base}/invitations", json={"email": "kept@example.test", "role": "analyst"}
+    )
+    assert invited.status_code == 201
+    before = _snapshot(owner, base, links, lab, connection)
+    _limits(w.db, w.a, clients=0, seats=0, connections=0, managed_links=0)
+    after = _snapshot(owner, base, links, lab, connection)
+    assert after == before and after["connection"] == "active"
+    assert visit(links.api.new_client(), "kept-link").status_code in {302, 303, 307}
+    _refused(owner.post(f"{base}/clients", json={"name": "New"}), "clients", 0, 2)
+    _refused(
+        owner.post(f"{base}/invitations", json={"email": "new@example.test", "role": "analyst"}),
+        "seats",
+        0,
+        5,
+    )
+    _refused(
+        owner.post(
+            f"{links.path}/managed-links",
+            json={"slug": "new-link", "destination": f"{SHOP}/offer"},
+        ),
+        "managed_links",
+        0,
+        1,
+    )
+    started = lab.browser("owner_a").post(
+        f"/agencies/{w.a}/clients/{w.a2}/connections", json={"provider": "synthetic"}
+    )
+    _refused(started, "connections", 0, 1)
+
+
+def test_sv05_reads_syncs_redirects_collection_erasure_archival_and_revocation_are_never_refused(
+    lab, links, c
+):
+    w = lab.w
+    owner = w.signed_in("owner_a")
+    base = f"/agencies/{w.a}"
+    connection = lab.connect("owner_a", w.a, w.a1)
+    link = new_link(links, "never-refused")
+    invited = owner.post(
+        f"{base}/invitations", json={"email": "never@example.test", "role": "analyst"}
+    )
+    key = owner.post(
+        f"{base}/service-credentials",
+        json={"name": "Never refused", "clients": [{"client_id": str(w.a1)}]},
+    )
+    assert invited.status_code == key.status_code == 201
+    token = c.subject()
+    assert c.send(envelope(token)).status_code == 201
+    # Beyond every limit at once.
+    _limits(w.db, w.a, clients=0, seats=0, connections=0, managed_links=0, tracked_events=0)
+    assert owner.get(f"{base}/clients").status_code == 200
+    assert owner.get(f"{base}/plan").status_code == 200
+    assert lab.sync("owner_a", w.a, w.a1, connection).status_code == 202
+    assert lab.worker()["sync"] == {"succeeded": 1}
+    assert visit(links.api.new_client(), "never-refused").status_code in {302, 303, 307}
+    second = envelope(token)
+    assert c.send(second).status_code == 201
+    assert c.collect(envelope(token)).status_code in {200, 201, 202}
+    erased = owner.post(
+        f"{base}/clients/{w.a1}/deletion-requests", json={"event_id": second["event_id"]}
+    )
+    assert erased.status_code == 201, erased.text
+    credential = key.json()["credential"]["id"]
+    assert owner.delete(f"{base}/invitations/{invited.json()['id']}").status_code == 204
+    assert owner.delete(f"{base}/service-credentials/{credential}").status_code == 204
+    assert owner.delete(f"{base}/members/{w.analyst}/clients/{w.a1}").status_code == 204
+    assert owner.patch(f"{base}/clients/{w.a2}", json={"status": "archived"}).status_code == 200
+    assert owner.patch(f"{base}/members/{w.viewer}", json={"status": "disabled"}).status_code == 200
+    assert lab.disconnect("owner_a", w.a, w.a1, connection).status_code == 202
+    disabled = owner.patch(f"{links.path}/managed-links/{link['id']}", json={"status": "disabled"})
+    assert disabled.status_code == 200
+
+
+def _copy_event(db, template: UUID, received: datetime) -> None:
+    with db.migration.begin() as connection:
+        columns = [
+            name
+            for name in connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'collected_events' ORDER BY ordinal_position"
+                )
+            ).scalars()
+            if name not in {"id", "event_id", "first_received_at", "last_received_at"}
+        ]
+        listed = ", ".join(columns)
+        connection.execute(
+            text(
+                "INSERT INTO collected_events (id, event_id, first_received_at, "
+                f"last_received_at, {listed}) SELECT :id, :event, :at, :at, {listed} "
+                "FROM collected_events WHERE id = :template"
+            ),
+            {"id": uuid4(), "event": uuid4(), "at": received, "template": template},
+        )
+
+
+def test_sv06_events_beyond_the_allowance_are_accepted_and_counted_by_utc_month(c):
+    w = c.w
+    _limits(w.db, w.a, tracked_events=2)
+    token = c.subject()
+    sent = [c.send(envelope(token)) for _ in range(3)]
+    assert [response.status_code for response in sent] == [201, 201, 201]
+    view = c.owner.get(f"/agencies/{w.a}/plan").json()["tracked_events"]
+    assert (view["count"], view["allowance"], view["state"], view["count_capped"]) == (
+        3,
+        2,
+        "over_allowance",
+        False,
+    )
+    listed = agency_plans.run(w.db.runtime, "agencies", over_allowance=True)[1]["agencies"]
+    assert [item["agency_id"] for item in listed] == [str(w.a)]
+    # Months are UTC calendar months, to the microsecond. The copies are dated in 2025, so
+    # the events received by this run never fall into the months examined.
+    with Session(w.db.migration) as session:
+        template = session.scalar(
+            select(CollectedEvent.id).where(CollectedEvent.client_id == w.a1).limit(1)
+        )
+    edges = (
+        datetime(2025, 10, 31, 23, 59, 59, 999999, tzinfo=UTC),
+        datetime(2025, 11, 1, tzinfo=UTC),
+        datetime(2025, 11, 30, 23, 59, 59, 999999, tzinfo=UTC),
+        datetime(2025, 12, 1, tzinfo=UTC),
+    )
+    for moment in edges:
+        _copy_event(w.db, template, moment)
+    with Session(w.db.runtime) as session:
+        october = plans.tracked_events(session, w.a, 2, datetime(2025, 10, 15, tzinfo=UTC))
+        november = plans.tracked_events(session, w.a, 2, datetime(2025, 11, 15, 12, tzinfo=UTC))
+        december = plans.tracked_events(session, w.a, 2, datetime(2025, 12, 1, tzinfo=UTC))
+        other = plans.tracked_events(session, w.b, None, datetime(2025, 11, 15, tzinfo=UTC))
+    assert (october.count, october.period_start, october.period_end) == (
+        1,
+        datetime(2025, 10, 1, tzinfo=UTC),
+        datetime(2025, 11, 1, tzinfo=UTC),
+    )
+    assert (november.count, november.state) == (2, "within")
+    assert (december.count, december.period_end) == (1, datetime(2026, 1, 1, tzinfo=UTC))
+    assert (other.count, other.state) == (0, "unlimited")
+
+
+def test_sv06_the_count_is_bounded(c, monkeypatch):
+    w = c.w
+    token = c.subject()
+    for _ in range(3):
+        assert c.send(envelope(token)).status_code == 201
+    monkeypatch.setattr(plans, "EVENT_COUNT_BOUND", 2)
+    view = c.owner.get(f"/agencies/{w.a}/plan").json()["tracked_events"]
+    assert (view["count"], view["count_capped"]) == (2, True)
+
+
+def test_sv07_usage_view_roles_keys_and_answer(authenticated_world, api):
+    w = authenticated_world
+    path = f"/agencies/{w.a}/plan"
+    answers = {name: w.signed_in(name).get(path) for name in ("owner_a", "admin", "analyst")}
+    assert {name: response.status_code for name, response in answers.items()} == dict.fromkeys(
+        answers, 200
+    )
+    body = answers["owner_a"].json()
+    assert set(body) == {"agency_id", "plan", "limits", "tracked_events", "as_of"}
+    assert body["plan"]["key"] == "development" and body["agency_id"] == str(w.a)
+    assert body["limits"] == [
+        {"limit": "clients", "value": 5, "used": 2, "state": "within"},
+        {"limit": "seats", "value": 10, "used": 4, "state": "within"},
+        {"limit": "connections", "value": 10, "used": 0, "state": "within"},
+        {"limit": "managed_links", "value": 500, "used": 0, "state": "within"},
+    ]
+    events = body["tracked_events"]
+    assert (events["count"], events["allowance"], events["state"]) == (0, 100000, "within")
+    for private in (str(w.a1), str(w.a2), "Synthetic", "@example.test", str(w.users.owner_a)):
+        assert private not in answers["owner_a"].text
+    # A client viewer, another agency's Owner, a non-member and any bearer key are refused.
+    assert w.signed_in("viewer").get(path).status_code == 403
+    assert w.signed_in("owner_b").get(path).status_code == 403
+    assert w.signed_in("outsider").get(path).status_code == 403
+    owner = w.signed_in("owner_a")
+    for kind in ("read", "ingest"):
+        issued = owner.post(
+            f"/agencies/{w.a}/service-credentials",
+            json={
+                "name": f"Synthetic {kind}",
+                "kind": kind,
+                "clients": [{"client_id": str(w.a1)}],
+            },
+        )
+        assert issued.status_code == 201
+        reader = api.new_client()
+        reader.headers["Authorization"] = "Bearer " + issued.json()["key"]
+        assert reader.get(path).status_code == 401
+    # Limits at and beyond their value, and unlimited ones.
+    _limits(w.db, w.a, clients=2, seats=3)
+    limits = {item["limit"]: item for item in owner.get(path).json()["limits"]}
+    assert limits["clients"]["state"] == limits["seats"]["state"] == "at_limit"
+    assert limits["connections"] == {
+        "limit": "connections",
+        "value": None,
+        "used": 0,
+        "state": "unlimited",
+    }
+    assert owner.get(path).json()["tracked_events"]["state"] == "unlimited"
+
+
+def test_sv19_agencies_never_see_each_other_and_output_carries_no_secret(
+    authenticated_world, capfd
+):
+    w = authenticated_world
+    owner_a, owner_b = w.signed_in("owner_a"), w.signed_in("owner_b")
+    _limits(w.db, w.b, clients=2)
+    _refused(owner_b.post(f"/agencies/{w.b}/clients", json={"name": "B3"}), "clients", 2, 2)
+    # Agency A keeps its own plan and counts only its own rows.
+    assert owner_a.post(f"/agencies/{w.a}/clients", json={"name": "A3"}).status_code == 201
+    view_a = owner_a.get(f"/agencies/{w.a}/plan").json()
+    view_b = owner_b.get(f"/agencies/{w.b}/plan").json()
+    assert view_a["plan"]["key"] == "development" and view_b["plan"]["key"].startswith("tight-")
+    assert {item["limit"]: item["used"] for item in view_a["limits"]}["clients"] == 3
+    assert {item["limit"]: item["used"] for item in view_b["limits"]}["clients"] == 2
+    assert owner_a.get(f"/agencies/{w.b}/plan").status_code == 403
+    assert owner_b.get(f"/agencies/{w.a}/plan").status_code == 403
+    code, listing = agency_plans.run(w.db.runtime, "agencies")
+    assert code == 0
+    printed = json.dumps(listing)
+    captured = capfd.readouterr()
+    for private in ("Synthetic Agency", "Synthetic Client", "@example.test", "tsk_", "password"):
+        assert private not in printed
+        assert private not in captured.out + captured.err
