@@ -66,3 +66,7 @@ Both corrections are in `backend/app/services/attribution_reports.py`, and the r
 | `pytest -m integration` with `TRACKING_RUN_BROWSER_TESTS=1`, Chromium | 685 passed; 7 skipped (the opt-in measurements); the Firefox journey case not run |
 
 The [evidence](evidence-016b.md#review-corrections-d-090) records the same results.
+
+## Result
+
+PR 18 merged into `main` as `633ea9a`, a merge commit of `f15b6e4` and `762e805` whose tree equals the verified head `762e805`.
