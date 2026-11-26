@@ -57,7 +57,7 @@ The reference screens ([clients](../../docs/design/preview/screens/clients.html)
 | Connections | Paymob, Cal.com, WhatsApp and Meta conversions on the same page | They are integrations with their own operations | They arrive with 018-D, on the same page or beside it. |
 | Sign-in (018-A) | Seconds to wait after too many attempts | `Retry-After` is not readable across origins | Unchanged: the sentence has no number. |
 
-### 3.2 Proposed amendment to the API (needs the owner's decision)
+### 3.2 Amendment to the API (decided by D-094 on 2026-11-27)
 Recommended, as one small amendment to specification 002 with its own tests, without a migration and without a new table:
 
 | ID | Change | Who may read it | Why |
@@ -68,7 +68,7 @@ Recommended, as one small amendment to specification 002 with its own tests, wit
 
 Alternative: keep the API as it is. The slice then ends with the parts of section 3.1 left out. Not recommended: the team screen the owner approved cannot be built.
 
-Until the owner decides, nothing in `backend/` or `contracts/` changes.
+The owner approved B1-B3 on 2026-11-27 (D-094). B1 and B2 are implemented on this branch; B3 is part of Spec 017-A (D-092) and is not repeated. See the [018-B evidence](evidence-018b.md), section 9.
 
 ## 4. How it is built
 ### 4.1 Addresses
@@ -156,4 +156,4 @@ Each step ends with its checks and a commit pushed to `codex/spec-018-workspace-
 3. Connections and the return from a provider.
 4. Invitations and API keys.
 5. Journeys, accessibility checks, the evidence file and the records.
-6. After the owner's decision on section 3.2: the amendment with its tests, then members, grants, archive and the audit log.
+6. After the owner's decision on section 3.2: the amendment with its tests, then members, grants, archive and the audit log. Done under D-094 on 2026-11-27.

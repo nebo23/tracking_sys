@@ -2,7 +2,7 @@
 Connect, the web application of the Tracking System (specification 018), in English and Arabic and in both themes.
 
 - Slice 018-A: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page. See the [018-A evidence](../specs/018-react-workspace/evidence-018a.md).
-- Slice 018-B: the agency and the client in the address, the list of clients, the connections of a client, invitations and API keys. The members of an agency, archived clients and the audit log wait for a decision about the API. See the [018-B evidence](../specs/018-react-workspace/evidence-018b.md).
+- Slice 018-B: the agency and the client in the address, the list of clients with archived clients, the connections of a client, the members of an agency with their client access, invitations, API keys and the audit log. See the [018-B evidence](../specs/018-react-workspace/evidence-018b.md).
 
 Both are presented for the owner's review; each evidence file says what was checked and what was not. Slices 018-C and 018-D are not started.
 
@@ -81,7 +81,8 @@ src/
   features/account/         account page, account closure
   features/clients/         the list of clients, add and rename
   features/connections/     the accounts of a client, connect, the return from a provider
-  features/team/            invitations and roles
+  features/team/            members, their client access, invitations and roles
+  features/audit/           the audit log and the sentence of each action
   features/keys/            API keys
   i18n/                     en.json and ar.json with the same keys
   lib/                      small helpers: link tokens, safe return path, field rules

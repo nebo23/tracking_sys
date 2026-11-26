@@ -1,6 +1,6 @@
 # 018-B evidence
 
-Status: the parts of slice 018-B that the present API can back are implemented and checked as described here on 2026-11-26, and pushed to `codex/spec-018-workspace-screens` (D-051, D-093). The members tab, the grants of a member, archived clients and the audit log are not built: they wait for the owner's decision on the API amendment of the [018-B plan](plan-018b.md), section 3.2. The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
+Status: slice 018-B is implemented. Clients, connections, invitations and keys were built and checked on 2026-11-26 (sections 1 to 8). On 2026-11-27 the owner approved the API amendment of the [018-B plan](plan-018b.md), section 3.2 (D-094), and the members, their client access, archived clients and the audit log followed (section 9). Everything is pushed to `codex/spec-018-workspace-screens` (D-051, D-093, D-094). The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
 
 How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
@@ -8,7 +8,7 @@ How to run the application and its checks is in the [frontend guide](../../front
 | Area | State |
 |---|---|
 | Packages | None added and none changed: `frontend/package.json` and `package-lock.json` are those of 018-A (the thirty packages of D-084). |
-| API, contract, schema | Nothing in `backend/` or `contracts/` changed. `npm run api:check` still matches the contract of 147 operations. |
+| API, contract, schema | Until D-094 nothing in `backend/` or `contracts/` changed. Section 9 describes the amendment that followed; it adds no migration and no table. |
 | Reference styles | Nothing in `docs/design/` changed. The new screens use the existing classes; `frontend/src/styles/app.css` gains rules of the running application only (prefix `a-`). |
 | Pull request 17 | Untouched. This work is on a branch stacked on the 018-A branch (D-093). |
 
@@ -131,3 +131,49 @@ The screens were also reviewed as pictures on the disposable stack: every new sc
 - Overview, content, revenue and ad spend (018-C); links, tracking and integrations, with Paymob, Cal.com, WhatsApp and the conversion destinations (018-D).
 - Splitting the script by route (section 6).
 - The open items of the 018-A evidence, section 8.1, which this slice does not change.
+
+## 9. Completion under D-094 (2026-11-27)
+The owner approved amendment B1-B3 of the plan on 2026-11-27 (D-094). B3, the `Retry-After` header for the browser, was already part of Spec 017-A on its own branch (D-091, D-092, commit `2fa7db6`) and is not repeated here: the rate-limit sentence of 018-A gains its number of seconds when 017-A reaches this branch.
+
+### 9.1 What was built
+| Part | Where | What it does |
+|---|---|---|
+| B1, members | `backend/app/api/tenancy.py`, `backend/app/services/tenancy.py`, `backend/app/api/schemas.py` | `GET /agencies/{a}/members` returns, to the Owners and Admins who could already list members, each member's name, email, date of joining, account state and explicit client grants (`MemberDetail`). A closed account is never named: its pseudonyms are not returned and `account` says `closed`. |
+| B2, archived clients | the same files | `GET /agencies/{a}/clients?status=archived` lists the archived clients to Owners and Admins. Everyone else, service keys included, is denied; an unknown status is refused. |
+| Contract | `contracts/openapi.json`, `frontend/src/api/schema.d.ts` | Two operations changed and two schemas added (`MemberDetail`, `MemberClientGrant`); a semantic comparison found nothing else changed. |
+| Members | `frontend/src/features/team/` | Team and access opens on the members: name, "(you)", email, role, the clients they open, their financial data, and the state of their access. One dialog changes the role and, for an analyst or client viewer, the clients and their financial data; pausing access is asked, restoring is one step. Invitations are the second tab. |
+| Archived clients | `frontend/src/features/clients/` | A row menu renames or archives a client after asking; what was loaded for an archived client is dropped at once. Owners and Admins switch to the archived clients and restore one, see the number archived under the active clients, and see how many people can open each client. |
+| Audit log | `frontend/src/features/audit/` | The newest hundred changes: when, who, what and which client, named from the agency's own lists. Every one of the 61 action codes the API records has a sentence in both languages; an unknown code is shown as it is. |
+
+### 9.2 Checks on 2026-11-27
+| Check | Result |
+|---|---|
+| Backend static rules | `ruff check` and `ruff format --check`: no finding. |
+| Backend unit and contract tests | 926 pass, the OpenAPI snapshot comparison included. |
+| Backend integration tests | 165 pass and 1 is skipped (an opt-in measurement) in the ten modules that use members and clients: the new `test_member_details.py` (10 cases), `test_access_api`, `test_tenancy`, `test_account_closure`, `test_identity_admin`, `test_review_006_007`, `test_links`, `test_domains`, `test_revenue_identity` and `test_attribution_api`, on a disposable PostgreSQL 18.6 on port 55433 (Compose project `tracking-test-018b`, removed afterwards). |
+| Backend removed protections | Six of seven fail a test: only managers list member details and archived clients, archived clients stay in their agency, a closed account is never named and is told apart from a disabled one, and a service key never lists archived clients. The seventh, the agency filter on the grants query, is held by the membership identifiers, which already belong to one agency. |
+| Frontend | Types, static rules and the contract check pass; 370 unit tests in 21 files pass; 25 removed protections are each caught by a unit test; the build has one script of 816 kB (238 kB compressed) and the bundle search finds nothing. |
+| Journeys | 47 of 47 pass in Chromium (6.1 minutes) and in Firefox (8.4 minutes). The new journey `16-members-archive-audit` changes a member's access and sees it from the member's own browser, pauses and restores access, archives a client and restores it, and reads the audit log. |
+| Accessibility | axe-core now scans 169 states in each browser, with the members, the member menu, the access dialog, the pause dialog, the invitations tab, the audit log, the archived clients and the archive dialog. No finding remains in either browser. |
+
+### 9.3 Corrections found
+1. The breadcrumb link from a client back to its agency had no name while the agency's name loaded, and was marked as the current page on every page below it. axe found the first; the link now has a name at all times and is never marked as the page, nor are the logo links.
+2. `Result.tuples()` is deprecated in SQLAlchemy 2.1; the members query reads its rows directly.
+
+### 9.4 Differences from the plan
+| Plan | What was done | Why |
+|---|---|---|
+| Section 3.2, B1: name, email, date and grants. | Also the state of the member's account. | So that a closed account is never shown under its pseudonyms. |
+| Section 3.2, B3. | Not implemented here. | Spec 017-A already exposes the header (D-092). |
+| Section 4.4: owners and admins manage members. | Nobody changes their own access on this page, and nobody changes a closed account. | So that a person cannot lock themselves out by mistake; another owner or admin can make the change. |
+| Not in the plan. | An analyst or client viewer needs at least one client, in the access dialog as in the invitation. | A restricted role without a client can open nothing. |
+| Not in the plan. | A sentence for `plan_limit_reached`. | Spec 017-A answers it on creations and reactivations once it reaches this branch. |
+
+### 9.5 Not run
+- The whole backend integration suite. Only the ten modules above ran; the other modules do not call the two changed operations.
+- A member with many grants, more than 100 members, and the audit log of a busy agency, in a browser. Unit tests cover the paging and the sentences.
+- Screen readers, Safari and real phones, as in section 7.
+
+### 9.6 Open
+1. **Spec 017-A meets this branch.** When it does, the sign-in and registration screens must send the agreement record (018 D15), the audit log must name changes the platform operator made (`actor_kind`), and the plan limits answer `plan_limit_reached`. The interface already has a sentence for the limit and a fallback for an operator.
+2. The open items of section 8 that this completion does not close.
