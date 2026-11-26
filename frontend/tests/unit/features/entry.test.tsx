@@ -202,6 +202,18 @@ describe('the reset link', () => {
     expect(await screen.findByRole('heading', { name: 'This link cannot be used' })).toBeInTheDocument();
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument();
   });
+
+  it('is also taken when it is pasted into a tab that already shows the page', async () => {
+    fakeApi(signedOut());
+    openApp('/auth/reset-password');
+    await screen.findByRole('heading', { name: 'This link cannot be used' });
+
+    window.location.hash = `#token=${linkToken}`;
+
+    expect(await screen.findByLabelText('New password')).toBeInTheDocument();
+    expect(window.location.hash).toBe('');
+    expect(everythingStored()).not.toContain(linkToken);
+  });
 });
 
 describe('an invitation', () => {

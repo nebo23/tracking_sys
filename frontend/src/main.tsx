@@ -11,8 +11,10 @@ import { createAppRouter } from './app/router';
 import { watchSession } from './app/sessionLifecycle';
 import { captureLinkToken } from './lib/linkToken';
 
-// A token that arrived in a mail link leaves the address bar before anything reads the address.
+// A token that arrived in a mail link leaves the address bar before anything reads the address,
+// also when a link is pasted into a tab that already shows the application.
 captureLinkToken();
+window.addEventListener('hashchange', captureLinkToken);
 applyPreferences();
 
 const icon = document.createElement('link');

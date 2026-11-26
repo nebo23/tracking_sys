@@ -66,6 +66,20 @@ describe('the way into the workspace', () => {
     openApp('/welcome');
     expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
   });
+
+  it('lets a person without an agency reach their account, where they can close it', async () => {
+    fakeApi({ ...signedIn(), 'GET /agencies': json(200, []) });
+    const user = userEvent.setup();
+    openApp('/welcome');
+
+    await user.click(await screen.findByRole('link', { name: 'Account' }));
+
+    expect(await screen.findByRole('heading', { name: 'Account', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close my account' })).toBeInTheDocument();
+    const navigation = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(navigation.getAllByRole('link').map((link) => link.textContent)).toEqual(['Create your agency', 'Account']);
+    expect(screen.queryByRole('button', { name: /Switch agency/ })).not.toBeInTheDocument();
+  });
 });
 
 describe('the workspace', () => {

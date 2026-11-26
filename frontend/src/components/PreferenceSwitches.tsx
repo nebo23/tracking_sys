@@ -29,8 +29,8 @@ export function LanguageSwitch() {
       }}
     >
       {languages.map((code) => (
-        <ToggleButton key={code} id={code} className={item}>
-          <span lang={code}>{languageNames[code]}</span>
+        <ToggleButton key={code} id={code} lang={code} className={item}>
+          {languageNames[code]}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>

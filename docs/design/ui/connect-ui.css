@@ -339,7 +339,7 @@
   background: var(--surface-selected);
   color: var(--text-brand);
 }
-/* The closing dot of the mark marks the current place. */
+/* A dot at the end of the row marks the current place. */
 .c-nav__item.is-active::after {
   content: "";
   inline-size: 6px;
@@ -1665,8 +1665,13 @@ button.c-search {
   text-align: start;
   cursor: pointer;
 }
-.c-menu__item:hover {
+.c-menu__item:hover,
+.c-menu__item:focus-visible {
   background: var(--surface-hover);
+}
+/* The focus ring of a row stays inside the menu. */
+.c-menu__item:focus-visible {
+  outline-offset: -2px;
 }
 .c-menu__item.is-selected {
   font-weight: 600;
@@ -1824,6 +1829,10 @@ button.c-search {
   margin: 0;
   opacity: 0;
   cursor: pointer;
+}
+/* An icon is drawn with a mask, which lifts it above the checkbox; it must not take the pointer. */
+.l-auth__motion .c-icon {
+  pointer-events: none;
 }
 .l-auth__motion input:checked ~ .c-icon--circle-pause,
 .l-auth__motion input:not(:checked) ~ .c-icon--play {

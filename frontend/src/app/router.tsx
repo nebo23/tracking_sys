@@ -162,8 +162,8 @@ const workspaceRoute = createRoute({
   id: 'workspace',
   beforeLoad: async ({ context, location }) => {
     if (!(await loadSession(context.queryClient))) throw redirect({ to: '/sign-in', search: place(location) });
-    const agencies = await context.queryClient.ensureQueryData(agenciesQuery);
-    if (agencies.length === 0) throw redirect({ to: '/welcome' });
+    // The shell names the agency a person works in. A person without one still reaches their account.
+    await context.queryClient.ensureQueryData(agenciesQuery);
   },
   component: Shell,
 });
@@ -171,6 +171,10 @@ const workspaceRoute = createRoute({
 const homeRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: '/',
+  beforeLoad: async ({ context }) => {
+    const agencies = await context.queryClient.ensureQueryData(agenciesQuery);
+    if (agencies.length === 0) throw redirect({ to: '/welcome' });
+  },
   component: HomePage,
 });
 

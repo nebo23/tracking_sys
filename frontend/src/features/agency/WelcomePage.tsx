@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useRef, useState, type FormEvent } from 'react';
 import { FormattedMessage } from 'react-intl';
 
@@ -84,7 +84,10 @@ export function WelcomePage() {
       <p className="u-secondary">
         <FormattedMessage id="welcome.invited" />
       </p>
-      <p>
+      <p className="l-cluster">
+        <Link className="c-btn c-btn--ghost" to="/account">
+          <FormattedMessage id="shell.nav.account" />
+        </Link>
         <button
           type="button"
           className="c-btn c-btn--ghost"

@@ -12,15 +12,15 @@ import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { SubmitButton } from '@/components/SubmitButton';
 import type { MessageId } from '@/i18n';
 import { focusFirstInvalid } from '@/lib/focusFirstInvalid';
-import { heldLinkToken, releaseLinkToken } from '@/lib/linkToken';
+import { releaseLinkToken, useLinkToken } from '@/lib/linkToken';
 import { newPasswordError, PASSWORD_MAX } from '@/lib/validation';
 
 export function ResetPasswordPage() {
   const end = useEndSession();
   usePageTitle('reset.title');
 
-  // The route took the token out of the address bar before this screen was drawn.
-  const [token, setToken] = useState(() => heldLinkToken('reset'));
+  // The token left the address bar before this screen was drawn; it is held in memory.
+  const token = useLinkToken('reset');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<MessageId | null>(null);
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
@@ -36,7 +36,6 @@ export function ResetPasswordPage() {
     onError(failure) {
       if (isApiError(failure) && failure.code === 'invalid_or_expired_token') {
         releaseLinkToken('reset');
-        setToken(null);
       }
       setProblem(describeError(failure));
     },

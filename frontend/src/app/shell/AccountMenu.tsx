@@ -38,12 +38,13 @@ export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
 
   return (
     <MenuTrigger>
-      <Button
-        className="c-btn c-btn--ghost c-btn--icon"
-        aria-label={intl.formatMessage({ id: 'shell.account.menu' }, { name: user.display_name })}
-      >
+      {/* The monogram is a picture of the name; the name itself is what the button is called. */}
+      <Button className="c-btn c-btn--ghost c-btn--icon">
         <span className="c-avatar" aria-hidden="true">
           {initials(user.display_name)}
+        </span>
+        <span className="u-sr">
+          <FormattedMessage id="shell.account.menu" values={{ name: user.display_name }} />
         </span>
       </Button>
       <Popover className="c-menu" placement="bottom end">
@@ -66,8 +67,8 @@ export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
               <FormattedMessage id="language.label" />
             </Header>
             {languages.map((code) => (
-              <MenuItem key={code} id={code} className={menuItem} textValue={languageNames[code]}>
-                {Choice({ children: <span lang={code}>{languageNames[code]}</span> })}
+              <MenuItem key={code} id={code} lang={code} className={menuItem} textValue={languageNames[code]}>
+                {Choice({ children: languageNames[code] })}
               </MenuItem>
             ))}
           </MenuSection>

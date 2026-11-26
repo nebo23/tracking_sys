@@ -14,6 +14,7 @@ export type IconName =
   | 'layout-dashboard'
   | 'log-out'
   | 'play'
+  | 'plus'
   | 'settings'
   | 'triangle-alert'
   | 'user';

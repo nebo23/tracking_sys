@@ -10,7 +10,7 @@ import { agencyChoice } from '@/app/agency';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { cx } from '@/lib/cx';
-import { heldLinkToken, releaseLinkToken } from '@/lib/linkToken';
+import { releaseLinkToken, useLinkToken } from '@/lib/linkToken';
 
 export function AcceptInvitationPage() {
   const queryClient = useQueryClient();
@@ -18,8 +18,8 @@ export function AcceptInvitationPage() {
   usePageTitle('invitation.title');
 
   const { data: session } = useSuspenseQuery(sessionQuery);
-  // The route took the token out of the address bar; it stays in memory while the person signs in.
-  const [token, setToken] = useState(() => heldLinkToken('invitation'));
+  // The token left the address bar before this screen was drawn; it stays in memory while the person signs in.
+  const token = useLinkToken('invitation');
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
 
   const request = useMutation({
@@ -33,7 +33,6 @@ export function AcceptInvitationPage() {
     onError(error) {
       if (isApiError(error) && error.code === 'invalid_or_expired_token') {
         releaseLinkToken('invitation');
-        setToken(null);
       }
       setProblem(
         describeError(error, {

@@ -17,6 +17,7 @@ import { captureLinkToken, releaseLinkToken } from '@/lib/linkToken';
 export function openApp(address: string) {
   window.history.replaceState(null, '', address);
   captureLinkToken();
+  window.addEventListener('hashchange', captureLinkToken);
   applyPreferences();
   const queryClient = createQueryClient();
   const router = createAppRouter(queryClient);
@@ -44,5 +45,6 @@ export function forgetEverything(): void {
   preferences.setLanguage('en');
   preferences.setTheme('system');
   window.localStorage.clear();
+  window.removeEventListener('hashchange', captureLinkToken);
   window.history.replaceState(null, '', '/');
 }
