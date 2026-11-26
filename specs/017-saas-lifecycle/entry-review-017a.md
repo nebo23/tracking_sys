@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-26 under D-091.
 - **Baseline:** merged `main` at `633ea9a` (PR 18: Spec 016-B, attribution reports).
-- **Status:** proposals for the owner. Decisions D1-D14 are not approved until the owner approves them, which will be recorded as D-092.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-26 (D-092).
 - **Handoff:** the [implementation handoff](implementation-prompt-017a.md) executes this packet after approval.
 
 ## 1. Intended result

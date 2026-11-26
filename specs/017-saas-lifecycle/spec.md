@@ -1,5 +1,5 @@
 # 017-saas-lifecycle — SaaS subscriptions and usage lifecycle
-Status: 017-A (plans, limits, agency closure and the agreement record, without payment) is prepared for approval in its [entry review](entry-review-017a.md) with an [implementation handoff](implementation-prompt-017a.md) (D-091). 017-B (purge and export of closed agencies) and 017-C (payment provider, prices and trials) remain open. Level: L5. Prepared: 2026-10-28. English revision: 2026-10-29. Updated: 2026-11-26.
+Status: 017-A (plans, limits, agency closure and the agreement record, without payment) is approved in its [entry review](entry-review-017a.md) (D-092) and ready to implement under its [implementation handoff](implementation-prompt-017a.md). 017-B (purge and export of closed agencies) and 017-C (payment provider, prices and trials) remain open. Level: L5. Prepared: 2026-10-28. English revision: 2026-10-29. Updated: 2026-11-26.
 
 ## Sources
 USER multi-agency SaaS; PDF-096,098,101. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.

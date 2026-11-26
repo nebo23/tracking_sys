@@ -1,6 +1,6 @@
 # Spec 017-A implementation: plans, limits and agency closure
 
-Prepared 2026-11-26 under D-091. It executes once the owner's approval of decisions D1-D14 of the [017-A entry review](entry-review-017a.md) is recorded as D-092. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017a.md` on the branch below.
+Prepared 2026-11-26 under D-091. The owner approved decisions D1-D14 of the [017-A entry review](entry-review-017a.md) as recommended, without amendment, on 2026-11-26; the approval is recorded as D-092, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017a.md` on the branch below.
 
 ## Where to work
 
