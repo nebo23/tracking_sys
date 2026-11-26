@@ -19779,6 +19779,285 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/reports/attribution": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Attribution Report",
+        "operationId": "attribution_report_agencies__agency_id__clients__client_id__reports_attribution_get",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "campaign",
+                "content",
+                "link",
+                "recipient"
+              ],
+              "type": "string",
+              "default": "campaign",
+              "title": "Group By"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "groups",
+                "models"
+              ],
+              "type": "string",
+              "default": "groups",
+              "title": "View"
+            }
+          },
+          {
+            "name": "model_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version"
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "previous",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compare"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report as JSON, or as a CSV attachment with format=csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionReportResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
       "post": {
         "tags": [
@@ -24487,6 +24766,398 @@
         ],
         "title": "AssociationInput"
       },
+      "AttributionFreshness": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "caught_up",
+              "behind",
+              "rebuilding",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "published_generation": {
+            "type": "integer",
+            "title": "Published Generation"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "incremental",
+                  "rebuild"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "consumer": {
+            "$ref": "#/components/schemas/ConsumerMarks"
+          },
+          "current": {
+            "$ref": "#/components/schemas/CurrentMarks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "published_generation",
+          "published_at",
+          "failure_code",
+          "unit",
+          "consumer",
+          "current"
+        ],
+        "title": "AttributionFreshness"
+      },
+      "AttributionGroupRow": {
+        "properties": {
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "group_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Ref"
+          },
+          "registered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registered"
+          },
+          "content_items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SocialContentItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Items"
+          },
+          "sales": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditSales"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditLeads"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditModelValues"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipient",
+          "group_ref",
+          "registered",
+          "content_items",
+          "sales",
+          "leads",
+          "models"
+        ],
+        "title": "AttributionGroupRow"
+      },
+      "AttributionReportResult": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version"
+          },
+          "family": {
+            "type": "string",
+            "const": "attribution",
+            "title": "Family"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "groups",
+              "models"
+            ],
+            "title": "View"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "content",
+              "link",
+              "recipient"
+            ],
+            "title": "Group By"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodView"
+          },
+          "comparison_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_zone": {
+            "type": "string",
+            "const": "UTC",
+            "title": "Day Zone"
+          },
+          "basis": {
+            "type": "string",
+            "const": "conversion_date",
+            "title": "Basis"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportModelVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_versions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReportModelVersion"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Versions"
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/AttributionFreshness"
+          },
+          "finance": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable"
+            ],
+            "title": "Finance"
+          },
+          "values": {
+            "$ref": "#/components/schemas/ValuesState"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditTotals"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_totals": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditModelTotals"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Totals"
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreditReconciliation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_reconciliation": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditModelReconciliation"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reconciliation"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditComparison"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionGroupRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageView"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "family",
+          "client_id",
+          "view",
+          "group_by",
+          "period",
+          "comparison_period",
+          "day_zone",
+          "basis",
+          "generated_at",
+          "revision",
+          "model_version",
+          "model_versions",
+          "attribution",
+          "finance",
+          "values",
+          "totals",
+          "model_totals",
+          "reconciliation",
+          "model_reconciliation",
+          "comparison",
+          "rows",
+          "page",
+          "dependencies"
+        ],
+        "title": "AttributionReportResult"
+      },
       "AttributionStatusView": {
         "properties": {
           "state": {
@@ -25413,6 +26084,29 @@
         ],
         "title": "ConsentStateResponse"
       },
+      "ConsumerMarks": {
+        "properties": {
+          "ledger_generation": {
+            "type": "integer",
+            "title": "Ledger Generation"
+          },
+          "receipt_ordinal": {
+            "type": "integer",
+            "title": "Receipt Ordinal"
+          },
+          "identity_seq": {
+            "type": "integer",
+            "title": "Identity Seq"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ledger_generation",
+          "receipt_ordinal",
+          "identity_seq"
+        ],
+        "title": "ConsumerMarks"
+      },
       "ConsumerView": {
         "properties": {
           "generation": {
@@ -25933,6 +26627,631 @@
           "cost"
         ],
         "title": "CoverageResponse"
+      },
+      "CreditComparison": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "lead"
+            ],
+            "title": "Kind"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "exponent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exponent"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "$ref": "#/components/schemas/ExactShare"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "percent_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent Change"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "kind",
+          "currency",
+          "exponent",
+          "current_value",
+          "previous_value",
+          "difference",
+          "percent_change",
+          "comparable",
+          "reason"
+        ],
+        "title": "CreditComparison"
+      },
+      "CreditLeadTotal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "all",
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "credited_leads": {
+            "$ref": "#/components/schemas/ExactShare"
+          },
+          "conversions": {
+            "type": "integer",
+            "title": "Conversions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "recipient",
+          "credited_leads",
+          "conversions"
+        ],
+        "title": "CreditLeadTotal"
+      },
+      "CreditLeadTotals": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "not_ready"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditLeadTotal"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "items"
+        ],
+        "title": "CreditLeadTotals"
+      },
+      "CreditLeads": {
+        "properties": {
+          "credited_leads": {
+            "$ref": "#/components/schemas/ExactShare"
+          },
+          "conversions": {
+            "type": "integer",
+            "title": "Conversions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credited_leads",
+          "conversions"
+        ],
+        "title": "CreditLeads"
+      },
+      "CreditModelReconciliation": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_ready",
+              "unavailable"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReconciliationItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "model_version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Model Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "ledger",
+          "items",
+          "model_version_id"
+        ],
+        "title": "CreditModelReconciliation"
+      },
+      "CreditModelTotals": {
+        "properties": {
+          "sales": {
+            "$ref": "#/components/schemas/CreditSaleTotals"
+          },
+          "leads": {
+            "$ref": "#/components/schemas/CreditLeadTotals"
+          },
+          "model_version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Model Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sales",
+          "leads",
+          "model_version_id"
+        ],
+        "title": "CreditModelTotals"
+      },
+      "CreditModelValues": {
+        "properties": {
+          "model_version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Model Version Id"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/CreditSales"
+          },
+          "leads": {
+            "$ref": "#/components/schemas/CreditLeads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_version_id",
+          "sales",
+          "leads"
+        ],
+        "title": "CreditModelValues"
+      },
+      "CreditReconciliation": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_ready",
+              "unavailable"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReconciliationItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "ledger",
+          "items"
+        ],
+        "title": "CreditReconciliation"
+      },
+      "CreditSaleItem": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "credited_revenue": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "credited_sales": {
+            "$ref": "#/components/schemas/ExactShare"
+          },
+          "conversions": {
+            "type": "integer",
+            "title": "Conversions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "exponent",
+          "credited_revenue",
+          "credited_sales",
+          "conversions"
+        ],
+        "title": "CreditSaleItem"
+      },
+      "CreditSaleTotal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "all",
+              "campaign",
+              "direct",
+              "unknown"
+            ],
+            "title": "Recipient"
+          },
+          "credited_revenue": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "credited_sales": {
+            "$ref": "#/components/schemas/ExactShare"
+          },
+          "conversions": {
+            "type": "integer",
+            "title": "Conversions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "currency",
+          "exponent",
+          "recipient",
+          "credited_revenue",
+          "credited_sales",
+          "conversions"
+        ],
+        "title": "CreditSaleTotal"
+      },
+      "CreditSaleTotals": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable",
+              "not_ready"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditSaleTotal"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "items"
+        ],
+        "title": "CreditSaleTotals"
+      },
+      "CreditSales": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "permission_unavailable"
+            ],
+            "title": "State"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CreditSaleItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "items"
+        ],
+        "title": "CreditSales"
+      },
+      "CreditTotals": {
+        "properties": {
+          "sales": {
+            "$ref": "#/components/schemas/CreditSaleTotals"
+          },
+          "leads": {
+            "$ref": "#/components/schemas/CreditLeadTotals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sales",
+          "leads"
+        ],
+        "title": "CreditTotals"
+      },
+      "CurrentMarks": {
+        "properties": {
+          "ledger": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "none"
+            ],
+            "title": "Ledger"
+          },
+          "ledger_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Generation"
+          },
+          "receipt_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Ordinal"
+          },
+          "identity_seq": {
+            "type": "integer",
+            "title": "Identity Seq"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ledger",
+          "ledger_generation",
+          "receipt_ordinal",
+          "identity_seq"
+        ],
+        "title": "CurrentMarks"
       },
       "DealReport": {
         "properties": {
@@ -26651,8 +27970,22 @@
           },
           "state": {
             "type": "string",
-            "const": "dependency_unavailable",
+            "enum": [
+              "available",
+              "dependency_unavailable"
+            ],
             "title": "State"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
           },
           "requires": {
             "items": {
@@ -27456,6 +28789,29 @@
           "revision"
         ],
         "title": "EventResult"
+      },
+      "ExactShare": {
+        "properties": {
+          "numerator": {
+            "type": "integer",
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "integer",
+            "title": "Denominator"
+          },
+          "decimal": {
+            "type": "string",
+            "title": "Decimal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "numerator",
+          "denominator",
+          "decimal"
+        ],
+        "title": "ExactShare"
       },
       "ExcludedMetric": {
         "properties": {
@@ -29306,6 +30662,66 @@
         ],
         "title": "ReconciliationEntry"
       },
+      "ReconciliationItem": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ],
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "exponent": {
+            "type": "integer",
+            "title": "Exponent"
+          },
+          "credited_revenue": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "ledger_net": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "difference": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reconciled",
+              "difference"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "currency",
+          "exponent",
+          "credited_revenue",
+          "ledger_net",
+          "difference",
+          "state",
+          "reason"
+        ],
+        "title": "ReconciliationItem"
+      },
       "ReconnectInput": {
         "properties": {
           "agent_approval": {
@@ -29596,6 +31012,78 @@
           "password"
         ],
         "title": "Registration"
+      },
+      "ReportModelVersion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version_key": {
+            "type": "string",
+            "title": "Version Key"
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "first_click",
+              "last_click",
+              "linear"
+            ],
+            "title": "Model"
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "rules": {
+            "type": "string",
+            "title": "Rules"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "retired"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_key",
+          "model",
+          "window_days",
+          "rules",
+          "is_default",
+          "status",
+          "created_at",
+          "retired_at"
+        ],
+        "title": "ReportModelVersion"
       },
       "ReportStreamCoverage": {
         "properties": {
@@ -30988,6 +32476,35 @@
           "reason"
         ],
         "title": "SocialComparison"
+      },
+      "SocialContentItem": {
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "stream": {
+            "type": "string",
+            "title": "Stream"
+          },
+          "content_id": {
+            "type": "string",
+            "title": "Content Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connection_id",
+          "provider",
+          "stream",
+          "content_id"
+        ],
+        "title": "SocialContentItem"
       },
       "SocialReportResult": {
         "properties": {
@@ -33299,6 +34816,35 @@
           "email_verified_at"
         ],
         "title": "UserResponse"
+      },
+      "ValuesState": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "not_ready"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "reason"
+        ],
+        "title": "ValuesState"
       },
       "VerificationCode": {
         "properties": {
