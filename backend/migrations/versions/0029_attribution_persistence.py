@@ -83,8 +83,8 @@ RUNTIME_GRANTS = (
     f"GRANT SELECT, INSERT ON {VERSIONS}, {CONVERSIONS}, {RUNS}, {ALLOCATIONS}, {CHANGES}, "
     f"{STATE} TO tracking_app",
     f"GRANT UPDATE (is_default, status, retired_at, operations) ON {VERSIONS} TO tracking_app",
-    f"GRANT UPDATE ({CONVERSION_PUBLICATION}, recheck_at, {CONVERSION_SCRUB}) ON {CONVERSIONS} "
-    "TO tracking_app",
+    f"GRANT UPDATE ({CONVERSION_PUBLICATION}, recheck_at, binding_id, {CONVERSION_SCRUB}) "
+    f"ON {CONVERSIONS} TO tracking_app",
     f"GRANT UPDATE (excluded_touchpoint_ids) ON {RUNS} TO tracking_app",
     f"GRANT UPDATE (touchpoint_id, occurred_at) ON {ALLOCATIONS} TO tracking_app",
     f"GRANT UPDATE (touchpoint_id) ON {CHANGES} TO tracking_app",

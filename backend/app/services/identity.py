@@ -915,6 +915,28 @@ def on_event_changed(
         journey.flush()
 
 
+# 008-B (D-079 D9): a consent change that alters what attribution may use of a subject's events
+# changes its owners' attributable journeys, although no event changed.
+def on_consent_changed(
+    session: Session, agency_id: UUID, client_id: UUID, subject_id: UUID, now: datetime
+) -> None:
+    owners = set(
+        session.scalars(
+            select(IdentityLink.subject_id).where(
+                IdentityLink.collection_subject_id == subject_id,
+                IdentityLink.status == "active",
+                IdentityLink.subject_id.is_not(None),
+            )
+        )
+    )
+    if not owners:
+        return
+    journey = Journey(session, agency_id, client_id, now)
+    for owner in sorted(owners, key=str):
+        journey.touch(owner, "events_changed")
+    journey.flush()
+
+
 # ---------------------------------------------------------------------------------------------
 # Browser handoff (design section 8, D3).
 

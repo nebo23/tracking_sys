@@ -367,6 +367,22 @@ def record_consent(
                 session, client_id, "attribution_withdrawn", now, collection_subject_id=subject.id
             )
         identity = choices.get(Purpose.IDENTITY_LINK)
+        # 008-B (D-079 D9): the change feed carries no consent, so a change of the subject's
+        # effective attribution grant, or a new identity_link grant, marks its owners' journeys
+        # changed here. Stored attribution then follows on the next pass, and readers see the
+        # feed move. It runs before W1 removes the links; W1 records its own changes.
+        before = consent_view(session, subject, now).states
+        if (
+            attribution is not None
+            and (attribution is ConsentState.GRANTED)
+            != (before[Purpose.ATTRIBUTION] is ConsentState.GRANTED)
+        ) or (
+            identity is ConsentState.GRANTED
+            and before[Purpose.IDENTITY_LINK] is not ConsentState.GRANTED
+        ):
+            from app.services.identity import on_consent_changed
+
+            on_consent_changed(session, agency_id, client_id, subject.id, now)
         if identity is not None and identity is not ConsentState.GRANTED:
             # W1 (006 D7, D-075): a withdrawal or an explicit denial of identity_link removes
             # the subject's identity evidence in this consent transaction.

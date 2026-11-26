@@ -159,7 +159,7 @@ One row per client, `client_id` primary key, client FK.
 `tracking_app`:
 - `SELECT, INSERT` on the six tables.
 - `UPDATE (is_default, status, retired_at, operations)` on model versions.
-- `UPDATE (status, superseded_generation, superseded_at, superseded_reason, recheck_at, owner_person_id, lead_event_id, slot_key, conversion_key, scrubbed_at)` on conversions: the publication and scrub columns.
+- `UPDATE (status, superseded_generation, superseded_at, superseded_reason, recheck_at, binding_id, owner_person_id, lead_event_id, slot_key, conversion_key, scrubbed_at)` on conversions: the publication and scrub columns.
 - `UPDATE (excluded_touchpoint_ids)` on runs, `UPDATE (touchpoint_id, occurred_at)` on allocations, `UPDATE (touchpoint_id)` on credit changes: the scrub columns.
 - `UPDATE` of every consumer state column except `client_id`, `agency_id` and `created_at`.
 - No `UPDATE` of any share, amount, currency, provenance, revision, cause or time column, and no `DELETE`.
@@ -226,7 +226,7 @@ State-based inputs, recomputed at every chunk:
 - **Scrubbed conversions:** open conversions with `scrubbed_at` set.
 - **Consent expiry:** open conversions whose `recheck_at` has passed. `recheck_at` is the earliest `expires_at` of the current attribution and identity_link grants of the owner group's collection subjects and of the association's subject.
 
-Feed emission for attribution consent (section 10, item 1): `record_consent` appends an `events_changed` record for the owners of a collection subject's active links when that subject's effective attribution state changes (granted to not granted, or back). The record is appended before W1 removes the links. The next pass therefore removes or restores the touches (D9), and the release barrier sees the feed watermark move.
+Feed emission for consent (section 10, item 1): `record_consent` appends an `events_changed` record for the owners of a collection subject's active links when that subject's effective attribution state changes (granted to not granted, or back), or when identity_link is granted again after it lapsed. The record is appended before W1 removes the links; W1 records its own changes. The next pass therefore removes or restores the touches (D9), and the release barrier sees the feed watermark move.
 
 Because the cursor-based inputs are fixed by the target and the state-based ones are re-evaluated by every unit, a change committed while a unit runs is applied by the next unit at the latest.
 

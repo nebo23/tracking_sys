@@ -9,7 +9,10 @@ not run, store or schedule attribution, which remains the successor work of spec
 - Touchpoints are the person's assigned page views, link clicks and form submissions (the
   two-time rule of 006; marked events never appear), with their collection subject's current
   attribution consent. A managed link or a retained utm_campaign value makes a campaign
-  interaction; anything else is a direct visit.
+  interaction; anything else is a direct visit. A managed link supplies its campaign code and
+  its content reference code. A utm_campaign value the engine would refuse as a reference
+  (empty, longer than 256 characters, padded or unprintable) is ignored, so one malformed URL
+  never fails a person's whole journey (008-B, D-079).
 - A conversion exists for every currently qualifying association (owned segment, current
   identity_link and attribution consent, verified sale in the published ledger). Its ID binds
   the association to the person's visible root, so an ownership change (merge, unmerge or
@@ -34,7 +37,14 @@ from app.attribution import (
     Touchpoint,
 )
 from app.ledger import Currency, LedgerScope
-from app.models import CollectionSubject, LedgerTransaction, LinkCampaign, ManagedLink
+from app.ledger.money import MAX_TEXT
+from app.models import (
+    CollectionSubject,
+    LedgerTransaction,
+    LinkCampaign,
+    LinkContentReference,
+    ManagedLink,
+)
 from app.privacy.consent import Purpose
 from app.services.collection import consent_view
 from app.services.identity import journey_events, person_group, root_of
@@ -42,11 +52,22 @@ from app.services.identity import journey_events, person_group, root_of
 TOUCH_TYPES = frozenset({"page_view", "link_click", "form_submit"})
 
 
+def usable_reference(value: object) -> bool:
+    """Whether a customer-supplied value satisfies the engine's reference text rule."""
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= MAX_TEXT
+        and value == value.strip()
+        and value.isprintable()
+    )
+
+
 def touchpoints(
     session: Session, agency_id: UUID, client_id: UUID, person_id: UUID, now: datetime
 ) -> list[Touchpoint]:
     root = root_of(session, person_id)
     consents: dict[UUID, object] = {}
+    links: dict[UUID, tuple[str | None, str | None]] = {}
     result = []
     for event, _link in journey_events(session, client_id, person_id, now):
         if event.event_type not in TOUCH_TYPES:
@@ -57,17 +78,27 @@ def touchpoints(
                 Purpose.ATTRIBUTION
             ]
         campaign = None
+        content = None
         link_ref = None
         if event.link_id is not None:
             link_ref = str(event.link_id)
-            campaign = session.scalar(
-                select(LinkCampaign.public_code)
-                .join(ManagedLink, ManagedLink.campaign_id == LinkCampaign.id)
-                .where(ManagedLink.id == event.link_id)
-            )
+            if event.link_id not in links:
+                row = session.execute(
+                    select(LinkCampaign.public_code, LinkContentReference.external_code)
+                    .select_from(ManagedLink)
+                    .outerjoin(LinkCampaign, LinkCampaign.id == ManagedLink.campaign_id)
+                    .outerjoin(
+                        LinkContentReference,
+                        LinkContentReference.id == ManagedLink.content_reference_id,
+                    )
+                    .where(ManagedLink.id == event.link_id)
+                ).one_or_none()
+                links[event.link_id] = (row[0], row[1]) if row is not None else (None, None)
+            campaign, content = links[event.link_id]
         url = (event.payload or {}).get("url")
         if campaign is None and isinstance(url, str):
-            campaign = dict(parse_qsl(urlsplit(url).query)).get("utm_campaign")
+            tagged_value = dict(parse_qsl(urlsplit(url).query)).get("utm_campaign")
+            campaign = tagged_value if usable_reference(tagged_value) else None
         tagged = campaign is not None or link_ref is not None
         result.append(
             Touchpoint(
@@ -81,6 +112,7 @@ def touchpoints(
                 consents[event.subject_id],
                 source="tracker" if event.trust_rank == 1 else "trusted_sender",
                 campaign_ref=campaign,
+                content_ref=content,
                 link_ref=link_ref,
             )
         )
