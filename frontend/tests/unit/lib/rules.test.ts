@@ -131,6 +131,8 @@ describe('small helpers', () => {
     expect(initials('Mona Hassan')).toBe('MH');
     expect(initials('  lumen   studio  berlin ')).toBe('LS');
     expect(initials('Olive')).toBe('O');
+    expect(initials('Olive & Thyme')).toBe('OT');
+    expect(initials('3 Peaks Studio')).toBe('3P');
     expect(initials('منى حسن')).toBe('مح');
     expect(initials('')).toBe('');
   });

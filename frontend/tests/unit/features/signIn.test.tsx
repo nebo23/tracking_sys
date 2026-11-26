@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { agreementBox, enter, everythingStored, signIn } from '../support/actions';
-import { fakeApi, json, password, refused, session, signedIn, signedOut } from '../support/api';
+import { clientsPath, fakeApi, json, password, refused, session, signedIn, signedOut } from '../support/api';
 import { forgetEverything, openApp } from '../support/app';
 
 afterEach(forgetEverything);
@@ -58,9 +58,9 @@ describe('the sign-in screen', () => {
 
     await signIn(user);
 
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
     expect(server.sent('POST /auth/login')[0]?.body).toEqual({ email: 'mona@lumen.example', password });
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe(clientsPath);
     expect(window.location.href).not.toContain(session.csrf_token);
     expect(everythingStored()).not.toContain(session.csrf_token);
     expect(everythingStored()).not.toContain(password);
@@ -124,15 +124,15 @@ describe('the sign-in screen', () => {
 
     await signIn(user);
 
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
     expect(window.location.origin).toBe(origin);
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe(clientsPath);
   });
 
   it('sends a person who is already signed in on to the workspace', async () => {
     fakeApi(signedIn());
     openApp('/sign-in');
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
   });
 
   it.each([
@@ -174,7 +174,7 @@ describe('the sign-in screen', () => {
     const user = userEvent.setup();
     openApp('/sign-in');
     await signIn(user);
-    await screen.findByRole('heading', { name: 'Overview', level: 1 });
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
 
     await user.click(screen.getByRole('button', { name: 'Account: Mona Hassan' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));

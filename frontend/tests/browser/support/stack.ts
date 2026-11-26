@@ -19,6 +19,8 @@ const backendRoot = path.join(repositoryRoot, 'backend');
 /** Build, captured mail and logs of a run. Ignored by git and removed when the stack stops. */
 export const workDirectory = path.join(frontendRoot, '.e2e');
 export const mailDirectory = path.join(workDirectory, 'mail');
+/** The files in which the stand-in providers keep their made-up accounts. They contact nobody. */
+const providerDirectory = path.join(workDirectory, 'providers');
 
 export const stack = {
   composeProject: 'tracking-e2e-frontend',
@@ -84,6 +86,14 @@ function newBackendEnvironment(): BackendEnvironment {
     // Both browsers run from one address, so the per-address limit is raised. The limits per
     // account stay at their defaults; one journey shows the message a person sees at that limit.
     TRACKING_AUTH_REQUESTS_PER_MINUTE: '1000',
+    // Connections use the stand-in providers only. Their tokens are sealed with a key of this run.
+    TRACKING_TOKEN_KEYRING: `dev1:${randomBytes(32).toString('base64url')}`,
+    TRACKING_TOKEN_KEYRING_ACTIVE: 'dev1',
+    TRACKING_CONNECTOR_SYNTHETIC_STATE: path.join(providerDirectory, 'synthetic.sqlite'),
+    TRACKING_CONNECTOR_REDIRECT_URI: `${stack.apiOrigin}/connectors/oauth/callback`,
+    TRACKING_CONNECTOR_INSTAGRAM_ENABLED: 'false',
+    TRACKING_CONNECTOR_YOUTUBE_ENABLED: 'false',
+    TRACKING_CONNECTOR_META_ADS_ENABLED: 'false',
   };
 }
 
@@ -174,6 +184,10 @@ assert (m.database_host, m.database_port, m.database_name) == expected, "migrati
 assert s.environment == "development" and s.mail_mode == "local", "mail"
 assert not s.google_sign_in_enabled, "google"
 assert s.allowed_origins == ["${stack.webOrigin}"] and s.frontend_origin == "${stack.webOrigin}", "origins"
+live = (s.connector_instagram_enabled, s.connector_youtube_enabled, s.connector_meta_ads_enabled)
+assert s.connector_synthetic_state is not None and not any(live), "providers"
+assert s.connector_redirect_uri == "${stack.apiOrigin}/connectors/oauth/callback", "provider callback"
+assert s.connector_completion_url == "${stack.webOrigin}/connections/complete", "provider return"
 print("settings-ok")
 `;
 
@@ -195,6 +209,7 @@ export async function startStack(announce: (line: string) => void = () => {}): P
 
   rmSync(workDirectory, { recursive: true, force: true });
   mkdirSync(mailDirectory, { recursive: true });
+  mkdirSync(providerDirectory, { recursive: true });
 
   announce('Checking the settings the API will use');
   if (!run(python, ['-c', settingsCheck], backend, 'The settings check').includes('settings-ok')) {
@@ -232,7 +247,10 @@ export async function startStack(announce: (line: string) => void = () => {}): P
     announce('Building the application');
     const vite = path.join(frontendRoot, 'node_modules', 'vite', 'bin', 'vite.js');
     const build = path.join(workDirectory, 'app');
-    const web = { cwd: frontendRoot, env: { ...neutralEnvironment(), VITE_API_ORIGIN: stack.apiOrigin, VITE_GOOGLE_SIGN_IN: 'false' } };
+    const web = {
+      cwd: frontendRoot,
+      env: { ...neutralEnvironment(), VITE_API_ORIGIN: stack.apiOrigin, VITE_GOOGLE_SIGN_IN: 'false', VITE_SYNTHETIC_PROVIDERS: 'true' },
+    };
     run(process.execPath, [vite, 'build', '--outDir', build, '--emptyOutDir'], web, 'The build');
 
     announce(`Serving the application on ${stack.webOrigin}`);
@@ -255,4 +273,42 @@ export async function startStack(announce: (line: string) => void = () => {}): P
 /** Runs one batch of the mail worker: queued messages become .eml files in the mail directory. */
 export function deliverMail(python: string, backendEnvironment: BackendEnvironment): void {
   run(python, ['-m', 'app.mail_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The mail worker');
+}
+
+// Stands in for a provider's own consent page, which no browser can open: the stand-in providers
+// live in files. Approves an authorization for one made-up account and prints the code the
+// provider would hand back.
+const approval = `
+import sys
+from app.config import Settings
+from app.services.connectors import build_providers
+provider, url, account, label = sys.argv[1:5]
+print(build_providers(Settings())[provider].approve(url, account, label))
+`;
+
+export interface StandInAccount {
+  provider: 'synthetic' | 'synthetic_instagram' | 'synthetic_youtube';
+  /** The account's identifier at the stand-in provider. */
+  account: string;
+  /** The name the provider gives the account, as a person knows it. */
+  label: string;
+}
+
+/**
+ * Approves the authorization a connection started and returns the address the provider would
+ * send the browser to: the API's own callback, with the code and the state of that authorization.
+ */
+export function approveAtProvider(python: string, backendEnvironment: BackendEnvironment, authorizationUrl: string, account: StandInAccount): string {
+  const options = { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } };
+  const code = run(python, ['-c', approval, account.provider, authorizationUrl, account.account, account.label], options, 'The approval').trim();
+  const asked = new URL(authorizationUrl).searchParams;
+  const back = new URL(asked.get('redirect_uri') ?? '');
+  back.searchParams.set('code', code);
+  back.searchParams.set('state', asked.get('state') ?? '');
+  return back.toString();
+}
+
+/** Runs one pass of the connector worker: removals, the schedule and the queued reads. Returns its counts. */
+export function runConnectorWorker(python: string, backendEnvironment: BackendEnvironment): string {
+  return run(python, ['-m', 'app.connector_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The connector worker');
 }

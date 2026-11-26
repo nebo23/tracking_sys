@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { agenciesKey, agencyQuery, tenantKey } from '@/api/agencies';
 import { api, call, setCsrfToken, setUnauthorizedListener } from '@/api/client';
 import { sessionKey } from '@/api/session';
-import { agencyChoice, currentAccess, switchAgency } from '@/app/agency';
+import { agencyChoice, currentAccess, forgetOtherAgencies } from '@/app/agency';
 import { beginSession, confirmSessionEnded, endSession, watchSession } from '@/app/sessionLifecycle';
 
 import { agency, fakeApi, json, refused, session } from '../support/api';
@@ -157,13 +157,19 @@ describe('a 401 from the API', () => {
 });
 
 describe('moving to another agency', () => {
-  it('drops what was loaded for agencies and keeps what belongs to the person', () => {
+  it('drops what was loaded for the agency left, and keeps the rest', () => {
     const queryClient = cacheInUse();
-    switchAgency(queryClient, otherAgency);
+    forgetOtherAgencies(queryClient, otherAgency);
+    // What belongs to the person, and what was loaded for the agency they work in now, stays.
+    expect(keysLeft(queryClient).sort()).toEqual(['agencies', 'agencies', 'session', 'tenant']);
+    expect(queryClient.getQueryData(tenantKey(otherAgency, 'clients'))).toBeDefined();
+    expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined();
+  });
+
+  it('remembers the agency a person chose, for the next visit', () => {
+    agencyChoice.set(otherAgency);
     expect(agencyChoice.get()).toBe(otherAgency);
     expect(window.localStorage.getItem('connect.agency')).toBe(otherAgency);
-    expect(keysLeft(queryClient).sort()).toEqual(['agencies', 'agencies', 'session']);
-    expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined();
   });
 
   it('works in the chosen agency while the person belongs to it, otherwise in the first', () => {

@@ -3,10 +3,29 @@ import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { agenciesKey, tenantKey } from '@/api/agencies';
+import { clientKey } from '@/api/clients';
 import { agencyChoice } from '@/app/agency';
 
 import { enter } from '../support/actions';
-import { agency, empty, fakeApi, json, password, refused, session, signedIn, signedOut } from '../support/api';
+import {
+  agency,
+  asRole,
+  client,
+  clientsPath,
+  connection,
+  connectionsPath,
+  coverage,
+  empty,
+  fakeApi,
+  json,
+  otherClient,
+  password,
+  refused,
+  session,
+  signedIn,
+  signedOut,
+  withClients,
+} from '../support/api';
 import { forgetEverything, openApp } from '../support/app';
 
 afterEach(forgetEverything);
@@ -18,12 +37,24 @@ const openAccountMenu = async (user: UserEvent) => {
   return screen.findByRole('menu');
 };
 
+const primary = async () => within(await screen.findByRole('navigation', { name: 'Primary' }));
+const linkTexts = (navigation: ReturnType<typeof within>) => navigation.getAllByRole('link').map((link: HTMLElement) => link.textContent);
+/** The switcher of the sidebar. The phone top bar holds a second, shorter one. */
+const switcher = () => screen.getAllByRole('button', { name: /Switch client or agency/ })[0] as HTMLElement;
+
 describe('the way into the workspace', () => {
   it('asks a visitor to sign in and remembers the page they wanted', async () => {
     fakeApi(signedOut());
     openApp('/account');
     expect(await screen.findByRole('heading', { name: 'Sign in', level: 1 })).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get('next')).toBe('/account');
+  });
+
+  it('remembers a page of a client, so a link works after signing in', async () => {
+    fakeApi(signedOut());
+    openApp(connectionsPath);
+    await screen.findByRole('heading', { name: 'Sign in', level: 1 });
+    expect(new URLSearchParams(window.location.search).get('next')).toBe(connectionsPath);
   });
 
   it('does not name the start page as a place to return to', async () => {
@@ -54,17 +85,18 @@ describe('the way into the workspace', () => {
     await enter(user, screen.getByLabelText('Agency name'), '  Lumen Studio ');
     await user.click(screen.getByRole('button', { name: 'Create agency' }));
 
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
     const [request] = server.sent('POST /agencies');
     expect(request?.body).toEqual({ name: 'Lumen Studio' });
     expect(request?.headers.get('X-CSRF-Token')).toBe(session.csrf_token);
     expect(agencyChoice.get()).toBe(agency.id);
+    expect(window.location.pathname).toBe(clientsPath);
   });
 
   it('keeps a person who has an agency away from the first-agency screen', async () => {
     fakeApi(signedIn());
     openApp('/welcome');
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
   });
 
   it('says so when the workspace could not load, in a main region of its own', async () => {
@@ -84,46 +116,152 @@ describe('the way into the workspace', () => {
 
     expect(await screen.findByRole('heading', { name: 'Account', level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close my account' })).toBeInTheDocument();
-    const navigation = within(screen.getByRole('navigation', { name: 'Primary' }));
-    expect(navigation.getAllByRole('link').map((link) => link.textContent)).toEqual(['Create your agency', 'Account']);
-    expect(screen.queryByRole('button', { name: /Switch agency/ })).not.toBeInTheDocument();
+    expect(linkTexts(await primary())).toEqual(['Create your agency', 'Account']);
+    expect(screen.queryByRole('button', { name: /Switch client or agency/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('the address', () => {
+  it('leads from the start to the clients of the agency the person last worked in', async () => {
+    fakeApi({
+      ...signedIn(),
+      'GET /agencies': json(200, [
+        { agency_id: agency.id, role: 'owner' },
+        { agency_id: second.id, role: 'analyst' },
+      ]),
+      [`GET /agencies/${second.id}`]: json(200, second),
+      [`GET /agencies/${second.id}/clients`]: json(200, []),
+    });
+    agencyChoice.set(second.id);
+    openApp('/');
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
+    expect(window.location.pathname).toBe(`/agencies/${second.id}/clients`);
+  });
+
+  it('is not permission: an agency the person does not belong to does not exist for them', async () => {
+    const server = fakeApi(signedIn());
+    openApp(`/agencies/${second.id}/clients`);
+    expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    // Nothing of that agency was asked for, and the agency of the person stays the one they work in.
+    expect(server.requests.some((request) => request.path.includes(second.id))).toBe(false);
+    expect(agencyChoice.get()).not.toBe(second.id);
+  });
+
+  it.each([
+    ['refused by the API', refused(403, 'access_denied')],
+    ['unknown to the API', refused(404, 'not_found')],
+  ])('shows "not found" for a client that is %s', async (_case, answer) => {
+    fakeApi({ ...signedIn(), [`GET /agencies/${agency.id}/clients/${client.id}`]: answer });
+    openApp(connectionsPath);
+    expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Connections' })).not.toBeInTheDocument();
+  });
+
+  it('never sends something that is not an identifier to the API as a client', async () => {
+    const server = fakeApi(signedIn());
+    openApp(`${clientsPath}/not-an-identifier/connections`);
+    expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
+    expect(server.requests.some((request) => request.path.includes('not-an-identifier'))).toBe(false);
+  });
+
+  it('opens the first page of a client when the address names only the client', async () => {
+    fakeApi(withClients([client]));
+    openApp(`${clientsPath}/${client.id}`);
+    expect(await screen.findByRole('heading', { name: 'Connections', level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(connectionsPath);
   });
 });
 
 describe('the workspace', () => {
-  it('shows the agency, the role and who is signed in, from the API', async () => {
+  it('offers an owner the agency level: the clients, the team and the keys', async () => {
     fakeApi(signedIn());
     openApp('/');
-
-    const main = within(await screen.findByRole('main'));
-    expect(await main.findByText('Lumen Studio')).toBeInTheDocument();
-    expect(main.getByText('Owner')).toBeInTheDocument();
-    expect(main.getByText('November 21, 2026')).toBeInTheDocument();
-    expect(main.getByText('Mona Hassan')).toBeInTheDocument();
-    expect(main.getByText('mona@lumen.example')).toBeInTheDocument();
-    expect(document.title).toBe('Overview · Connect');
-  });
-
-  it('offers only the destinations that exist in this slice', async () => {
-    fakeApi(signedIn());
-    openApp('/');
-    const navigation = within(await screen.findByRole('navigation', { name: 'Primary' }));
-    expect(navigation.getAllByRole('link').map((link) => link.textContent)).toEqual(['Overview', 'Account']);
-    expect(navigation.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+    const navigation = await primary();
+    expect(linkTexts(navigation)).toEqual(['Clients', 'Team and access', 'API keys', 'Account']);
+    expect(navigation.getByRole('link', { name: 'Clients' })).toHaveAttribute('aria-current', 'page');
     expect(navigation.getByRole('link', { name: 'Account' })).not.toHaveAttribute('aria-current');
+    expect(navigation.getByRole('group', { name: 'Agency' })).toBeInTheDocument();
+    expect(document.title).toBe('Clients · Connect');
   });
 
-  it('says so when the agency could not be loaded, and tries again on request', async () => {
-    const server = fakeApi({ ...signedIn(), [`GET /agencies/${agency.id}`]: refused(403, 'access_denied') });
+  it.each(['analyst', 'client_viewer'] as const)('offers a %s the clients only', async (role) => {
+    fakeApi(asRole(role, signedIn()));
+    openApp('/');
+    expect(linkTexts(await primary())).toEqual(['Clients', 'Account']);
+  });
+
+  it.each(['team', 'keys'])('has no %s page for a person who does not manage the agency', async (page) => {
+    const server = fakeApi(asRole('analyst', signedIn()));
+    openApp(`/agencies/${agency.id}/${page}`);
+    expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
+    expect(server.sent(`GET /agencies/${agency.id}/invitations`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${agency.id}/service-credentials`)).toHaveLength(0);
+  });
+
+  it('does not ask for the agency profile of a client viewer, who may not read it', async () => {
+    const server = fakeApi(asRole('client_viewer', withClients([client])));
+    openApp('/');
+    expect(await screen.findByText('Olive & Thyme')).toBeInTheDocument();
+    expect(server.sent(`GET /agencies/${agency.id}`)).toHaveLength(0);
+    expect(switcher()).toHaveTextContent('Your agency');
+  });
+
+  it('shows the client level inside a client, with the way back to the agency', async () => {
+    fakeApi(withClients([client], { [client.id]: [] }));
+    openApp(connectionsPath);
+
+    const navigation = await primary();
+    await screen.findByRole('heading', { name: 'Connections', level: 1 });
+    expect(linkTexts(navigation)).toEqual(['Connections', 'Account']);
+    expect(navigation.getByRole('link', { name: 'Connections' })).toHaveAttribute('aria-current', 'page');
+    expect(navigation.getByRole('group', { name: 'Manage' })).toBeInTheDocument();
+
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    expect(await crumbs.findByRole('link', { name: 'Lumen Studio' })).toHaveAttribute('href', clientsPath);
+    expect(crumbs.getByText('Olive & Thyme')).toBeInTheDocument();
+    expect(switcher()).toHaveTextContent('Olive & Thyme');
+    expect(switcher()).toHaveTextContent('Lumen Studio');
+  });
+
+  it('moves between clients from the switcher', async () => {
+    fakeApi(withClients([client, otherClient]));
     const user = userEvent.setup();
     openApp('/');
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
 
-    const main = within(await screen.findByRole('main'));
-    expect(await main.findByRole('alert')).toHaveTextContent('You do not have access to this.');
+    await user.click(switcher());
+    const menu = within(await screen.findByRole('menu'));
+    expect(menu.getByRole('menuitemradio', { name: 'All clients' })).toHaveAttribute('aria-checked', 'true');
+    // In the order a person reads names, whatever order the API lists them in.
+    expect(menu.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['All clients', 'CFCedar Fitness', 'OTOlive & Thyme']);
+    await user.click(menu.getByRole('menuitemradio', { name: 'Cedar Fitness' }));
 
-    server.routes[`GET /agencies/${agency.id}`] = json(200, agency);
-    await user.click(main.getByRole('button', { name: 'Try again' }));
-    expect(await main.findByText('November 21, 2026')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Connections', level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${clientsPath}/${otherClient.id}/connections`);
+  });
+
+  it('removes what was loaded for a client once the person has left it', async () => {
+    const routes = withClients([client, otherClient], { [client.id]: [connection()] });
+    fakeApi({ ...routes, [`GET /agencies/${agency.id}/clients/${client.id}/connections/${connection().id}/coverage`]: json(200, coverage()) });
+    const user = userEvent.setup();
+    const { queryClient } = openApp(connectionsPath);
+    await screen.findByText('@olive.thyme');
+    const held = () => queryClient.getQueryCache().findAll({ queryKey: clientKey(agency.id, client.id) }).length;
+    expect(held()).toBeGreaterThan(0);
+
+    // To another client: nothing of the first one is kept.
+    await user.click(switcher());
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Cedar Fitness' }));
+    await screen.findByText('Connect the first account');
+    await waitFor(() => expect(held()).toBe(0));
+    expect(screen.queryByText('@olive.thyme')).not.toBeInTheDocument();
+
+    // And back to the agency level: nothing of the second one either.
+    await user.click(switcher());
+    await user.click(await screen.findByRole('menuitemradio', { name: 'All clients' }));
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
+    await waitFor(() => expect(queryClient.getQueryCache().findAll({ queryKey: clientKey(agency.id, otherClient.id) })).toHaveLength(0));
   });
 
   it('changes the theme and the language from the account menu', async () => {
@@ -136,11 +274,10 @@ describe('the workspace', () => {
     expect(window.localStorage.getItem('connect.theme')).toBe('dark');
 
     await user.click(within(await openAccountMenu(user)).getByRole('menuitemradio', { name: 'العربية' }));
-    expect(await screen.findByRole('heading', { name: 'نظرة عامة', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'العملاء', level: 1 })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
-    const main = within(screen.getByRole('main'));
-    expect(await main.findByText('21 نوفمبر 2026')).toBeInTheDocument();
-    expect(main.getByText('مالك')).toBeInTheDocument();
+    const navigation = within(screen.getByRole('navigation', { name: 'التنقل الرئيسي' }));
+    expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'الحساب']);
   });
 
   it('moves to another agency and drops what was loaded for the first', async () => {
@@ -151,19 +288,22 @@ describe('the workspace', () => {
         { agency_id: second.id, role: 'analyst' },
       ]),
       [`GET /agencies/${second.id}`]: json(200, second),
+      [`GET /agencies/${second.id}/clients`]: json(200, []),
     });
     const user = userEvent.setup();
     const { queryClient } = openApp('/');
-    const main = within(await screen.findByRole('main'));
-    await main.findByText('Lumen Studio');
-    queryClient.setQueryData(tenantKey(agency.id, 'clients'), [{ name: 'A client of the first agency' }]);
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
+    expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toEqual([]);
 
-    await user.click(screen.getAllByRole('button', { name: /Switch agency/ })[0] as HTMLElement);
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Northlight Media' }));
+    await user.click(switcher());
+    const menu = within(await screen.findByRole('menu'));
+    expect(menu.getByText('Your other agencies')).toBeInTheDocument();
+    await user.click(await menu.findByRole('menuitem', { name: /Northlight Media/ }));
 
-    expect(await main.findByText('Northlight Media')).toBeInTheDocument();
-    expect(main.getByText('Analyst')).toBeInTheDocument();
-    expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined();
+    await waitFor(() => expect(window.location.pathname).toBe(`/agencies/${second.id}/clients`));
+    expect(linkTexts(await primary())).toEqual(['Clients', 'Account']);
+    await waitFor(() => expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined());
+    expect(queryClient.getQueryData(tenantKey(second.id, 'clients'))).toEqual([]);
     expect(agencyChoice.get()).toBe(second.id);
   });
 
@@ -177,6 +317,7 @@ describe('the workspace', () => {
     expect(await screen.findByText('You are signed out.')).toBeInTheDocument();
     expect(server.sent('POST /auth/logout')[0]?.headers.get('X-CSRF-Token')).toBe(session.csrf_token);
     await waitFor(() => expect(queryClient.getQueryData(agenciesKey)).toBeUndefined());
+    expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined();
     expect(window.localStorage.getItem('connect.agency')).toBeNull();
   });
 
@@ -188,7 +329,7 @@ describe('the workspace', () => {
     await user.click(within(await openAccountMenu(user)).getByRole('menuitem', { name: 'Sign out' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This page is out of date. Reload it and try again.');
-    expect(screen.getByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
   });
 });
 

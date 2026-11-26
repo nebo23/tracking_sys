@@ -21,12 +21,18 @@ interface NoticeProps {
   children: ReactNode;
   /** A link or button that resolves the notice. */
   action?: ReactNode;
+  /**
+   * True for a notice that describes a lasting state of what is on the page, such as a connection
+   * that needs attention. It is read in its place and is not announced as news.
+   */
+  quiet?: boolean;
 }
 
 /** A message about the page. Problems are announced at once; other notices wait their turn. */
-export function Notice({ tone = 'info', title, children, action }: NoticeProps) {
+export function Notice({ tone = 'info', title, children, action, quiet = false }: NoticeProps) {
+  const role = tone === 'danger' ? 'alert' : 'status';
   return (
-    <div className={cx('c-banner', tone !== 'info' && `c-banner--${tone}`)} role={tone === 'danger' ? 'alert' : 'status'}>
+    <div className={cx('c-banner', tone !== 'info' && `c-banner--${tone}`)} role={quiet ? undefined : role}>
       <Icon name={icons[tone]} />
       <div className="c-banner__text">
         {title ? <p className="c-banner__title">{title}</p> : null}

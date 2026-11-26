@@ -3,6 +3,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  notFound,
   Outlet,
   redirect,
   useRouter,
@@ -10,10 +11,11 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { agenciesQuery } from '@/api/agencies';
+import { agenciesQuery, type AgencyAccess } from '@/api/agencies';
+import { clientQuery } from '@/api/clients';
+import { isApiError } from '@/api/errors';
 import { sessionQuery } from '@/api/session';
 import { AccountPage } from '@/features/account/AccountPage';
-import { HomePage } from '@/features/agency/HomePage';
 import { WelcomePage } from '@/features/agency/WelcomePage';
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage';
 import { AuthLayout } from '@/features/auth/AuthLayout';
@@ -23,8 +25,16 @@ import { RegisterPage } from '@/features/auth/RegisterPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 import { SignInPage } from '@/features/auth/SignInPage';
 import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
+import { ClientsPage } from '@/features/clients/ClientsPage';
+import { ConnectionCompletePage } from '@/features/connections/ConnectionCompletePage';
+import { ConnectionsPage } from '@/features/connections/ConnectionsPage';
+import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
+import { KeysPage } from '@/features/keys/KeysPage';
+import { TeamPage } from '@/features/team/TeamPage';
+import { isIdentifier } from '@/lib/identifier';
 import { captureLinkToken, heldLinkToken } from '@/lib/linkToken';
 
+import { agencyChoice, currentAccess, isManager } from './agency';
 import { ErrorPage, LegalPage, NotFoundPage, PendingPage } from './pages';
 import { signInNotices, type SignInNotice } from './sessionLifecycle';
 import { Shell } from './shell/Shell';
@@ -168,14 +178,122 @@ const workspaceRoute = createRoute({
   component: Shell,
 });
 
+// The start address leads to the clients of the agency the person last worked in.
 const homeRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: '/',
   beforeLoad: async ({ context }) => {
     const agencies = await context.queryClient.ensureQueryData(agenciesQuery);
-    if (agencies.length === 0) throw redirect({ to: '/welcome' });
+    const access = currentAccess(agencies, agencyChoice.get());
+    if (!access) throw redirect({ to: '/welcome' });
+    throw redirect({ to: '/agencies/$agencyId/clients', params: { agencyId: access.agency_id }, replace: true });
   },
-  component: HomePage,
+});
+
+// ------------------------------------------------------------ An agency --
+/** The person's access to the agency an address names, read again once in case it is new. */
+async function accessTo(queryClient: QueryClient, agencyId: string): Promise<AgencyAccess | undefined> {
+  const find = (agencies: readonly AgencyAccess[]) => agencies.find((agency) => agency.agency_id === agencyId);
+  const known = find(await queryClient.ensureQueryData(agenciesQuery));
+  if (known || !isIdentifier(agencyId)) return known;
+  return find(await queryClient.fetchQuery({ ...agenciesQuery, staleTime: 0 }));
+}
+
+const agencyRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: '/agencies/$agencyId',
+  beforeLoad: async ({ context, params }) => {
+    const access = await accessTo(context.queryClient, params.agencyId);
+    // The agency a person opens is the one the start address leads to next time.
+    if (access && agencyChoice.get() !== access.agency_id) agencyChoice.set(access.agency_id);
+    return { access };
+  },
+  // An address is not permission: an agency the person does not belong to does not exist for them.
+  loader: ({ context }) => {
+    if (!context.access) throw notFound();
+  },
+});
+
+const agencyIndexRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: '/',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/agencies/$agencyId/clients', params, replace: true });
+  },
+});
+
+const clientsRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'clients',
+  component: ClientsPage,
+});
+
+/** The pages of the people who manage the agency. For anyone else they do not exist. */
+function managersOnly({ context }: { context: { access?: AgencyAccess } }): void {
+  if (!isManager(context.access?.role)) throw notFound();
+}
+
+const teamRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'team',
+  loader: managersOnly,
+  component: TeamPage,
+});
+
+const keysRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'keys',
+  loader: managersOnly,
+  component: KeysPage,
+});
+
+// ------------------------------------------------------------- A client --
+const clientRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'clients/$clientId',
+  // The API decides whether the person may read this client. A refusal, an unknown client and an
+  // address that is not an identifier all look the same: the page does not exist.
+  loader: async ({ context, params }) => {
+    if (!context.access || !isIdentifier(params.clientId)) throw notFound();
+    try {
+      await context.queryClient.ensureQueryData(clientQuery(params.agencyId, params.clientId));
+    } catch (error) {
+      if (isApiError(error) && [403, 404, 422].includes(error.status)) throw notFound();
+      throw error;
+    }
+  },
+});
+
+// The first page of a client. From 018-C it is the overview.
+const clientIndexRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: '/',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/agencies/$agencyId/clients/$clientId/connections', params, replace: true });
+  },
+});
+
+const connectionsRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'connections',
+  validateSearch: (search: Search): { outcome?: ReturnOutcome; connection?: string; failed?: ReturnError } => ({
+    outcome: returnOutcomes.find((outcome) => outcome === search.outcome),
+    connection: isIdentifier(search.connection) ? search.connection : undefined,
+    failed: returnErrors.find((code) => code === search.failed),
+  }),
+  component: ConnectionsPage,
+});
+
+// Where the API sends the browser after a provider. The address carries the outcome only.
+const connectionCompleteRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: '/connections/complete',
+  validateSearch: (search: Search): { result?: ReturnOutcome; connection_id?: string; error?: ReturnError } => ({
+    result: returnOutcomes.find((outcome) => outcome === search.result),
+    connection_id: isIdentifier(search.connection_id) ? search.connection_id : undefined,
+    error: returnErrors.find((code) => code === search.error),
+  }),
+  component: ConnectionCompletePage,
 });
 
 const accountRoute = createRoute({
@@ -211,7 +329,18 @@ const routeTree = rootRoute.addChildren([
     googleCompleteRoute,
     welcomeRoute,
   ]),
-  workspaceRoute.addChildren([homeRoute, accountRoute]),
+  workspaceRoute.addChildren([
+    homeRoute,
+    accountRoute,
+    connectionCompleteRoute,
+    agencyRoute.addChildren([
+      agencyIndexRoute,
+      clientsRoute,
+      teamRoute,
+      keysRoute,
+      clientRoute.addChildren([clientIndexRoute, connectionsRoute]),
+    ]),
+  ]),
   termsRoute,
   privacyRoute,
 ]);

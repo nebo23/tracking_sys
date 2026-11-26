@@ -5,6 +5,8 @@ import type { MessageId } from '@/i18n';
 export const PASSWORD_MIN = 15;
 export const PASSWORD_MAX = 128;
 export const NAME_MAX = 200;
+// ServiceKeyInput: the name of a key.
+export const KEY_NAME_MAX = 100;
 export const EMAIL_MAX = 320;
 export const CODE_LENGTH = 6;
 

@@ -235,7 +235,7 @@ describe('an invitation', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
 
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
     const [request] = server.sent('POST /invitations/accept');
     expect(request?.body).toEqual({ token: linkToken });
     expect(request?.headers.get('X-CSRF-Token')).toBe(session.csrf_token);
@@ -288,7 +288,7 @@ describe('coming back from Google', () => {
   it('opens the workspace after a successful sign-in', async () => {
     fakeApi(signedIn());
     openApp('/auth/google/complete?result=signed_in');
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
   });
 
   it('returns to the account page after a link, and says it worked', async () => {

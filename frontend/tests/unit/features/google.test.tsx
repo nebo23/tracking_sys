@@ -9,7 +9,7 @@ import { fakeApi, json, refused, session, signedIn, signedOut } from '../support
 import { forgetEverything, openApp } from '../support/app';
 
 // A build with Google sign-in switched on (VITE_GOOGLE_SIGN_IN=true).
-vi.mock('@/app/config', () => ({ apiOrigin: 'http://127.0.0.1:8000', googleSignInEnabled: true }));
+vi.mock('@/app/config', () => ({ apiOrigin: 'http://127.0.0.1:8000', googleSignInEnabled: true, syntheticProvidersEnabled: false }));
 
 // Leaving the application is recorded instead of done.
 vi.mock('@/lib/browser', async (original) => ({ ...(await original<typeof import('@/lib/browser')>()), goTo: vi.fn() }));

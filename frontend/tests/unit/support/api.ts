@@ -71,11 +71,104 @@ export function fakeApi(routes: Record<string, Answer>) {
   };
 }
 
-/** The answers of an API where Mona is signed in and owns one agency. */
+/** The address of the first page of the workspace: the clients of the agency. */
+export const clientsPath = `/agencies/${agency.id}/clients`;
+
+export const client = {
+  id: 'c1111111-1111-4111-8111-111111111111',
+  agency_id: agency.id,
+  name: 'Olive & Thyme',
+  status: 'active',
+  created_at: '2026-11-22T09:00:00Z',
+};
+
+export const otherClient = {
+  id: 'c2222222-2222-4222-8222-222222222222',
+  agency_id: agency.id,
+  name: 'Cedar Fitness',
+  status: 'active',
+  created_at: '2026-11-23T09:00:00Z',
+};
+
+export const connectionsPath = `${clientsPath}/${client.id}/connections`;
+
+/** A connection as the API lists it. Fields a test cares about are given; the rest are quiet defaults. */
+export const connection = (given: Record<string, unknown> = {}) => ({
+  id: 'd1111111-1111-4111-8111-111111111111',
+  provider: 'synthetic',
+  account: { external_account_id: 'acct-1', label: '@olive.thyme' },
+  status: 'active',
+  status_reason: null,
+  granted_scopes: ['read'],
+  connected_at: '2026-11-22T10:00:00Z',
+  last_successful_sync_at: '2026-11-26T09:00:00Z',
+  actions: { reconnect: false, disconnect: true },
+  disconnect: null,
+  grant_expires_at: null,
+  ...given,
+});
+
+const quietRun = { state: 'idle', kind: null, reason: null, next_attempt_at: null };
+
+/** The coverage of a connection, quiet and complete unless a test says otherwise. */
+export const coverage = (given: Record<string, unknown> = {}) => ({
+  connection_id: 'd1111111-1111-4111-8111-111111111111',
+  source: { provider: 'synthetic', adapter_version: 'synthetic-1', account_kind: 'business' },
+  status: 'active',
+  last_successful_sync_at: '2026-11-26T09:00:00Z',
+  freshness: 'fresh',
+  freshness_hours: 24,
+  sync: quietRun,
+  streams: [
+    {
+      stream: 'account',
+      state: 'complete',
+      covered_from: '2026-10-27T00:00:00Z',
+      complete_through: '2026-11-25T00:00:00Z',
+      history_limit_days: 30,
+      sync: quietRun,
+    },
+  ],
+  metrics: [],
+  cost: {
+    unit: 'synthetic_unit',
+    period_start: '2026-11-26T00:00:00Z',
+    consumed: 38,
+    allocation: 100,
+    remaining: 62,
+    state: 'available',
+    reason: null,
+    buckets: [],
+  },
+  ...given,
+});
+
+/** The answers of an API where Mona is signed in and owns one agency, which has no client yet. */
 export const signedIn = (): Record<string, Answer> => ({
   'GET /auth/me': json(200, session),
   'GET /agencies': json(200, [{ agency_id: agency.id, role: 'owner' }]),
   [`GET /agencies/${agency.id}`]: json(200, agency),
+  [`GET /agencies/${agency.id}/clients`]: json(200, []),
+});
+
+/** The same agency with clients, each with the connections given for it (none by default). */
+export const withClients = (clients: Array<typeof client>, connections: Record<string, unknown[]> = {}): Record<string, Answer> => ({
+  ...signedIn(),
+  [`GET /agencies/${agency.id}/clients`]: json(200, clients),
+  ...Object.fromEntries(
+    clients.flatMap((item) => [
+      [`GET /agencies/${agency.id}/clients/${item.id}`, json(200, item)],
+      [`GET /agencies/${agency.id}/clients/${item.id}/connections`, json(200, connections[item.id] ?? [])],
+    ]),
+  ),
+});
+
+/** Mona with another role in the agency. */
+export const asRole = (role: 'owner' | 'admin' | 'analyst' | 'client_viewer', routes: Record<string, Answer>): Record<string, Answer> => ({
+  ...routes,
+  'GET /agencies': json(200, [{ agency_id: agency.id, role }]),
+  // A client viewer may not read the agency's profile.
+  ...(role === 'client_viewer' ? { [`GET /agencies/${agency.id}`]: refused(403, 'access_denied') } : {}),
 });
 
 export const signedOut = (): Record<string, Answer> => ({

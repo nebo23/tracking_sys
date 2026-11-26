@@ -26,6 +26,20 @@ const sample = {
   page: 'Account',
   position: 3,
   seconds: 5,
+  bucket: 'youtube_data',
+  client: 'Olive & Thyme',
+  count: 4,
+  date: '26 November 2026',
+  days: 30,
+  from: '1 March 2026',
+  of: 100,
+  provider: 'Instagram',
+  search: 'olive',
+  shown: 2,
+  through: '30 March 2026',
+  time: '16:00',
+  total: 6,
+  used: 38,
   terms: (text: ReactNode[]) => text,
   privacy: (text: ReactNode[]) => text,
 };
@@ -65,6 +79,12 @@ describe('the messages', () => {
     for (const seconds of [0, 1, 2, 3, 11, 100]) {
       expect(intl.formatMessage({ id: 'verify.resendWait' }, { seconds }), String(seconds)).toMatch(/\S/);
       expect(intl.formatMessage({ id: 'error.rate_limitedSeconds' }, { seconds }), String(seconds)).toMatch(/\S/);
+    }
+    for (const count of [0, 1, 2, 3, 11, 100]) {
+      expect(intl.formatMessage({ id: 'clients.count' }, { count }), String(count)).toMatch(/\S/);
+      expect(intl.formatMessage({ id: 'clients.countFiltered' }, { shown: 1, total: count }), String(count)).toMatch(/\S/);
+      expect(intl.formatMessage({ id: 'clients.status.reconnectMany' }, { count }), String(count)).toMatch(/\S/);
+      expect(intl.formatMessage({ id: 'keys.lifetime.days' }, { days: count }), String(count)).toMatch(/\S/);
     }
   });
 });
