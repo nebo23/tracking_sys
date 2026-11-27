@@ -29,7 +29,7 @@ export const invitationsQuery = (agencyId: string) =>
 
 /**
  * Every member of the agency with their name, email, account state and client grants. Readable
- * by its owners and admins (018-B plan, B1; D-094). A closed account comes without a name.
+ * by its owners and admins (018-B plan, B1; D-101). A closed account comes without a name.
  */
 export const membersQuery = (agencyId: string) =>
   queryOptions({

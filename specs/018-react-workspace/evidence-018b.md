@@ -1,6 +1,6 @@
 # 018-B evidence
 
-Status: slice 018-B is implemented. Clients, connections, invitations and keys were built and checked on 2026-11-26 (sections 1 to 8). On 2026-11-27 the owner approved the API amendment of the [018-B plan](plan-018b.md), section 3.2 (D-094), and the members, their client access, archived clients and the audit log followed (section 9). Everything is pushed to `codex/spec-018-workspace-screens` (D-051, D-093, D-094). The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
+Status: slice 018-B is implemented. Clients, connections, invitations and keys were built and checked on 2026-11-26 (sections 1 to 8). On 2026-11-27 the owner approved the API amendment of the [018-B plan](plan-018b.md), section 3.2 (D-101), and the members, their client access, archived clients and the audit log followed (section 9). Everything is pushed to `codex/spec-018-workspace-screens` (D-051, D-100, D-101). The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what is open.
 
 How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
@@ -8,9 +8,9 @@ How to run the application and its checks is in the [frontend guide](../../front
 | Area | State |
 |---|---|
 | Packages | None added and none changed: `frontend/package.json` and `package-lock.json` are those of 018-A (the thirty packages of D-084). |
-| API, contract, schema | Until D-094 nothing in `backend/` or `contracts/` changed. Section 9 describes the amendment that followed; it adds no migration and no table. |
+| API, contract, schema | Until D-101 nothing in `backend/` or `contracts/` changed. Section 9 describes the amendment that followed; it adds no migration and no table. |
 | Reference styles | Nothing in `docs/design/` changed. The new screens use the existing classes; `frontend/src/styles/app.css` gains rules of the running application only (prefix `a-`). |
-| Pull request 17 | Untouched. This work is on a branch stacked on the 018-A branch (D-093). |
+| Pull request 17 | Untouched. This work is on a branch stacked on the 018-A branch (D-100). |
 
 ## 2. What was built
 | Part | Where | What it does |
@@ -132,8 +132,8 @@ The screens were also reviewed as pictures on the disposable stack: every new sc
 - Splitting the script by route (section 6).
 - The open items of the 018-A evidence, section 8.1, which this slice does not change.
 
-## 9. Completion under D-094 (2026-11-27)
-The owner approved amendment B1-B3 of the plan on 2026-11-27 (D-094). B3, the `Retry-After` header for the browser, was already part of Spec 017-A on its own branch (D-091, D-092, commit `2fa7db6`) and is not repeated here: the rate-limit sentence of 018-A gains its number of seconds when 017-A reaches this branch.
+## 9. Completion under D-101 (2026-11-27)
+The owner approved amendment B1-B3 of the plan on 2026-11-27 (D-101). B3, the `Retry-After` header for the browser, was already part of Spec 017-A on its own branch (D-091, D-092, commit `2fa7db6`) and is not repeated here: the rate-limit sentence of 018-A gains its number of seconds when 017-A reaches this branch.
 
 ### 9.1 What was built
 | Part | Where | What it does |

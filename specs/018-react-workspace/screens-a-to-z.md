@@ -47,7 +47,7 @@ The pictures of built screens were changed in four ways, and only these: keys, c
 | G04 to G06 | Clients, Links and Integrations in Arabic and dark | Built | Arabic, dark theme |
 
 ## 3. Points for the owner's review
-1. **The Analyze group (C01 to C10) waits for the decision on 018-C**, which needs Recharts (D-093). The ad spend and attribution designs follow the 016-A and 016-B contracts: date ranges end on the last complete day, each model is shown on its own, credit is checked against the ledger, and unknown or unmeasured values are named instead of shown as zero.
+1. **The Analyze group (C01 to C10) waits for the decision on 018-C**, which needs Recharts (D-100). The ad spend and attribution designs follow the 016-A and 016-B contracts: date ranges end on the last complete day, each model is shown on its own, credit is checked against the ledger, and unknown or unmeasured values are named instead of shown as zero.
 2. **Names of campaigns, ad sets and ads.** The 016-A spend report and the 016-B ROAS report return object IDs only. C07 and C10 show the names that the 014 ad-spend read (`/ad-spend`) returns for the same account, joined in the browser; no API change is assumed.
 3. **Agreement to the terms.** Main now has 017-A: signing in, registering and Google sign-in must send the current versions from `GET /auth/agreements`. The interface branches were made before 017-A and do not send them yet, so this must be added when they are brought up to date with main; A03 shows the refused state.
 4. **Agency settings (B13 to B15)** need a place in the navigation; the design adds "Agency settings" to the agency group. The API (plan, closure) exists on main.

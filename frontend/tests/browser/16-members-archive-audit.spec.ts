@@ -6,7 +6,7 @@ import { stack } from './support/stack.ts';
 import { acceptInvitation, inviteAs, withClient } from './support/tenants.ts';
 
 // The members of an agency by name, their client access, paused access, archived clients and the
-// audit log (018-B plan, B1 and B2; D-094), on the real API.
+// audit log (018-B plan, B1 and B2; D-101), on the real API.
 
 test('an owner changes, pauses and restores a member\'s access, archives a client and reads the audit log', async ({ page, context, browser }, testInfo) => {
   const owner = await registered(newPerson(testInfo));

@@ -15,7 +15,7 @@ Prepared 2026-11-27 at the owner's request to prepare the specification and the 
 5. Preserve owner files, other worktrees and the Compose projects of other sessions (for example `tracking-test-*`).
 
 Read the following before the first change:
-- **Project rules and decisions:** `AGENTS.md`, `README.md`, and in `docs/planning/decisions.md`: D-015, D-039, D-051, D-081 to D-087, D-091, `main`'s D-093 to D-095, D-096 on the coordination branch, this branch's D-093 and D-094, and the decision that approves this packet.
+- **Project rules and decisions:** `AGENTS.md`, `README.md`, and in `docs/planning/decisions.md`: D-015, D-039, D-051, D-081 to D-087, D-091, `main`'s D-093 to D-095, D-096 on the coordination branch, this branch's D-100 and D-101 (D-093 and D-094 before P0), and the decision that approves this packet.
 - **The packet:** the [completion entry review](entry-review-completion.md): D1-D12, section 4 (design) and section 5 (verification matrix).
 - **Spec 018:**
   - the [spec](spec.md), the [entry review](entry-review.md) (D1-D15, especially the data-state rule and the date ranges);
@@ -93,7 +93,7 @@ Record commands and exact counts as you go. A skipped case is reported as skippe
    - unit tests and the sign-in journeys cover it.
 4. Run the P0 checks on this branch, then push it. This is the one update of pull request 17 (D-091).
 5. On `codex/spec-018-workspace-screens`, merge the updated `codex/spec-018-react-workspace`. Then:
-   - renumber this branch's D-093 (the remaining interface) and D-094 (amendment B1-B3), as D-096 requires, to the next free numbers. D-096 was the highest on 2026-11-27, and the approval of this packet takes a number before this step, so check again. Change every reference to them in `AGENTS.md`, `docs/planning/decisions.md`, `specs/018-react-workspace/` and `frontend/`; keep the existing numbering note of Spec 018 and add one line for this renumbering. Commit messages are not rewritten;
+   - renumber this branch's D-093 (the remaining interface) and D-094 (amendment B1-B3), as D-096 requires, to the next free numbers (they became D-100 and D-101). D-096 was the highest on 2026-11-27, and the approval of this packet takes a number before this step, so check again. Change every reference to them in `AGENTS.md`, `docs/planning/decisions.md`, `specs/018-react-workspace/` and `frontend/`; keep the existing numbering note of Spec 018 and add one line for this renumbering. Commit messages are not rewritten;
    - adopt the rest of section 4.2: operator rows in the audit log, closing agencies in the switcher and the agency list, and `plan_limit_reached` where a creation is refused;
    - run every check, then push.
 6. **Checks of P0:**

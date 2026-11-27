@@ -206,7 +206,7 @@ class MembershipResponse(Output):
 
 
 # One client grant of a member as the agency's Owners and Admins see it (018-B plan, B1;
-# D-094): the client and the two optional visibilities.
+# D-101): the client and the two optional visibilities.
 class MemberClientGrant(Output):
     client_id: UUID
     can_view_financials: bool
@@ -214,7 +214,7 @@ class MemberClientGrant(Output):
 
 
 # A membership with the person's name, email and account state, the date the person joined and
-# their client grants, for the Owners and Admins who may list members (018-B plan, B1; D-094).
+# their client grants, for the Owners and Admins who may list members (018-B plan, B1; D-101).
 # A closed account is never named: its pseudonyms are not returned, and account says closed.
 class MemberDetail(MembershipResponse):
     joined_at: datetime

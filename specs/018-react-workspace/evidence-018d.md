@@ -1,6 +1,6 @@
 # 018-D evidence
 
-Status: slice 018-D is implemented and checked as described here on 2026-11-27, under D-093 and the [018-D plan](plan-018d.md), and pushed to `codex/spec-018-workspace-screens` (D-051). The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what stays open.
+Status: slice 018-D is implemented and checked as described here on 2026-11-27, under D-100 and the [018-D plan](plan-018d.md), and pushed to `codex/spec-018-workspace-screens` (D-051). The slice is not accepted until the owner has reviewed it. A pull request for it, the merge and any deployment are the owner's decisions. Section 7 lists what was not run and section 8 what stays open.
 
 How to run the application and its checks is in the [frontend guide](../../frontend/README.md).
 
@@ -80,6 +80,6 @@ The journeys use the disposable stack of 018-A: a PostgreSQL container of its ow
 ## 8. Open
 1. **The owner's review of the screens that had no reference drawing**: the tabs of Links after the first, Website tracking and Integrations follow the design language only.
 2. **018-C** waits for the owner's decision on its packages (Recharts).
-3. **Pull requests**: none was opened for 018-B or 018-D (D-093). Pull request 17 (018-A) is still open, and Spec 017-A will bring the agreement record at sign-in, the operator as an actor in the audit log, and the plan limits (018-B evidence, section 9.6).
+3. **Pull requests**: none was opened for 018-B or 018-D (D-100). Pull request 17 (018-A) is still open, and Spec 017-A will bring the agreement record at sign-in, the operator as an actor in the audit log, and the plan limits (018-B evidence, section 9.6).
 4. A WhatsApp number is verified by the Connect operator with `python -m app.whatsapp_binding`; there is no screen for the operator, who acts outside the agency roles.
 5. The application is one script of 1,044 kB. Loading each page's code when it is first opened would shorten the first load; it needs no new package (the router loads routes lazily) and can follow when the owner wants it.

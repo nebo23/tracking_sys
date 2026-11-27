@@ -208,7 +208,7 @@ class TenancyService:
         return query.execution_options(populate_existing=True)
 
     # List visible active clients in stable ID order for any active member. Archived clients are
-    # listed only for Owner/Admin managers, who may restore them (018-B plan, B2; D-094).
+    # listed only for Owner/Admin managers, who may restore them (018-B plan, B2; D-101).
     def list_clients(
         self,
         agency_id: UUID,
@@ -251,7 +251,7 @@ class TenancyService:
         )
 
     # List memberships with the person's name, email and account state and their explicit client
-    # grants, for Owner/Admin managers (018-B plan, B1; D-094), in stable membership order. The
+    # grants, for Owner/Admin managers (018-B plan, B1; D-101), in stable membership order. The
     # route never returns a closed account's pseudonyms.
     def list_member_details(
         self, agency_id: UUID, *, limit: int = 100, offset: int = 0

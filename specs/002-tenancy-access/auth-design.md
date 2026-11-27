@@ -50,8 +50,8 @@ JSON requests and explicit response schemas; secret fields are never echoed by v
 |---|---|
 | /auth | register, verify-email, resend-verification, login, me, logout, logout-all, forgot-password, reset-password, change-password |
 | /agencies | create and list accessible agencies; get/update scoped agency details |
-| /agencies/{agency_id}/clients | list/create/get/update authorized client workspaces; `status=archived` lists archived workspaces to Owners and Admins (amendment D-094) |
-| /agencies/{agency_id}/members | list/update authorized memberships; manage explicit client grants. The list names each member to Owners and Admins, with email, date of joining, account state and explicit grants, and never names a closed account (amendment D-094) |
+| /agencies/{agency_id}/clients | list/create/get/update authorized client workspaces; `status=archived` lists archived workspaces to Owners and Admins (amendment D-101) |
+| /agencies/{agency_id}/members | list/update authorized memberships; manage explicit client grants. The list names each member to Owners and Admins, with email, date of joining, account state and explicit grants, and never names a closed account (amendment D-101) |
 | /agencies/{agency_id}/audit | bounded, scoped audit reads |
 | /agencies/{agency_id}/invitations | issue, list without token material, revoke; separate authenticated accept operation |
 | /agencies/{agency_id}/service-credentials | issue once, list metadata, revoke |

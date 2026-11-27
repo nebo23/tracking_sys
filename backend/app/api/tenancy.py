@@ -208,7 +208,7 @@ def _member_detail(row: MemberDetailRow) -> MemberDetail:
 
 
 # List agency memberships with each person's name, email, account state and client grants
-# (Owner/Admin only; 018-B plan, B1; D-094).
+# (Owner/Admin only; 018-B plan, B1; D-101).
 @router.get("/agencies/{agency_id}/members", response_model=list[MemberDetail])
 def list_members(
     agency_id: UUID,

@@ -1,6 +1,6 @@
 # 018-B plan: clients, team and access, connections
 
-Prepared: 2026-11-26, after D-093. Status: steps 1 to 5 of section 7 are implemented under D-093 on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other; the results, the corrections and the differences from this plan are in the [018-B evidence](evidence-018b.md). Section 3 lists what the API cannot supply for the approved screens; step 6 waits for the owner's decision on section 3.2.
+Prepared: 2026-11-26, after D-100. Status: steps 1 to 5 of section 7 are implemented under D-100 on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other; the results, the corrections and the differences from this plan are in the [018-B evidence](evidence-018b.md). Section 3 lists what the API cannot supply for the approved screens; step 6 waits for the owner's decision on section 3.2.
 
 ## 1. Goal and boundaries
 018-B is the second slice of [specification 018](spec.md) (D14 of the [entry review](entry-review.md)). After it, a person can move between the agency and one client, manage the clients of the agency, invite people, issue keys, and connect, watch and remove the accounts of a client, in English and Arabic and in both themes, on the reference styles the owner approved.
@@ -16,7 +16,7 @@ In scope:
 Not in scope:
 
 - Overview, content, revenue and ad spend (018-C); links, tracking and integrations, with Paymob, Cal.com, WhatsApp and the conversion destinations (018-D); attribution (after 016-B).
-- Any change to the API, the contract or the schema. Section 3.2 proposes one; it needs its own decision (D-093).
+- Any change to the API, the contract or the schema. Section 3.2 proposes one; it needs its own decision (D-100).
 - A new package. The slice needs none.
 - Subscription and usage screens (017), and the stored record of agreement to the terms (D15).
 
@@ -57,7 +57,7 @@ The reference screens ([clients](../../docs/design/preview/screens/clients.html)
 | Connections | Paymob, Cal.com, WhatsApp and Meta conversions on the same page | They are integrations with their own operations | They arrive with 018-D, on the same page or beside it. |
 | Sign-in (018-A) | Seconds to wait after too many attempts | `Retry-After` is not readable across origins | Unchanged: the sentence has no number. |
 
-### 3.2 Amendment to the API (decided by D-094 on 2026-11-27)
+### 3.2 Amendment to the API (decided by D-101 on 2026-11-27)
 Recommended, as one small amendment to specification 002 with its own tests, without a migration and without a new table:
 
 | ID | Change | Who may read it | Why |
@@ -68,7 +68,7 @@ Recommended, as one small amendment to specification 002 with its own tests, wit
 
 Alternative: keep the API as it is. The slice then ends with the parts of section 3.1 left out. Not recommended: the team screen the owner approved cannot be built.
 
-The owner approved B1-B3 on 2026-11-27 (D-094). B1 and B2 are implemented on this branch; B3 is part of Spec 017-A (D-092) and is not repeated. See the [018-B evidence](evidence-018b.md), section 9.
+The owner approved B1-B3 on 2026-11-27 (D-101). B1 and B2 are implemented on this branch; B3 is part of Spec 017-A (D-092) and is not repeated. See the [018-B evidence](evidence-018b.md), section 9.
 
 ## 4. How it is built
 ### 4.1 Addresses
@@ -156,4 +156,4 @@ Each step ends with its checks and a commit pushed to `codex/spec-018-workspace-
 3. Connections and the return from a provider.
 4. Invitations and API keys.
 5. Journeys, accessibility checks, the evidence file and the records.
-6. After the owner's decision on section 3.2: the amendment with its tests, then members, grants, archive and the audit log. Done under D-094 on 2026-11-27.
+6. After the owner's decision on section 3.2: the amendment with its tests, then members, grants, archive and the audit log. Done under D-101 on 2026-11-27.
