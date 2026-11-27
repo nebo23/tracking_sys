@@ -287,10 +287,18 @@ class TenancyService:
             raise ValueError("Invalid workspace status.")
         if status == "active" and client.status != "active":
             plans.require_capacity(self.session, agency_id, "clients")
+        archived = status == "archived" and client.status != "archived"
         if name is not None:
             client.name = self._name(name)
         if status is not None:
             client.status = status
+        if archived:
+            from app.services.report_exports import revoke_exports
+
+            # 016-C (D-095 D7): an archived client's exports are revoked at once, after the
+            # status change is written.
+            self.session.flush()
+            revoke_exports(self.session, agency_id, client_id, "client_archived")
         self._audit(agency_id, "client.updated", "client", client.id, client.id)
         return client
 

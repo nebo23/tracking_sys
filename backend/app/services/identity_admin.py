@@ -646,6 +646,12 @@ class IdentityAdmin(TenancyService):
                 else TargetStatus.NOT_APPLICABLE
             ).value,
         }
+        from app.services.report_exports import revoke_exports
+
+        # 016-C (D-095 D7): every export of the client built before the erasure is revoked,
+        # after the other targets; reported only when one was revoked.
+        if revoke_exports(session, agency_id, client_id, "erasure"):
+            targets["report_exports"] = TargetStatus.DONE.value
         request.target_outcomes = targets
         if unresolved:
             request.status = deletion.transition(status, RequestStatus.ON_HOLD).value
@@ -748,6 +754,15 @@ class IdentityAdmin(TenancyService):
                     CollectedEvent.__table__.delete().where(CollectedEvent.id.in_(event_ids))
                 )
             journey.flush()
+            from app.services.report_exports import revoke_exports
+
+            # 016-C (D-095 D7): an export built since the erasure began could count the held
+            # events deleted here, so the client's exports are revoked again.
+            if revoke_exports(session, request.agency_id, client_id, "erasure"):
+                request.target_outcomes = {
+                    **(request.target_outcomes or {}),
+                    "report_exports": TargetStatus.DONE.value,
+                }
         else:
             for hold in holds:
                 hold.state, hold.collected_event_id, hold.settled_at = "retained", None, now
