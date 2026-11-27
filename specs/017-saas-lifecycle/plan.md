@@ -1,5 +1,5 @@
 # Plan: 017-saas-lifecycle
-Status: Draft for 017-B and 017-C. The first slice, 017-A (plans, limits, the usage view, the operator command, agency closure, the agreement record and `Retry-After`), was approved under D-092, is implemented and merged in PR 19 (D-093); see its [design note](design-017a.md), [evidence](evidence-017a.md) and [merge review](merge-review-017a.md). This plan does not authorize further implementation or dependency selection.
+Status: Draft for 017-B and 017-C. The first slice, 017-A (plans, limits, the usage view, the operator command, agency closure, the agreement record and `Retry-After`), was approved under D-092, is implemented and merged in PR 19 (D-093); see its [design note](design-017a.md), [evidence](evidence-017a.md) and [merge review](merge-review-017a.md). 017-B is prepared under D-097 in its [entry review](entry-review-017b.md) and [implementation handoff](implementation-prompt-017b.md); its decisions D1-D14 wait for the owner's approval (D-098). This plan does not authorize further implementation or dependency selection.
 
 ## Expected outcome
 Define agency registration, invitations, onboarding, plans, entitlements, metering, approved trial/subscription flows, limits, offboarding, and support.
