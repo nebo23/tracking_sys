@@ -44,7 +44,7 @@ Every other file merged without a conflict. This branch changes no backend, cont
 | Journeys, Firefox | 39 of 39 passed (3.9 minutes). |
 | Accessibility | The 13 axe tests of the full Chromium run report 0 serious or critical and 0 moderate or minor findings. |
 | `git diff --check` | Clean. |
-| Backend suites | Not run on this branch, because its backend equals `main`'s; they run on `codex/spec-018-workspace-screens`, whose backend adds D-094's B1 and B2. |
+| Backend suites | Not run on this branch, because its backend equals `main`'s; they run on `codex/spec-018-workspace-screens`, whose backend adds amendment B1 and B2 of the 018-B plan (members and archived clients). |
 | `npm ci` | Not run on this branch: the update changes no package and the lockfile equals the stacked branch's, where it runs. |
 
 ### 1.5 V01 of the verification matrix
