@@ -687,6 +687,10 @@ def test_011a_migration_downgrade_refuses_youtube_state(yt):
             return connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
 
     head = version()
+    # Sign-ins now store agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with w.db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="Refuse to remove populated connector state"):
         command.downgrade(config, "0014_instagram_provider")
     # The refused downgrade leaves every revision in place.

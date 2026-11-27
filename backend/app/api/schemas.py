@@ -35,6 +35,24 @@ class ErrorResponse(Output):
     error: str
 
 
+# A 409 answer of a route that creates or enables a counted resource (017-A, D4): a state
+# conflict, or plan_limit_reached with the limit, its value and the current use. It extends
+# ErrorResponse, so every other 409 code keeps its shape.
+class PlanLimitError(ErrorResponse):
+    limit: Literal["clients", "seats", "connections", "managed_links"] | None = None
+    value: int | None = None
+    used: int | None = None
+
+
+PLAN_LIMIT = {
+    409: {
+        "model": PlanLimitError,
+        "description": "plan_limit_reached with the limit, its value and the use, or another "
+        "state conflict.",
+    }
+}
+
+
 # Generic acknowledgement for registration and recovery requests; it is identical whether or
 # not an eligible account exists, which limits account enumeration.
 class Acknowledgement(Output):
@@ -52,16 +70,47 @@ class EmailInput(Input):
         return normalize_email(value)
 
 
-# Registration input: inherits the normalized email and adds display name and new password.
+# The Terms of Service and Privacy Policy versions a person accepted (017-A, D10).
+class AgreementAcceptance(Input):
+    terms: str = Field(min_length=1, max_length=32)
+    privacy: str = Field(min_length=1, max_length=32)
+
+
+# The current versions, and whether their texts are published (GET /auth/agreements).
+class AgreementVersions(Output):
+    terms: str
+    privacy: str
+    published: bool
+
+
+# 422 agreement_required: the request did not accept the current versions, which it returns.
+class AgreementRequiredError(ErrorResponse):
+    agreements: AgreementVersions | None = None
+
+
+AGREEMENT_REQUIRED = {
+    422: {
+        "model": AgreementRequiredError,
+        "description": "agreement_required with the current versions, or validation_failed.",
+    }
+}
+
+
+# Registration input: inherits the normalized email and adds display name, new password and the
+# accepted agreement versions. The versions are optional in the schema, so that a request
+# without them is answered with agreement_required rather than validation_failed.
 class Registration(EmailInput):
     display_name: Name
     password: Password
+    agreements: AgreementAcceptance | None = None
 
 
 # Login input: accepts any submitted password up to 128 characters. The new-password length
-# policy is not reapplied here; Argon2 verification decides.
+# policy is not reapplied here; Argon2 verification decides. Every sign-in sends the accepted
+# agreement versions (017-A, D10).
 class Login(EmailInput):
     password: SecretStr = Field(min_length=1, max_length=128)
+    agreements: AgreementAcceptance | None = None
 
 
 # Numeric verification request (D-022): the normalized email plus a six-digit code kept as a
@@ -125,10 +174,15 @@ class AgencyResponse(Output):
     created_at: datetime
 
 
-# Membership summary for the agency list: agency identifier and the caller's role only.
+# Membership summary for the agency list: agency identifier, the caller's role and the agency's
+# status. A closing agency (017-A, D8) is listed only for its Owners, who can still read and
+# cancel its closure; suspended and closed agencies are not listed.
 class AgencyAccess(Output):
     agency_id: UUID
     role: Role
+    status: Literal["active", "closing"] = Field(
+        description="active, or closing for an Owner whose agency awaits its closure."
+    )
 
 
 # Partial client update; the route rejects a body with neither field.
@@ -213,12 +267,69 @@ class IssuedServiceKey(Output):
     key: str
 
 
-# Audit event projection: identifiers and action codes only, without payload data.
+# The usage view of an agency (017-A, D6): its current plan, the use of each counted limit and
+# the current UTC month's tracked events. It names no client, person or event.
+class PlanSummary(Output):
+    key: str
+    name: str
+    assigned_at: datetime
+
+
+class PlanLimitUse(Output):
+    limit: Literal["clients", "seats", "connections", "managed_links"]
+    value: int | None = Field(description="The plan's limit; null when unlimited.")
+    used: int
+    state: Literal["within", "at_limit", "unlimited"]
+
+
+class TrackedEventsUse(Output):
+    period_start: datetime
+    period_end: datetime
+    count: int
+    count_capped: bool = Field(
+        description="True when more events exist than the bounded count reports."
+    )
+    allowance: int | None = Field(description="The monthly allowance; null when unlimited.")
+    state: Literal["within", "over_allowance", "unlimited"]
+
+
+class AgencyPlanResponse(Output):
+    agency_id: UUID
+    plan: PlanSummary
+    limits: list[PlanLimitUse]
+    tracked_events: TrackedEventsUse
+    as_of: datetime
+
+
+# Agency closure (017-A, D8): the agency's exact name, and the current password for an account
+# that has one; an account without a password omits it and must use a recent session.
+class AgencyClosureInput(Input):
+    confirm_name: str = Field(min_length=1, max_length=200)
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=128)
+
+
+class OpenAgencyClosure(Output):
+    id: UUID
+    requested_at: datetime
+    closes_at: datetime
+    requested_by_membership_id: UUID
+
+
+# The closure state of an agency for its Owners: closing with its open closure, or active.
+class AgencyClosureResponse(Output):
+    agency_id: UUID
+    agency_status: Literal["active", "closing"]
+    closure: OpenAgencyClosure | None
+
+
+# Audit event projection: identifiers and action codes only, without payload data. The actor
+# is a member, or the platform operator (017-A, D7), who has no user ID.
 class AuditResponse(Output):
     id: UUID
     agency_id: UUID
     client_id: UUID | None
-    actor_user_id: UUID
+    actor_kind: Literal["user", "platform_operator"]
+    actor_user_id: UUID | None
     action: str
     resource_type: str
     resource_id: UUID

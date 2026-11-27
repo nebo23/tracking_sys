@@ -55,7 +55,7 @@ def _version(db) -> str:
 
 def test_populated_upgrade_from_0025_and_guarded_downgrades(world):
     w = world
-    assert ScriptDirectory.from_config(CONFIG).get_heads() == ["0029_attribution_persistence"]
+    assert ScriptDirectory.from_config(CONFIG).get_heads() == ["0032_report_delivery"]
     command.downgrade(CONFIG, "0025_whatsapp")
     token_digest = digest("sbj_synthetic-legacy-subject-token-000000000000")
     with Session(w.db.migration) as session, session.begin():
@@ -77,7 +77,7 @@ def test_populated_upgrade_from_0025_and_guarded_downgrades(world):
             {"id": uuid4(), "agency": w.a, "client": w.a1, "intake": uuid4(), "digest": "a" * 64},
         )
     command.upgrade(CONFIG, "head")
-    assert _version(w.db) == "0029_attribution_persistence"
+    assert _version(w.db) == "0032_report_delivery"
     legacy = rows(
         w.db, select(CollectionSubject).where(CollectionSubject.token_digest == token_digest)
     )
@@ -135,7 +135,7 @@ def test_populated_upgrade_from_0025_and_guarded_downgrades(world):
                 )
             with pytest.raises(RuntimeError, match=message):
                 command.downgrade(CONFIG, target)
-            assert _version(w.db) == "0029_attribution_persistence"
+            assert _version(w.db) == "0032_report_delivery"
             with w.db.migration.begin() as connection:
                 connection.execute(text(cleanup))
     finally:

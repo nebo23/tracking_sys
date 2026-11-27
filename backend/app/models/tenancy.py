@@ -67,7 +67,9 @@ class User(Entity, Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-# Tenant boundary: an agency is active or suspended and owns its client workspaces.
+# Tenant boundary: an agency owns its client workspaces. Only an active agency works; a
+# suspended one is stopped by the platform operator, a closing one by its Owner's closure
+# request (017-A, D-092: 30 days in which an Owner may cancel), and a closed one for good.
 # SELECT id, name, status, created_at, updated_at
 # FROM public.agencies
 # WHERE id = '00000000-0000-0000-0000-000000000002'::uuid;
@@ -79,7 +81,9 @@ class Agency(Entity, Base):
     __tablename__ = "agencies"
     __table_args__ = (
         CheckConstraint("length(btrim(name)) > 0", name="name_not_blank"),
-        CheckConstraint("status IN ('active', 'suspended')", name="valid_status"),
+        CheckConstraint(
+            "status IN ('active', 'suspended', 'closing', 'closed')", name="valid_status"
+        ),
     )
 
     name: Mapped[str] = mapped_column(String(200))
@@ -171,8 +175,10 @@ class ClientGrant(Base):
 
 # Append-only record of successful sensitive tenant mutations: identifiers and action codes
 # only, with no passwords, tokens, emails, or customer payloads. The runtime may only insert.
-# SELECT id, agency_id, client_id, actor_user_id, action, resource_type, resource_id,
-#        occurred_at
+# The actor is a member (actor_kind 'user') or, for the agency_plans command, the platform
+# operator, who has no user; plan events of the operator belong to no agency (017-A, D7).
+# SELECT id, agency_id, client_id, actor_kind, actor_user_id, action, resource_type,
+#        resource_id, occurred_at
 # FROM public.audit_events
 # WHERE agency_id = '00000000-0000-0000-0000-000000000002'::uuid
 # ORDER BY occurred_at DESC, id DESC LIMIT 100;
@@ -211,7 +217,12 @@ class AuditEvent(Base):
             "'identity.merged', 'identity.unmerged', 'identity.erased', "
             "'identity.erasure_resolved', 'revenue.reconciliation_reviewed', "
             "'revenue.association_detached', 'attribution.model_created', "
-            "'attribution.model_default_set', 'attribution.model_retired')",
+            "'attribution.model_default_set', 'attribution.model_retired', "
+            "'agency.plan_assigned', 'agency.suspended', 'agency.reactivated', "
+            "'agency.closure_requested', 'agency.closure_cancelled', 'plan.created', "
+            "'plan.default_set', 'report_export.created', 'report_export.revoked', "
+            "'report_schedule.created', 'report_schedule.updated', 'report_schedule.deleted', "
+            "'branding.updated')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -221,16 +232,28 @@ class AuditEvent(Base):
             "'destination', 'delivery', 'payment_source', 'revenue_import', "
             "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
             "'identity_subject', 'revenue_issue', 'revenue_association', "
-            "'attribution_model')",
+            "'attribution_model', 'plan', 'plan_assignment', 'agency_closure', "
+            "'report_export', 'report_schedule', 'agency_branding')",
             name="valid_resource",
+        ),
+        CheckConstraint(
+            "(actor_kind = 'user' AND actor_user_id IS NOT NULL) "
+            "OR (actor_kind = 'platform_operator' AND actor_user_id IS NULL)",
+            name="actor",
+        ),
+        CheckConstraint(
+            "agency_id IS NOT NULL "
+            "OR (actor_kind = 'platform_operator' AND resource_type = 'plan')",
+            name="scope",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    agency_id: Mapped[UUID] = mapped_column(ForeignKey("agencies.id"))
+    agency_id: Mapped[UUID | None] = mapped_column(ForeignKey("agencies.id"))
     client_id: Mapped[UUID | None] = mapped_column(Uuid)
-    actor_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
+    actor_kind: Mapped[str] = mapped_column(String(20), server_default="user")
+    actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(32))
     resource_type: Mapped[str] = mapped_column(String(20))
     resource_id: Mapped[UUID] = mapped_column(Uuid)

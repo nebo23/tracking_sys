@@ -84,9 +84,22 @@ def valid_window_days(value: object) -> bool:
     return type(value) is int and MIN_WINDOW_DAYS <= value <= MAX_WINDOW_DAYS
 
 
-def model_set_digest(versions: Iterable[tuple[str, str, int, str]]) -> str:
-    """The digest of an active version set: (version_key, model, window_seconds, rules)."""
-    return _digest(["attribution-model-set:v1", *sorted(list(item) for item in versions)])
+# The revision of the input adapter (attribution_inputs.touchpoints). A revision above 1 joins
+# the model-set digest, so the first pass after a change rebuilds each client once against its
+# stored history. Revision 2 (016-B, D-089 D7a) reads the retained utm_content value.
+INPUT_ADAPTER_REVISION = 2
+
+
+def model_set_digest(
+    versions: Iterable[tuple[str, str, int, str]], adapter: int | None = None
+) -> str:
+    """The digest of an active version set: (version_key, model, window_seconds, rules), and
+    the input adapter revision (the current one unless given)."""
+    revision = INPUT_ADAPTER_REVISION if adapter is None else adapter
+    parts: list[object] = ["attribution-model-set:v1", *sorted(list(item) for item in versions)]
+    if revision > 1:
+        parts.append(f"input-adapter:{revision}")
+    return _digest(parts)
 
 
 def engine_version(version_key_: str, model: str, window_seconds: int, rules: str) -> ModelVersion:

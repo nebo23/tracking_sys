@@ -5,7 +5,8 @@
 # approved 002-B/C/D authentication and access models, the D-022 identity and verification
 # models, the D-027 event collection models, the D-033 managed-link models, the D-048
 # connector lifecycle models, the D-064 advertising models, the D-067 revenue and payment
-# models, the D-075 identity and ledger models, and the D-079 attribution models.
+# models, the D-075 identity and ledger models, the D-079 attribution models, the D-092
+# plan, closure and agreement models, and the D-095 report delivery models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
@@ -96,8 +97,16 @@ from app.models.links import (
     ManagedLink,
 )
 from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
+from app.models.report_delivery import (
+    AgencyBranding,
+    ReportExport,
+    ReportExportContent,
+    ReportSchedule,
+    ReportScheduleRecipient,
+)
 from app.models.revenue import RevenueEvidence, RevenueImport
 from app.models.revenue_identity import RevenueIdentityBinding
+from app.models.saas import AgencyClosure, AgencyPlanAssignment, SaasPlan, UserAgreement
 from app.models.tenancy import (
     Agency,
     AgencyMembership,
@@ -195,4 +204,13 @@ __all__ = [
     "AttributionCreditChange",
     "AttributionModelVersion",
     "AttributionRun",
+    "AgencyClosure",
+    "AgencyPlanAssignment",
+    "SaasPlan",
+    "UserAgreement",
+    "AgencyBranding",
+    "ReportExport",
+    "ReportExportContent",
+    "ReportSchedule",
+    "ReportScheduleRecipient",
 ]

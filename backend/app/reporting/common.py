@@ -1,49 +1,56 @@
-"""Shared report contracts (specification 016-A, D-072 decisions D6 to D8).
+"""Shared report contracts (specification 016-A, D-072 decisions D6 to D8; 016-B, D-089).
 
 ReportError carries a closed public code and an HTTP status, never a rejected value. Pages are
 integer positions starting at 1 over the complete, already ordered result. Comparisons of two
 periods produce a difference and a percentage change only when both values are complete and
 compatible; otherwise both stay null with the applicable reason. Percentages are exact decimal
-text rounded half-even to two places, never binary floating point or infinity.
+text rounded half-even to two places, never binary floating point or infinity. Shares and
+ratios (016-B) are exact fractions with a decimal text rounded half-even from the exact value.
 """
 
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Context, Decimal
+from fractions import Fraction
 from itertools import islice
 from typing import Any
 
 from app.advertising.currencies import decimal_text
 
-CONTRACT_VERSION = "016a.2"
+CONTRACT_VERSION = "016b.1"
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 500
 MAX_SOURCE_ROWS = 10_000  # social and spend inputs across both periods (D8)
 MAX_EVIDENCE_ROWS = 200  # whole-client revenue evidence before the calculation (D8)
 _PERCENT = Context(prec=60, rounding=ROUND_HALF_EVEN)
 _HUNDREDTH = Decimal("0.01")
+SHARE_PLACES = 4
 
-# 016-B capabilities that need 006 identity, 007-B/C ledger persistence and persisted 008
-# allocations; a report never substitutes a number or a synthetic fallback for them (V19).
+# The four capabilities 016-A answered as dependency_unavailable, each now served by a 016-B
+# report family (D-089 D6). requires keeps the specifications each capability rests on.
 DEPENDENCIES = (
     {
         "capability": "attribution",
-        "state": "dependency_unavailable",
+        "state": "available",
+        "family": "attribution",
         "requires": ["006", "007-B", "007-C", "008"],
     },
     {
         "capability": "content_revenue",
-        "state": "dependency_unavailable",
+        "state": "available",
+        "family": "attribution",
         "requires": ["006", "007-B", "007-C", "008", "014-C"],
     },
     {
         "capability": "funnels",
-        "state": "dependency_unavailable",
+        "state": "available",
+        "family": "funnel",
         "requires": ["006"],
     },
     {
         "capability": "roas",
-        "state": "dependency_unavailable",
+        "state": "available",
+        "family": "roas",
         "requires": ["006", "007-B", "007-C", "008", "014-C"],
     },
 )
@@ -121,6 +128,54 @@ def compare_values(current: int | None, previous: int | None, reason: str | None
 # An exact amount in minor units with its canonical decimal text.
 def amount(minor: int, exponent: int) -> dict[str, Any]:
     return {"minor": minor, "decimal": decimal_text(minor, exponent)}
+
+
+def _half_even(value: Fraction) -> int:
+    whole = value.numerator // value.denominator
+    rest = value - whole
+    if rest > Fraction(1, 2) or (rest == Fraction(1, 2) and whole % 2 == 1):
+        return whole + 1
+    return whole
+
+
+# The decimal text of an exact fraction, rounded half-even from the exact value to places.
+def fraction_text(value: Fraction, places: int = SHARE_PLACES) -> str:
+    scaled = _half_even(Fraction(value) * 10**places)
+    sign = "-" if scaled < 0 else ""
+    digits = str(abs(scaled)).rjust(places + 1, "0")
+    if places == 0:
+        return sign + digits
+    return f"{sign}{digits[:-places]}.{digits[-places:]}"
+
+
+# An exact share or ratio in lowest terms with its 4-decimal text.
+def share(value: Fraction) -> dict[str, Any]:
+    value = Fraction(value)
+    return {
+        "numerator": value.numerator,
+        "denominator": value.denominator,
+        "decimal": fraction_text(value),
+    }
+
+
+# A labeled comparison of two exact fractions, with the rules of compare_values.
+def compare_fractions(
+    current: Fraction | None, previous: Fraction | None, reason: str | None
+) -> dict[str, Any]:
+    if reason is not None or current is None or previous is None:
+        return {
+            "difference": None,
+            "percent_change": None,
+            "comparable": False,
+            "reason": reason or "unavailable",
+        }
+    change = None if previous == 0 else fraction_text((current - previous) * 100 / previous, 2)
+    return {
+        "difference": share(current - previous),
+        "percent_change": change,
+        "comparable": True,
+        "reason": "zero_baseline" if change is None else None,
+    }
 
 
 def take(rows: Iterator[dict[str, Any]], limit: int) -> list[dict[str, Any]]:

@@ -24,7 +24,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import Field
 
 from app.api.dependencies import BrowserDep, RawBody, ReaderDep, SessionDep
-from app.api.schemas import AuthorizationURL, ErrorResponse, Input, Output
+from app.api.schemas import PLAN_LIMIT, AuthorizationURL, ErrorResponse, Input, Output
 from app.config import Settings
 from app.connectors.contracts import SignedRequest, WebhookRejected
 from app.security import now_utc
@@ -301,10 +301,12 @@ def _callback_limit(request: Request) -> None:
     )
 
 
-# Start connecting a provider account to the client (Owner/Admin). The response carries the
-# provider authorization URL for the browser to open.
+# Start connecting a provider account to the client (Owner/Admin) within the plan's connection
+# limit. The response carries the provider authorization URL for the browser to open.
 @router.post(
-    "/agencies/{agency_id}/clients/{client_id}/connections", response_model=AuthorizationURL
+    "/agencies/{agency_id}/clients/{client_id}/connections",
+    response_model=AuthorizationURL,
+    responses=PLAN_LIMIT,
 )
 def connect(
     agency_id: UUID,

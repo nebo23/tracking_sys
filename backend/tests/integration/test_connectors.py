@@ -653,6 +653,10 @@ def test_runtime_privileges_scoped_references_and_lifecycle(
     k1 = lab.connect("owner_a", w.a, w.a1)
     k2 = lab.connect("owner_a", w.a, w.a2)
     lab.worker()
+    # Sign-ins now store agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with w.db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     # The 0009 downgrade refuses populated connector state.
     with pytest.raises(RuntimeError, match="populated connector state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0008_links_tracker")

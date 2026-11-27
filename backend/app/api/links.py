@@ -36,7 +36,7 @@ from app.api.link_schemas import (
     TemplateUpdate,
     VerificationResponse,
 )
-from app.api.schemas import ErrorResponse
+from app.api.schemas import ErrorResponse, PlanLimitError
 from app.links.verification import CheckResult
 from app.models import (
     LinkCampaign,
@@ -64,6 +64,14 @@ CLIENT = "/agencies/{agency_id}/clients/{client_id}"
 Limit = Annotated[int, Query(ge=1, le=PAGE_MAX)]
 Offset = Annotated[int, Query(ge=0, le=100000)]
 CONFLICT = {409: {"model": ErrorResponse, "description": "Host or uniqueness conflict."}}
+# A managed link that is created or enabled must also fit the plan's limit (017-A, D4).
+LINK_CONFLICT = {
+    409: {
+        "model": PlanLimitError,
+        "description": "Host or uniqueness conflict, or plan_limit_reached with the limit, its "
+        "value and the use.",
+    }
+}
 
 
 def _admin(request: Request, session, browser) -> LinkAdmin:
@@ -382,7 +390,10 @@ def verify_domain(
 
 
 @router.post(
-    f"{CLIENT}/managed-links", status_code=201, response_model=LinkResponse, responses=CONFLICT
+    f"{CLIENT}/managed-links",
+    status_code=201,
+    response_model=LinkResponse,
+    responses=LINK_CONFLICT,
 )
 def create_link(
     agency_id: UUID,
@@ -411,7 +422,9 @@ def list_links(
     return [LinkResponse.model_validate(item) for item in rows]
 
 
-@router.patch(f"{CLIENT}/managed-links/{{link_id}}", response_model=LinkResponse)
+@router.patch(
+    f"{CLIENT}/managed-links/{{link_id}}", response_model=LinkResponse, responses=LINK_CONFLICT
+)
 def update_link(
     agency_id: UUID,
     client_id: UUID,

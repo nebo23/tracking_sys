@@ -135,7 +135,9 @@ class SecurityEvent(Base):
 class MailOutbox(Base):
     __tablename__ = "mail_outbox"
     __table_args__ = (
-        CheckConstraint("purpose IN ('verify', 'reset', 'invitation')", name="valid_purpose"),
+        CheckConstraint(
+            "purpose IN ('verify', 'reset', 'invitation', 'report_ready')", name="valid_purpose"
+        ),
         CheckConstraint("attempts >= 0", name="nonnegative_attempts"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -179,8 +181,11 @@ class VerificationChallenge(Base):
 # Single-use Google authorization transaction (D-022). It stores digests of the state and of
 # the browser-binding cookie; link bindings also incorporate the initiating session digest.
 # The PKCE verifier and nonce are derived from the raw state with the application HMAC key,
-# so neither is stored. Link transactions name the requesting user.
-# SELECT id, purpose, user_id, created_at, expires_at, consumed_at
+# so neither is stored. Link transactions name the requesting user. A sign-in carries the
+# Terms of Service and Privacy Policy versions the browser accepted at its start (017-A, D10),
+# which the callback compares with the current versions before it records them.
+# SELECT id, purpose, user_id, terms_version, privacy_version, created_at, expires_at,
+#        consumed_at
 # FROM public.oauth_transactions
 # WHERE created_at >= now() - interval '1 day'
 # ORDER BY created_at DESC, id LIMIT 100;
@@ -198,6 +203,8 @@ class OAuthTransaction(Base):
     user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     state_digest: Mapped[str] = mapped_column(String(64), unique=True)
     binding_digest: Mapped[str] = mapped_column(String(64))
+    terms_version: Mapped[str | None] = mapped_column(String(32))
+    privacy_version: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

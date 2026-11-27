@@ -351,7 +351,8 @@ def test_consent_state_enforces_origin_body_and_its_own_rate_limit(ev):
     )
     assert ev.collect("consent-state", {"subject_token": token}).status_code == 404
     platform = ev.api.new_client().get("/health/live")
-    assert "access-control-expose-headers" not in platform.headers
+    # 017-A (D11): platform CORS exposes Retry-After to the platform origins, and nothing else.
+    assert platform.headers["access-control-expose-headers"] == "Retry-After"
 
 
 def test_event_link_references_are_scoped_by_the_database(ev):

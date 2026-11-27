@@ -160,6 +160,7 @@ def register_code(api, db):
                 "email": email,
                 "display_name": "Regression",
                 "password": api.password,
+                "agreements": api.agreements,
             },
         ).status_code
         == 202

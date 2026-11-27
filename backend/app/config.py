@@ -107,6 +107,12 @@ class Settings(DatabaseSettings):
     # Account closure (D-024): an account without a password must present a session created
     # within this window, which means a fresh Google sign-in. Ten minutes is the approved maximum.
     closure_reauthentication_seconds: int = Field(default=600, ge=60, le=600)
+    # Agreement record (017-A, D10; 018 D15): registration and every sign-in must send these
+    # current Terms of Service and Privacy Policy versions. The owner supplies the texts; until
+    # then the development labels are draft-1 and the texts are reported as not published.
+    terms_version: str = Field(default="draft-1", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+    privacy_version: str = Field(default="draft-1", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+    agreement_texts_published: bool = False
     # Google sign-in (D-022) is off unless explicitly enabled with a Web client. The completion
     # URL receives the browser after the callback; it defaults to the frontend completion page.
     google_sign_in_enabled: bool = False
@@ -204,6 +210,9 @@ class Settings(DatabaseSettings):
     whatsapp_enabled: bool = False
     whatsapp_app_secret: SecretStr = SecretStr("")
     whatsapp_verify_token: SecretStr = SecretStr("")
+    # Retained report exports (specification 016-C, D-095 D5): an export, sealed under the token
+    # keyring, is downloadable for this many days after creation; 7 is the approved maximum.
+    report_export_lifetime_days: int = Field(default=7, ge=1, le=7)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
