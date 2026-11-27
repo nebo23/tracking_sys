@@ -1,6 +1,6 @@
 # Spec 016-C design: retained exports, scheduled reports and the white-label delivery contract
 
-Prepared: 2026-11-27 under D-095. Revision: 1. Status: approved scope ([D1-D14](entry-review-016c.md#3-decisions-for-the-owner), D-095, without amendment). This note fixes the exact schema, requests, permission checks, locks, periods, worker pass, email text, image checks and tests before any application code. Section 4 of the entry review is its source. Section 12 lists the routine details resolved here; no material new choice was found that needs the owner.
+Prepared: 2026-11-27 under D-095. Revision: 2. Status: approved scope ([D1-D14](entry-review-016c.md#3-decisions-for-the-owner), D-095, without amendment), implemented in P1-P4 (see the [evidence](evidence-016c.md)). This note fixed the exact schema, requests, permission checks, locks, periods, worker pass, email text, image checks and tests before any application code. Section 4 of the entry review is its source. Section 12 lists the routine details resolved here, including those settled during implementation; no material new choice was found that needs the owner.
 
 ## 1. P0 inventory
 
@@ -252,9 +252,9 @@ The PNG check (`422 invalid_png` on any failure) reads the bytes without decodin
 
 ## 10. Routes and errors
 
-Below `/agencies/{agency_id}/clients/{client_id}`: `POST` and `GET /report-exports`, `GET` and `DELETE /report-exports/{id}`, `GET /report-exports/{id}/download`, `POST` and `GET /report-schedules`, `GET`, `PATCH` and `DELETE /report-schedules/{id}`, and `DELETE /report-schedules/{id}/recipients/me`. Lists take `limit` (1-100, default 50) and `offset`, newest first. Schedule routes are for Owners and Admins; a recipient may read a schedule it receives and leave it.
+Below `/agencies/{agency_id}/clients/{client_id}`: `POST` and `GET /report-exports`, `GET` and `DELETE /report-exports/{id}`, `GET /report-exports/{id}/download`, `POST` and `GET /report-schedules`, `GET`, `PATCH` and `DELETE /report-schedules/{id}`, and `DELETE /report-schedules/{id}/recipients/me`. Lists take `limit` (1-100, default 50) and `offset`; export lists are newest first, schedule lists in creation order. Schedule routes are for Owners and Admins; a recipient may read a schedule it receives and leave it.
 
-New error codes: `export_limit_reached` (409), `export_gone` (410), `export_unreadable` (500), `not_configured` (503), `schedule_limit_reached` (409, more than 10 active schedules of a client), `invalid_recipient` (422), `invalid_time_zone` (422), `invalid_png` (422), `unsupported_media_type` (415), `branding_profile_required` (409) and `logo_not_found` (404). Report parameter errors keep the 016-A and 016-B codes.
+New error codes: `export_limit_reached` (409), `export_gone` (410), `export_unreadable` (500), `not_configured` (503), `schedule_limit_reached` (409, more than 10 active schedules of a client), `invalid_recipient` (422), `invalid_schedule` (422), `invalid_time_zone` (422), `invalid_branding` (422), `invalid_png` (422), `unsupported_media_type` (415), `branding_profile_required` (409) and `logo_not_found` (404). Report parameter errors keep the 016-A and 016-B codes.
 
 ## 11. Encryption
 
@@ -270,6 +270,14 @@ New error codes: `export_limit_reached` (409), `export_gone` (410), `export_unre
 6. Recipients are listed only to managers; a recipient sees whether it receives the schedule.
 7. The lifecycle runner deletes expired rows of every state, `discarded` rows and `pending` rows older than one hour, content first, and reports these counts only when they are not zero.
 8. Export lifetime setting: `TRACKING_REPORT_EXPORT_LIFETIME_DAYS`, default and maximum 7.
+
+Settled during implementation (revision 2):
+
+9. Two more closed codes: `invalid_schedule` (422: a weekday without the weekly cadence or the reverse, sale values outside attribution and funnel, a family change) and `invalid_branding` (422, a display name or color that the request schema did not already refuse).
+10. An export's answer shows `status` as `ready`, `revoked` or `expired`; `expired` is derived from `expires_at` against the database clock, the clock that sets and checks the expiry.
+11. Export lists are newest first; schedule lists are in creation order.
+12. A connection ID of another client or agency in an export or a schedule answers `403 access_denied` before any row is written, as the report route answers it.
+13. The worker pauses a schedule whose owner is no longer an active Owner or Admin even when that member can still read the report: scheduling is a manager capability, and a manager who resumes the schedule becomes its owner (D8).
 
 ## 13. Test inventory
 
