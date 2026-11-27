@@ -1,5 +1,5 @@
 # 018-react-workspace — React workspace and user experience
-Status: Draft; implementation is not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29.
+Status: design decisions approved (D-082, D-083); slice 018-A is implemented under the [018-A plan](plan-018a.md) (D-084) and awaits the owner's review, see the [018-A evidence](evidence-018a.md). Later slices are not approved. Level: L6. Prepared: 2026-10-28. English revision: 2026-10-29. Design preparation under D-081 (2026-11-25): see the [entry review](entry-review.md) and the [design language](../../docs/design/README.md). Owner design review D-082 (2026-11-25): the logo, the sign-in screen and the search field are approved. D-083 (2026-11-26): the remaining design decisions are approved as recommended.
 
 ## Sources
 USER React; PDF-013,029,030,065,068,069,098,101,103. See the [feature register](../../docs/product/feature-register.md). Inclusion does not imply launch approval.
@@ -23,7 +23,7 @@ A typed API client after toolchain approval; define route, permission, and state
 ## Dependencies and open decisions
 Dependencies: [016-analytics-reporting](../016-analytics-reporting/spec.md), [017-saas-lifecycle](../017-saas-lifecycle/spec.md)
 
-Open decisions: Q-006, Q-009; approve user flows and design before implementation. See the [decision register](../../docs/planning/decisions.md).
+Open decisions: the currency and FX part of Q-006, and the packages of later slices under Q-009 (D-084 decides the list of 018-A). D-083 decides the interface languages and the toolchain families. See the [decision register](../../docs/planning/decisions.md).
 
 ## Owner approval
-Detailed specification approval is pending. Record the owner decision, date, and scope boundaries before implementation.
+D-081 (2026-11-25) authorized the design preparation. D-082 (2026-11-25) approved the logo, the sign-in screen and the search field. D-083 (2026-11-26) approved the remaining design decisions and the slices 018-A to 018-D. D-084 (2026-11-26) approved the package list and the implementation of 018-A, and D-085 the licences of eight packages that came with it. D-086 (2026-11-26) approved opening the pull request of 018-A against main. The owner's review of the implemented slice is pending.

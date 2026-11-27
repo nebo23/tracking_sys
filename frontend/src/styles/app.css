@@ -1,0 +1,152 @@
+/* Rules only the running application needs. Product styles live in docs/design/ui/connect-ui.css
+ * and are not repeated here. Every value comes from docs/design/tokens/tokens.css.
+ *
+ * Naming: a- for these rules, beside the l-, c-, u- and is- names of the reference styles.
+ */
+
+/* ----------------------------------------------------------------- Page -- */
+html,
+body,
+#root {
+  block-size: 100%;
+}
+body {
+  margin: 0;
+}
+.a-center {
+  display: grid;
+  place-items: center;
+  min-block-size: 100%;
+  padding: var(--space-8);
+  color: var(--text-tertiary);
+}
+.a-center > .c-empty {
+  color: var(--text-primary);
+}
+/* A heading or region that takes focus after a move to another page is not a control. */
+.c-root h1[tabindex="-1"]:focus-visible,
+.c-root main[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+.a-contents {
+  display: contents;
+}
+
+/* ---------------------------------------------------------------- Forms -- */
+/* The control that shows a password sits inside the field, at the end of the line. */
+.a-password > .c-input {
+  padding-inline: var(--space-5) 44px;
+}
+.a-password__toggle {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 6px;
+  transform: translateY(-50%);
+}
+.a-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 440px;
+}
+.a-narrow {
+  max-inline-size: 720px;
+}
+.a-dl--controls {
+  align-items: center;
+}
+
+/* ------------------------------------------------------- Before sign-in -- */
+.a-auth__logo {
+  align-self: flex-start;
+  inline-size: auto;
+}
+.a-legal {
+  max-inline-size: 720px;
+}
+
+/* ---------------------------------------------------------------- Shell -- */
+.a-skip {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-start: var(--space-4);
+  z-index: var(--z-toast);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-300%);
+}
+.a-skip:focus {
+  transform: none;
+}
+.a-shell__page {
+  flex: 1 0 auto;
+}
+/* The account link rests at the foot of the sidebar. */
+.a-nav__end {
+  margin-block-start: auto;
+}
+.a-skel--name {
+  display: inline-block;
+  inline-size: 12ch;
+  vertical-align: middle;
+}
+.a-skeleton > .c-skel:nth-child(2n) {
+  inline-size: 70%;
+}
+.a-phone,
+.a-tabbar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .a-phone {
+    display: flex;
+    min-inline-size: 0;
+  }
+  .a-desktop {
+    display: none;
+  }
+  .l-app .l-topbar {
+    flex-wrap: nowrap;
+  }
+  .a-tabbar {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    display: grid;
+  }
+  .a-switcher--compact {
+    min-block-size: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+/* ------------------------------------------------------------- Overlays -- */
+/* React Aria draws a menu as a list inside the box that it places beside its trigger. */
+.a-menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.a-menu__who {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: 280px;
+  padding: var(--space-3) var(--space-4);
+  font-size: calc(var(--type-body-sm-size) + var(--script-size-bump));
+}
+.a-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  overflow-y: auto;
+}
+.a-modal {
+  inline-size: min(480px, 100%);
+}
+.a-modal > .c-dialog {
+  inline-size: 100%;
+  outline: none;
+}

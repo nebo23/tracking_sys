@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in to Connect</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+<style>
+  html, body { block-size: 100%; }
+</style>
+</head>
+<body class="c-root">
+<div class="l-auth">
+
+  <section class="l-auth__brand" aria-label="About Connect">
+    <img src="../../brand/connect-logo-reversed.svg" alt="Connect" height="32" style="align-self: flex-start">
+    <div class="l-stack l-stack--loose">
+      <svg class="l-auth__art c-pull" viewBox="0 20 440 200" role="img" aria-label="A magnet pulls people toward it. On the way they turn into sales.">
+        <g class="c-pull__tracks" fill="none" stroke="#4ec7be" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 9">
+          <path d="M430 44C330 44 250 96 160 112"></path>
+          <path d="M430 120H156"></path>
+          <path d="M430 196C330 196 250 144 160 128"></path>
+        </g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--top c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--mid c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--1"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--2"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g class="c-pull__mover c-pull__mover--low c-pull__mover--3"><g class="c-pull__body"><g class="c-pull__person"><circle r="16" fill="#104546" stroke="#379792" stroke-width="1.5"></circle><g transform="translate(-9 -9) scale(0.75)" fill="none" stroke="#b9ebe7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g></g><g class="c-pull__coin"><circle r="19" fill="#15a6a0"></circle><g transform="translate(-11 -11) scale(0.9167)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g></g></g></g>
+        <g transform="translate(10 48) scale(0.9)">
+          <path d="M116 0H80A80 80 0 0 0 80 160H116V130H80A50 50 0 0 1 80 30H116Z" fill="#f5f8f9"></path>
+          <path d="M116 0h30v30h-30ZM116 130h30v30h-30Z" fill="#4ec7be"></path>
+          <g class="c-pull__held">
+            <circle cx="116" cy="80" r="36" fill="#4ec7be"></circle>
+            <g transform="translate(98 62) scale(1.5)" fill="none" stroke="#02282c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></g>
+          </g>
+        </g>
+      </svg>
+      <p class="l-auth__statement">Turn your content into a sales magnet.</p>
+      <ul class="l-auth__points">
+        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>See which posts pull in visits, leads and paid sales.</li>
+        <li><span class="c-icon c-icon--sm c-icon--check" aria-hidden="true"></span>Put your time and budget where the sales come from.</li>
+      </ul>
+    </div>
+    <div class="l-spread">
+      <p class="l-auth__note">Read-only connections. Connect never posts or charges.</p>
+      <label class="l-auth__motion"><input type="checkbox" id="signin-motion"><span class="c-icon c-icon--sm c-icon--circle-pause" aria-hidden="true"></span><span class="c-icon c-icon--sm c-icon--play" aria-hidden="true"></span><span class="u-sr">Pause animation</span></label>
+    </div>
+  </section>
+
+  <div class="l-auth__lang">
+    <div class="c-seg" role="group" aria-label="Language"><button class="c-seg__item is-active" type="button">English</button><button class="c-seg__item" type="button" lang="ar">العربية</button></div>
+  </div>
+
+  <main class="l-auth__form">
+    <div class="l-stack l-stack--tight">
+      <h1 class="c-pagehead__title">Sign in</h1>
+      <p class="u-secondary">Welcome back. Use your work email.</p>
+    </div>
+
+    <form class="l-stack" novalidate>
+      <button class="c-btn c-btn--secondary c-btn--lg c-btn--block" type="button">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path></svg>
+        Sign in with Google
+      </button>
+      <div class="c-divider">or</div>
+      <label class="c-field"><span class="c-field__label">Email</span><input class="c-input c-input--lg" type="email" autocomplete="username" value="mona@lumenstudio.example" id="signin-email"></label>
+      <div class="c-field">
+        <label class="c-field__label" for="signin-password">Password</label>
+        <span class="c-input-wrap"><input class="c-input c-input--lg" type="password" autocomplete="current-password" value="correct horse" id="signin-password" style="padding-inline-start: 12px; padding-inline-end: 44px"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Show password" style="position: absolute; inset-block-start: 6px; inset-inline-end: 6px"><span class="c-icon c-icon--sm c-icon--eye" aria-hidden="true"></span></button></span>
+        <a class="c-field__link" href="sign-in.html">Forgot password?</a>
+      </div>
+      <label class="c-choice c-choice--multiline"><input class="c-check" type="checkbox" id="signin-terms"><span>I agree to the <a href="sign-in.html">Terms of Service</a> and the <a href="sign-in.html">Privacy Policy</a>.</span></label>
+      <button class="c-btn c-btn--primary c-btn--lg c-btn--block" type="button">Sign in</button>
+    </form>
+
+    <p class="u-secondary">New to Connect? <a href="sign-in.html">Create an agency account</a></p>
+  </main>
+</div>
+</body>
+</html>

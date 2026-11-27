@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team and access, Lumen Studio</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Primary">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu" aria-label="Switch client">
+      <span class="c-avatar c-avatar--org">LS</span>
+      <span class="u-grow"><span class="c-switcher__name">Lumen Studio</span><span class="c-switcher__sub">All clients</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <nav class="c-nav u-grow" aria-label="Agency">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="clients.html"><span class="c-icon c-icon--briefcase-business" aria-hidden="true"></span>Clients</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Agency</p>
+        <a class="c-nav__item is-active" href="team.html" aria-current="page"><span class="c-icon c-icon--users" aria-hidden="true"></span>Team and access</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--key-round" aria-hidden="true"></span>API keys</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--scroll-text" aria-hidden="true"></span>Audit log</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--shield-check" aria-hidden="true"></span>Privacy and data</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+      <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Settings</a>
+      <a class="c-nav__item" href="../index.html"><span class="c-icon c-icon--circle-help" aria-hidden="true"></span>Help</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><span>Lumen Studio</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong>Team and access</strong></nav>
+      <div class="l-cluster u-end">
+        <button class="c-search" type="button"><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span><span class="c-search__label">Search</span><span class="c-kbd">Ctrl K</span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button>
+      </div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Team and access</h1>
+          <p class="c-pagehead__lead">Who can open which client, and who can see money. Access to a client and access to its financial data are granted separately.</p>
+        </div>
+        <div class="l-cluster">
+          <button class="c-btn c-btn--primary" type="button"><span class="c-icon c-icon--sm c-icon--user-plus" aria-hidden="true"></span>Invite person</button>
+        </div>
+      </div>
+
+      <div class="c-tabs" role="tablist" aria-label="Team">
+        <button class="c-tab is-active" role="tab" aria-selected="true" type="button">Members, 5</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">Invitations, 2</button>
+      </div>
+
+      <div class="l-split">
+        <article class="c-card">
+          <div class="c-card__body c-card__body--flush" style="padding-block-start: 0">
+            <div class="c-table-wrap">
+              <table class="c-table">
+                <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Clients</th><th scope="col">Financial data</th><th scope="col">Last active</th><th scope="col"><span class="u-sr">Actions</span></th></tr></thead>
+                <tbody>
+                  <tr><td><span class="l-cluster"><span class="c-avatar">KA</span><span><span class="c-table__primary">Karim Adel</span><span class="c-table__sub u-ltr">karim@lumenstudio.example</span></span></span></td><td><span class="c-badge c-badge--brand">Owner</span></td><td>All clients</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--check" aria-hidden="true"></span>All</span></td><td>Today</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Actions for Karim Adel"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="l-cluster"><span class="c-avatar">MH</span><span><span class="c-table__primary">Mona Hassan <span class="u-tertiary">(you)</span></span><span class="c-table__sub u-ltr">mona@lumenstudio.example</span></span></span></td><td><span class="c-badge">Admin</span></td><td>All clients</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--check" aria-hidden="true"></span>All</span></td><td>Now</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Actions for Mona Hassan"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="l-cluster"><span class="c-avatar">YS</span><span><span class="c-table__primary">Youssef Salah</span><span class="c-table__sub u-ltr">youssef@lumenstudio.example</span></span></span></td><td><span class="c-badge">Analyst</span></td><td>3 clients</td><td><span class="c-badge c-badge--warning"><span class="c-icon c-icon--circle-dot" aria-hidden="true"></span>1 of 3</span></td><td>Yesterday</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Actions for Youssef Salah"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="l-cluster"><span class="c-avatar">LN</span><span><span class="c-table__primary">Laila Nabil</span><span class="c-table__sub u-ltr">laila@lumenstudio.example</span></span></span></td><td><span class="c-badge">Analyst</span></td><td>2 clients</td><td><span class="c-badge"><span class="c-icon c-icon--minus" aria-hidden="true"></span>None</span></td><td>2 days ago</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Actions for Laila Nabil"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="l-cluster"><span class="c-avatar">SF</span><span><span class="c-table__primary">Sara Fouad</span><span class="c-table__sub u-ltr">sara@olivethyme.example</span></span></span></td><td><span class="c-badge">Client viewer</span></td><td>Olive &amp; Thyme</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--check" aria-hidden="true"></span>Yes</span></td><td>5 days ago</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Actions for Sara Fouad"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">What each role can do</h2></div></div>
+          <div class="c-card__body">
+            <dl class="l-stack">
+              <div><dt class="u-strong">Owner</dt><dd class="u-secondary">Everything, including billing and removing the agency. There is always at least one.</dd></div>
+              <div><dt class="u-strong">Admin</dt><dd class="u-secondary">Manages clients, connections, people and keys for every client.</dd></div>
+              <div><dt class="u-strong">Analyst</dt><dd class="u-secondary">Reads the clients they are granted. Sees revenue and spend only where financial data is granted too.</dd></div>
+              <div><dt class="u-strong">Client viewer</dt><dd class="u-secondary">Someone from the client's own team. Reads their one workspace and changes nothing.</dd></div>
+            </dl>
+          </div>
+          <div class="c-card__footer"><span class="c-icon c-icon--sm c-icon--scroll-text" aria-hidden="true"></span>Every change here is written to the audit log.</div>
+        </article>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>
