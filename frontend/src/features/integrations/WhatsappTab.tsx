@@ -248,6 +248,8 @@ function ReferralsCard() {
   const referrals = useQuery(referralsQuery(agencyId, clientId));
   const report = referrals.data;
   const day = (value: string) => <FormattedDate value={`${value}T00:00:00Z`} {...dayFormat} timeZone="UTC" />;
+  // The API counts up to its until day without it: the last day counted is the one before.
+  const dayBefore = (value: string) => new Date(Date.parse(`${value}T00:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return (
     <IntegrationCard
       id="referrals-title"
@@ -255,7 +257,7 @@ function ReferralsCard() {
       title={<FormattedMessage id="integrations.referrals.title" />}
       lead={
         report ? (
-          <FormattedMessage id="integrations.referrals.range" values={{ from: day(report.since), through: day(report.until) }} />
+          <FormattedMessage id="integrations.referrals.range" values={{ from: day(report.since), through: day(dayBefore(report.until)) }} />
         ) : (
           <FormattedMessage id="integrations.referrals.lead" />
         )

@@ -1152,6 +1152,8 @@
   "connections.connect.datasetHint": "The number of the dataset (pixel) in Meta Events Manager.",
   "connections.connect.datasetError": "Enter the dataset ID: digits only.",
 
+  "connections.connect.leadDataset": "You will sign in at Meta and allow Connect to send the verified sales of {client} to the dataset. Connect never receives the password.",
+
   "legal.terms.title": "Terms of Service",
   "legal.privacy.title": "Privacy Policy",
   "legal.pending": "This text has not been published yet.",

@@ -86,7 +86,8 @@ export function ConnectDialog({ agencyId, clientId, clientName, onClose, provide
       wide
     >
       <p className="u-secondary">
-        <FormattedMessage id="connections.connect.lead" values={{ client: clientName }} />
+        {/* A dataset receives what Connect sends; it is not read. */}
+        <FormattedMessage id={place === 'integrations' ? 'connections.connect.leadDataset' : 'connections.connect.lead'} values={{ client: clientName }} />
       </p>
       <ErrorNotice message={problem} />
       <fieldset className="a-fieldset">

@@ -297,6 +297,8 @@ describe('a WhatsApp number', () => {
     openApp(page);
     await tab(user, 'WhatsApp');
     const referrals = await card('Conversations started by ads');
+    // The API's until day is not counted, so the range ends the day before it.
+    expect(referrals.getByText('From Oct 28, 2026 through Nov 25, 2026, in UTC.')).toBeInTheDocument();
     expect(within(referrals.getByText('From an ad or post').closest('div') as HTMLElement).getByText('22')).toBeInTheDocument();
     const row = within(referrals.getByText('An ad').closest('tr') as HTMLElement);
     expect(row.getByText('120210000000001')).toBeInTheDocument();
@@ -348,6 +350,8 @@ describe('Meta conversions', () => {
 
     await user.click(await (await card('Meta conversions')).findByRole('button', { name: 'Connect a dataset' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Connect an account' }));
+    // A dataset receives the sales Connect sends; the dialog does not speak of reading it.
+    expect(dialog.getByText(/allow Connect to send the verified sales of Olive & Thyme to the dataset/)).toBeInTheDocument();
     expect(dialog.getAllByRole('radio').map((item) => (item.closest('label') as HTMLElement).textContent)).toEqual([expect.stringContaining('Meta conversions')]);
     await enter(user, dialog.getByLabelText('Dataset ID'), 'act_123');
     await user.click(dialog.getByRole('button', { name: 'Continue to the provider' }));

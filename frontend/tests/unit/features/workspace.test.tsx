@@ -209,6 +209,17 @@ describe('the workspace', () => {
     expect(switcher()).toHaveTextContent('Your agency');
   });
 
+  it('fits the phone tab bar to five destinations, leaving the account to the top bar inside a client', async () => {
+    fakeApi(withClients([client], { [client.id]: [] }));
+    const { router } = openApp(connectionsPath);
+    await screen.findByRole('heading', { name: 'Connections', level: 1 });
+    const bar = () => within(screen.getByRole('navigation', { name: 'Sections' }));
+    expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Links', 'Tracking', 'Integrations', 'Connections']);
+
+    await router.navigate({ to: '/agencies/$agencyId/clients', params: { agencyId: agency.id } });
+    await waitFor(() => expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Team', 'API keys', 'Audit', 'Account']));
+  });
+
   it('shows the client level inside a client, with the way back to the agency', async () => {
     fakeApi(withClients([client], { [client.id]: [] }));
     openApp(connectionsPath);

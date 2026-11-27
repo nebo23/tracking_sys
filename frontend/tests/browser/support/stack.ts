@@ -94,6 +94,19 @@ function newBackendEnvironment(): BackendEnvironment {
     TRACKING_CONNECTOR_INSTAGRAM_ENABLED: 'false',
     TRACKING_CONNECTOR_YOUTUBE_ENABLED: 'false',
     TRACKING_CONNECTOR_META_ADS_ENABLED: 'false',
+    // Short links (018-D) are served by this API itself, as a platform host.
+    TRACKING_LINK_PLATFORM_HOSTS: JSON.stringify([`127.0.0.1:${stack.apiPort}`]),
+    // Erasure writes tombstones under a keyring of its own, also random for one run.
+    TRACKING_TOMBSTONE_KEYRING: `tomb1:${hex(32)}`,
+    TRACKING_TOMBSTONE_KEYRING_ACTIVE: 'tomb1',
+    // The integrations are switched on so their screens can be used. Nothing here calls Paymob,
+    // Cal.com or Meta: the journeys sign their own synthetic callbacks with secrets of this run.
+    TRACKING_PAYMENTS_PAYMOB_ENABLED: 'true',
+    TRACKING_INTEGRATIONS_CALCOM_ENABLED: 'true',
+    TRACKING_INTEGRATIONS_WEBHOOK_ENABLED: 'true',
+    TRACKING_WHATSAPP_ENABLED: 'true',
+    TRACKING_WHATSAPP_APP_SECRET: hex(24),
+    TRACKING_WHATSAPP_VERIFY_TOKEN: hex(24),
   };
 }
 
@@ -188,6 +201,8 @@ live = (s.connector_instagram_enabled, s.connector_youtube_enabled, s.connector_
 assert s.connector_synthetic_state is not None and not any(live), "providers"
 assert s.connector_redirect_uri == "${stack.apiOrigin}/connectors/oauth/callback", "provider callback"
 assert s.connector_completion_url == "${stack.webOrigin}/connections/complete", "provider return"
+assert s.link_platform_hosts == ["127.0.0.1:${stack.apiPort}"] and not s.link_allow_loopback_destinations, "links"
+assert s.link_domain_verification != "live", "domain checks"
 print("settings-ok")
 `;
 
@@ -283,11 +298,17 @@ import sys
 from app.config import Settings
 from app.services.connectors import build_providers
 provider, url, account, label = sys.argv[1:5]
-print(build_providers(Settings())[provider].approve(url, account, label))
+stand_in = build_providers(Settings())[provider]
+if provider == "synthetic_meta_capi":
+    # A dataset is made up first, then the business grants it.
+    stand_in.define_dataset(account, label)
+    print(stand_in.approve(url, (account,)))
+else:
+    print(stand_in.approve(url, account, label))
 `;
 
 export interface StandInAccount {
-  provider: 'synthetic' | 'synthetic_instagram' | 'synthetic_youtube';
+  provider: 'synthetic' | 'synthetic_instagram' | 'synthetic_youtube' | 'synthetic_meta_capi';
   /** The account's identifier at the stand-in provider. */
   account: string;
   /** The name the provider gives the account, as a person knows it. */

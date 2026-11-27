@@ -1,6 +1,6 @@
 # 018-D plan: links, website tracking and integrations
 
-Prepared: 2026-11-27, under D-093. Status: in progress on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other. The results, the corrections and the differences from this plan are recorded in the 018-D evidence when the slice is complete.
+Prepared: 2026-11-27, under D-093. Status: implemented on 2026-11-27 on `codex/spec-018-workspace-screens`, with the thirty packages of the [018-A plan](plan-018a.md) and no other. The results, the corrections and the differences from this plan are in the [018-D evidence](evidence-018d.md).
 
 ## 1. Goal and boundaries
 018-D is the last slice of [specification 018](spec.md) before attribution (D14 of the [entry review](entry-review.md)). After it, the people who manage a client can issue the client's short links, set up the website tracker and its forms, see what the collector accepted and refused, erase a visitor on request, and connect the client's payments, bookings, CRM, WhatsApp numbers and Meta conversion destinations, in English and Arabic and in both themes, on the reference styles the owner approved.

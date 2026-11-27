@@ -256,6 +256,31 @@ describe('a new link', () => {
     expect(done.getByRole('button', { name: 'Copy Short address' })).toBeInTheDocument();
   });
 
+  it('keeps showing what it issued when the first link of the client joins the list', async () => {
+    const issued = link({ id: 'a5555555-5555-4555-8555-555555555555', slug: 'first-link' });
+    let links: unknown[] = [];
+    fakeApi(
+      linking({
+        [`GET ${base}/managed-links`]: () => json(200, links),
+        [`POST ${base}/managed-links`]: () => {
+          links = [issued];
+          return json(201, issued);
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    openApp(linksPath);
+
+    await user.click(await screen.findByRole('button', { name: 'Create link' }));
+    const panel = within(await screen.findByRole('form', { name: 'New link' }));
+    await enter(user, panel.getByLabelText('Destination'), 'https://shop.olive.example/ramadan-box');
+    await enter(user, panel.getByLabelText('Short path'), 'first-link');
+    await user.click(panel.getByRole('button', { name: 'Create link' }));
+    const done = within(await screen.findByRole('region', { name: 'Link created' }));
+    expect(await screen.findByText('127.0.0.1:8000/r/first-link', { selector: '.c-table__primary' })).toBeInTheDocument();
+    expect(done.getByRole('textbox', { name: 'Address visitors arrive at' })).toHaveValue(issued.target_url);
+  });
+
   it.each([
     ['https://other.example/page', 'ramadan-two', "The address must be on one of this client's destination sites."],
     ['http://shop.olive.example/page', 'ramadan-two', "The address must be on one of this client's destination sites."],

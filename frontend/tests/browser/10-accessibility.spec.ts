@@ -4,7 +4,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { newPerson, registered, send, signedIn, signedInBrowser, withAgency } from './support/people.ts';
 import { stack } from './support/stack.ts';
 import { linkIn } from './support/mail.ts';
-import { acceptInvitation, inviteAs, standInAccount, withClient, withConnection, workerPass } from './support/tenants.ts';
+import { acceptInvitation, inviteAs, standInAccount, withClient, withCollectSetup, withConnection, workerPass } from './support/tenants.ts';
 
 // axe-core on every screen of the slice, in both languages and both themes (D12: WCAG 2.2 AA).
 // It finds what a machine can find. Screen readers, real phones and people stay to be checked.
@@ -272,6 +272,127 @@ for (const look of looks) {
       await report(testInfo, found);
     });
 
+    test('the collect pages have no serious accessibility finding', async ({ page, context }, testInfo) => {
+      const found: Found[] = [];
+      const owner = await registered(newPerson(testInfo));
+      const agencyId = await withAgency(owner, 'Lumen Studio');
+      const session = await signedIn(owner);
+      const clientId = await withClient(session, agencyId, 'Olive & Thyme');
+      await withCollectSetup(session, agencyId, clientId);
+      await send('POST /auth/logout', undefined, session);
+      await signedInBrowser(context, owner);
+      const client = `/agencies/${agencyId}/clients/${clientId}`;
+      const tab = (index: number) => page.getByRole('tab').nth(index);
+      const cardAction = page.locator('main .c-card__header .c-btn--secondary');
+      const rowMenu = page.locator('main table .c-btn--icon');
+      const leave = async () => {
+        await page.keyboard.press('Escape');
+        await expect(dialog(page)).toBeHidden();
+      };
+
+      // Links, each tab, the panel that creates a link and the dialogs of its settings.
+      await page.goto(`${client}/links`);
+      await ready(page);
+      await expect(page.locator('main table tbody tr')).toHaveCount(1);
+      found.push(...(await findings(page, 'links')));
+      await rowMenu.first().click();
+      await expect(page.getByRole('menu')).toBeVisible();
+      found.push(...(await findings(page, 'link menu')));
+      await page.keyboard.press('Escape');
+      await pageAction(page).click();
+      await page.locator('main form button[type="submit"]').click();
+      await expect(page.locator('main form .c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'new link panel with errors')));
+      for (const [index, name] of [
+        [1, 'campaigns'],
+        [2, 'content'],
+        [3, 'UTM templates'],
+        [4, 'destination sites'],
+      ] as const) {
+        await tab(index).click();
+        await expect(page.locator('main table tbody tr').first()).toBeVisible();
+        found.push(...(await findings(page, name)));
+      }
+      await cardAction.click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'site dialog with an error')));
+      await leave();
+      await tab(5).click();
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      found.push(...(await findings(page, 'domains')));
+      await rowMenu.first().click();
+      await page.getByRole('menuitem').first().click();
+      await expect(dialog(page).locator('#record-value')).toBeVisible();
+      found.push(...(await findings(page, 'DNS record shown once')));
+      await dialog(page).locator('.c-dialog__footer .c-btn').click();
+      await expect(dialog(page)).toBeHidden();
+
+      // Website tracking, with the dialogs of a source, a form and an erasure.
+      await page.goto(`${client}/tracking`);
+      await ready(page);
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      await expect(page.locator('main .a-figures')).toBeVisible();
+      found.push(...(await findings(page, 'website tracking')));
+      await cardAction.first().click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'new source dialog with errors')));
+      await leave();
+      await rowMenu.first().click();
+      await page.getByRole('menuitem').first().click();
+      await expect(dialog(page).locator('#install-code')).toBeVisible();
+      found.push(...(await findings(page, 'install code')));
+      await leave();
+      await cardAction.nth(1).click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'form dialog with errors')));
+      await leave();
+      await cardAction.nth(2).click();
+      await dialogSubmit(page).click();
+      await expect(page.getByRole('alertdialog').locator('.c-field__error')).toBeVisible();
+      found.push(...(await findings(page, 'erase dialog with an error')));
+      await leave();
+
+      // Integrations, each tab, with the dialogs that add something.
+      await page.goto(`${client}/integrations`);
+      await ready(page);
+      await expect(page.locator('main article.c-card')).toBeVisible();
+      found.push(...(await findings(page, 'payments')));
+      await cardAction.first().click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'Paymob dialog with errors')));
+      await leave();
+      await tab(1).click();
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      await expect(page.locator('main .a-figures').first()).toBeVisible();
+      found.push(...(await findings(page, 'bookings and CRM')));
+      await cardAction.first().click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'source dialog with errors')));
+      await leave();
+      await tab(2).click();
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      found.push(...(await findings(page, 'WhatsApp')));
+      await cardAction.first().click();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'number dialog with errors')));
+      await leave();
+      await tab(3).click();
+      await expect(page.locator('main table tbody tr').first()).toBeVisible();
+      found.push(...(await findings(page, 'Meta conversions')));
+      await page.locator('main .c-card__header .c-btn--ghost').first().click();
+      await expect(dialog(page)).toBeVisible();
+      found.push(...(await findings(page, 'connect a dataset dialog')));
+      await leave();
+
+      await report(testInfo, found);
+    });
+
     test('the first-agency screen has no serious accessibility finding', async ({ page, context }, testInfo) => {
       const newcomer = await registered(newPerson(testInfo));
       await signedInBrowser(context, newcomer);
@@ -314,6 +435,20 @@ test.describe('on a phone', () => {
     await expect(dialog(page)).toBeVisible();
     found.push(...(await findings(page, 'connect dialog at 390')));
     await page.keyboard.press('Escape');
+
+    // The pages of the Collect group fit a phone as well.
+    const clientPath = connections.replace(/\/connections$/, '');
+    for (const [path, name] of [
+      ['/links', 'links at 390'],
+      ['/tracking', 'website tracking at 390'],
+      ['/integrations', 'integrations at 390'],
+    ] as const) {
+      await page.goto(clientPath + path);
+      await ready(page);
+      await expect(page.locator('main .c-card').first()).toBeVisible();
+      found.push(...(await findings(page, name)));
+      expect(await overflowing(), name).toBeLessThanOrEqual(0);
+    }
 
     await page.goto('/account');
     await ready(page);

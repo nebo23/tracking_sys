@@ -229,6 +229,10 @@ body {
   padding: 0;
   border: 0;
 }
+/* A part of a form that is closed until the person opens it. */
+.a-fieldset[hidden] {
+  display: none;
+}
 /* One choice out of a few, each with a sentence that says what it means. */
 .a-choice--card {
   display: flex;
@@ -323,6 +327,12 @@ body {
   margin: 0;
   padding-inline-start: var(--space-7);
   color: var(--text-secondary);
+  /* The reference styles take the numbers off lists; steps keep theirs. */
+  list-style: decimal;
+}
+.a-steps > li::marker {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 /* The fields of a form being registered, each in a box of its own. */
 .a-fields {

@@ -367,15 +367,11 @@ export function LinksTab({ creating, onCreate, onCloseCreate, onGoTo }: LinksTab
           </EmptyState>
         </div>
       ) : null}
-      {links.isSuccess && !emptyAll ? (
-        <div className={cx(creating && 'l-split')}>
-          {list}
+      {/* The panel keeps its place while the first link joins the list, so what it shows survives. */}
+      {links.isSuccess && (creating || !emptyAll) ? (
+        <div className={cx(creating && !emptyAll && 'l-split', creating && emptyAll && 'a-narrow')}>
+          {emptyAll ? null : list}
           {creating ? <NewLinkPanel onClose={onCloseCreate} onGoTo={onGoTo} /> : null}
-        </div>
-      ) : null}
-      {emptyAll && creating ? (
-        <div className="a-narrow">
-          <NewLinkPanel onClose={onCloseCreate} onGoTo={onGoTo} />
         </div>
       ) : null}
       {pausing ? (

@@ -3,6 +3,7 @@ Connect, the web application of the Tracking System (specification 018), in Engl
 
 - Slice 018-A: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page. See the [018-A evidence](../specs/018-react-workspace/evidence-018a.md).
 - Slice 018-B: the agency and the client in the address, the list of clients with archived clients, the connections of a client, the members of an agency with their client access, invitations, API keys and the audit log. See the [018-B evidence](../specs/018-react-workspace/evidence-018b.md).
+- Slice 018-D: the Collect group of a client: links with their campaigns, content, UTM templates, destination sites and domains; website tracking with its sources, forms, daily counters and erasure; and the integrations: Paymob, Cal.com and signed webhooks, CRM stages, WhatsApp and Meta conversions. See the [018-D evidence](../specs/018-react-workspace/evidence-018d.md).
 
 Both are presented for the owner's review; each evidence file says what was checked and what was not. Slices 018-C and 018-D are not started.
 
@@ -41,6 +42,7 @@ Three settings exist, all public because they are compiled into the bundle that 
 | `VITE_API_ORIGIN` | Origin of the API. The API must list this application's origin among its allowed origins. |
 | `VITE_GOOGLE_SIGN_IN` | `true` shows the Google sign-in controls. The API must have Google sign-in enabled as well. |
 | `VITE_SYNTHETIC_PROVIDERS` | `true` lists the stand-in providers when connecting an account. For local development against an API that has `TRACKING_CONNECTOR_SYNTHETIC_STATE` set, and for the journeys. Never in a build for real users. |
+| `VITE_SHORT_LINK_ORIGIN` | Origin of the short links that are not on a custom domain: one of the API's `TRACKING_LINK_PLATFORM_HOSTS`, with its scheme. Leave it out to use `VITE_API_ORIGIN`. |
 
 Never put a secret in a `VITE_` setting.
 
@@ -84,6 +86,9 @@ src/
   features/team/            members, their client access, invitations and roles
   features/audit/           the audit log and the sentence of each action
   features/keys/            API keys
+  features/links/           links, campaigns, content, UTM templates, destination sites, domains
+  features/tracking/        website sources, forms, daily counters, erasure
+  features/integrations/    Paymob, Cal.com and signed webhooks, CRM stages, WhatsApp, Meta conversions
   i18n/                     en.json and ar.json with the same keys
   lib/                      small helpers: link tokens, safe return path, field rules
   styles/                   one entry that imports the design files, and app.css

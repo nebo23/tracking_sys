@@ -1152,6 +1152,8 @@
   "connections.connect.datasetHint": "رقم مجموعة البيانات (البكسل) في Meta Events Manager.",
   "connections.connect.datasetError": "أدخل معرّف مجموعة البيانات: أرقام فقط.",
 
+  "connections.connect.leadDataset": "ستسجّل الدخول لدى ميتا وتسمح لكونكت بإرسال المبيعات المؤكدة الخاصة بـ {client} إلى مجموعة البيانات. لا يستلم كونكت كلمة المرور أبدًا.",
+
   "legal.terms.title": "شروط الخدمة",
   "legal.privacy.title": "سياسة الخصوصية",
   "legal.pending": "لم يُنشر هذا النص بعد.",

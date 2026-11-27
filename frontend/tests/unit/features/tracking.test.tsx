@@ -301,7 +301,8 @@ describe('an erasure', () => {
   });
 
   it('erases by an event identifier and lists what was erased', async () => {
-    const eventId = '00000000-0000-4000-8000-000000000004';
+    // Letters in the identifier, so that writing it in capitals changes it.
+    const eventId = 'abcdef12-0000-4000-8000-00000000000a';
     let erasures: unknown[] = [];
     const done = {
       id: 'e9999999-9999-4999-8999-999999999999',
