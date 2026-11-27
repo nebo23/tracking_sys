@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-27 under D-094.
 - **Baseline:** merged `main` at `06d6a19` (PR 19: Spec 017-A, plans, limits and agency closure).
-- **Status:** proposal. D1-D14 wait for the owner's approval, which is recorded as D-095 before any application change or migration `0032`.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-27 (D-095).
 - **Handoff:** the [implementation handoff](implementation-prompt-016c.md) executes this packet after approval.
 
 ## 1. Intended result

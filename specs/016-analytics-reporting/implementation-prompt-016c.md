@@ -1,6 +1,6 @@
 # Spec 016-C implementation: retained exports, scheduled reports and the white-label delivery contract
 
-Prepared 2026-11-27 under D-094. It executes decisions D1-D14 of the [016-C entry review](entry-review-016c.md) once the owner has approved them; the approval is recorded as D-095. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/016-analytics-reporting/implementation-prompt-016c.md` on the branch below.
+Prepared 2026-11-27 under D-094. The owner approved decisions D1-D14 of the [016-C entry review](entry-review-016c.md) as recommended, without amendment, on 2026-11-27; the approval is recorded as D-095, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/016-analytics-reporting/implementation-prompt-016c.md` on the branch below.
 
 ## Where to work
 
