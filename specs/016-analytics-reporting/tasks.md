@@ -1,6 +1,6 @@
 # Tasks: 016-analytics-reporting
 
-Updated: 2026-11-26. Preparation under D-071; 016-A implemented under D-072; 016-B implemented under D-089. Checked items are supported by the [evidence](evidence.md) and the [016-B evidence](evidence-016b.md); unchecked items remain open.
+Updated: 2026-11-27. Preparation under D-071; 016-A implemented under D-072; 016-B implemented under D-089; 016-C prepared under D-094 ([entry review](entry-review-016c.md)). Checked items are supported by the [evidence](evidence.md) and the [016-B evidence](evidence-016b.md); unchecked items remain open.
 
 ## Preparation
 

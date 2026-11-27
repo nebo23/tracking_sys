@@ -1,6 +1,6 @@
 # Plan: 016-analytics-reporting
 
-Updated: 2026-11-26. D-071 authorized preparation; D-072 approved D1-D12 as recommended. 016-A1 to 016-A4 are implemented, verified and merged in PR 14 (see the [evidence](evidence.md)). D-089 approved the 016-B decisions D1-D14, and phases P0-P5 of the [016-B handoff](implementation-prompt-016b.md) are implemented and verified (see the [016-B evidence](evidence-016b.md)); the pull request awaits review. 016-C remains open.
+Updated: 2026-11-27. D-071 authorized preparation; D-072 approved D1-D12 as recommended. 016-A1 to 016-A4 are implemented, verified and merged in PR 14 (see the [evidence](evidence.md)). D-089 approved the 016-B decisions D1-D14; 016-B is implemented under the [016-B handoff](implementation-prompt-016b.md) and merged in PR 18 (see the [016-B evidence](evidence-016b.md)). 016-C is prepared under D-094 in its [entry review](entry-review-016c.md) and [implementation handoff](implementation-prompt-016c.md); its decisions D1-D14 wait for the owner's approval (D-095).
 
 ## Preparation and decision
 
