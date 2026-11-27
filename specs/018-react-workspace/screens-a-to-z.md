@@ -51,7 +51,7 @@ The pictures of built screens were changed in four ways, and only these: keys, c
 2. **Names of campaigns, ad sets and ads.** The 016-A spend report and the 016-B ROAS report return object IDs only. C07 and C10 show the names that the 014 ad-spend read (`/ad-spend`) returns for the same account, joined in the browser; no API change is assumed.
 3. **Agreement to the terms.** Main now has 017-A: signing in, registering and Google sign-in must send the current versions from `GET /auth/agreements`. The interface branches were made before 017-A and do not send them yet, so this must be added when they are brought up to date with main; A03 shows the refused state.
 4. **Agency settings (B13 to B15)** need a place in the navigation; the design adds "Agency settings" to the agency group. The API (plan, closure) exists on main.
-5. **Concepts B12, C11, E03 and F05** need a decision each before anything is built.
+5. **Concepts B12, C11, E03 and F05** need a decision each before anything is built. Since this page was made, Spec 016-C (retained exports, scheduled reports and branding) merged on `main` (PR 20), so E03 now has an API; the [completion entry review](entry-review-completion.md) proposes drawing the Reports screens again on that contract (D9).
 6. **Not on the page:** the Google sign-in return page, the return page of a provider connection, the terms and privacy pages (their texts are not written), and the operator's verification of a WhatsApp number, which is a command, not a screen.
 
 ## 4. Checks
