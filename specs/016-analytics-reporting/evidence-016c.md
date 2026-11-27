@@ -4,7 +4,7 @@ Recorded: 2026-11-27 under D-095. Scope: decisions D1-D14 of the [016-C entry re
 
 ## Branch and commits
 
-`codex/spec-016c-report-delivery` was created from `origin/claude/keen-fermat-otlr9d` at `5541091`; `06d6a19` (PR 19) is its ancestor, and `origin/main` stayed at `06d6a19` throughout, so no merge was needed. Each phase was pushed after its checks (D-051).
+`codex/spec-016c-report-delivery` was created from `origin/claude/keen-fermat-otlr9d` at `5541091`; `06d6a19` (PR 19) is its ancestor, and `origin/main` stayed at `06d6a19` throughout, so no merge was needed. Each phase was pushed after its checks (D-051), and [pull request 20](https://github.com/nebo23/tracking_sys/pull/20) was opened against `main` at `5a79278` for review; it is not merged.
 
 | Phase | Commit | Content |
 |---|---|---|
