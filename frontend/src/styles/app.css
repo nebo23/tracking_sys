@@ -311,3 +311,48 @@ body {
 .a-pad--x:empty {
   display: none;
 }
+/* Long values that have no spaces, such as a digest, break anywhere rather than widen the dialog. */
+.a-break {
+  overflow-wrap: anywhere;
+}
+/* The steps of an installation, numbered in the language of the page. */
+.a-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-7);
+  color: var(--text-secondary);
+}
+/* The fields of a form being registered, each in a box of its own. */
+.a-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.a-fields__item {
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+/* A row of figures over a table: a label and its number. */
+.a-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0 var(--space-7) var(--space-5);
+}
+.a-figures__item dt {
+  color: var(--text-tertiary);
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+.a-figures__item dd {
+  margin: 0;
+  font-size: calc(var(--type-title-lg-size) + var(--script-size-bump));
+  line-height: var(--type-title-lg-line);
+  font-weight: var(--type-title-lg-weight);
+}

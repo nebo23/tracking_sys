@@ -61,6 +61,52 @@ export function Field({ id, label, value, onChange, error, hint, size = 'lg', be
   );
 }
 
+interface TextAreaFieldProps {
+  id: string;
+  label: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  error?: MessageId | null;
+  hint?: ReactNode;
+  rows?: number;
+  /** Codes, addresses and lists of names are written left to right in both languages. */
+  ltr?: boolean;
+  maxLength?: number;
+  required?: boolean;
+  ref?: Ref<HTMLTextAreaElement>;
+}
+
+/** Several lines of text, such as a list of sites or the words of a notice. */
+export function TextAreaField({ id, label, value, onChange, error, hint, rows = 4, ltr = false, maxLength, required, ref }: TextAreaFieldProps) {
+  return (
+    <div className="c-field">
+      <label className="c-field__label" htmlFor={id}>
+        {label}
+      </label>
+      <textarea
+        ref={ref}
+        id={id}
+        className={cx('c-textarea', ltr && 'u-ltr', error && 'is-invalid')}
+        dir={ltr ? 'ltr' : undefined}
+        rows={rows}
+        maxLength={maxLength}
+        required={required}
+        spellCheck={ltr ? false : undefined}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, hint, error)}
+      />
+      {hint ? (
+        <p className="c-field__hint" id={`${id}-hint`}>
+          {hint}
+        </p>
+      ) : null}
+      <FieldError id={`${id}-error`} error={error} />
+    </div>
+  );
+}
+
 /** A password field with a control that shows what was typed. */
 export function PasswordField({ id, label, value, onChange, error, hint, size = 'lg', below, ref, ...input }: FieldProps) {
   const intl = useIntl();
