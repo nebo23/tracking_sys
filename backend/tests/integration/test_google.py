@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import jwt
 import pytest
+from auth_support import GOOGLE_AGREEMENTS
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import SecretStr
 from sqlalchemy import func, select, update
@@ -93,7 +94,7 @@ def claims(params, **changes):
 
 
 def start(client):
-    response = client.get("/auth/google/start", follow_redirects=False)
+    response = client.get("/auth/google/start", params=GOOGLE_AGREEMENTS, follow_redirects=False)
     assert response.status_code == 303
     return response, parse_qs(urlsplit(response.headers["location"]).query)
 
@@ -218,7 +219,12 @@ def test_google_state_is_single_use_and_bound_to_the_browser(api, db, google):
 def test_existing_email_requires_explicit_link_then_signs_in(api, db, google):
     browser, fake = google
     email = "linked.person@gmail.com"
-    body = {"email": email, "display_name": "Linked Person", "password": api.password}
+    body = {
+        "email": email,
+        "display_name": "Linked Person",
+        "password": api.password,
+        "agreements": api.agreements,
+    }
     assert api.client.post("/auth/register", json=body).status_code == 202
     code = [v for _, s, v in api.mail_tokens() if s == "Verify your email"][-1]
     verify = {"email": email, "code": code}
@@ -251,7 +257,12 @@ def test_linked_subject_cannot_move_and_disabled_users_are_denied(api, db, googl
     _, result = finish(first, fake, params, sub="subject-owned")
     assert result == {"result": ["signed_in"]}
     email = "second.person@gmail.com"
-    body = {"email": email, "display_name": "Second Person", "password": api.password}
+    body = {
+        "email": email,
+        "display_name": "Second Person",
+        "password": api.password,
+        "agreements": api.agreements,
+    }
     assert api.client.post("/auth/register", json=body).status_code == 202
     code = [v for _, s, v in api.mail_tokens() if s == "Verify your email"][-1]
     verify = {"email": email, "code": code}

@@ -199,7 +199,12 @@ def test_purging_ended_state_leaves_authentication_working(
     assert (
         client.post(
             "/auth/register",
-            json={"email": email, "display_name": "Synthetic", "password": api.password},
+            json={
+                "email": email,
+                "display_name": "Synthetic",
+                "password": api.password,
+                "agreements": api.agreements,
+            },
         ).status_code
         == 202
     )

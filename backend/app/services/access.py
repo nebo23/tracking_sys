@@ -20,6 +20,7 @@ from app.models import (
     User,
 )
 from app.security import AuthError, digest, new_token, normalize_email, now_utc
+from app.services import plans
 from app.services.mail import queue_mail
 from app.services.tenancy import MANAGERS, AccessDenied, MembershipConflict, Role, TenancyService
 
@@ -230,6 +231,8 @@ class AccessService(TenancyService):
         )
         if member is not None or pending is not None:
             raise MembershipConflict("The agency already has this member or a pending invitation.")
+        # A pending invitation holds a seat of the plan (017-A, D4).
+        plans.require_capacity(self.session, agency_id, "seats")
         raw = new_token()
         invitation = AgencyInvitation(
             agency_id=agency_id,
@@ -348,7 +351,9 @@ class AccessService(TenancyService):
         issuer = TenancyService(self.session, inviter.user_id)
         for grant in grants:
             issuer.get_client(agency_id, grant.client_id)
-        member = issuer.add_member(agency_id, user.id, Role(item.role))
+        # The pending invitation already holds its seat, so acceptance is never refused by the
+        # plan's seat limit, even after a move to a smaller plan (017-A, D4).
+        member = issuer.add_member(agency_id, user.id, Role(item.role), seat_reserved=True)
         for grant in grants:
             issuer.grant_client(
                 agency_id,

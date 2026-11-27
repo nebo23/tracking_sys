@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_support import AGREEMENTS
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from sqlalchemy import Engine, select, text
@@ -29,6 +30,10 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "user_agreements",
+    "agency_closures",
+    "agency_plan_assignments",
+    "saas_plans",
     "attribution_credit_changes",
     "attribution_allocations",
     "attribution_runs",
@@ -118,6 +123,13 @@ TABLES = (
 )
 
 TEST_PASSWORD = "Synthetic password for tests 123!"
+# Migration 0031 seeds the development plan (017-A, D3). It is the one row the guards accept in
+# an otherwise empty database, and the teardown keeps it as the default plan.
+SEED_PLANS = "saas_plans WHERE reason <> 'seed'"
+
+
+def _rows(table: str) -> str:
+    return SEED_PLANS if table == "saas_plans" else table
 
 
 @pytest.fixture(scope="session")
@@ -174,8 +186,12 @@ def api(db, database_settings, tmp_path: Path, collection_keyrings):
                 tokens.append((str(message["To"]), str(message["Subject"]), value))
             return tokens
 
+        # Every sign-in sends the current agreement versions (017-A, D10).
         def login(client, email, password=TEST_PASSWORD):
-            response = client.post("/auth/login", json={"email": email, "password": password})
+            response = client.post(
+                "/auth/login",
+                json={"email": email, "password": password, "agreements": AGREEMENTS},
+            )
             assert response.status_code == 200, response.text
             client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
             return response
@@ -187,6 +203,7 @@ def api(db, database_settings, tmp_path: Path, collection_keyrings):
             mail_tokens=mail_tokens,
             login=login,
             password=TEST_PASSWORD,
+            agreements=AGREEMENTS,
         )
 
 
@@ -240,7 +257,7 @@ def migration_engine(database_settings: Settings) -> Iterator[Engine]:
             assert tables <= set(TABLES) | {"alembic_version"}, "Unexpected test database schema."
             for table in tables - {"alembic_version"}:
                 assert not connection.execute(
-                    text(f"SELECT EXISTS (SELECT 1 FROM {table})")
+                    text(f"SELECT EXISTS (SELECT 1 FROM {_rows(table)})")
                 ).scalar_one(), "Refuse a prepopulated database; use fresh disposable storage."
         yield engine
     finally:
@@ -287,9 +304,13 @@ def db(runtime_engine: Engine, migration_engine: Engine) -> Iterator[SimpleNames
         yield SimpleNamespace(runtime=runtime_engine, migration=migration_engine)
     finally:
         # Only data created in this explicitly guarded, initially empty test run is removed.
+        # The seeded development plan stays, restored as the default (0031).
         with migration_engine.begin() as connection:
             for table in TABLES:
-                connection.execute(text(f"DELETE FROM {table}"))
+                connection.execute(text(f"DELETE FROM {_rows(table)}"))
+            connection.execute(
+                text("UPDATE saas_plans SET is_default = true WHERE reason = 'seed'")
+            )
 
 
 @pytest.fixture

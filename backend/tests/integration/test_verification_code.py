@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 import pytest
+from auth_support import AGREEMENTS
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,12 @@ EMAIL = "code.person@example.test"
 
 
 def register(client, password, email=EMAIL):
-    body = {"email": email, "display_name": "Code Person", "password": password}
+    body = {
+        "email": email,
+        "display_name": "Code Person",
+        "password": password,
+        "agreements": AGREEMENTS,
+    }
     assert client.post("/auth/register", json=body).status_code == 202
 
 
@@ -214,6 +220,10 @@ def test_populated_identity_schema_cannot_be_downgraded(api, db):
     from app.database import expected_revision, readiness_failure
 
     register(api.client, api.password)
+    # Registration now stores agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="non-empty identity state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0003_auth")
     assert readiness_failure(db.runtime, expected_revision()) is None

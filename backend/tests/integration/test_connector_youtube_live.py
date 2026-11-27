@@ -261,6 +261,10 @@ def test_011c_migration_downgrade_refuses_live_youtube_state(live):
             return connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
 
     head = version()
+    # Sign-ins now store agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with w.db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="Refuse to remove live YouTube connector state"):
         command.downgrade(config, "0015_youtube_runtime")
     # The refused downgrade leaves every revision in place, the 014 revisions included.

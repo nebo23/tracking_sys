@@ -18,6 +18,7 @@ def test_alternate_origin_mutation_is_allowed_and_foreign_origins_fail(api, monk
         "email": "alternate.origin@example.test",
         "display_name": "Alternate origin",
         "password": api.password,
+        "agreements": api.agreements,
     }
     client = api.new_client(settings)
     client.headers["Origin"] = ALTERNATE

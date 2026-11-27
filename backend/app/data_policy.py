@@ -707,6 +707,48 @@ CLASSES: dict[str, DataClass] = {
             "008",
         ),
         DataClass(
+            "plan.definition",
+            "Platform plan definitions: key, internal name, the five limits, the default flag, "
+            "a closed reason code and the creation time; never about a person.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Never deleted: plans are immutable and referenced by assignment history (D-092 D2).",
+            "017-A",
+        ),
+        DataClass(
+            "plan.assignment",
+            "Plan assignment history of an agency: revision, plan, time, assigning party and a "
+            "closed reason code.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "017-A",
+        ),
+        DataClass(
+            "agency.closure",
+            "Closure requests of an agency: the requesting and cancelling memberships and the "
+            "request, scheduled closing, cancellation and completion times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "017-A",
+        ),
+        DataClass(
+            "account.agreement",
+            "Agreement of an account to one version of the Terms of Service or the Privacy "
+            "Policy: document, version label, time and channel, and the versions a sign-in "
+            "transaction carries.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.PROVIDED,
+            "Deleted with a closed account's credential state (D-024), unless legal advice "
+            "requires keeping proof of agreement (Q-012).",
+            "017-A",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -837,6 +879,7 @@ TABLES: dict[str, TablePolicy] = {
             **_same(
                 "credential.lifecycle", "id", "purpose", "created_at", "expires_at", "consumed_at"
             ),
+            **_same("account.agreement", "terms_version", "privacy_version"),
         },
         (_row(APPROVED, "D-024", "Deleted 1 day after consumption or expiry."),),
     ),
@@ -960,7 +1003,14 @@ TABLES: dict[str, TablePolicy] = {
             "name": "tenancy.label",
             **_same("tenancy.configuration", "id", "status", "created_at", "updated_at"),
         },
-        (_row(RuleStatus.DEFERRED, "017", "Agency closure and offboarding belong to 017."),),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Closure moves an agency to closing and then closed (017-A); the purge of a "
+                "closed agency's data belongs to 017-B.",
+            ),
+        ),
     ),
     "client_workspaces": TablePolicy(
         {
@@ -1012,6 +1062,7 @@ TABLES: dict[str, TablePolicy] = {
                 "id",
                 "agency_id",
                 "client_id",
+                "actor_kind",
                 "action",
                 "resource_type",
                 "resource_id",
@@ -2755,6 +2806,86 @@ TABLES: dict[str, TablePolicy] = {
             "created_at",
         ),
         (_row(RuleStatus.DEFERRED, "D-079; 017", "Kept for the client workspace lifetime."),),
+    ),
+    # Specification 017-A (D-092): plans, their assignment history, agency closures and the
+    # agreement record.
+    "saas_plans": TablePolicy(
+        _same(
+            "plan.definition",
+            "id",
+            "key",
+            "name",
+            "clients_limit",
+            "seats_limit",
+            "connections_limit",
+            "managed_links_limit",
+            "tracked_events_limit",
+            "is_default",
+            "reason",
+            "created_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-092",
+                "Never deleted: plans are immutable apart from the default flag and referenced "
+                "by the assignment history (D2).",
+            ),
+        ),
+    ),
+    "agency_plan_assignments": TablePolicy(
+        _same(
+            "plan.assignment",
+            "id",
+            "agency_id",
+            "plan_id",
+            "revision",
+            "assigned_at",
+            "assigned_by",
+            "reason",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Insert-only history kept with the agency; the purge of a closed agency belongs "
+                "to 017-B.",
+            ),
+        ),
+    ),
+    "agency_closures": TablePolicy(
+        _same(
+            "agency.closure",
+            "id",
+            "agency_id",
+            "requested_by_membership_id",
+            "requested_at",
+            "closes_at",
+            "cancelled_at",
+            "cancelled_by_membership_id",
+            "completed_at",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            ),
+        ),
+    ),
+    "user_agreements": TablePolicy(
+        {
+            "user_id": "account.reference",
+            **_same("account.agreement", "id", "document", "version", "accepted_at", "channel"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-092; D-024",
+                "Deleted by the lifecycle runner with a closed account's credential state; "
+                "keeping proof of agreement beyond that awaits legal advice (Q-012).",
+            ),
+        ),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

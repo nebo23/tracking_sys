@@ -24,7 +24,7 @@ from app.models import AttributionModelVersion, AuditEvent, RevenueEvidence
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0030_reporting_indexes"
+HEAD = "0031_saas_plans"
 TABLES = (
     "attribution_model_versions",
     "attribution_conversions",

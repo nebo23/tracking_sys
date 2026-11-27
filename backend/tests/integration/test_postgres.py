@@ -111,10 +111,16 @@ def test_postgresql_migration_cycle_and_runtime_permissions(
                 "attribution_conversions",
                 "attribution_model_versions",
                 "attribution_consumer_state",
+                "saas_plans",
+                "agency_plan_assignments",
+                "agency_closures",
+                "user_agreements",
             }, "Refuse an unknown database schema."
+            # 0031 seeds the development plan; it is the only row an empty database holds.
             for table in tables - {"alembic_version"}:
+                rows = "saas_plans WHERE reason <> 'seed'" if table == "saas_plans" else table
                 assert not connection.execute(
-                    text(f"SELECT EXISTS (SELECT 1 FROM {table})")
+                    text(f"SELECT EXISTS (SELECT 1 FROM {rows})")
                 ).scalar_one(), "Refuse to downgrade a populated database."
             version = int(connection.execute(text("SHOW server_version_num")).scalar_one())
             assert 180000 <= version < 190000
