@@ -35,9 +35,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     # (015-C), seven more at 0023_integration_bookings and 0024_crm_deals (015-D), two more
     # at 0025_whatsapp (015-E), eleven more at 0026_identity_journey (006, D-075), five more
     # at 0027_ledger_persistence (007-B), one more at 0028_revenue_identity (007-C), six more
-    # at 0029_attribution_persistence (008-B), four more at 0031_saas_plans (017-A), plus
-    # alembic_version.
-    assert len(SCHEMA) == 91
+    # at 0029_attribution_persistence (008-B), four more at 0031_saas_plans (017-A), five more
+    # at 0032_report_delivery (016-C), plus alembic_version.
+    assert len(SCHEMA) == 96
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -184,6 +184,11 @@ def test_only_recorded_decisions_are_presented_as_approved():
         # D-092 (017-A): plans are never deleted; agreement records follow the closed account.
         ("saas_plans", "row", "D-092"),
         ("user_agreements", "row", "D-092; D-024"),
+        # D-095 (016-C, D5 and D7): exports expire after 7 days, contents also on revocation;
+        # recipients leave with their schedule.
+        ("report_exports", "row", "D-095"),
+        ("report_export_contents", "row", "D-095"),
+        ("report_schedule_recipients", "row", "D-095"),
     }
     assert all(
         rule.status is not RuleStatus.APPROVED

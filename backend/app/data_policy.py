@@ -749,6 +749,58 @@ CLASSES: dict[str, DataClass] = {
             "017-A",
         ),
         DataClass(
+            "report.export",
+            "Metadata of a retained report export: family, normalized parameters, period, "
+            "source, state, revocation reason, times, sizes, report revision and download "
+            "count; references to the client, connection, schedule and requesting membership.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Deleted by the lifecycle runner when the export expires, 7 days after creation "
+            "(D-095).",
+            "016-C",
+        ),
+        DataClass(
+            "report.export_content",
+            "Sealed CSV of a ready export (AES-GCM under the token keyring, bound to the "
+            "export, agency and client); it may hold financial figures.",
+            Sensitivity.HIGH,
+            Personal.NONE,
+            Provenance.DERIVED,
+            "Deleted at once on revocation and by the lifecycle runner at expiry (D-095).",
+            "016-C",
+        ),
+        DataClass(
+            "report.schedule",
+            "Report schedule of a client: the manager-entered name, family and parameters, "
+            "cadence, hour, time zone, state, owner membership and the last run's outcome "
+            "codes and counts.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Deleted by a manager; otherwise kept with the client workspace (017).",
+            "016-C",
+        ),
+        DataClass(
+            "report.recipient",
+            "Membership that receives a schedule's report notifications.",
+            Sensitivity.LOW,
+            Personal.PSEUDONYMOUS,
+            Provenance.PROVIDED,
+            "Deleted when the recipient leaves, is replaced or the schedule is deleted.",
+            "016-C",
+        ),
+        DataClass(
+            "branding.profile",
+            "Agency branding profile: the display name its clients see, an accent color, an "
+            "optional PNG logo with its dimensions, and the last change.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "016-C",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -2884,6 +2936,138 @@ TABLES: dict[str, TablePolicy] = {
                 "D-092; D-024",
                 "Deleted by the lifecycle runner with a closed account's credential state; "
                 "keeping proof of agreement beyond that awaits legal advice (Q-012).",
+            ),
+        ),
+    ),
+    # Specification 016-C (D-095): retained exports, report schedules and agency branding.
+    "report_exports": TablePolicy(
+        _same(
+            "report.export",
+            "id",
+            "agency_id",
+            "client_id",
+            "family",
+            "parameters",
+            "connection_id",
+            "period_start",
+            "period_end",
+            "includes_financials",
+            "source",
+            "schedule_id",
+            "requested_by_membership_id",
+            "status",
+            "revoked_at",
+            "revoked_reason",
+            "created_at",
+            "stored_at",
+            "expires_at",
+            "row_count",
+            "byte_size",
+            "report_revision",
+            "download_count",
+            "last_downloaded_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted by tracking_lifecycle when the export expires, 7 days after creation; "
+                "a discarded row, or a pending row older than one hour, on the next run. A "
+                "revoked row stays until its expiry so that the list shows why it is gone.",
+            ),
+        ),
+    ),
+    "report_export_contents": TablePolicy(
+        {
+            **_same("report.export", "export_id", "agency_id", "client_id", "created_at"),
+            **_same(
+                "report.export_content",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+                "alg",
+                "aad_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted at once when its export is revoked, and by tracking_lifecycle at the "
+                "export's expiry.",
+            ),
+        ),
+    ),
+    "report_schedules": TablePolicy(
+        _same(
+            "report.schedule",
+            "id",
+            "agency_id",
+            "client_id",
+            "name",
+            "family",
+            "parameters",
+            "sale_values",
+            "compare",
+            "cadence",
+            "weekday",
+            "hour",
+            "time_zone",
+            "status",
+            "pause_reason",
+            "owner_membership_id",
+            "next_run_at",
+            "last_run_at",
+            "last_outcome",
+            "last_error_code",
+            "last_notified",
+            "last_skipped",
+            "consecutive_failures",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-095; 017",
+                "Deleted by an Owner or Admin; otherwise kept with the client workspace, "
+                "whose end of life belongs to 017.",
+            ),
+        ),
+    ),
+    "report_schedule_recipients": TablePolicy(
+        {
+            **_same("report.schedule", "schedule_id", "agency_id", "client_id", "created_at"),
+            "membership_id": "report.recipient",
+        },
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted when the recipient leaves the schedule, a manager replaces the "
+                "recipients, or the schedule is deleted.",
+            ),
+        ),
+    ),
+    "agency_branding": TablePolicy(
+        _same(
+            "branding.profile",
+            "agency_id",
+            "display_name",
+            "accent_color",
+            "logo",
+            "logo_width",
+            "logo_height",
+            "updated_at",
+            "updated_by_membership_id",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-095",
+                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
             ),
         ),
     ),

@@ -737,6 +737,12 @@ def erase_subject(
         # 008-B (D-079 D9): reported only when stored attribution referenced the subject; the
         # scrub ran in this transaction (drop_subject_evidence), before this outcome is set.
         targets["attribution"] = TargetStatus.DONE
+    from app.services.report_exports import revoke_exports
+
+    # 016-C (D-095 D7): every export of the client built before the erasure is revoked, under
+    # the export lock, after the other targets; reported only when one was revoked.
+    if revoke_exports(session, agency_id, client_id, "erasure"):
+        targets["report_exports"] = TargetStatus.DONE
     final = deletion.outcome(targets)
     if final is None:
         raise RuntimeError("Every erasure target has an outcome.")

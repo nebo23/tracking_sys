@@ -488,6 +488,19 @@ def start_disconnect(
     connection.destruction_status = connection.purge_status = "pending"
     connection.updated_at = now
     _cancel_open_runs(session, connection.id, now, "connection_inactive")
+    from app.services.report_exports import revoke_exports
+
+    # 016-C (D-095 D7): the connection's exports are revoked at once, whatever the cause; the
+    # stopped status is written first, so a reservation that waits for this transaction builds
+    # against it and is refused.
+    session.flush()
+    revoke_exports(
+        session,
+        connection.agency_id,
+        connection.client_id,
+        "connection_purged" if reason == "operator_purged" else "disconnection",
+        connection_id=connection.id,
+    )
 
 
 # Owner/Admin administration: connect, reconnect, disconnect, and sync requests; audited.

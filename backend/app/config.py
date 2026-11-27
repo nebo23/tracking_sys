@@ -210,6 +210,9 @@ class Settings(DatabaseSettings):
     whatsapp_enabled: bool = False
     whatsapp_app_secret: SecretStr = SecretStr("")
     whatsapp_verify_token: SecretStr = SecretStr("")
+    # Retained report exports (specification 016-C, D-095 D5): an export, sealed under the token
+    # keyring, is downloadable for this many days after creation; 7 is the approved maximum.
+    report_export_lifetime_days: int = Field(default=7, ge=1, le=7)
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
