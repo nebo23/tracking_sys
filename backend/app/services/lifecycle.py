@@ -30,6 +30,8 @@ closed account with its credential state, and completes agency closures whose gr
 ended (app.services.agency_lifecycle). Specification 016-C (D-095 D5) deletes retained
 report exports at their expiry, 7 days after creation, and exports that never became ready
 (discarded, or pending for more than an hour), each content row before its export.
+Specification 017-B (D-098 D7) purges closed agencies through purge_agency_batch once their
+offboarding is done and their teardowns have settled (app.services.agency_purge).
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -698,6 +700,12 @@ def run_lifecycle(
             # when an export was deleted.
             exports = _delete_exports(connection, cutoff, size, max_batches, incomplete)
             deleted.update((name, count) for name, count in exports.items() if count)
+            # 017-B (D-098 D7): the purge of closed agencies whose offboarding is done and whose
+            # teardowns have settled, through purge_agency_batch; reported only when not zero.
+            from app.services import agency_purge
+
+            purged = agency_purge.run_purges(connection, size, max_batches, incomplete)
+            deleted.update((name, count) for name, count in purged.items() if count)
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))

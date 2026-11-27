@@ -2356,8 +2356,14 @@ class _Outstanding:
 # tokens (not destroyed and not yet settled), refresh tokens first. 011-A (D5): each claim also
 # reports whether another active connection shares the account, for account-wide grants.
 def _claim_teardowns(
-    engine: Engine, keyring: LocalKeyring, now: datetime, limit: int
+    engine: Engine,
+    keyring: LocalKeyring,
+    now: datetime,
+    limit: int,
+    agency_id: UUID | None = None,
 ) -> list[tuple[UUID, str, list[_Outstanding], bool]]:
+    # 017-B (D-098 D11): the operator command tears down one agency's connections only.
+    scope = () if agency_id is None else (ConnectorConnection.agency_id == agency_id,)
     with Session(engine, expire_on_commit=False) as session, session.begin():
         rows = list(
             session.scalars(
@@ -2366,6 +2372,7 @@ def _claim_teardowns(
                     ConnectorConnection.status == "disconnecting",
                     (ConnectorConnection.teardown_lease_until.is_(None))
                     | (ConnectorConnection.teardown_lease_until < now),
+                    *scope,
                 )
                 .order_by(
                     case((ConnectorConnection.purge_due_at <= now, 0), else_=1),
@@ -2507,6 +2514,7 @@ def run_teardowns(
     *,
     limit: int = 10,
     now: datetime | None = None,
+    agency_id: UUID | None = None,
 ) -> dict[str, int]:
     keyring = require_keys(settings)
 
@@ -2515,7 +2523,7 @@ def run_teardowns(
 
     counts: dict[str, int] = {}
     for connection_id, provider_name, outstanding, shared in _claim_teardowns(
-        engine, keyring, clock(), limit
+        engine, keyring, clock(), limit, agency_id
     ):
         provider = registry.get(provider_name)
         for item in outstanding:
