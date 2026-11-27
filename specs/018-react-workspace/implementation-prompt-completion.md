@@ -1,6 +1,6 @@
 # Spec 018 completion: implementation handoff
 
-Prepared 2026-11-27 at the owner's request to prepare the specification and the implementation prompt of Spec 018. This handoff executes the [completion entry review](entry-review-completion.md) once the owner has approved its decisions D1-D12; until that approval is recorded it authorizes nothing. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English.
+Prepared 2026-11-27 at the owner's request to prepare the specification and the implementation prompt of Spec 018. This handoff executes the [completion entry review](entry-review-completion.md) once the owner has approved its decisions D1-D12; until that approval is recorded it authorizes nothing. The owner approved D1-D12 as recommended on 2026-11-28 (D-099). Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English.
 
 ## Where to work
 

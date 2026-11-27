@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-27, at the owner's request to prepare the specification and the implementation prompt of Spec 018 so that its work can start.
 - **Baseline:** merged `main` at `e3b3005` (PR 20, Spec 016-C); the coordination branch `claude/keen-fermat-otlr9d` at `2a0deb1` (D-096); `codex/spec-018-react-workspace` (pull request 17, slice 018-A) at `1c4ee9e`; `codex/spec-018-workspace-screens` (slices 018-B and 018-D) at `1ffa841`.
-- **Status:** proposal. Nothing here is approved. The owner's approval of D1-D12 is recorded with the next free decision number; D-096 is the highest number in use on 2026-11-27, on the coordination branch.
+- **Status:** approved by the owner on 2026-11-28 as recommended, without amendment (D-099). It was prepared as a proposal on 2026-11-27. D-097 was then the highest number in use, on the coordination branch, which reserves D-098 for the approval of Spec 017-B.
 - **Handoff:** the [implementation handoff](implementation-prompt-completion.md) executes this packet after approval.
 - **Screens:** every screen named here has a code (A01 to G06) on the "A to Z" page of the design canvas; [screens-a-to-z.md](screens-a-to-z.md) lists them.
 
