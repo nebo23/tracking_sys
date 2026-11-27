@@ -10,7 +10,7 @@ Connect is the product name in the interface (D-083). A trademark and domain sea
 | [`brand/`](brand/README.md) | Logo, mark, Arabic lockup, application icon and favicon as SVG, with usage rules. |
 | [`tokens/`](tokens/) | `tokens.source.mjs` is the source of truth. `build-tokens.mjs` compiles it into `tokens.css` (custom properties, light and dark) and `tokens.json` (Design Tokens Community Group format 2025.10) and audits the result. |
 | [`ui/`](ui/) | `connect-ui.css`: framework-neutral reference styles for every component. `connect-icons.css`: interface icons and provider glyphs as CSS masks. [Third-party notices](ui/THIRD-PARTY-NOTICES.md). |
-| [`preview/`](preview/index.html) | Static reference pages: the design system (`index.html`) and eleven screens (`screens.html`). Open them in a browser; they need no build step. |
+| [`preview/`](preview/index.html) | Static reference pages: the design system (`index.html`) and twenty-one screens (`screens.html`). Open them in a browser; they need no build step. |
 
 The web application in [`frontend/`](../../frontend/README.md) imports `tokens/tokens.css`, `ui/connect-icons.css` and `ui/connect-ui.css` from this folder, without a copy (D-083, D13). A change to these files changes the application, and the application's browser journeys compare its sign-in screen with `preview/screens/sign-in.html`.
 
@@ -124,7 +124,9 @@ The reference styles cover: buttons, form fields, select, checkbox, radio, switc
 Search is always a pill (`c-search`), in the top bar and above a list, so it is never mistaken for a button or for a field of a form. In the top bar it is a button that opens the command palette; above a list it holds an input.
 
 ## Screens
-See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Connections, Links, Team and access, and an Attribution concept. Each screen lists the specification that backs it. The Attribution screen is a concept only: its reports wait for specifications 006, persisted 008 and 016-B.
+See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Ad spend, Attribution (credit, funnel and return on ad spend), Connections, Links, Team and access, and Agency settings (with closing the agency). Three concepts have no API or decision yet: Privacy and data, Reports and Search. The first Attribution concept stays for reference; the attribution screens of 2026-11-27 follow the 016-B report contract instead. Each screen lists the specification that backs it.
+
+Every screen of the product, from signing in to the last page, is laid out in order on the "A to Z" page of the design canvas, with the state of each one (built, design or concept); [`specs/018-react-workspace/screens-a-to-z.md`](../../specs/018-react-workspace/screens-a-to-z.md) lists them.
 
 The sign-in screen, as the owner approved it (D-082):
 
@@ -142,6 +144,13 @@ The sign-in screen, as the owner approved it (D-082):
 | Revision for D-082 | The token audit and the responsive check were run again and passed. Reviewed as screenshots: the sign-in screen in light, in dark and at phone width; its picture frozen at three moments of the loop and under reduced motion; the top bar with the pill search in light, dark, Arabic and at phone width; and the fourteen logo files. The other pages were not reviewed again by eye. |
 
 Not verified: screen readers, keyboard-only walkthroughs, Firefox and Safari, real phones, usability with Arabic-speaking users, review of the Arabic copy by a native editor, provider brand-guideline compliance, and name or trademark clearance.
+
+### Additions of 2026-11-27
+| Check | Result |
+|---|---|
+| Rendering | The ten new pages (ad spend, the three attribution tabs, agency settings, closing the agency, the closing state, and the three concepts) rendered in Chromium (Playwright 1.64.1) at 1440 pixels; five of them reviewed as screenshots (attribution credit, ad spend, closing the agency, the closing state and search). |
+| Responsive check | The ten new pages at 390, 768, 1024 and 1440 pixels, and dark at 390 and 1440: no horizontal overflow and no console errors. |
+| Not run | The token audit (no token changed), the Arabic and right-to-left rendering of the new pages (they have no Arabic version), and everything listed as not verified above. |
 
 ## Sources
 Research evidence, measurements and links are in [research_notes/product-design/sources.md](../../research_notes/product-design/sources.md).
