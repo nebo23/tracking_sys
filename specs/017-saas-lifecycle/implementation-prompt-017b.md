@@ -1,6 +1,6 @@
 # Spec 017-B implementation: offboarding export, provider disconnection and the purge of closed agencies
 
-Prepared 2026-11-27 under D-097. It executes decisions D1-D14 of the [017-B entry review](entry-review-017b.md) once the owner has approved them; the approval is recorded as D-098. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017b.md` on the branch below.
+Prepared 2026-11-27 under D-097. The owner approved decisions D1-D14 of the [017-B entry review](entry-review-017b.md) as recommended, without amendment, on 2026-11-27; the approval is recorded as D-098, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017b.md` on the branch below.
 
 ## Where to work
 

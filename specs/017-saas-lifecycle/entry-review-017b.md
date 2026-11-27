@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-27 under D-097.
 - **Baseline:** merged `main` at `e3b3005` (PR 20: Spec 016-C, report delivery).
-- **Status:** proposal. D1-D14 wait for the owner's approval, which is recorded as D-098 before any application change or migration `0033`.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-27 (D-098).
 - **Handoff:** the [implementation handoff](implementation-prompt-017b.md) executes this packet after approval.
 
 ## 1. Intended result
