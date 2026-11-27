@@ -30,6 +30,9 @@ import { Switcher } from './Switcher';
 
 const active = { className: 'is-active' };
 
+/** The most destinations the phone tab bar holds side by side. */
+const PHONE_TABS = 5;
+
 const skipToMain = (event: { preventDefault: () => void }) => {
   event.preventDefault();
   document.getElementById('main')?.focus();
@@ -70,8 +73,10 @@ export function Shell() {
   let groups: DestinationGroup[] = [{ key: 'start', items: [firstAgencyDestination] }];
   if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : agencyGroups(access.agency_id, isManager(access.role));
   const level = groups.flatMap((group) => group.items);
-  // On a phone the way back to the list of clients is a tab of its own.
-  const tabs = [...(access && clientId ? [clientsDestination(access.agency_id)] : []), ...level, accountDestination];
+  // On a phone the way back to the list of clients is a tab of its own. Five tabs share the width;
+  // when a level has more, the account is left to the menu in the top bar, which every width shows.
+  const tabs = [...(access && clientId ? [clientsDestination(access.agency_id)] : []), ...level];
+  if (tabs.length < PHONE_TABS) tabs.push(accountDestination);
 
   const isHere = (destination: Destination) => {
     const href = router.buildLocation(destination.link).pathname;

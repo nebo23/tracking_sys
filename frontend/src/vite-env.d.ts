@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_SIGN_IN?: string;
   /** "true" lists the stand-in providers when connecting an account. Development and journeys only. */
   readonly VITE_SYNTHETIC_PROVIDERS?: string;
+  /** Origin of the short links without a custom domain, for example https://go.connect.example. Defaults to the API. */
+  readonly VITE_SHORT_LINK_ORIGIN?: string;
 }
 
 interface ImportMeta {

@@ -82,9 +82,35 @@ export function agencyGroups(agencyId: string, manager: boolean): DestinationGro
   return groups;
 }
 
-/** The client level (D11). In this slice it holds the connections; the other groups follow. */
+/** The client level (D11): what the client collects, and what is managed for it. Overview and Analyze follow 018-C. */
 export function clientGroups(agencyId: string, clientId: string): DestinationGroup[] {
+  const params = { agencyId, clientId };
   return [
+    {
+      key: 'collect',
+      label: 'shell.nav.group.collect',
+      items: [
+        {
+          key: 'links',
+          icon: 'link',
+          label: 'shell.nav.links',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/links', params }),
+        },
+        {
+          key: 'tracking',
+          icon: 'activity',
+          label: 'shell.nav.tracking',
+          shortLabel: 'shell.nav.tracking.short',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/tracking', params }),
+        },
+        {
+          key: 'integrations',
+          icon: 'blocks',
+          label: 'shell.nav.integrations',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/integrations', params }),
+        },
+      ],
+    },
     {
       key: 'manage',
       label: 'shell.nav.group.manage',
@@ -93,7 +119,7 @@ export function clientGroups(agencyId: string, clientId: string): DestinationGro
           key: 'connections',
           icon: 'plug',
           label: 'shell.nav.connections',
-          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/connections', params: { agencyId, clientId } }),
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/connections', params }),
         },
       ],
     },

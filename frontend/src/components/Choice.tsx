@@ -52,14 +52,44 @@ interface SelectFieldProps<Value extends string> {
   hint?: ReactNode;
 }
 
-/** One choice out of a short list, opened from a button. */
-export function SelectField<Value extends string>({ label, value, onChange, options, hint }: SelectFieldProps<Value>) {
-  const choose = (key: Key | null) => {
+function Options<Value extends string>({ options }: { options: ReadonlyArray<Option<Value>> }) {
+  return (
+    <Popover className="c-menu a-menu--select">
+      <ListBox className="a-menu">
+        {options.map((option) => (
+          <ListBoxItem
+            key={option.value}
+            id={option.value}
+            textValue={option.label}
+            className={({ isSelected, isFocused }) => cx('c-menu__item', isSelected && 'is-selected', isFocused && 'is-focused')}
+          >
+            {({ isSelected }) => (
+              <>
+                <span className="u-grow">
+                  <span className="a-option__label">{option.label}</span>
+                  {option.hint ? <span className="a-option__hint">{option.hint}</span> : null}
+                </span>
+                {isSelected ? <Icon name="check" size="sm" /> : null}
+              </>
+            )}
+          </ListBoxItem>
+        ))}
+      </ListBox>
+    </Popover>
+  );
+}
+
+const chooser =
+  <Value extends string>(options: ReadonlyArray<Option<Value>>, onChange: (value: Value) => void) =>
+  (key: Key | null) => {
     const chosen = options.find((option) => option.value === key);
     if (chosen) onChange(chosen.value);
   };
+
+/** One choice out of a short list, opened from a button. */
+export function SelectField<Value extends string>({ label, value, onChange, options, hint }: SelectFieldProps<Value>) {
   return (
-    <Select className="c-field" selectedKey={value} onSelectionChange={choose}>
+    <Select className="c-field" selectedKey={value} onSelectionChange={chooser(options, onChange)}>
       <Label className="c-field__label">{label}</Label>
       <Button className="c-select">
         {/* The button names the choice; what the choice means is said in the list and under the field. */}
@@ -67,28 +97,28 @@ export function SelectField<Value extends string>({ label, value, onChange, opti
         <Icon name="chevron-down" size="sm" />
       </Button>
       {hint ? <p className="c-field__hint">{hint}</p> : null}
-      <Popover className="c-menu a-menu--select">
-        <ListBox className="a-menu">
-          {options.map((option) => (
-            <ListBoxItem
-              key={option.value}
-              id={option.value}
-              textValue={option.label}
-              className={({ isSelected, isFocused }) => cx('c-menu__item', isSelected && 'is-selected', isFocused && 'is-focused')}
-            >
-              {({ isSelected }) => (
-                <>
-                  <span className="u-grow">
-                    <span className="a-option__label">{option.label}</span>
-                    {option.hint ? <span className="a-option__hint">{option.hint}</span> : null}
-                  </span>
-                  {isSelected ? <Icon name="check" size="sm" /> : null}
-                </>
-              )}
-            </ListBoxItem>
-          ))}
-        </ListBox>
-      </Popover>
+      <Options options={options} />
+    </Select>
+  );
+}
+
+interface InlineSelectProps<Value extends string> {
+  /** Names the choice for assistive technology; the button itself shows the chosen option. */
+  label: string;
+  value: Value;
+  onChange: (value: Value) => void;
+  options: ReadonlyArray<Option<Value>>;
+}
+
+/** A choice that filters a list, in the header of a card, without a visible label. */
+export function InlineSelect<Value extends string>({ label, value, onChange, options }: InlineSelectProps<Value>) {
+  return (
+    <Select aria-label={label} selectedKey={value} onSelectionChange={chooser(options, onChange)}>
+      <Button className="c-select c-select--inline">
+        <SelectValue>{({ selectedText }) => selectedText}</SelectValue>
+        <Icon name="chevron-down" size="sm" />
+      </Button>
+      <Options options={options} />
     </Select>
   );
 }

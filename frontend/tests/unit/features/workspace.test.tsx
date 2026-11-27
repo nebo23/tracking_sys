@@ -215,8 +215,9 @@ describe('the workspace', () => {
 
     const navigation = await primary();
     await screen.findByRole('heading', { name: 'Connections', level: 1 });
-    expect(linkTexts(navigation)).toEqual(['Connections', 'Account']);
+    expect(linkTexts(navigation)).toEqual(['Links', 'Website tracking', 'Integrations', 'Connections', 'Account']);
     expect(navigation.getByRole('link', { name: 'Connections' })).toHaveAttribute('aria-current', 'page');
+    expect(navigation.getByRole('group', { name: 'Collect' })).toBeInTheDocument();
     expect(navigation.getByRole('group', { name: 'Manage' })).toBeInTheDocument();
 
     const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));

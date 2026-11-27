@@ -30,8 +30,11 @@ import { ClientsPage } from '@/features/clients/ClientsPage';
 import { ConnectionCompletePage } from '@/features/connections/ConnectionCompletePage';
 import { ConnectionsPage } from '@/features/connections/ConnectionsPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
+import { IntegrationsPage } from '@/features/integrations/IntegrationsPage';
 import { KeysPage } from '@/features/keys/KeysPage';
+import { LinksPage, linksTabs, type LinksTabId } from '@/features/links/LinksPage';
 import { TeamPage } from '@/features/team/TeamPage';
+import { TrackingPage } from '@/features/tracking/TrackingPage';
 import { isIdentifier } from '@/lib/identifier';
 import { captureLinkToken, heldLinkToken } from '@/lib/linkToken';
 
@@ -292,6 +295,28 @@ const connectionsRoute = createRoute({
   component: ConnectionsPage,
 });
 
+// What a client collects (018-D): its links, its website tracking and its integrations.
+const linksRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'links',
+  validateSearch: (search: Search): { tab?: LinksTabId } => ({
+    tab: linksTabs.find((tab) => tab !== 'links' && tab === search.tab),
+  }),
+  component: LinksPage,
+});
+
+const trackingRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'tracking',
+  component: TrackingPage,
+});
+
+const integrationsRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'integrations',
+  component: IntegrationsPage,
+});
+
 // Where the API sends the browser after a provider. The address carries the outcome only.
 const connectionCompleteRoute = createRoute({
   getParentRoute: () => workspaceRoute,
@@ -347,7 +372,7 @@ const routeTree = rootRoute.addChildren([
       teamRoute,
       keysRoute,
       auditRoute,
-      clientRoute.addChildren([clientIndexRoute, connectionsRoute]),
+      clientRoute.addChildren([clientIndexRoute, linksRoute, trackingRoute, integrationsRoute, connectionsRoute]),
     ]),
   ]),
   termsRoute,

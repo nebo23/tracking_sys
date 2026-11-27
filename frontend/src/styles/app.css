@@ -276,3 +276,38 @@ body {
 .a-copy {
   flex-wrap: nowrap;
 }
+/* A value to copy that spans several lines, such as the code a website installs: the button stays at its top. */
+.a-copy--block {
+  align-items: flex-start;
+}
+.a-code {
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+/* A row of small values, such as the UTM values of a template. */
+.a-chips {
+  gap: var(--space-2);
+}
+
+/* -------------------------------------------------------------- Panels -- */
+/* The panels of a page's tabs keep their distance from the tabs. */
+.a-tabpanels {
+  margin-block-start: var(--space-6);
+}
+/* A button that shows or hides the part of a form below it. */
+.a-disclosure {
+  align-self: flex-start;
+}
+.a-turned {
+  transform: rotate(180deg);
+}
+/* Notices at the top of a card body that has no padding of its own. */
+.a-pad--x {
+  padding-inline: var(--space-7);
+}
+.a-pad--x:empty {
+  display: none;
+}
