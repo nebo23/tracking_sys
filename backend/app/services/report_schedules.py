@@ -31,7 +31,6 @@ from app.config import Settings
 from app.connectors.contracts import ConnectorProvider
 from app.models import (
     Agency,
-    AgencyBranding,
     AgencyMembership,
     ClientWorkspace,
     ConnectorConnection,
@@ -46,6 +45,7 @@ from app.reporting.schedules import Timing
 from app.security import now_utc
 from app.services.access import Principal, resolve_scope
 from app.services.advertising import SPEND_PROVIDERS
+from app.services.branding import display_name
 from app.services.mail import ReportReady, queue_report_mail
 from app.services.report_exports import (
     ExportRequest,
@@ -507,15 +507,6 @@ def _pause(schedule: ReportSchedule, reason: str, now: datetime) -> None:
     schedule.updated_at = now
 
 
-def _display_name(session: Session, agency_id: UUID) -> str:
-    branded = session.scalar(
-        select(AgencyBranding.display_name).where(AgencyBranding.agency_id == agency_id)
-    )
-    if branded is not None:
-        return branded
-    return session.scalar(select(Agency.name).where(Agency.id == agency_id)) or ""
-
-
 def _notify(
     session: Session,
     settings: Settings,
@@ -527,7 +518,7 @@ def _notify(
 ) -> None:
     export = session.get(ReportExport, export_id, populate_existing=True)
     assert export is not None
-    display = _display_name(session, claim.agency_id)
+    display = display_name(session, claim.agency_id)
     recipients = session.scalars(
         select(ReportScheduleRecipient.membership_id)
         .where(ReportScheduleRecipient.schedule_id == claim.schedule_id)

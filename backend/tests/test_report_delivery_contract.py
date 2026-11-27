@@ -1,11 +1,12 @@
 """Contract tests of 016-C report delivery without a database (specification 016-C, D-095).
 
 They cover the binding of an export's seal (RV02), the stored report parameters, the run
-slots and periods of schedules (RV11) and the report_ready email text (RV14). Every
-identifier and file is synthetic.
+slots and periods of schedules (RV11), the report_ready email text (RV14) and the PNG
+checks of the branding logo (RV17). Every identifier and file is synthetic.
 """
 
 import os
+import zlib
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -25,6 +26,7 @@ from app.privacy.token_secrets import (
 from app.reporting.common import ReportError
 from app.reporting.periods import Period
 from app.reporting.schedules import Timing
+from app.services.branding import SIGNATURE, check_png
 from app.services.mail import ReportReady, report_ready_message
 from app.services.report_exports import query_of, stored_parameters
 from app.services.reporting import ReportQuery
@@ -235,3 +237,65 @@ def test_rv14_email_text():
         "The report can be downloaded until 2026-12-08 06:00 UTC. You receive this message "
         "because you are a recipient of this schedule.\n"
     )
+
+
+def chunk(kind: bytes, body: bytes) -> bytes:
+    return len(body).to_bytes(4, "big") + kind + body + zlib.crc32(kind + body).to_bytes(4, "big")
+
+
+def header(width=1, height=1, depth=8, color=6, compression=0, method=0, interlace=0) -> bytes:
+    return (
+        width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+        + bytes([depth, color, compression, method, interlace])
+    )
+
+
+def png(chunks=None, tail=b"", **fields) -> bytes:
+    image = zlib.compress(bytes(1 + 4 * fields.get("width", 1)))
+    parts = chunks or [(b"IHDR", header(**fields)), (b"IDAT", image), (b"IEND", b"")]
+    return SIGNATURE + b"".join(chunk(kind, body) for kind, body in parts) + tail
+
+
+def test_rv17_png_checks():
+    assert check_png(png()) == (1, 1)
+    assert check_png(png(width=1024, height=7, depth=1, color=0, interlace=1)) == (1024, 7)
+    assert check_png(png(color=3, depth=4)) == (1, 1)
+    image = zlib.compress(bytes(5))
+    split = [
+        (b"IHDR", header()),
+        (b"tEXt", b"Comment" + bytes(1) + b"synthetic"),
+        (b"IDAT", image[:4]),
+        (b"IDAT", image[4:]),
+        (b"IEND", b""),
+    ]
+    assert check_png(png(chunks=split)) == (1, 1)
+    valid = png()
+    broken_crc = valid[:-5] + bytes([valid[-5] ^ 1]) + valid[-4:]
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><script/></svg>' * 2
+    refused = [
+        svg,
+        b"GIF89a" + valid[6:],
+        broken_crc,
+        valid[:40],
+        png(tail=b"x"),
+        png(width=0),
+        png(width=1025),
+        png(height=2000),
+        png(color=2, depth=4),
+        png(color=5),
+        png(compression=1),
+        png(method=1),
+        png(interlace=2),
+        png(chunks=[(b"IHDR", header() + b"x"), (b"IDAT", image), (b"IEND", b"")]),
+        png(chunks=[(b"IDAT", image), (b"IHDR", header()), (b"IEND", b"")]),
+        png(chunks=[(b"IHDR", header()), (b"IHDR", header()), (b"IDAT", image), (b"IEND", b"")]),
+        png(chunks=[(b"IHDR", header()), (b"IEND", b"")]),
+        png(chunks=[(b"IHDR", header()), (b"IDAT", image), (b"IEND", b"x")]),
+        png(chunks=[(b"IHDR", header()), (b"IDAT", image)]),
+        png(chunks=[(b"IHDR", header()), (b"ID1T", image), (b"IDAT", image), (b"IEND", b"")]),
+        png(chunks=[(b"IHDR", header()), (b"IDAT", bytes(256 * 1024)), (b"IEND", b"")]),
+    ]
+    for data in refused:
+        with pytest.raises(ReportError, match="invalid_png"):
+            check_png(data)

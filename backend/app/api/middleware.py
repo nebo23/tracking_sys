@@ -7,8 +7,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Per-route exceptions to the default bound (specification 015, D-067 decision D13): the Paymob
 # processed callback and the 015-D booking and CRM callbacks (D-068) up to 64 KiB, the 015-E
-# WhatsApp notifications up to 3 MiB (Meta's documented maximum), and the CSV preview and
-# commit up to 2 MiB. Each entry is a
+# WhatsApp notifications up to 3 MiB (Meta's documented maximum), the CSV preview and
+# commit up to 2 MiB, and the 016-C branding logo up to 256 KiB (D-095 D11). Each entry is a
 # method, a full-path pattern and a limit in bytes; every other route keeps the default.
 ROUTE_LIMITS: tuple[tuple[str, re.Pattern[str], int], ...] = (
     ("POST", re.compile(r"/payments/paymob/callback/[^/]+"), 65536),
@@ -19,6 +19,7 @@ ROUTE_LIMITS: tuple[tuple[str, re.Pattern[str], int], ...] = (
         re.compile(r"/agencies/[^/]+/clients/[^/]+/revenue-imports/(?:preview|[0-9a-f]{64})"),
         2097152,
     ),
+    ("PUT", re.compile(r"/agencies/[^/]+/branding/logo"), 262144),
 )
 
 
