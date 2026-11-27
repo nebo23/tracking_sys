@@ -360,8 +360,10 @@ def test_rv13_owner_without_access_pauses(authenticated_world, api):
     w = authenticated_world
     admin, owner = w.signed_in("admin"), w.signed_in("owner_a")
     item = scheduled(admin, w, schedule_body(bodies(w)["revenue"]))
+    # The former Admin can still read the report, but only an Owner or Admin runs a schedule.
     with tenancy_transaction(w.db.runtime, w.users.owner_a) as service:
         service.update_member(w.a, w.admin, role=Role.ANALYST)
+        service.grant_client(w.a, w.a1, w.admin, can_view_financials=True)
     due(w, item["id"])
     assert worker(w, api)["paused"] == 1
     stored = schedule_row(w, item["id"])
