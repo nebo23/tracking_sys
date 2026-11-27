@@ -2,7 +2,18 @@ import { expect, type BrowserContext, type Page, type TestInfo } from '@playwrig
 
 import { signedIn, type Person } from './api.ts';
 
-export { expectStatus, invite, registered, send, signedIn, withAgency, type Person, type Signed } from './api.ts';
+export {
+  currentAgreements,
+  expectStatus,
+  invite,
+  registered,
+  send,
+  signedIn,
+  withAgency,
+  type Agreements,
+  type Person,
+  type Signed,
+} from './api.ts';
 
 // Synthetic people for the journeys. Each has an address of its own, so the limits the API keeps
 // per address never carry over from one journey to the next.

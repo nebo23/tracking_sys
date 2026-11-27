@@ -90,7 +90,7 @@ describe('the sign-in screen', () => {
     await user.click(agreementBox());
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Clients', level: 1 })).toBeInTheDocument();
     const sent = server.sent('POST /auth/login').map((request) => (request.body as { agreements?: unknown }).agreements);
     expect(sent).toEqual([accepted, changed]);
     expect(server.sent('GET /auth/agreements')).toHaveLength(2);

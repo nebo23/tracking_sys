@@ -41,10 +41,24 @@ export async function expectStatus(response: Response, status: number, what: str
   if (response.status !== status) throw new Error(`${what}: the API answered ${response.status} ${await response.text()}`);
 }
 
+export interface Agreements {
+  terms: string;
+  privacy: string;
+}
+
+/** The agreement versions the API asks for now (GET /auth/agreements, 017-A). */
+export async function currentAgreements(): Promise<Agreements> {
+  const response = await send('GET /auth/agreements');
+  await expectStatus(response, 200, 'Reading the agreement versions');
+  const { terms, privacy } = (await response.json()) as Agreements;
+  return { terms, privacy };
+}
+
 /** Registers a person and confirms their address with the mailed code, through the API. */
 export async function registered(person: Person): Promise<Person> {
+  const agreements = await currentAgreements();
   await expectStatus(
-    await send('POST /auth/register', { display_name: person.name, email: person.email, password: person.password }),
+    await send('POST /auth/register', { display_name: person.name, email: person.email, password: person.password, agreements }),
     202,
     'Registration',
   );
@@ -58,7 +72,8 @@ export async function registered(person: Person): Promise<Person> {
 
 /** Signs a person in through the API: the session cookie and the token that mutations carry. */
 export async function signedIn(person: Person): Promise<Signed> {
-  const response = await send('POST /auth/login', { email: person.email, password: person.password });
+  const agreements = await currentAgreements();
+  const response = await send('POST /auth/login', { email: person.email, password: person.password, agreements });
   await expectStatus(response, 200, 'Sign-in');
   const cookie = response.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ');
   const { csrf_token: token } = (await response.json()) as { csrf_token: string };

@@ -161,7 +161,7 @@ test('terms that change while the sign-in page is open are explained, and the ne
   await test.step('ticking the box again signs in with the new versions', async () => {
     await agreement(page).check();
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
     expect(signIns).toEqual([
       { agreements: outdated, status: 422 },
       { agreements: current, status: 200 },
