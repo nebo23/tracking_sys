@@ -62,6 +62,8 @@ from sqlalchemy.orm import aliased
 from app.config import LifecycleSettings
 from app.models import (
     AdSpendFact,
+    AgencyExport,
+    AgencyExportPart,
     AuthRateLimit,
     AuthSession,
     AuthToken,
@@ -700,6 +702,11 @@ def run_lifecycle(
             # when an export was deleted.
             exports = _delete_exports(connection, cutoff, size, max_batches, incomplete)
             deleted.update((name, count) for name, count in exports.items() if count)
+            # 017-B (D-098 D5): the sealed parts of offboarding exports past their expiry; the
+            # export row stays with the agency until its purge. Reported only when not zero.
+            parts = _expire_agency_exports(connection, cutoff, size, max_batches, incomplete)
+            if parts:
+                deleted["agency_export_parts"] = parts
             # 017-B (D-098 D7): the purge of closed agencies whose offboarding is done and whose
             # teardowns have settled, through purge_agency_batch; reported only when not zero.
             from app.services import agency_purge
@@ -809,6 +816,52 @@ def _delete_exports(
     else:
         incomplete.append("report_exports")
     return counts
+
+
+# 017-B (D-098 D5): one bounded batch deletes every part of at most `size` expired exports that
+# still have parts. Only the granted columns are read: the export's ID and expiry, the part's
+# export ID.
+def _expire_agency_export_batch(connection: Any, cutoff: datetime, size: int) -> int:
+    connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
+    keys = (
+        select(AgencyExport.id)
+        .where(
+            AgencyExport.expires_at < cutoff,
+            select(AgencyExportPart.export_id)
+            .where(AgencyExportPart.export_id == AgencyExport.id)
+            .exists(),
+        )
+        .order_by(AgencyExport.id)
+        .limit(size)
+    )
+    return connection.execute(
+        delete(AgencyExportPart).where(AgencyExportPart.export_id.in_(keys))
+    ).rowcount
+
+
+def _expire_agency_exports(
+    connection: Any,
+    cutoff: datetime,
+    size: int,
+    max_batches: int | None,
+    incomplete: list[str],
+) -> int:
+    deleted = batches = 0
+    while max_batches is None or batches < max_batches:
+        try:
+            count = _expire_agency_export_batch(connection, cutoff, size)
+            connection.commit()
+        except OperationalError:
+            connection.rollback()
+            incomplete.append("agency_export_parts")
+            break
+        batches += 1
+        deleted += count
+        if count == 0:
+            break
+    else:
+        incomplete.append("agency_export_parts")
+    return deleted
 
 
 def _mark(incomplete: list[str], scoped: Sequence[Target]) -> None:

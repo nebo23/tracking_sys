@@ -28,6 +28,7 @@ from app.api.integrations import router as integrations_router
 from app.api.links import redirect_router
 from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
+from app.api.offboarding import router as offboarding_router
 from app.api.payments import callback_router as payment_callback_router
 from app.api.payments import router as payments_router
 from app.api.plans import router as plans_router
@@ -333,6 +334,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(google_router)
     application.include_router(tenancy_router)
     application.include_router(plans_router)
+    application.include_router(offboarding_router)
     application.include_router(collection_router)
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)

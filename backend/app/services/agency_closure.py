@@ -111,8 +111,11 @@ class ClosureService(TenancyService):
         return agency, open_closure(self.session, agency_id)
 
     # Cancel within the grace period (D8): the agency is active again and its connections,
-    # never revoked by the request, keep working. Audited.
+    # never revoked by the request, keep working. Audited. The open offboarding export (017-B,
+    # D-098) is revoked at once, because the agency no longer leaves.
     def cancel(self, agency_id: UUID, *, now: datetime | None = None) -> Agency:
+        from app.services.agency_exports import revoke_open
+
         agency, member = self._closure_owner(agency_id, write=True)
         closure = open_closure(self.session, agency_id, lock=True)
         if agency.status != "closing" or closure is None:
@@ -123,4 +126,7 @@ class ClosureService(TenancyService):
         closure.cancelled_at, closure.cancelled_by_membership_id = moment, member.id
         agency.status = "active"
         self._audit(agency_id, "agency.closure_cancelled", "agency_closure", closure.id)
+        revoked = revoke_open(self.session, agency_id)
+        if revoked is not None:
+            self._audit(agency_id, "agency.export_revoked", "agency_export", revoked)
         return agency
