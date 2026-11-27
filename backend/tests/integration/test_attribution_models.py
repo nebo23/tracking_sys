@@ -24,7 +24,7 @@ from app.models import AttributionModelVersion, AuditEvent, RevenueEvidence
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0029_attribution_persistence"
+HEAD = "0032_report_delivery"
 TABLES = (
     "attribution_model_versions",
     "attribution_conversions",
@@ -368,3 +368,53 @@ def test_service_read_keys_reach_the_models_of_granted_clients_only(authenticate
         ).status_code
         == 401
     )
+
+
+REPORT_INDEXES = (
+    "ix_attribution_conversions_client_effective",
+    "ix_collected_events_client_link_received",
+)
+
+
+def _report_indexes(db) -> dict[str, str]:
+    with db.migration.connect() as connection:
+        return dict(
+            connection.execute(
+                text("SELECT indexname, indexdef FROM pg_indexes WHERE indexname IN (:a, :b)"),
+                {"a": REPORT_INDEXES[0], "b": REPORT_INDEXES[1]},
+            ).all()
+        )
+
+
+def test_bv20_0030_upgrade_from_populated_0029_and_downgrade(world):
+    # 016-B (D-089 D12): 0030 adds two indexes over populated 0029 tables and drops them again;
+    # the stored rows stay untouched either way.
+    w = world
+    command.downgrade(CONFIG, "0029_attribution_persistence")
+    try:
+        assert _report_indexes(w.db) == {}
+        ids = _seed_rows(w)
+        command.upgrade(CONFIG, "head")
+        assert _version(w.db) == HEAD
+        found = _report_indexes(w.db)
+        assert found[REPORT_INDEXES[0]].endswith(
+            "ON public.attribution_conversions USING btree (client_id, effective_at, id)"
+        )
+        assert found[REPORT_INDEXES[1]].endswith(
+            "ON public.collected_events USING btree (client_id, first_received_at) "
+            "WHERE (link_id IS NOT NULL)"
+        )
+        command.downgrade(CONFIG, "0029_attribution_persistence")
+        assert _version(w.db) == "0029_attribution_persistence"
+        assert _report_indexes(w.db) == {}
+        with w.db.migration.connect() as connection:
+            assert connection.execute(
+                text("SELECT id FROM attribution_conversions")
+            ).scalars().all() == [ids["conversion"]]
+    finally:
+        with w.db.migration.begin() as connection:
+            for table in TABLES[::-1][1:]:
+                connection.execute(text(f"DELETE FROM {table}"))
+        command.upgrade(CONFIG, "head")
+    assert _version(w.db) == HEAD
+    assert set(_report_indexes(w.db)) == set(REPORT_INDEXES)

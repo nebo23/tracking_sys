@@ -12,6 +12,7 @@ from app.api.dependencies import BrowserDep, SessionDep
 from app.api.schemas import AuthorizationURL
 from app.config import Settings
 from app.security import AuthError
+from app.services import agreements
 from app.services.auth import enforce_rate_limit
 from app.services.google import (
     TRANSACTION_SECONDS,
@@ -32,6 +33,7 @@ CALLBACK_ERRORS = frozenset(
         "google_already_linked",
         "google_sign_in_conflict",
         "google_unavailable",
+        "agreement_required",
     }
 )
 
@@ -73,17 +75,37 @@ def set_binding_cookie(response: Response, settings: Settings, binding: str) -> 
     )
 
 
-# Begin Google sign-in from a top-level browser navigation: store a login transaction, set the
-# binding cookie, and redirect (303) to Google with identity scopes only.
+# Redirect (303) to the completion URL with a fixed error code and nothing else.
+def completion_error(settings: Settings, code: str) -> RedirectResponse:
+    target = settings.google_completion_url
+    separator = "&" if "?" in target else "?"
+    return RedirectResponse(f"{target}{separator}{urlencode({'error': code})}", status_code=303)
+
+
+# Begin Google sign-in from a top-level browser navigation with the Terms of Service and
+# Privacy Policy versions the person accepted (017-A, D10): store a login transaction that
+# carries them, set the binding cookie, and redirect (303) to Google with identity scopes
+# only. Versions that are missing or not current redirect to the completion URL with
+# error=agreement_required instead, before any transaction exists.
 @router.get(
     "/start",
     status_code=303,
     response_class=RedirectResponse,
     dependencies=[Depends(require_enabled), Depends(google_peer_limit)],
 )
-def start(request: Request, session: SessionDep) -> RedirectResponse:
+def start(
+    request: Request,
+    session: SessionDep,
+    terms: Annotated[str | None, Query(max_length=32)] = None,
+    privacy: Annotated[str | None, Query(max_length=32)] = None,
+) -> RedirectResponse:
     settings = request.app.state.settings
-    url, binding = begin_authorization(session, settings, request.app.state.google, "login")
+    if not agreements.accepted(settings, terms, privacy):
+        return completion_error(settings, "agreement_required")
+    assert terms is not None and privacy is not None
+    url, binding = begin_authorization(
+        session, settings, request.app.state.google, "login", accepted=(terms, privacy)
+    )
     response = RedirectResponse(url, status_code=303)
     set_binding_cookie(response, settings, binding)
     return response

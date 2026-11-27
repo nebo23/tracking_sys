@@ -3,6 +3,7 @@ import { getRouteApi, Link, useRouter } from '@tanstack/react-router';
 import { useRef, useState, type FormEvent } from 'react';
 import { FormattedMessage } from 'react-intl';
 
+import { currentAgreements, forgetAgreements, googleStartAddress, isAgreementRequired } from '@/api/agreements';
 import { describeError, isApiError, type ErrorMessage } from '@/api/errors';
 import { signIn } from '@/api/session';
 import { apiOrigin, googleSignInEnabled } from '@/app/config';
@@ -44,12 +45,24 @@ export function SignInPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
   const [unverified, setUnverified] = useState(false);
+  // Google sign-in comes back with notice=termsChanged after the same refusal.
+  const [termsChanged, setTermsChanged] = useState(notice === 'termsChanged');
+  const shownNotice = notice === 'termsChanged' ? undefined : notice;
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const agreementRef = useRef<HTMLInputElement>(null);
 
+  // The versions changed while the page was open (A03): forget them so that the next attempt
+  // reads the new ones, untick the box and keep what was typed.
+  const refuseOutdatedTerms = () => {
+    forgetAgreements(queryClient);
+    setAgreed(false);
+    setTermsChanged(true);
+    agreementRef.current?.focus();
+  };
+
   const request = useMutation({
-    mutationFn: () => signIn(email.trim(), password),
+    mutationFn: async () => signIn(email.trim(), password, await currentAgreements(queryClient)),
     onSuccess(session) {
       pendingEmail.set(null);
       beginSession(queryClient, session);
@@ -58,6 +71,10 @@ export function SignInPage() {
       router.history.push(next ? safeNext(next) : fallback);
     },
     onError(error) {
+      if (isAgreementRequired(error)) {
+        refuseOutdatedTerms();
+        return;
+      }
       setUnverified(isApiError(error) && error.code === 'email_verification_required');
       setProblem(describeError(error));
     },
@@ -86,12 +103,20 @@ export function SignInPage() {
       [found.password, passwordRef],
       [found.agreement, agreementRef],
     );
-    if (!stopped) request.mutate();
+    if (stopped) return;
+    setTermsChanged(false);
+    request.mutate();
   };
 
-  const startGoogle = () => {
-    // Google sign-in is a visit to the API, which sends the browser on to Google.
-    if (!agreementMissing()) goTo(`${apiOrigin}/auth/google/start`);
+  const startGoogle = async () => {
+    if (agreementMissing()) return;
+    setProblem(null);
+    try {
+      // Google sign-in is a visit to the API, which sends the browser on to Google.
+      goTo(googleStartAddress(apiOrigin, await currentAgreements(queryClient)));
+    } catch (error) {
+      setProblem(describeError(error));
+    }
   };
 
   return (
@@ -105,9 +130,9 @@ export function SignInPage() {
         </p>
       </div>
 
-      {notice && !problem ? (
-        <Notice tone={goodNews.has(notice) ? 'success' : 'info'}>
-          <FormattedMessage id={`signIn.notice.${notice}`} />
+      {shownNotice && !problem ? (
+        <Notice tone={goodNews.has(shownNotice) ? 'success' : 'info'}>
+          <FormattedMessage id={`signIn.notice.${shownNotice}`} />
         </Notice>
       ) : null}
       <ErrorNotice
@@ -122,9 +147,18 @@ export function SignInPage() {
       />
 
       <form className="l-stack" noValidate onSubmit={onSubmit}>
+        {termsChanged ? (
+          <Notice tone="warning" title={<FormattedMessage id="agreement.changed.title" />}>
+            <FormattedMessage id="agreement.changed.signIn" />
+          </Notice>
+        ) : null}
         {googleSignInEnabled ? (
           <>
-            <button className="c-btn c-btn--secondary c-btn--lg c-btn--block" type="button" onClick={startGoogle}>
+            <button
+              className="c-btn c-btn--secondary c-btn--lg c-btn--block"
+              type="button"
+              onClick={() => void startGoogle()}
+            >
               <GoogleMark />
               <FormattedMessage id="signIn.google" />
             </button>

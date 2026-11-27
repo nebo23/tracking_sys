@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api, call, setCsrfToken, setUnauthorizedListener } from '@/api/client';
 import { acceptInvitation, fetchSession, resetPassword, signIn, signOut, signOutEverywhere } from '@/api/session';
 
-import { agency, empty, fakeApi, json, linkToken, password, refused, session } from '../support/api';
+import { accepted, agency, empty, fakeApi, json, linkToken, password, refused, session } from '../support/api';
 
 afterEach(() => {
   setCsrfToken(null);
@@ -38,11 +38,11 @@ describe('the session', () => {
     await expect(fetchSession()).rejects.toMatchObject({ status: 503, code: 'temporarily_unavailable' });
   });
 
-  it('starts at sign-in with the email and password in the request body only', async () => {
+  it('starts at sign-in with the email, the password and the accepted versions in the request body only', async () => {
     const server = fakeApi({ 'POST /auth/login': json(200, session) });
-    expect(await signIn('mona@lumen.example', password)).toEqual(session);
+    expect(await signIn('mona@lumen.example', password, accepted)).toEqual(session);
     const [request] = server.sent('POST /auth/login');
-    expect(request?.body).toEqual({ email: 'mona@lumen.example', password });
+    expect(request?.body).toEqual({ email: 'mona@lumen.example', password, agreements: accepted });
     expect(new URL(request?.url ?? '').search).toBe('');
     expect(await tokenOfNextMutation(server)).toBe(session.csrf_token);
   });

@@ -4,7 +4,7 @@ Unit tests cover configuration isolation, secret redaction, health behavior unde
 The suite covers unit/contract cases and real PostgreSQL cases; see the latest evidence file for the current count and result. D-022 adds numeric verification, Google sign-in with a controlled provider substitute (no live Google calls), Gmail transport substitutes, outbox expiry, and 0004 migration/privilege cases. It covers HTTP authentication, email capture/retry, sessions/tokens/CSRF, invitations, service credentials, live scope resolution, tenancy isolation, audit atomicity, migration recovery, runtime grants, and concurrency. Integration setup refuses to run unless:
 - TRACKING_RUN_DB_TESTS=1 is explicitly set.
 - The selected database is tracking_foundation_test at 127.0.0.1:55433.
-- Only known foundation/002 tables exist, and all application tables are empty before the test session starts.
+- Only known foundation/002 tables exist, and all application tables are empty before the test session starts, apart from the `development` plan that migration `0031_saas_plans` seeds (017-A), which the teardown keeps as the default plan.
 
 All seeded identities are synthetic. Tests remove only fixtures created within that guarded disposable environment. Never point them at tracking_sys. Actual future job/export/cache consumers still require their own end-to-end tests; this suite verifies their shared live scope and cache partition contract. Email tests write to temporary local directories, never external mailboxes.
 

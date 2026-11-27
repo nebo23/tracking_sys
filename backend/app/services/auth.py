@@ -38,6 +38,8 @@ from app.services.mail import queue_mail
 from app.services.tenancy import MembershipConflict, Role
 
 VERIFICATION = "email_verification"
+# Agency statuses whose sole Owner may close the account (017-A, D9).
+LEAVABLE = frozenset({"closing", "closed"})
 
 
 # Atomically increment (or restart) one fixed-window bucket on an open connection and return
@@ -252,21 +254,23 @@ class AuthService:
         self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
 
     # Create an unverified active account with its password credential, a verification code
-    # challenge, an encrypted outbox entry, and a security event in the caller's transaction.
-    # An existing email returns silently without changing that account or its password.
-    def register(self, email: str, display_name: str, password: str) -> None:
+    # challenge, an encrypted outbox entry, and a security event in the caller's transaction,
+    # and return it so the caller can record the agreement (017-A). An existing email returns
+    # None silently without changing that account or its password.
+    def register(self, email: str, display_name: str, password: str) -> User | None:
         email = normalize_email(email)
         hashed = password_hash.hash(password)
         self._serialize_email(email)
         existing = self.session.scalar(select(User.id).where(User.email_normalized == email))
         if existing is not None:
-            return
+            return None
         user = User(email_normalized=email, display_name=display_name.strip())
         self.session.add(user)
         self.session.flush()
         self.session.add(PasswordCredential(user_id=user.id, password_hash=hashed))
         self._issue_verification(user)
         self.event("registered", user.id)
+        return user
 
     # Reissue a verification code only for an active, still unverified account and only after
     # the resend cooldown since its latest challenge; otherwise do nothing, so the route's
@@ -515,13 +519,27 @@ class AuthService:
         self._set_password(user, password_hash.hash(replacement))
         self.event("password_changed", user.id)
 
+    # Reauthentication for a closure (D-024, P1; reused by agency closure, 017-A D8): an account
+    # with a password credential must re-enter it; an account without one must use a session
+    # created within the reauthentication window (a fresh Google sign-in).
+    def reauthenticate(self, user: User, auth_session: AuthSession, password: str | None) -> None:
+        credential = self.session.get(PasswordCredential, user.id)
+        if credential is not None:
+            if not verify_password(password or "", credential.password_hash):
+                raise AuthError()
+        elif auth_session.created_at <= now_utc() - timedelta(
+            seconds=self.settings.closure_reauthentication_seconds
+        ):
+            raise AuthError("reauthentication_required", 403)
+
     # Self-service account closure (D-024, P1) for the authenticated user whose row and session
     # authenticate() already locked. Reauthentication: an account with a password credential
     # must re-enter it; an account without one must use a session created within the
     # reauthentication window (a fresh Google sign-in). Then every agency of the user's active
     # memberships is locked FOR UPDATE in ID order (the lock all tenancy mutations take), and the
-    # closure is refused with MembershipConflict if any of those agencies would be left without
-    # another active Owner whose account is active. Otherwise, in this transaction: the email
+    # closure is refused with MembershipConflict if any of those agencies that is active or
+    # suspended would be left without another active Owner whose account is active; a closing
+    # or closed agency does not block it (017-A, D9). Otherwise, in this transaction: the email
     # and name become pseudonyms (the .invalid domain is rejected by registration, so the
     # pseudonym never collides and the original email is free at once), the account is disabled
     # with closed_at, sessions are revoked, open tokens and challenges are ended, memberships
@@ -533,14 +551,7 @@ class AuthService:
     # runner later deletes the credential, external identity, OAuth transactions, and ended state.
     def close_account(self, user: User, auth_session: AuthSession, password: str | None) -> None:
         now = now_utc()
-        credential = self.session.get(PasswordCredential, user.id)
-        if credential is not None:
-            if not verify_password(password or "", credential.password_hash):
-                raise AuthError()
-        elif auth_session.created_at <= now - timedelta(
-            seconds=self.settings.closure_reauthentication_seconds
-        ):
-            raise AuthError("reauthentication_required", 403)
+        self.reauthenticate(user, auth_session, password)
         agency_ids = list(
             self.session.scalars(
                 select(AgencyMembership.agency_id)
@@ -548,13 +559,17 @@ class AuthService:
                 .order_by(AgencyMembership.agency_id)
             )
         )
+        statuses: dict[UUID, str] = {}
         if agency_ids:
-            self.session.execute(
-                select(Agency.id)
-                .where(Agency.id.in_(agency_ids))
-                .order_by(Agency.id)
-                .with_for_update()
-            )
+            statuses = {
+                agency_id: status
+                for agency_id, status in self.session.execute(
+                    select(Agency.id, Agency.status)
+                    .where(Agency.id.in_(agency_ids))
+                    .order_by(Agency.id)
+                    .with_for_update()
+                )
+            }
         # Re-read under the agency locks. A membership added concurrently in another agency is
         # left active; it is inert because the user is disabled, and its adder remains an
         # active Owner there, so no agency loses its last Owner.
@@ -571,7 +586,9 @@ class AuthService:
             )
         )
         for membership in memberships:
-            if membership.role != Role.OWNER:
+            # D9 (017-A): only an active or suspended agency keeps its sole Owner; a closing or
+            # closed agency never blocks the account closure.
+            if membership.role != Role.OWNER or statuses.get(membership.agency_id) in LEAVABLE:
                 continue
             others = self.session.scalar(
                 select(func.count())

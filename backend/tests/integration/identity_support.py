@@ -148,6 +148,7 @@ def make_identity_world(authenticated_world, api) -> SimpleNamespace:
         trusted=False,
         payload=None,
         event_id=None,
+        link_id=None,
     ):
         body = {
             "schema_version": 1,
@@ -164,6 +165,8 @@ def make_identity_world(authenticated_world, api) -> SimpleNamespace:
                 else {}
             ),
         }
+        if link_id is not None:
+            body["link_id"] = str(link_id)
         if trusted:
             response = ingest.post(f"{base}/clients/{client_id}/events", json=body)
             assert response.status_code in {200, 201}, response.text

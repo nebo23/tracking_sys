@@ -39,6 +39,9 @@ FILENAMES = {
     "social": "report-social.csv",
     "spend": "report-spend.csv",
     "revenue": "report-revenue.csv",
+    "attribution": "report-attribution.csv",
+    "roas": "report-roas.csv",
+    "funnel": "report-funnel.csv",
 }
 TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:|/+-]{0,127}")
 DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?")
@@ -86,6 +89,50 @@ COLUMNS: tuple[tuple[str, str], ...] = (
 )
 NAMES = tuple(name for name, _ in COLUMNS)
 KINDS = dict(COLUMNS)
+
+# The fixed long-form schema of the 016-B families (attribution, roas, funnel; D-089 D10). The
+# 016-A schema above is unchanged. References that can come from a URL are identifier cells.
+COLUMNS_016B: tuple[tuple[str, str], ...] = (
+    ("row_type", "token"),
+    ("family", "token"),
+    ("view", "token"),
+    ("period", "token"),
+    ("period_start", "date"),
+    ("period_end", "date"),
+    ("day_zone", "zone"),
+    ("basis", "token"),
+    ("model_version_id", "identifier"),
+    ("model_version", "token"),
+    ("model", "token"),
+    ("model_status", "token"),
+    ("level", "token"),
+    ("recipient", "token"),
+    ("group_ref", "identifier"),
+    ("campaign_id", "identifier"),
+    ("adset_id", "identifier"),
+    ("registered", "boolean"),
+    ("connection_id", "identifier"),
+    ("object_id", "identifier"),
+    ("source", "token"),
+    ("metric", "token"),
+    ("unit", "token"),
+    ("currency", "token"),
+    ("exponent", "integer"),
+    ("value", "number"),
+    ("value_minor", "integer"),
+    ("numerator", "integer"),
+    ("denominator", "integer"),
+    ("count", "integer"),
+    ("current_value", "number"),
+    ("previous_value", "number"),
+    ("percent_change", "number"),
+    ("comparable", "boolean"),
+    ("availability", "token"),
+    ("status", "token"),
+    ("reason", "token"),
+    ("timestamp", "timestamp"),
+    ("detail", "token"),
+)
 
 
 class ExportRefused(TypeError):
@@ -168,22 +215,26 @@ WRITERS = {
 }
 
 
-def cell(column: str, value: object) -> str:
+def cell(column: str, value: object, kinds: Mapping[str, str] = KINDS) -> str:
     if value is None:
         return ""
-    kind = KINDS.get(column)
+    kind = kinds.get(column)
     if kind is None:
         raise ExportRefused("column")
     return WRITERS[kind](value)
 
 
-def record(values: Mapping[str, object]) -> list[str]:
-    unknown = set(values) - set(NAMES)
+def record(
+    values: Mapping[str, object],
+    names: tuple[str, ...] = NAMES,
+    kinds: Mapping[str, str] = KINDS,
+) -> list[str]:
+    unknown = set(values) - set(names)
     if unknown:
         raise ExportRefused("column")
     if values.get("row_type") not in ROW_TYPES:
         raise ExportRefused("row_type")
-    return [cell(name, values.get(name)) for name in NAMES]
+    return [cell(name, values.get(name), kinds) for name in names]
 
 
 class _Sink:
@@ -204,16 +255,27 @@ class _Sink:
 class CsvBuilder:
     """Collects records, then encodes them once within the row and byte bounds."""
 
-    def __init__(self, family: str, common: Mapping[str, object]) -> None:
+    def __init__(
+        self,
+        family: str,
+        common: Mapping[str, object],
+        columns: tuple[tuple[str, str], ...] = COLUMNS,
+    ) -> None:
         self.family = family
         self.common = dict(common)
+        self.names = tuple(name for name, _ in columns)
+        self.kinds = dict(columns)
         self.records: list[list[str]] = []
 
     def add(self, row_type: str, **values: object) -> None:
         if len(self.records) >= MAX_ROWS:
             raise ReportError("export_too_large", 422)
         self.records.append(
-            record({"row_type": row_type, "family": self.family, **self.common, **values})
+            record(
+                {"row_type": row_type, "family": self.family, **self.common, **values},
+                self.names,
+                self.kinds,
+            )
         )
 
     def reserve(self, more: int) -> None:
@@ -225,7 +287,7 @@ class CsvBuilder:
             raise ReportError("export_too_large", 422)
         sink = _Sink(MAX_BYTES)
         writer = csv.writer(sink, quoting=csv.QUOTE_ALL, lineterminator="\r\n")
-        writer.writerow(NAMES)
+        writer.writerow(self.names)
         writer.writerows(self.records)
         return b"".join(sink.chunks)
 
@@ -259,6 +321,7 @@ def _metadata(builder: CsvBuilder, body: Mapping[str, Any], extra: Iterable[tupl
             builder.add("metadata", metric=key, **{column: value})
 
 
+# One status row per capability: its state and the report family that serves it (016-B).
 def _dependencies(builder: CsvBuilder, dependencies: Iterable[Mapping[str, Any]]) -> None:
     for item in dependencies:
         builder.add(
@@ -266,7 +329,7 @@ def _dependencies(builder: CsvBuilder, dependencies: Iterable[Mapping[str, Any]]
             source="dependencies",
             metric=item["capability"],
             status=item["state"],
-            detail="|".join(item["requires"]),
+            detail=item["family"],
         )
 
 
@@ -658,6 +721,10 @@ def report_csv(
     body: Mapping[str, Any], rows: Iterable[Mapping[str, Any]], total_rows: int
 ) -> bytes:
     try:
+        if body["family"] not in SERIALIZERS:
+            from app.reporting.credit_csv import SERIALIZERS as CREDIT_SERIALIZERS
+
+            return CREDIT_SERIALIZERS[body["family"]](body, rows, total_rows)
         return SERIALIZERS[body["family"]](body, rows, total_rows)
     except ExportRefused as error:
         raise ReportError("export_refused", 500) from error

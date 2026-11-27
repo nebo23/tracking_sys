@@ -707,6 +707,100 @@ CLASSES: dict[str, DataClass] = {
             "008",
         ),
         DataClass(
+            "plan.definition",
+            "Platform plan definitions: key, internal name, the five limits, the default flag, "
+            "a closed reason code and the creation time; never about a person.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Never deleted: plans are immutable and referenced by assignment history (D-092 D2).",
+            "017-A",
+        ),
+        DataClass(
+            "plan.assignment",
+            "Plan assignment history of an agency: revision, plan, time, assigning party and a "
+            "closed reason code.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "017-A",
+        ),
+        DataClass(
+            "agency.closure",
+            "Closure requests of an agency: the requesting and cancelling memberships and the "
+            "request, scheduled closing, cancellation and completion times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "017-A",
+        ),
+        DataClass(
+            "account.agreement",
+            "Agreement of an account to one version of the Terms of Service or the Privacy "
+            "Policy: document, version label, time and channel, and the versions a sign-in "
+            "transaction carries.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.PROVIDED,
+            "Deleted with a closed account's credential state (D-024), unless legal advice "
+            "requires keeping proof of agreement (Q-012).",
+            "017-A",
+        ),
+        DataClass(
+            "report.export",
+            "Metadata of a retained report export: family, normalized parameters, period, "
+            "source, state, revocation reason, times, sizes, report revision and download "
+            "count; references to the client, connection, schedule and requesting membership.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Deleted by the lifecycle runner when the export expires, 7 days after creation "
+            "(D-095).",
+            "016-C",
+        ),
+        DataClass(
+            "report.export_content",
+            "Sealed CSV of a ready export (AES-GCM under the token keyring, bound to the "
+            "export, agency and client); it may hold financial figures.",
+            Sensitivity.HIGH,
+            Personal.NONE,
+            Provenance.DERIVED,
+            "Deleted at once on revocation and by the lifecycle runner at expiry (D-095).",
+            "016-C",
+        ),
+        DataClass(
+            "report.schedule",
+            "Report schedule of a client: the manager-entered name, family and parameters, "
+            "cadence, hour, time zone, state, owner membership and the last run's outcome "
+            "codes and counts.",
+            Sensitivity.MEDIUM,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Deleted by a manager; otherwise kept with the client workspace (017).",
+            "016-C",
+        ),
+        DataClass(
+            "report.recipient",
+            "Membership that receives a schedule's report notifications.",
+            Sensitivity.LOW,
+            Personal.PSEUDONYMOUS,
+            Provenance.PROVIDED,
+            "Deleted when the recipient leaves, is replaced or the schedule is deleted.",
+            "016-C",
+        ),
+        DataClass(
+            "branding.profile",
+            "Agency branding profile: the display name its clients see, an accent color, an "
+            "optional PNG logo with its dimensions, and the last change.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.PROVIDED,
+            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "016-C",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -837,6 +931,7 @@ TABLES: dict[str, TablePolicy] = {
             **_same(
                 "credential.lifecycle", "id", "purpose", "created_at", "expires_at", "consumed_at"
             ),
+            **_same("account.agreement", "terms_version", "privacy_version"),
         },
         (_row(APPROVED, "D-024", "Deleted 1 day after consumption or expiry."),),
     ),
@@ -960,7 +1055,14 @@ TABLES: dict[str, TablePolicy] = {
             "name": "tenancy.label",
             **_same("tenancy.configuration", "id", "status", "created_at", "updated_at"),
         },
-        (_row(RuleStatus.DEFERRED, "017", "Agency closure and offboarding belong to 017."),),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Closure moves an agency to closing and then closed (017-A); the purge of a "
+                "closed agency's data belongs to 017-B.",
+            ),
+        ),
     ),
     "client_workspaces": TablePolicy(
         {
@@ -1012,6 +1114,7 @@ TABLES: dict[str, TablePolicy] = {
                 "id",
                 "agency_id",
                 "client_id",
+                "actor_kind",
                 "action",
                 "resource_type",
                 "resource_id",
@@ -2755,6 +2858,218 @@ TABLES: dict[str, TablePolicy] = {
             "created_at",
         ),
         (_row(RuleStatus.DEFERRED, "D-079; 017", "Kept for the client workspace lifetime."),),
+    ),
+    # Specification 017-A (D-092): plans, their assignment history, agency closures and the
+    # agreement record.
+    "saas_plans": TablePolicy(
+        _same(
+            "plan.definition",
+            "id",
+            "key",
+            "name",
+            "clients_limit",
+            "seats_limit",
+            "connections_limit",
+            "managed_links_limit",
+            "tracked_events_limit",
+            "is_default",
+            "reason",
+            "created_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-092",
+                "Never deleted: plans are immutable apart from the default flag and referenced "
+                "by the assignment history (D2).",
+            ),
+        ),
+    ),
+    "agency_plan_assignments": TablePolicy(
+        _same(
+            "plan.assignment",
+            "id",
+            "agency_id",
+            "plan_id",
+            "revision",
+            "assigned_at",
+            "assigned_by",
+            "reason",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Insert-only history kept with the agency; the purge of a closed agency belongs "
+                "to 017-B.",
+            ),
+        ),
+    ),
+    "agency_closures": TablePolicy(
+        _same(
+            "agency.closure",
+            "id",
+            "agency_id",
+            "requested_by_membership_id",
+            "requested_at",
+            "closes_at",
+            "cancelled_at",
+            "cancelled_by_membership_id",
+            "completed_at",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-092",
+                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            ),
+        ),
+    ),
+    "user_agreements": TablePolicy(
+        {
+            "user_id": "account.reference",
+            **_same("account.agreement", "id", "document", "version", "accepted_at", "channel"),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-092; D-024",
+                "Deleted by the lifecycle runner with a closed account's credential state; "
+                "keeping proof of agreement beyond that awaits legal advice (Q-012).",
+            ),
+        ),
+    ),
+    # Specification 016-C (D-095): retained exports, report schedules and agency branding.
+    "report_exports": TablePolicy(
+        _same(
+            "report.export",
+            "id",
+            "agency_id",
+            "client_id",
+            "family",
+            "parameters",
+            "connection_id",
+            "period_start",
+            "period_end",
+            "includes_financials",
+            "source",
+            "schedule_id",
+            "requested_by_membership_id",
+            "status",
+            "revoked_at",
+            "revoked_reason",
+            "created_at",
+            "stored_at",
+            "expires_at",
+            "row_count",
+            "byte_size",
+            "report_revision",
+            "download_count",
+            "last_downloaded_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted by tracking_lifecycle when the export expires, 7 days after creation; "
+                "a discarded row, or a pending row older than one hour, on the next run. A "
+                "revoked row stays until its expiry so that the list shows why it is gone.",
+            ),
+        ),
+    ),
+    "report_export_contents": TablePolicy(
+        {
+            **_same("report.export", "export_id", "agency_id", "client_id", "created_at"),
+            **_same(
+                "report.export_content",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+                "alg",
+                "aad_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted at once when its export is revoked, and by tracking_lifecycle at the "
+                "export's expiry.",
+            ),
+        ),
+    ),
+    "report_schedules": TablePolicy(
+        _same(
+            "report.schedule",
+            "id",
+            "agency_id",
+            "client_id",
+            "name",
+            "family",
+            "parameters",
+            "sale_values",
+            "compare",
+            "cadence",
+            "weekday",
+            "hour",
+            "time_zone",
+            "status",
+            "pause_reason",
+            "owner_membership_id",
+            "next_run_at",
+            "last_run_at",
+            "last_outcome",
+            "last_error_code",
+            "last_notified",
+            "last_skipped",
+            "consecutive_failures",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-095; 017",
+                "Deleted by an Owner or Admin; otherwise kept with the client workspace, "
+                "whose end of life belongs to 017.",
+            ),
+        ),
+    ),
+    "report_schedule_recipients": TablePolicy(
+        {
+            **_same("report.schedule", "schedule_id", "agency_id", "client_id", "created_at"),
+            "membership_id": "report.recipient",
+        },
+        (
+            _row(
+                APPROVED,
+                "D-095",
+                "Deleted when the recipient leaves the schedule, a manager replaces the "
+                "recipients, or the schedule is deleted.",
+            ),
+        ),
+    ),
+    "agency_branding": TablePolicy(
+        _same(
+            "branding.profile",
+            "agency_id",
+            "display_name",
+            "accent_color",
+            "logo",
+            "logo_width",
+            "logo_height",
+            "updated_at",
+            "updated_by_membership_id",
+        ),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017-B; D-095",
+                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            ),
+        ),
     ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},

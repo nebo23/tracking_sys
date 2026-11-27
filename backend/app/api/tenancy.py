@@ -4,10 +4,11 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.api.dependencies import BrowserDep, ReaderDep, SessionDep
 from app.api.schemas import (
+    PLAN_LIMIT,
     AgencyAccess,
     AgencyInput,
     AgencyResponse,
@@ -54,25 +55,32 @@ def create_agency(data: AgencyInput, session: SessionDep, browser: BrowserDep) -
     )
 
 
-# List the caller's active memberships in active agencies (agency ID and role only).
+# List the caller's active memberships in active agencies (agency ID, role and status), and
+# the closing agencies in which the caller is an active Owner (017-A, D8).
 @router.get("/agencies", response_model=list[AgencyAccess])
 def list_agencies(
     session: SessionDep, browser: BrowserDep, limit: Limit = 100, offset: Offset = 0
 ) -> list[AgencyAccess]:
     # Client viewers learn their scope IDs without receiving the private agency profile.
-    memberships = session.scalars(
-        select(AgencyMembership)
+    rows = session.execute(
+        select(AgencyMembership.agency_id, AgencyMembership.role, Agency.status)
         .join(Agency, Agency.id == AgencyMembership.agency_id)
         .where(
             AgencyMembership.user_id == browser.user.id,
             AgencyMembership.status == "active",
-            Agency.status == "active",
+            or_(
+                Agency.status == "active",
+                and_(Agency.status == "closing", AgencyMembership.role == "owner"),
+            ),
         )
         .order_by(AgencyMembership.agency_id)
         .limit(limit)
         .offset(offset)
     )
-    return [AgencyAccess.model_validate(member) for member in memberships]
+    return [
+        AgencyAccess(agency_id=agency_id, role=role, status=status)
+        for agency_id, role, status in rows
+    ]
 
 
 # Read an agency profile; denied to ClientViewer members and non-members.
@@ -93,8 +101,14 @@ def update_agency(
     )
 
 
-# Create a client workspace in the agency (Owner/Admin); audited.
-@router.post("/agencies/{agency_id}/clients", status_code=201, response_model=ClientResponse)
+# Create a client workspace in the agency (Owner/Admin) within the plan's client limit;
+# audited.
+@router.post(
+    "/agencies/{agency_id}/clients",
+    status_code=201,
+    response_model=ClientResponse,
+    responses=PLAN_LIMIT,
+)
 def create_client(
     agency_id: UUID, data: AgencyInput, session: SessionDep, browser: BrowserDep
 ) -> ClientResponse:
@@ -159,8 +173,11 @@ def get_client(
     return ClientResponse.model_validate(client)
 
 
-# Rename or archive/reactivate a client (Owner/Admin); requires at least one field; audited.
-@router.patch("/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse)
+# Rename or archive/reactivate a client (Owner/Admin); requires at least one field; a
+# reactivation must fit the plan's client limit; audited.
+@router.patch(
+    "/agencies/{agency_id}/clients/{client_id}", response_model=ClientResponse, responses=PLAN_LIMIT
+)
 def update_client(
     agency_id: UUID, client_id: UUID, data: ClientUpdate, session: SessionDep, browser: BrowserDep
 ) -> ClientResponse:
@@ -208,8 +225,13 @@ def list_members(
     ]
 
 
-# Change a member's role or status under Owner rules and last-active-Owner protection; audited.
-@router.patch("/agencies/{agency_id}/members/{membership_id}", response_model=MembershipResponse)
+# Change a member's role or status under Owner rules and last-active-Owner protection; enabling
+# a disabled member must fit the plan's seat limit; audited.
+@router.patch(
+    "/agencies/{agency_id}/members/{membership_id}",
+    response_model=MembershipResponse,
+    responses=PLAN_LIMIT,
+)
 def update_member(
     agency_id: UUID,
     membership_id: UUID,
@@ -279,6 +301,7 @@ def access(request: Request, session: SessionDep, browser: BrowserDep) -> Access
     status_code=201,
     response_model=InvitationResponse,
     tags=["Invitations"],
+    responses=PLAN_LIMIT,
 )
 def issue_invitation(
     agency_id: UUID,

@@ -7,7 +7,15 @@ import { fetchSession, sessionKey, type Session } from '@/api/session';
 
 import { agencyChoice } from './agency';
 
-export const signInNotices = ['expired', 'passwordChanged', 'reset', 'verified', 'closed', 'signedOut'] as const;
+export const signInNotices = [
+  'expired',
+  'passwordChanged',
+  'reset',
+  'verified',
+  'closed',
+  'signedOut',
+  'termsChanged',
+] as const;
 export type SignInNotice = (typeof signInNotices)[number];
 
 const notSession = { predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== sessionKey[0] };

@@ -50,6 +50,8 @@ const byCode: Record<string, MessageId> = {
   payments_unavailable: 'integrations.error.payments_unavailable',
   integration_unavailable: 'integrations.error.integration_unavailable',
   whatsapp_unavailable: 'integrations.error.whatsapp_unavailable',
+  // 017-A: a sign-in or registration without the current agreement versions.
+  agreement_required: 'agreement.changed.title',
   // Google sign-in. The same codes arrive in the address of the completion page.
   google_link_required: 'google.error.google_link_required',
   google_email_not_verified: 'google.error.google_email_not_verified',

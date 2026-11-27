@@ -134,6 +134,7 @@ from app.privacy.token_secrets import (
     seal,
 )
 from app.security import AuthError, digest, keyed_digest, new_token, now_utc
+from app.services import plans
 from app.services.access import Principal, ScopedAccess
 from app.services.auth import AuthService
 from app.services.tenancy import MANAGERS, AccessDenied, TenancyService
@@ -178,6 +179,7 @@ CALLBACK_ERRORS = frozenset(
         "connector_not_configured",
         "scopes_missing",
         "account_unavailable",
+        "plan_limit_reached",
     }
 )
 
@@ -486,6 +488,19 @@ def start_disconnect(
     connection.destruction_status = connection.purge_status = "pending"
     connection.updated_at = now
     _cancel_open_runs(session, connection.id, now, "connection_inactive")
+    from app.services.report_exports import revoke_exports
+
+    # 016-C (D-095 D7): the connection's exports are revoked at once, whatever the cause; the
+    # stopped status is written first, so a reservation that waits for this transaction builds
+    # against it and is refused.
+    session.flush()
+    revoke_exports(
+        session,
+        connection.agency_id,
+        connection.client_id,
+        "connection_purged" if reason == "operator_purged" else "disconnection",
+        connection_id=connection.id,
+    )
 
 
 # Owner/Admin administration: connect, reconnect, disconnect, and sync requests; audited.
@@ -527,7 +542,9 @@ class ConnectorAdmin(TenancyService):
         return client
 
     # Start a connect (connection_id None) or reconnect authorization. Returns the provider
-    # authorization URL and the raw browser-binding value for the HttpOnly cookie.
+    # authorization URL and the raw browser-binding value for the HttpOnly cookie. A connect must
+    # fit the plan's connection limit (017-A, D4), checked again where the callback creates the
+    # connection; a reconnect keeps a live connection live and is never limited.
     def begin(
         self,
         agency_id: UUID,
@@ -540,6 +557,8 @@ class ConnectorAdmin(TenancyService):
     ) -> tuple[str, str]:
         actor = self._manager(agency_id, write=True)
         self._client(agency_id, client_id, active=True)
+        if connection_id is None:
+            plans.require_capacity(self.session, agency_id, "connections")
         expected: int | None = None
         if connection_id is not None:
             connection = self._connection(agency_id, client_id, connection_id)
@@ -803,6 +822,12 @@ def _install(
     now = now_utc()
     refreshes_label = capability is not None and capability.label_refresh_days is not None
     if authorization.purpose == "connect":
+        # The binding plan check (017-A, D4), under the agency lock that _initiator took:
+        # concurrent connects that each passed begin() cannot exceed the limit together.
+        try:
+            plans.require_capacity(session, authorization.agency_id, "connections")
+        except plans.PlanLimitReached:
+            raise ConnectorError("plan_limit_reached", 409) from None
         connection = ConnectorConnection(
             id=uuid4(),
             agency_id=authorization.agency_id,

@@ -41,7 +41,10 @@ class SecretStatus(StrEnum):
 # the payment source ID and kind is "paymob_hmac". For a 015-D integration signing secret
 # (D-068), connector_id holds the integration source ID and kind is "integration_signing".
 # For the 006 per-client identity matching key (D-075), connector_id holds the client ID,
-# secret_id the identity_key_secrets row ID and kind is "identity_matching_key".
+# secret_id the identity_key_secrets row ID and kind is "identity_matching_key". For a 016-C
+# retained report export (D-095 D4), connector_id and secret_id both hold the export ID, kind
+# is "report_export" and version is 1, so a ciphertext opens only for its export, agency and
+# client.
 @dataclass(frozen=True)
 class SecretContext:
     agency_id: UUID
@@ -56,6 +59,7 @@ class SecretContext:
         "paymob_hmac",
         "integration_signing",
         "identity_matching_key",
+        "report_export",
     ]
     version: int
 
@@ -150,20 +154,30 @@ def _wrap(keyring: LocalKeyring, kek_id: str, dek: bytes, context: SecretContext
 
 
 def seal(keyring: LocalKeyring, token: str, context: SecretContext) -> SealedSecret:
+    return seal_bytes(keyring, token.encode(), context)
+
+
+# Seal arbitrary bytes, such as a 016-C export file, under the same envelope as a token.
+def seal_bytes(keyring: LocalKeyring, data: bytes, context: SecretContext) -> SealedSecret:
     dek, nonce = AESGCM.generate_key(bit_length=256), os.urandom(12)
-    ciphertext = AESGCM(dek).encrypt(nonce, token.encode(), _secret_aad(context))
+    ciphertext = AESGCM(dek).encrypt(nonce, data, _secret_aad(context))
     wrap_nonce, wrapped = _wrap(keyring, keyring.active, dek, context)
     return SealedSecret(keyring.active, wrap_nonce, wrapped, nonce, ciphertext)
 
 
 # Open a sealed secret for exactly this context; any change raises InvalidTag.
 def open_secret(keyring: LocalKeyring, sealed: SealedSecret, context: SecretContext) -> str:
+    return open_bytes(keyring, sealed, context).decode()
+
+
+# Open sealed bytes for exactly this context; any change raises InvalidTag.
+def open_bytes(keyring: LocalKeyring, sealed: SealedSecret, context: SecretContext) -> bytes:
     if sealed.algorithm != ALGORITHM or sealed.aad_version != AAD_VERSION:
         raise ValueError("Unsupported secret format.")
     dek = AESGCM(keyring.key(sealed.kek_id)).decrypt(
         sealed.wrap_nonce, sealed.wrapped_dek, _wrap_aad(sealed.kek_id, context)
     )
-    return AESGCM(dek).decrypt(sealed.nonce, sealed.ciphertext, _secret_aad(context)).decode()
+    return AESGCM(dek).decrypt(sealed.nonce, sealed.ciphertext, _secret_aad(context))
 
 
 # KEK rotation: re-wrap the data key under the active KEK without touching the token

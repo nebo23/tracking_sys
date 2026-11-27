@@ -150,6 +150,10 @@ const googleCompleteRoute = createRoute({
   beforeLoad: async ({ context, search }) => {
     // The session cookie was set by the API on the way back from Google; this reads who it is.
     const session = await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
+    // The terms changed while the person was away: the sign-in page explains it (A03).
+    if (search.error === 'agreement_required' && !session) {
+      throw redirect({ to: '/sign-in', search: { notice: 'termsChanged' } });
+    }
     if (search.error || !session) return;
     if (search.result === 'linked') throw redirect({ to: '/account', search: { notice: 'googleLinked' } });
     throw redirect({ to: '/' });

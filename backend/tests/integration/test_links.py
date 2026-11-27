@@ -594,6 +594,10 @@ def test_concurrent_duplicate_hostname_claims_have_one_winner(links):
 
 def test_downgrade_refuses_populated_link_state(links):
     new_link(links)
+    # Sign-ins now store agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with links.db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="managed-link state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0007_event_collection")
     with links.db.migration.connect() as connection:

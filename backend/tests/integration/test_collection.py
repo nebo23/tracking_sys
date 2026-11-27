@@ -842,6 +842,10 @@ def test_public_rate_limit_returns_retry_after(c):
 
 
 def test_downgrade_refuses_populated_collection_state(c):
+    # Sign-ins now store agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with c.db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="event collection state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0006_account_closure")
     with c.db.migration.connect() as connection:

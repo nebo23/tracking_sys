@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.advertising import router as advertising_router
 from app.api.attribution import router as attribution_router
 from app.api.auth import router as auth_router
+from app.api.branding import router as branding_router
 from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
 from app.api.collection import webhook_router as collection_webhook_router
@@ -29,7 +30,9 @@ from app.api.links import router as links_router
 from app.api.middleware import RequestBoundary
 from app.api.payments import callback_router as payment_callback_router
 from app.api.payments import router as payments_router
+from app.api.plans import router as plans_router
 from app.api.public_cors import PlatformCors, PublicCollectionCors
+from app.api.report_delivery import router as report_delivery_router
 from app.api.reports import router as reports_router
 from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
@@ -42,6 +45,8 @@ from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
 from app.logging_config import configure_logging
 from app.reporting.common import ReportError
 from app.security import AuthError, RateLimited
+from app.services.agency_closure import ClosureRefused
+from app.services.agreements import AgreementRequired
 from app.services.attribution_models import AttributionError
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
@@ -52,6 +57,7 @@ from app.services.integrations import IntegrationError
 from app.services.ledger_store import LedgerConflict, LedgerUnavailable
 from app.services.links import LinkConflict
 from app.services.payments import PaymentError
+from app.services.plans import PlanLimitReached, PlanUnavailable
 from app.services.revenue_identity import AssociationError
 from app.services.tenancy import AccessDenied, MembershipConflict
 from app.services.whatsapp import WhatsappError
@@ -117,7 +123,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "CRM stage changes through signed integration sources, and WhatsApp referrals. "
             "Reports (specification 016-A): social, advertising spend and recorded-revenue "
             "reports over stored facts on source-native days, with previous-period "
-            "comparisons, revision-bound pages and bounded CSV downloads."
+            "comparisons, revision-bound pages and bounded CSV downloads. "
+            "Plans (specification 017-A): every agency has a plan whose limits the server "
+            "enforces on creation, a usage view, agency closure by its Owner with a "
+            "30-day grace period, and the record of agreement to the Terms of Service and "
+            "the Privacy Policy at registration and every sign-in."
         ),
         lifespan=lifespan,
         responses={
@@ -148,6 +158,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
+        # D11 (017-A): the interface may read how long to wait after a rate limit; no other
+        # response header is exposed.
+        expose_headers=["Retry-After"],
     )
     application.add_middleware(
         PublicCollectionCors,
@@ -239,6 +252,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def access_error(request: Request, error: AccessDenied) -> JSONResponse:
         return JSONResponse({"error": "access_denied"}, status_code=403)
 
+    # A creation beyond a limit of the agency's plan (017-A, D4): the limit, its value and the
+    # current use, never a name or an identifier.
+    @application.exception_handler(PlanLimitReached)
+    async def plan_limit(request: Request, error: PlanLimitReached) -> JSONResponse:
+        return JSONResponse(
+            {
+                "error": PlanLimitReached.code,
+                "limit": error.limit,
+                "value": error.value,
+                "used": error.used,
+            },
+            status_code=409,
+        )
+
+    # A registration or sign-in without the current agreement versions (017-A, D10) is told
+    # which versions are current and whether their texts are published.
+    @application.exception_handler(AgreementRequired)
+    async def agreement_required(request: Request, error: AgreementRequired) -> JSONResponse:
+        current = error.current
+        return JSONResponse(
+            {
+                "error": AgreementRequired.code,
+                "agreements": {
+                    "terms": current.terms,
+                    "privacy": current.privacy,
+                    "published": current.published,
+                },
+            },
+            status_code=422,
+        )
+
+    # Agency closure refusals (017-A, D8) carry a closed code.
+    @application.exception_handler(ClosureRefused)
+    async def closure_refused(request: Request, error: ClosureRefused) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    # An agency without a current plan, or no default plan for a new agency (017-A); never
+    # expected, because the migration and agency creation assign one.
+    @application.exception_handler(PlanUnavailable)
+    async def plan_unavailable(request: Request, error: PlanUnavailable) -> JSONResponse:
+        return JSONResponse({"error": PlanUnavailable.code}, status_code=409)
+
     # Allowed requests that would break membership invariants, such as removing a last Owner.
     @application.exception_handler(MembershipConflict)
     async def conflict_error(request: Request, error: MembershipConflict) -> JSONResponse:
@@ -277,6 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router)
     application.include_router(google_router)
     application.include_router(tenancy_router)
+    application.include_router(plans_router)
     application.include_router(collection_router)
     application.include_router(collection_public_router)
     application.include_router(collection_webhook_router)
@@ -288,6 +344,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(advertising_router)
     application.include_router(revenue_router)
     application.include_router(reports_router)
+    application.include_router(report_delivery_router)
+    application.include_router(branding_router)
     application.include_router(payments_router)
     application.include_router(payment_callback_router)
     application.include_router(integrations_router)

@@ -78,7 +78,12 @@ def active_owners(db, agency_id) -> int:
 def registered_user(api, email=EMAIL, browser=None):
     response = api.client.post(
         "/auth/register",
-        json={"email": email, "display_name": "Closing Person", "password": api.password},
+        json={
+            "email": email,
+            "display_name": "Closing Person",
+            "password": api.password,
+            "agreements": api.agreements,
+        },
     )
     assert response.status_code == 202
     code = api.mail_tokens()[-1][2]
@@ -129,12 +134,20 @@ def test_password_account_closure_pseudonymizes_and_frees_the_email(api, db):
             .where(AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None))
         )
     assert "account_closed" in actions and open_sessions == 0
-    failed = api.new_client().post("/auth/login", json={"email": EMAIL, "password": api.password})
+    failed = api.new_client().post(
+        "/auth/login",
+        json={"email": EMAIL, "password": api.password, "agreements": api.agreements},
+    )
     assert failed.status_code == 401
     assert (
         api.client.post(
             "/auth/register",
-            json={"email": EMAIL, "display_name": "New Person", "password": api.password},
+            json={
+                "email": EMAIL,
+                "display_name": "New Person",
+                "password": api.password,
+                "agreements": api.agreements,
+            },
         ).status_code
         == 202
     )
@@ -285,6 +298,10 @@ def test_closure_and_concurrent_owner_demotion_cannot_both_succeed(api, authenti
 def test_downgrade_refuses_populated_closure_state(api, db):
     browser, _ = registered_user(api)
     assert close(browser, api.password).status_code == 204
+    # Registration now stores agreement records, which 0031 (017-A) refuses to drop first;
+    # remove them so that the guard of the revision under test is the one that refuses.
+    with db.migration.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM user_agreements")
     with pytest.raises(RuntimeError, match="account-closure state"):
         command.downgrade(Config(str(BACKEND_ROOT / "alembic.ini")), "0005_lifecycle")
     # The refused downgrade rolls back as a whole, including later revisions above 0006.

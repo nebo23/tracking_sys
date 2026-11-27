@@ -5,7 +5,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { heldLinkToken } from '@/lib/linkToken';
 
 import { agreementBox, enter, everythingStored } from '../support/actions';
-import { agency, empty, fakeApi, json, linkToken, password, refused, session, signedIn, signedOut } from '../support/api';
+import {
+  accepted,
+  agency,
+  empty,
+  fakeApi,
+  json,
+  linkToken,
+  password,
+  refused,
+  session,
+  signedIn,
+  signedOut,
+} from '../support/api';
 import { forgetEverything, openApp } from '../support/app';
 
 afterEach(forgetEverything);
@@ -49,12 +61,35 @@ describe('creating an account', () => {
 
     expect(await screen.findByRole('heading', { name: 'Confirm your email' })).toBeInTheDocument();
     expect(server.sent('POST /auth/register').map((request) => request.body)).toEqual([
-      { display_name: 'Mona Hassan', email: 'mona@lumen.example', password },
+      { display_name: 'Mona Hassan', email: 'mona@lumen.example', password, agreements: accepted },
     ]);
     expect(screen.getByText('mona@lumen.example')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/verify-email');
     expect(window.location.href).not.toContain('mona');
     expect(everythingStored()).not.toContain(password);
+  });
+
+  it('explains terms that changed while the page was open, and registers with the new versions', async () => {
+    const server = fakeApi({ ...signedOut(), 'POST /auth/register': refused(422, 'agreement_required') });
+    const user = userEvent.setup();
+    openApp('/register');
+    await register(user);
+
+    expect(await screen.findByText('The terms changed while this page was open.')).toBeInTheDocument();
+    expect(screen.getByText(/then tick the box again to create your account/)).toBeInTheDocument();
+    expect(agreementBox()).not.toBeChecked();
+    expect(agreementBox()).toHaveFocus();
+    expect(screen.getByLabelText('Email')).toHaveValue('mona@lumen.example');
+
+    const changed = { terms: 'draft-1', privacy: 'draft-2' };
+    server.routes['GET /auth/agreements'] = json(200, { ...changed, published: true });
+    server.routes['POST /auth/register'] = acknowledged();
+    await user.click(agreementBox());
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await screen.findByRole('heading', { name: 'Confirm your email' })).toBeInTheDocument();
+    const sent = server.sent('POST /auth/register').map((request) => (request.body as { agreements?: unknown }).agreements);
+    expect(sent).toEqual([accepted, changed]);
   });
 
   it('shows what the API refused', async () => {

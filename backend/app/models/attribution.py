@@ -174,6 +174,8 @@ class AttributionConversion(Base):
             postgresql_where=text("status = 'active'"),
         ),
         Index("ix_attribution_conversions_generation", "client_id", "generation"),
+        # 016-B (0030): the person-level conversions list pages in conversion-time order.
+        Index("ix_attribution_conversions_client_effective", "client_id", "effective_at", "id"),
         CheckConstraint("kind IN ('sale', 'lead')", name="valid_kind"),
         CheckConstraint("status IN ('active', 'superseded')", name="valid_status"),
         CheckConstraint(

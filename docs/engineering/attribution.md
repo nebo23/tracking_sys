@@ -5,6 +5,7 @@ Specification 008-B, implemented under D-079 on `codex/spec-008-attribution-pers
 - Evidence: [008-B evidence](../../specs/008-attribution-engine/evidence-008b.md).
 - The calculation is the unchanged 008-A engine (`app.attribution.attribute`).
 - Its inputs are the identity journey, the persisted ledger and the sale associations described in the [identity and ledger guide](identity-and-ledger.md).
+- Specification 016-B (D-089) reads the stored credit in the attribution, ROAS and funnel reports of the [reporting guide](reporting.md), changed the input adapter (below) and added the conversions list and the release corrections of [Reading](#reading).
 - Every example below is synthetic.
 
 ## What is stored
@@ -86,6 +87,17 @@ There is no scheduler: stored attribution is as fresh as the last invocation, an
 
 **Change signals.** Since 008-B, a consent change marks the owners of the subject's active links changed in the identity feed (`events_changed`), so attribution follows on the next pass. This covers a change of the subject's effective attribution grant, and a new identity_link grant after it lapsed. `associate()` and `detach()` need no feed record; the pass compares the open association revisions with the ones the conversions recorded.
 
+### Input adapter revision 2 (016-B)
+
+`attribution_inputs.touchpoints()` reads a touch's campaign reference from its managed link's campaign code, or else from the retained `utm_campaign` value. Since 016-B (D-089 D7) it also reads the content reference of a campaign interaction from the retained `utm_content` value when the managed link has no content reference, under the same text rule (`usable_reference`: not empty, at most 256 characters, not padded, printable).
+- A managed link's content reference always wins.
+- The class of a touch never changes, and a direct visit keeps no content reference.
+
+`attribution_records.INPUT_ADAPTER_REVISION` is `2`, and a revision above 1 joins the model-set digest. Every client stored before the change therefore has an outdated digest, and its first pass rebuilds it once:
+- Earlier revisions and their rows stay byte-identical.
+- A touch whose content reference changed gets a new revision with the cause `evidence_changed`. Its signed credit changes move the credit from the old reference to the new one, so every total by campaign, recipient and currency stays the same.
+- The next pass finds the digest current and rebuilds nothing.
+
 ### Failure
 
 An engine refusal (a closed `AttributionInputError`) sets the client's consumer to `failed` with its code. The worker then skips the client. The lifecycle runner discards the failed staging rows and resets the state, and the next pass starts again from the published state.
@@ -98,12 +110,23 @@ An engine refusal (a closed `AttributionInputError`) sets the client's consumer 
 |---|---|---|
 | `GET /status` | `client:read`; read keys with the client grant | `state` (`caught_up`, `behind`, `rebuilding`), the consumer's generation, status, failure code, unit and checkpoint, and the current ledger and feed watermarks |
 | `GET /conversions/{conversion_id}/runs?model_version=` | `identity:read`; never a service key | The conversion and every stored revision under one version (the client default when none is named), with allocations, differences and excluded touches |
+| `GET /conversions?start=&end=` (016-B) | `identity:read`; never a service key; sales need `finance:read` | The stored conversions of a UTC period (at most 31 days) under the published generation, newest first, with the latest revision under one version; filters `kind`, `status`, `person_id` and `model_version`; pages of `limit` (1-100) with an opaque `after` cursor |
 
 **The runs route is a person-level read.**
 - It is built in a REPEATABLE READ snapshot and answers `503 attribution_stale` with `Retry-After: 1` unless the consumer is caught up.
 - For an open, unscrubbed conversion it also refuses unless recalculating the conversion from the current inputs changes nothing. That check covers consent withdrawal and expiry, tombstones and association changes, which move no watermark.
 - Superseded and scrubbed conversions are released as stored history.
 - The reader's scope is resolved again just before the response.
+
+**The conversions list is a person-level read too (016-B, D11).**
+- It is built in a report snapshot and answers `503 attribution_stale` unless the status read in that snapshot says `caught_up`, so a withdrawal is never listed before the next pass applies it.
+- Each item has the kind, the status at the published generation, the stored conversion time (`effective_at`), the supersession and scrub state, the owner person and lead event when they exist, the sale reference and the latest revision's summary. A scrubbed conversion shows no person and no lead event.
+- A conversion never changes, so a sale whose time a later receipt corrects keeps its opening time; `latest_run.window_end` shows the corrected time that its runs and the reports use.
+- Without `finance:read` only lead conversions are listed, and `sales` is `permission_unavailable`. There is no CSV.
+
+**Release corrections (016-B, closing O1 and O2 of the [merge review](../../specs/008-attribution-engine/merge-review-008b.md)).**
+- The list and the runs route read the consumer state's change token (generation, version, scrub epoch) inside their snapshot and again in a fresh statement after the answer is built. A difference answers `attribution_stale`, so an erasure or a worker pass that commits while the answer is being built refuses it.
+- The status route reads inside one report snapshot, so the consumer state, the ledger position, the feed watermark and the state-based slots come from one moment.
 
 **Finance.** Without `finance:read`, a sale's `transaction.state`, the run's `amounts` and the amount fields answer `permission_unavailable` or null. Shares, touches and provenance stay. A lead has `amounts: not_applicable`.
 
@@ -161,6 +184,6 @@ Person pointers otherwise follow identity retention through the identity steps a
 ## Limits
 
 - A3 stays open: these are measurements, not SLOs. A pass at 1,000 conversions took about 16 seconds, and a rebuild about 15 seconds, on the development workstation (see the evidence).
-- No route lists conversions; 016-B reports will expose them.
+- The conversions list and the 016-B reports read only the published generation; a report can show a client as `behind` while the worker has not run.
 - A campaign, content or link change that no signal reports is repaired by the sweep, which verifies at most 200 conversions per pass. Until then, the runs route answers stale for the affected conversion.
-- The native `tracking_sys` migration, live providers, 016-B/C and the React UI are not part of 008-B.
+- The native `tracking_sys` migration, live providers, 016-C and the React UI are not part of 008-B or 016-B.

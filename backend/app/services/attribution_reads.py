@@ -14,12 +14,23 @@ and resolves the reader's scope again before it responds.
 
 Money needs finance:read: without it a sale's amounts and transaction references answer the
 explicit permission_unavailable, while shares, provenance and touches stay.
+
+conversions() (016-B, D-089 D11) lists the stored conversions of a period under the published
+generation, newest first by their stored conversion time, with the latest revision under one
+model version. It is person-level like runs(): it answers attribution_stale unless the
+consumer is caught up, and without finance:read it lists lead conversions only. change_token()
+is the consumer state's (generation, version, scrub_epoch): a route reads it inside its
+snapshot and again in a fresh statement after the answer is built, and answers
+attribution_stale when it moved, so an erasure or a worker pass that commits while a list or a
+runs answer is being built refuses that answer (observation O1 of the 008-B merge review).
 """
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, tuple_
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -28,14 +39,18 @@ from app.models import (
     AttributionConversion,
     AttributionCreditChange,
     AttributionRun,
+    IdentitySubject,
 )
 from app.services import attribution_store as store
 from app.services.attribution_models import AttributionError, active_digest, versions, view
+from app.services.identity import IdentityError, person_group
+from app.services.identity_admin import _cursor, _parse_cursor
 from app.services.identity_feed import current_watermark
 from app.services.ledger_store import LedgerUnavailable, published_state
 from app.services.tenancy import AccessDenied
 
 STALE = ("attribution_stale", 503)
+LIST_LIMIT = 100
 
 
 def _iso(moment) -> str | None:
@@ -272,4 +287,172 @@ def _run(run: AttributionRun, allocations, changes, amounts: str, money: bool) -
             {"touchpoint_id": _text(touch), "reason": reason}
             for touch, reason in zip(run.excluded_touchpoint_ids, run.excluded_reasons, strict=True)
         ],
+    }
+
+
+def change_token(session: Session, client_id: UUID) -> tuple[int, int, int] | None:
+    """The consumer state's (generation, version, scrub_epoch), read by one statement."""
+    row = session.execute(
+        select(
+            AttributionConsumerState.generation,
+            AttributionConsumerState.version,
+            AttributionConsumerState.scrub_epoch,
+        ).where(AttributionConsumerState.client_id == client_id)
+    ).one_or_none()
+    return None if row is None else (int(row[0]), int(row[1]), int(row[2]))
+
+
+def _run_summary(run: AttributionRun | None, money: bool) -> dict[str, Any] | None:
+    if run is None:
+        return None
+    return {
+        "revision": run.revision,
+        "status": run.status,
+        "basis": run.basis,
+        "causes": list(run.causes),
+        "recorded_at": _iso(run.recorded_at),
+        "window_end": _iso(run.window_end),
+        "currency": run.currency if money else None,
+        "currency_exponent": run.currency_exponent if money else None,
+        "verified_net_minor": run.verified_net_minor if money else None,
+        "touch_bound_exceeded": run.touch_bound_exceeded,
+    }
+
+
+def conversions(
+    session: Session,
+    agency_id: UUID,
+    client_id: UUID,
+    *,
+    start: datetime,
+    end: datetime,
+    kind: str | None,
+    status_filter: str | None,
+    person_id: UUID | None,
+    version_id: UUID | None,
+    after: str | None,
+    limit: int,
+    finance: bool,
+) -> dict[str, Any]:
+    """The stored conversions of [start, end) under the published generation (design 7)."""
+    if not 1 <= limit <= LIST_LIMIT:
+        raise ValueError("invalid_limit")
+    state = session.get(AttributionConsumerState, client_id, populate_existing=True)
+    rows = versions(session, client_id)
+    if version_id is None:
+        version = next((row for row in rows if row.is_default), None)
+    else:
+        version = next((row for row in rows if row.id == version_id), None)
+        if version is None:
+            raise AccessDenied()  # an unknown or foreign version looks the same
+    group: list[UUID] | None = None
+    if person_id is not None:
+        found = session.scalar(
+            select(IdentitySubject.id).where(
+                IdentitySubject.client_id == client_id, IdentitySubject.id == person_id
+            )
+        )
+        if found is None:
+            raise AccessDenied()
+        group = person_group(session, client_id, person_id)
+    if state is None or version is None or state.agency_id != agency_id:
+        raise AttributionError(*STALE)
+    if status(session, agency_id, client_id)["state"] != "caught_up":
+        raise AttributionError(*STALE)
+    generation = state.generation
+    conversion = AttributionConversion
+    superseded = (conversion.superseded_generation.is_not(None)) & (
+        conversion.superseded_generation <= generation
+    )
+    query = select(conversion).where(
+        conversion.agency_id == agency_id,
+        conversion.client_id == client_id,
+        conversion.generation <= generation,
+        conversion.effective_at >= start,
+        conversion.effective_at < end,
+    )
+    if not finance:
+        query = query.where(conversion.kind == "lead")  # sales need finance:read
+    if kind is not None:
+        query = query.where(conversion.kind == kind)
+    if status_filter == "superseded":
+        query = query.where(superseded)
+    elif status_filter == "active":
+        query = query.where(
+            or_(
+                conversion.superseded_generation.is_(None),
+                conversion.superseded_generation > generation,
+            )
+        )
+    if group is not None:
+        query = query.where(conversion.owner_person_id.in_(group))
+    position = _parse_cursor(after, 2)
+    if position is not None:
+        try:
+            bound = (datetime.fromisoformat(position[0]), UUID(position[1]))
+        except ValueError as error:
+            raise IdentityError("invalid_cursor", 422) from error
+        if bound[0].utcoffset() is None:
+            raise IdentityError("invalid_cursor", 422)
+        query = query.where(tuple_(conversion.effective_at, conversion.id) < bound)
+    found = list(
+        session.scalars(
+            query.order_by(conversion.effective_at.desc(), conversion.id.desc())
+            .limit(limit + 1)
+            .execution_options(populate_existing=True)
+        )
+    )
+    page = found[:limit]
+    latest: dict[UUID, AttributionRun] = {}
+    if page:
+        latest = {
+            run.conversion_id: run
+            for run in session.scalars(
+                select(AttributionRun)
+                .where(
+                    AttributionRun.client_id == client_id,
+                    AttributionRun.model_version_id == version.id,
+                    AttributionRun.generation <= generation,
+                    AttributionRun.conversion_id.in_([row.id for row in page]),
+                )
+                .ext(distinct_on(AttributionRun.conversion_id))
+                .order_by(AttributionRun.conversion_id, AttributionRun.revision.desc())
+                .execution_options(populate_existing=True)
+            )
+        }
+    items = []
+    for row in page:
+        closed = row.superseded_generation is not None and row.superseded_generation <= generation
+        sale = row.kind == "sale"
+        items.append(
+            {
+                "id": str(row.id),
+                "kind": row.kind,
+                "status": "superseded" if closed else "active",
+                "effective_at": _iso(row.effective_at),
+                "superseded_at": _iso(row.superseded_at) if closed else None,
+                "superseded_reason": row.superseded_reason if closed else None,
+                "scrubbed": row.scrubbed_at is not None,
+                "person_id": str(row.owner_person_id) if row.owner_person_id else None,
+                "lead_event_id": str(row.lead_event_id) if row.lead_event_id else None,
+                "transaction": {
+                    "source_account_id": row.source_account_id,
+                    "sale_operation_id": row.sale_operation_id,
+                }
+                if sale
+                else None,
+                "latest_run": _run_summary(latest.get(row.id), sale),
+            }
+        )
+    following = (
+        _cursor([page[-1].effective_at.isoformat(), str(page[-1].id)])
+        if len(found) > limit
+        else None
+    )
+    return {
+        "generation": generation,
+        "model_version": view(version),
+        "sales": "available" if finance else "permission_unavailable",
+        "items": items,
+        "next_cursor": following,
     }
