@@ -1,6 +1,6 @@
 # Plan of P0: both 018 branches up to date with `main`
 
-Status: phase P0 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 on 2026-11-28. Evidence: [evidence-018-update.md](evidence-018-update.md), written at the end of the phase.
+Status: phase P0 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 on 2026-11-28. Done on 2026-11-28: see the [evidence](evidence-018-update.md).
 
 ## 1. Starting point (2026-11-28)
 
