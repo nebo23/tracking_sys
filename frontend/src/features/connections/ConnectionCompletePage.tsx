@@ -25,12 +25,13 @@ export function ConnectionCompletePage() {
   useEffect(() => {
     if (!pending) return;
     pendingConnection.clear();
-    void navigate({
-      to: '/agencies/$agencyId/clients/$clientId/connections',
-      params: pending,
-      search: error ? { failed: error } : { outcome: result, connection },
-      replace: true,
-    });
+    const params = { agencyId: pending.agencyId, clientId: pending.clientId };
+    const search = error ? { failed: error } : { outcome: result, connection };
+    if (pending.place === 'integrations') {
+      void navigate({ to: '/agencies/$agencyId/clients/$clientId/integrations', params, search: { tab: 'conversions', ...search }, replace: true });
+    } else {
+      void navigate({ to: '/agencies/$agencyId/clients/$clientId/connections', params, search, replace: true });
+    }
   }, [pending, navigate, result, connection, error]);
 
   if (pending) return null;

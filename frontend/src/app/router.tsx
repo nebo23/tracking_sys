@@ -30,7 +30,7 @@ import { ClientsPage } from '@/features/clients/ClientsPage';
 import { ConnectionCompletePage } from '@/features/connections/ConnectionCompletePage';
 import { ConnectionsPage } from '@/features/connections/ConnectionsPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
-import { IntegrationsPage } from '@/features/integrations/IntegrationsPage';
+import { IntegrationsPage, integrationTabs, type IntegrationTabId } from '@/features/integrations/IntegrationsPage';
 import { KeysPage } from '@/features/keys/KeysPage';
 import { LinksPage, linksTabs, type LinksTabId } from '@/features/links/LinksPage';
 import { TeamPage } from '@/features/team/TeamPage';
@@ -314,6 +314,13 @@ const trackingRoute = createRoute({
 const integrationsRoute = createRoute({
   getParentRoute: () => clientRoute,
   path: 'integrations',
+  // The tab, and the outcome of a dataset connection when the person returns from Meta.
+  validateSearch: (search: Search): { tab?: IntegrationTabId; outcome?: ReturnOutcome; connection?: string; failed?: ReturnError } => ({
+    tab: integrationTabs.find((tab) => tab === search.tab),
+    outcome: returnOutcomes.find((outcome) => outcome === search.outcome),
+    connection: isIdentifier(search.connection) ? search.connection : undefined,
+    failed: returnErrors.find((code) => code === search.failed),
+  }),
   component: IntegrationsPage,
 });
 

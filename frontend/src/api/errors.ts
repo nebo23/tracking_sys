@@ -46,6 +46,10 @@ const byCode: Record<string, MessageId> = {
   plan_limit_reached: 'error.plan_limit_reached',
   // Event collection (specification 004): the server has no keyrings for it.
   collection_not_configured: 'tracking.error.notConfigured',
+  // Integrations (specifications 014 and 015) that the server has switched off.
+  payments_unavailable: 'integrations.error.payments_unavailable',
+  integration_unavailable: 'integrations.error.integration_unavailable',
+  whatsapp_unavailable: 'integrations.error.whatsapp_unavailable',
   // Google sign-in. The same codes arrive in the address of the completion page.
   google_link_required: 'google.error.google_link_required',
   google_email_not_verified: 'google.error.google_email_not_verified',

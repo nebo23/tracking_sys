@@ -133,3 +133,31 @@ describe('asking again', () => {
     expect(worthRetrying(0, new ApiError(403, 'access_denied'))).toBe(false);
   });
 });
+
+describe('the values of an integration', () => {
+  it('read Paymob integration IDs as 1 to 20 distinct whole numbers', async () => {
+    const { integrationIds } = await import('@/features/integrations/PaymentsTab');
+    expect(integrationIds('4567890, 4567891')).toEqual({ ids: [4567890, 4567891], error: null });
+    expect(integrationIds('')).toEqual({ ids: [], error: 'integrations.paymob.error.idsNone' });
+    expect(integrationIds('0')).toEqual({ ids: [], error: 'integrations.paymob.error.ids' });
+    expect(integrationIds('12 12')).toEqual({ ids: [], error: 'integrations.paymob.error.idsTwice' });
+    expect(integrationIds(Array.from({ length: 21 }, (_, index) => String(index + 1)).join(' '))).toEqual({ ids: [], error: 'integrations.paymob.error.idsMany' });
+  });
+
+  it('take a typed secret of 16 to 256 printable characters without spaces', async () => {
+    const { secretError } = await import('@/features/integrations/shared');
+    expect(secretError('')).toBe('field.error.required');
+    expect(secretError('short-secret')).toBe('integrations.rule.secret');
+    expect(secretError('sixteen-chars-ok')).toBeNull();
+    expect(secretError('has a space in it!')).toBe('integrations.rule.secret');
+    expect(secretError('x'.repeat(257))).toBe('integrations.rule.secret');
+  });
+
+  it('send conversions only to the dataset connections', async () => {
+    const { connectable, datasetProviders, isDataset } = await import('@/features/connections/providers');
+    expect(datasetProviders.map((provider) => provider.id)).toEqual(['meta_capi']);
+    expect(connectable.some((provider) => isDataset(provider.id))).toBe(false);
+    expect(isDataset('meta_capi') && isDataset('synthetic_meta_capi')).toBe(true);
+    expect(isDataset('meta_ads')).toBe(false);
+  });
+});

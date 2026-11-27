@@ -52,6 +52,8 @@ const sample = {
   version: '0.6.0',
   collector: 'https://api.connect.example',
   header: 'X-Tracking-Signature',
+  field: 'ts_subject',
+  code: 'TEST123',
   terms: (text: ReactNode[]) => text,
   privacy: (text: ReactNode[]) => text,
 };

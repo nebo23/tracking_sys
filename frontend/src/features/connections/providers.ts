@@ -12,7 +12,7 @@ export interface Provider {
   /** The provider's own mark. A provider without one is drawn with a plain icon. */
   glyph: Glyph | null;
   /** The account number the connect request must name (specification 014), if any. */
-  account: { label: MessageId; hint: MessageId; pattern: RegExp } | null;
+  account: { label: MessageId; hint: MessageId; pattern: RegExp; error: MessageId } | null;
   /**
    * The version of the approval the account holder gives: the agency and the client's members
    * read the account as their agents (specification 011, D13). Null when none is needed.
@@ -24,7 +24,12 @@ export interface Provider {
 
 // The number of a Meta ad account, with or without its "act_" prefix (contracts/openapi.json, ConnectInput).
 const adAccount = /^(act_)?[1-9][0-9]{0,19}$/;
-const adAccountField = { label: 'connections.connect.adAccount', hint: 'connections.connect.adAccountHint', pattern: adAccount } as const;
+const adAccountField = {
+  label: 'connections.connect.adAccount',
+  hint: 'connections.connect.adAccountHint',
+  pattern: adAccount,
+  error: 'connections.connect.adAccountError',
+} as const;
 
 // The approval text of the development slice. The owner's wording replaces it with a new version.
 const AGENT_APPROVAL = 'dev-agent-approval-1';
@@ -66,16 +71,47 @@ const standIns: Provider[] = [
   },
 ];
 
-// Connections of a kind this page does not start are still named when the API lists them.
-const named: Record<string, { name: MessageId; glyph: Glyph | null }> = {
-  meta_capi: { name: 'provider.meta_capi', glyph: 'meta' },
-  synthetic_meta_capi: { name: 'provider.synthetic_meta_capi', glyph: 'meta' },
-};
+// The number of a Meta dataset (a pixel or conversions dataset), digits only (ConnectInput).
+const dataset = /^[1-9][0-9]{0,19}$/;
+const datasetField = {
+  label: 'connections.connect.dataset',
+  hint: 'connections.connect.datasetHint',
+  pattern: dataset,
+  error: 'connections.connect.datasetError',
+} as const;
 
-const all = [...product, ...standIns];
+// Datasets receive verified sales for ad measurement (specification 014). They are connected from
+// the integrations page, beside the destination that sends to them.
+const datasets: Provider[] = [
+  { id: 'meta_capi', name: 'provider.meta_capi', reads: 'provider.meta_capi.reads', glyph: 'meta', account: datasetField, approval: null, synthetic: false },
+];
+const datasetStandIns: Provider[] = [
+  {
+    id: 'synthetic_meta_capi',
+    name: 'provider.synthetic_meta_capi',
+    reads: 'provider.synthetic.reads',
+    glyph: 'meta',
+    account: datasetField,
+    approval: null,
+    synthetic: true,
+  },
+];
+
+// Connections of a kind this page does not start are still named when the API lists them.
+const named: Record<string, { name: MessageId; glyph: Glyph | null }> = {};
+
+const all = [...product, ...standIns, ...datasets, ...datasetStandIns];
 
 /** The providers a person can choose when connecting an account. */
-export const connectable: readonly Provider[] = syntheticProvidersEnabled ? all : product;
+export const connectable: readonly Provider[] = syntheticProvidersEnabled ? [...product, ...standIns] : product;
+
+/** The providers of a dataset that conversions are sent to. */
+export const datasetProviders: readonly Provider[] = syntheticProvidersEnabled ? [...datasets, ...datasetStandIns] : datasets;
+
+const datasetIds = new Set<string>([...datasets, ...datasetStandIns].map((item) => item.id));
+
+/** True for a connection that conversion destinations can send to. */
+export const isDataset = (provider: string): boolean => datasetIds.has(provider);
 
 export const providerOf = (id: string): Provider | undefined => all.find((provider) => provider.id === id);
 

@@ -15,6 +15,7 @@ import { Icon } from '@/components/Icon';
 import { QueryStates } from '@/components/ListStates';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { RowMenu, type RowAction } from '@/components/RowMenu';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ShownOnceDialog } from '@/components/ShownOnceDialog';
 import { Day } from '@/components/Time';
 import type { MessageId } from '@/i18n';
@@ -252,50 +253,6 @@ function WebhookDialog({ source, onClose }: { source: IngestionSource; onClose: 
       title={<FormattedMessage id="tracking.webhook.title" values={{ name: source.name }} />}
     >
       <WebhookFacts source={source} />
-    </FormDialog>
-  );
-}
-
-function ConfirmDialog({
-  title,
-  text,
-  submit,
-  keep,
-  danger = false,
-  onConfirm,
-  onClose,
-}: {
-  title: MessageId;
-  text: MessageId;
-  submit: MessageId;
-  keep: MessageId;
-  danger?: boolean;
-  onConfirm: () => Promise<unknown>;
-  onClose: () => void;
-}) {
-  const [problem, setProblem] = useState<ErrorMessage | null>(null);
-  const request = useMutation({ mutationFn: onConfirm, onError: (failure) => setProblem(describeError(failure)) });
-  return (
-    <FormDialog
-      isOpen
-      alert
-      tone={danger ? 'danger' : 'primary'}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      title={<FormattedMessage id={title} />}
-      submitLabel={<FormattedMessage id={submit} />}
-      cancelLabel={<FormattedMessage id={keep} />}
-      busy={request.isPending}
-      onSubmit={() => {
-        setProblem(null);
-        request.mutate();
-      }}
-    >
-      <p>
-        <FormattedMessage id={text} />
-      </p>
-      <ErrorNotice message={problem} />
     </FormDialog>
   );
 }

@@ -52,6 +52,7 @@ export type IconName =
   | 'radio-tower'
   | 'refresh-cw'
   | 'rotate-cw'
+  | 'route'
   | 'scroll-text'
   | 'search'
   | 'send'

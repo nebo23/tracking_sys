@@ -15,6 +15,7 @@ import { focusFirstInvalid } from '@/lib/focusFirstInvalid';
 import { connectionErrors } from './errors';
 import { leaveForProvider } from './leaveForProvider';
 import { ProviderMark } from './ProviderMark';
+import type { ConnectionPlace } from './pendingConnection';
 import { connectable, type Provider } from './providers';
 
 interface ConnectDialogProps {
@@ -22,6 +23,10 @@ interface ConnectDialogProps {
   clientId: string;
   clientName: string;
   onClose: () => void;
+  /** The providers to choose from: the accounts of a client, or the datasets of its conversions. */
+  providers?: readonly Provider[];
+  /** The page the return from the provider leads back to. */
+  place?: ConnectionPlace;
 }
 
 /**
@@ -29,8 +34,8 @@ interface ConnectDialogProps {
  * sent there: the number of an ad account, or the account holder's approval of the agency and
  * the client's members as their agents. It is drawn only while open.
  */
-export function ConnectDialog({ agencyId, clientId, clientName, onClose }: ConnectDialogProps) {
-  const [provider, setProvider] = useState<Provider | undefined>(connectable[0]);
+export function ConnectDialog({ agencyId, clientId, clientName, onClose, providers = connectable, place = 'connections' }: ConnectDialogProps) {
+  const [provider, setProvider] = useState<Provider | undefined>(providers[0]);
   const [account, setAccount] = useState('');
   const [approved, setApproved] = useState(false);
   const [errors, setErrors] = useState<{ account?: MessageId | null; approval?: MessageId | null }>({});
@@ -40,7 +45,8 @@ export function ConnectDialog({ agencyId, clientId, clientName, onClose }: Conne
 
   const request = useMutation({
     mutationFn: (input: ConnectInput) => connect(agencyId, clientId, input),
-    onSuccess: ({ authorization_url: address }) => setProblem(leaveForProvider(address, { agencyId, clientId })),
+    onSuccess: ({ authorization_url: address }) =>
+      setProblem(leaveForProvider(address, place === 'integrations' ? { agencyId, clientId, place } : { agencyId, clientId })),
     onError: (failure) => setProblem(describeError(failure, connectionErrors)),
   });
 
@@ -54,7 +60,7 @@ export function ConnectDialog({ agencyId, clientId, clientName, onClose }: Conne
     if (!provider) return;
     const number = account.trim();
     const found = {
-      account: provider.account && !provider.account.pattern.test(number) ? ('connections.connect.adAccountError' as const) : null,
+      account: provider.account && !provider.account.pattern.test(number) ? provider.account.error : null,
       approval: provider.approval !== null && !approved ? ('connections.connect.approvalError' as const) : null,
     };
     setErrors(found);
@@ -88,7 +94,7 @@ export function ConnectDialog({ agencyId, clientId, clientName, onClose }: Conne
           <FormattedMessage id="connections.connect.provider" />
         </legend>
         <div className="l-stack l-stack--tight">
-          {connectable.map((option) => (
+          {providers.map((option) => (
             <label key={option.id} className="c-choice a-choice--card">
               <input
                 className="c-radio"
