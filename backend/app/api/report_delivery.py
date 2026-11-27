@@ -12,7 +12,12 @@ service key of either kind is refused):
   for byte to the direct CSV of the same revision, with Cache-Control: no-store.
 - DELETE /{export_id} revokes it, by its creator or an Owner or Admin; audited.
 
-A revoked or expired export answers export_gone (410). Refusals carry a closed code only.
+A revoked or expired export answers export_gone (410).
+
+Below /agencies/{agency_id}/clients/{client_id}/report-schedules (D8, D9): Owners and Admins
+create, read, change and delete the schedules of a client (at most 10 active); a recipient reads
+the schedules it receives and leaves one with DELETE /{schedule_id}/recipients/me. Recipients
+are listed to managers only. Refusals carry a closed code only.
 """
 
 from datetime import date as CalendarDate
@@ -25,7 +30,7 @@ from pydantic import Field, StringConstraints
 
 from app.api.dependencies import BrowserDep, SessionDep
 from app.api.schemas import Input, Output
-from app.models import ReportExport
+from app.models import AgencyMembership, ReportExport, ReportSchedule
 from app.reporting.csv_export import FILENAMES
 from app.services.access import resolve_scope
 from app.services.report_exports import (
@@ -34,7 +39,13 @@ from app.services.report_exports import (
     ExportService,
     create_export,
 )
+from app.services.report_schedules import (
+    PLACEHOLDER,
+    ScheduleService,
+    schedule_spec,
+)
 from app.services.reporting import FINANCE_SPLIT, PERMISSIONS, ReportQuery
+from app.services.tenancy import MANAGERS
 
 router = APIRouter(tags=["Report delivery"])
 BASE = "/agencies/{agency_id}/clients/{client_id}"
@@ -311,3 +322,222 @@ def revoke_report_export(
     service = ExportService(session, browser.user.id)
     item = service.revoke(agency_id, client_id, export_id)
     return export_view(item, service.clock())
+
+
+# --- schedules (D8, D9) -------------------------------------------------------------------------
+
+ScheduleName = Annotated[
+    str,
+    StringConstraints(
+        min_length=1, max_length=100, strip_whitespace=True, pattern=r"^[^\x00-\x1f\x7f]+$"
+    ),
+]
+Weekday = Annotated[int, Field(ge=1, le=7)]
+Hour = Annotated[int, Field(ge=0, le=23)]
+TimeZone = Annotated[str, StringConstraints(min_length=1, max_length=64)]
+Recipients = Annotated[list[UUID], Field(max_length=20)]
+
+
+class ScheduleInput(Input):
+    name: ScheduleName
+    report: ReportParameters
+    sale_values: bool = False
+    cadence: Literal["daily", "weekly", "monthly"]
+    weekday: Weekday | None = None
+    hour: Hour
+    time_zone: TimeZone
+    recipients: Recipients = []
+
+
+class ScheduleChangeInput(Input):
+    name: ScheduleName | None = None
+    report: ReportParameters | None = None
+    sale_values: bool | None = None
+    cadence: Literal["daily", "weekly", "monthly"] | None = None
+    weekday: Weekday | None = None
+    hour: Hour | None = None
+    time_zone: TimeZone | None = None
+    recipients: Recipients | None = None
+    status: Literal["active", "paused"] | None = None
+
+
+class ScheduleRun(Output):
+    at: datetime | None
+    outcome: Literal["built", "failed"] | None
+    error_code: str | None
+    notified: int
+    skipped: int
+
+
+class ReportScheduleView(Output):
+    id: UUID
+    client_id: UUID
+    name: str
+    report: dict[str, Any]
+    sale_values: bool
+    cadence: Literal["daily", "weekly", "monthly"]
+    weekday: int | None
+    hour: int
+    time_zone: str
+    status: Literal["active", "paused"]
+    pause_reason: Literal["manual", "owner_access_lost", "repeated_failures"] | None
+    owner_membership_id: UUID
+    next_run_at: datetime | None
+    last_run: ScheduleRun
+    consecutive_failures: int
+    receiving: bool
+    recipients: list[UUID] | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReportScheduleList(Output):
+    schedules: list[ReportScheduleView]
+    limit: int
+    offset: int
+
+
+def schedule_view(
+    service: ScheduleService, member: AgencyMembership, schedule: ReportSchedule
+) -> ReportScheduleView:
+    recipients = service.recipients(schedule)
+    return ReportScheduleView(
+        id=schedule.id,
+        client_id=schedule.client_id,
+        name=schedule.name,
+        report={"family": schedule.family, **schedule.parameters},
+        sale_values=schedule.sale_values,
+        cadence=schedule.cadence,  # type: ignore[arg-type]
+        weekday=schedule.weekday,
+        hour=schedule.hour,
+        time_zone=schedule.time_zone,
+        status=schedule.status,  # type: ignore[arg-type]
+        pause_reason=schedule.pause_reason,  # type: ignore[arg-type]
+        owner_membership_id=schedule.owner_membership_id,
+        next_run_at=schedule.next_run_at,
+        last_run=ScheduleRun(
+            at=schedule.last_run_at,
+            outcome=schedule.last_outcome,  # type: ignore[arg-type]
+            error_code=schedule.last_error_code,
+            notified=schedule.last_notified,
+            skipped=schedule.last_skipped,
+        ),
+        consecutive_failures=schedule.consecutive_failures,
+        receiving=member.id in recipients,
+        recipients=recipients if member.role in MANAGERS else None,
+        created_at=schedule.created_at,
+        updated_at=schedule.updated_at,
+    )
+
+
+def _schedules(request: Request, session: SessionDep, browser: BrowserDep) -> ScheduleService:
+    return ScheduleService(session, browser.user.id, request.app.state.settings)
+
+
+@router.post(f"{BASE}/report-schedules", status_code=201, response_model=ReportScheduleView)
+def create_report_schedule(
+    agency_id: UUID,
+    client_id: UUID,
+    data: ScheduleInput,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> ReportScheduleView:
+    service = _schedules(request, session, browser)
+    spec = schedule_spec(
+        data.name,
+        report_query(data.report, *PLACEHOLDER),
+        data.sale_values,
+        data.cadence,
+        data.weekday,
+        data.hour,
+        data.time_zone,
+        data.recipients,
+    )
+    schedule = service.create(agency_id, client_id, spec)
+    member, schedule = service.get(agency_id, client_id, schedule.id)
+    return schedule_view(service, member, schedule)
+
+
+@router.get(f"{BASE}/report-schedules", response_model=ReportScheduleList)
+def list_report_schedules(
+    agency_id: UUID,
+    client_id: UUID,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+) -> ReportScheduleList:
+    service = _schedules(request, session, browser)
+    member, items = service.listing(agency_id, client_id, limit=limit, offset=offset)
+    return ReportScheduleList(
+        schedules=[schedule_view(service, member, item) for item in items],
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(f"{BASE}/report-schedules/{{schedule_id}}", response_model=ReportScheduleView)
+def read_report_schedule(
+    agency_id: UUID,
+    client_id: UUID,
+    schedule_id: UUID,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> ReportScheduleView:
+    service = _schedules(request, session, browser)
+    member, schedule = service.get(agency_id, client_id, schedule_id)
+    return schedule_view(service, member, schedule)
+
+
+@router.patch(f"{BASE}/report-schedules/{{schedule_id}}", response_model=ReportScheduleView)
+def change_report_schedule(
+    agency_id: UUID,
+    client_id: UUID,
+    schedule_id: UUID,
+    data: ScheduleChangeInput,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> ReportScheduleView:
+    service = _schedules(request, session, browser)
+    changes: dict[str, Any] = {
+        key: getattr(data, key)
+        for key in data.model_fields_set
+        if key != "report" and getattr(data, key) is not None
+    }
+    if "weekday" in data.model_fields_set:
+        changes["weekday"] = data.weekday
+    if data.report is not None:
+        changes["query"] = report_query(data.report, *PLACEHOLDER)
+    service.update(agency_id, client_id, schedule_id, changes)
+    member, schedule = service.get(agency_id, client_id, schedule_id)
+    return schedule_view(service, member, schedule)
+
+
+@router.delete(f"{BASE}/report-schedules/{{schedule_id}}", status_code=204)
+def delete_report_schedule(
+    agency_id: UUID,
+    client_id: UUID,
+    schedule_id: UUID,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> Response:
+    _schedules(request, session, browser).delete(agency_id, client_id, schedule_id)
+    return Response(status_code=204)
+
+
+@router.delete(f"{BASE}/report-schedules/{{schedule_id}}/recipients/me", status_code=204)
+def leave_report_schedule(
+    agency_id: UUID,
+    client_id: UUID,
+    schedule_id: UUID,
+    request: Request,
+    session: SessionDep,
+    browser: BrowserDep,
+) -> Response:
+    _schedules(request, session, browser).leave(agency_id, client_id, schedule_id)
+    return Response(status_code=204)

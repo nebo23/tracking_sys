@@ -1,11 +1,12 @@
 """Durable encrypted mail outbox with local capture and an opt-in Gmail transport."""
 
 import json
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from email.message import EmailMessage
 from email.policy import SMTP
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import Engine, select
@@ -49,6 +50,17 @@ def queue_mail(
         "subject": subject,
         "body": f"{subject}\n\n{content}\n\nIf you did not request this, ignore this message.\n",
     }
+    _store(session, settings, identifier, purpose, payload, expires_at)
+
+
+def _store(
+    session: Session,
+    settings: Settings,
+    identifier: UUID,
+    purpose: str,
+    payload: dict[str, str],
+    expires_at: datetime | None,
+) -> None:
     encrypted = (
         Fernet(settings.mail_encryption_key.get_secret_value().encode())
         .encrypt(json.dumps(payload).encode())
@@ -58,6 +70,67 @@ def queue_mail(
         MailOutbox(
             id=identifier, purpose=purpose, encrypted_payload=encrypted, expires_at=expires_at
         )
+    )
+
+
+REPORT_KINDS = {
+    "social": "Social",
+    "spend": "Advertising spend",
+    "revenue": "Revenue",
+    "attribution": "Attribution",
+    "roas": "ROAS",
+    "funnel": "Funnel",
+}
+
+
+@dataclass(frozen=True)
+class ReportReady:
+    """The only fields a report_ready email carries (016-C, D-095 D9): no figure, no client
+    name and no token. The identifiers in the link are not secrets; the application
+    authorizes the reader again."""
+
+    display_name: str
+    schedule_name: str
+    family: str
+    period_start: date
+    period_end: date
+    agency_id: UUID
+    client_id: UUID
+    export_id: UUID
+    expires_at: datetime
+
+
+def report_ready_message(settings: Settings, item: ReportReady) -> tuple[str, str]:
+    subject = f"Report ready: {item.schedule_name}"
+    link = (
+        f"{settings.frontend_origin}/agencies/{item.agency_id}/clients/{item.client_id}"
+        f"/reports/exports/{item.export_id}"
+    )
+    last_day = item.period_end - timedelta(days=1)
+    until = item.expires_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+    body = (
+        f"{item.display_name}\n\n"
+        f'The scheduled report "{item.schedule_name}" is ready.\n\n'
+        f"Report: {REPORT_KINDS[item.family]}\n"
+        f"Period: {item.period_start.isoformat()} to {last_day.isoformat()}\n\n"
+        f"Open it in the application:\n{link}\n\n"
+        f"The report can be downloaded until {until} UTC. You receive this message because "
+        "you are a recipient of this schedule.\n"
+    )
+    return subject, body
+
+
+# Add one encrypted report_ready message in the caller's transaction; it expires with its
+# export, so an undelivered message is cleared unsent once the export is gone.
+def queue_report_mail(session: Session, settings: Settings, email: str, item: ReportReady) -> None:
+    subject, body = report_ready_message(settings, item)
+    _store(
+        session,
+        settings,
+        uuid4(),
+        "report_ready",
+        {"to": email, "subject": subject, "body": body},
+        item.expires_at,
     )
 
 
