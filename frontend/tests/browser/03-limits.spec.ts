@@ -24,7 +24,7 @@ test('too many wrong passwords are answered with a sentence to wait', async ({ p
 
   expect(limited).toBe(true);
   expect(attempts).toBeGreaterThan(5);
-  // The API does not let a browser on another origin read Retry-After, so no number is shown.
-  await expect(page.getByRole('alert')).toHaveText('Too many attempts. Wait a little and try again.');
+  // Since 017-A the API lets the application's origin read Retry-After, so the wait is named.
+  await expect(page.getByRole('alert')).toHaveText(/^Too many attempts\. Try again in \d+ seconds?\.$/);
   await expect(page.getByRole('heading', { name: 'Sign in', level: 1 })).toBeVisible();
 });

@@ -42,6 +42,8 @@ const byCode: Record<string, MessageId> = {
   validation_failed: 'error.validation_failed',
   request_too_large: 'error.request_too_large',
   temporarily_unavailable: 'error.temporarily_unavailable',
+  // 017-A: a sign-in or registration without the current agreement versions.
+  agreement_required: 'agreement.changed.title',
   // Google sign-in. The same codes arrive in the address of the completion page.
   google_link_required: 'google.error.google_link_required',
   google_email_not_verified: 'google.error.google_email_not_verified',

@@ -1,7 +1,16 @@
 import { expect, test } from '@playwright/test';
 
 import { verificationCode } from './support/mail.ts';
-import { accountMenu, agreement, newPerson, recordRequests } from './support/people.ts';
+import {
+  accountMenu,
+  agreement,
+  currentAgreements,
+  newPerson,
+  recordRequests,
+  registered,
+  signInOnScreen,
+  withAgency,
+} from './support/people.ts';
 import { stack } from './support/stack.ts';
 
 test('a new person creates an account and an agency, then signs out', async ({ page, context }, testInfo) => {
@@ -62,7 +71,10 @@ test('a new person creates an account and an agency, then signs out', async ({ p
     await agreement(page).check();
     const answer = page.waitForResponse((response) => response.url().endsWith('/auth/login') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    token = ((await (await answer).json()) as { csrf_token: string }).csrf_token;
+    const response = await answer;
+    // The sign-in carries the versions the API asks for now (017-A).
+    expect((response.request().postDataJSON() as { agreements?: unknown }).agreements).toEqual(await currentAgreements());
+    token = ((await response.json()) as { csrf_token: string }).csrf_token;
     await expect(page.getByRole('heading', { name: 'Create your agency', level: 1 })).toBeVisible();
   });
 
@@ -110,4 +122,49 @@ test('a new person creates an account and an agency, then signs out', async ({ p
     expect(request).not.toContain(token);
     expect(request).not.toContain(encodeURIComponent(person.password));
   }
+});
+
+test('terms that change while the sign-in page is open are explained, and the next attempt signs in', async ({ page }, testInfo) => {
+  const person = await registered(newPerson(testInfo));
+  await withAgency(person, 'Lumen Studio');
+  const current = await currentAgreements();
+  const outdated = { ...current, terms: 'outdated-1' };
+
+  // The first read answers the versions that were current when the page opened. The API has
+  // moved on since, so it refuses the sign-in that carries them.
+  let reads = 0;
+  await page.route(`${stack.apiOrigin}/auth/agreements`, async (route) => {
+    reads += 1;
+    if (reads > 1) return route.continue();
+    const response = await route.fetch();
+    return route.fulfill({ response, json: { ...((await response.json()) as object), ...outdated } });
+  });
+  const signIns: { agreements: unknown; status: number }[] = [];
+  page.on('response', (response) => {
+    const request = response.request();
+    if (request.method() !== 'POST' || !response.url().endsWith('/auth/login')) return;
+    signIns.push({ agreements: (request.postDataJSON() as { agreements?: unknown }).agreements, status: response.status() });
+  });
+
+  await test.step('the refused sign-in says why, unticks the box and keeps the email', async () => {
+    await page.goto('/sign-in');
+    await signInOnScreen(page, person);
+    await expect(page.getByText('The terms changed while this page was open.')).toBeVisible();
+    await expect(page.getByText(/then tick the box again to sign in/)).toBeVisible();
+    await expect(agreement(page)).not.toBeChecked();
+    await expect(agreement(page)).toBeFocused();
+    await expect(page.getByLabel('Email')).toHaveValue(person.email);
+    expect(signIns).toEqual([{ agreements: outdated, status: 422 }]);
+  });
+
+  await test.step('ticking the box again signs in with the new versions', async () => {
+    await agreement(page).check();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+    expect(signIns).toEqual([
+      { agreements: outdated, status: 422 },
+      { agreements: current, status: 200 },
+    ]);
+    expect(reads).toBe(2);
+  });
 });

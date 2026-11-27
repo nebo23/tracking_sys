@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 
+import type { AcceptedAgreements } from './agreements';
 import { api, call, setCsrfToken } from './client';
 import { isApiError } from './errors';
 import type { components } from './schema';
@@ -30,8 +31,9 @@ export const sessionQuery = queryOptions({
   staleTime: 60_000,
 });
 
-export async function signIn(email: string, password: string): Promise<Session> {
-  const session = await call(api.POST('/auth/login', { body: { email, password } }));
+/** Every sign-in carries the agreement versions the person accepted (017-A). */
+export async function signIn(email: string, password: string, agreements: AcceptedAgreements): Promise<Session> {
+  const session = await call(api.POST('/auth/login', { body: { email, password, agreements } }));
   setCsrfToken(session.csrf_token);
   return session;
 }
@@ -50,8 +52,8 @@ export const signOut = (): Promise<void> => ended(call(api.POST('/auth/logout'),
 
 export const signOutEverywhere = (): Promise<void> => ended(call(api.POST('/auth/logout-all'), { asksAboutSession: true }));
 
-export function register(displayName: string, email: string, password: string) {
-  return call(api.POST('/auth/register', { body: { display_name: displayName, email, password } }));
+export function register(displayName: string, email: string, password: string, agreements: AcceptedAgreements) {
+  return call(api.POST('/auth/register', { body: { display_name: displayName, email, password, agreements } }));
 }
 
 export function verifyEmailCode(email: string, code: string) {

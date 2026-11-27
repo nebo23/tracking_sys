@@ -29,7 +29,8 @@ function LegalLink({ to, children }: { to: '/terms' | '/privacy'; children: Reac
 
 /**
  * The box a person ticks to agree to the terms. It starts empty and is never ticked for them.
- * Until specification 002 stores the agreement (D15), the tick is not kept anywhere.
+ * The page sends the versions of GET /auth/agreements with the request, and the API records them
+ * (017-A).
  */
 export function AgreementBox({ id, checked, onChange, error, ref }: AgreementBoxProps) {
   return (

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { agreementBox, enter, everythingStored, signIn } from '../support/actions';
-import { fakeApi, json, password, refused, session, signedIn, signedOut } from '../support/api';
+import { accepted, fakeApi, json, password, refused, session, signedIn, signedOut } from '../support/api';
 import { forgetEverything, openApp } from '../support/app';
 
 afterEach(forgetEverything);
@@ -59,11 +59,41 @@ describe('the sign-in screen', () => {
     await signIn(user);
 
     expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
-    expect(server.sent('POST /auth/login')[0]?.body).toEqual({ email: 'mona@lumen.example', password });
+    expect(server.sent('POST /auth/login')[0]?.body).toEqual({ email: 'mona@lumen.example', password, agreements: accepted });
     expect(window.location.pathname).toBe('/');
     expect(window.location.href).not.toContain(session.csrf_token);
     expect(everythingStored()).not.toContain(session.csrf_token);
     expect(everythingStored()).not.toContain(password);
+  });
+
+  it('explains terms that changed while the page was open, and signs in with the new versions', async () => {
+    const server = fakeApi({ ...acceptsSignIn(), 'POST /auth/login': refused(422, 'agreement_required') });
+    const user = userEvent.setup();
+    openApp('/sign-in');
+
+    await signIn(user);
+
+    expect(await screen.findByText('The terms changed while this page was open.')).toBeInTheDocument();
+    expect(screen.getByText(/then tick the box again to sign in/)).toBeInTheDocument();
+    expect(agreementBox()).not.toBeChecked();
+    expect(agreementBox()).toHaveFocus();
+    expect(screen.getByLabelText('Email')).toHaveValue('mona@lumen.example');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    const changed = { terms: 'draft-2', privacy: 'draft-1' };
+    server.routes['GET /auth/agreements'] = json(200, { ...changed, published: true });
+    server.routes['POST /auth/login'] = json(200, session);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByText('Tick the box to agree before you continue.')).toBeInTheDocument();
+    expect(server.sent('POST /auth/login')).toHaveLength(1);
+
+    await user.click(agreementBox());
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    const sent = server.sent('POST /auth/login').map((request) => (request.body as { agreements?: unknown }).agreements);
+    expect(sent).toEqual([accepted, changed]);
+    expect(server.sent('GET /auth/agreements')).toHaveLength(2);
   });
 
   it('says one sentence for a wrong email or a wrong password, and does not doubt the session', async () => {

@@ -29,6 +29,9 @@
 
   "agreement.label": "أوافق على <terms>شروط الخدمة</terms> و<privacy>سياسة الخصوصية</privacy>.",
   "agreement.required": "ضع علامة الموافقة قبل المتابعة.",
+  "agreement.changed.title": "تغيّرت الشروط أثناء فتح هذه الصفحة.",
+  "agreement.changed.signIn": "اقرأ شروط الخدمة وسياسة الخصوصية الجديدة، ثم ضع علامة الموافقة مرة أخرى لتسجيل الدخول.",
+  "agreement.changed.register": "اقرأ شروط الخدمة وسياسة الخصوصية الجديدة، ثم ضع علامة الموافقة مرة أخرى لإنشاء حسابك.",
 
   "field.error.required": "هذا الحقل مطلوب.",
   "field.error.email": "اكتب عنوانًا كاملًا، مثل name@agency.com.",

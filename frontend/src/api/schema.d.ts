@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/auth/agreements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agreement Versions */
+        get: operations["agreement_versions_auth_agreements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -482,6 +499,42 @@ export interface paths {
         post?: never;
         /** Revoke Service Key */
         delete: operations["revoke_service_key_agencies__agency_id__service_credentials__credential_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agency Plan */
+        get: operations["agency_plan_agencies__agency_id__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/closure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Closure */
+        get: operations["read_closure_agencies__agency_id__closure_get"];
+        put?: never;
+        /** Request Closure */
+        post: operations["request_closure_agencies__agency_id__closure_post"];
+        /** Cancel Closure */
+        delete: operations["cancel_closure_agencies__agency_id__closure_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1026,6 +1079,23 @@ export interface paths {
         };
         /** Read Attribution Runs */
         get: operations["read_attribution_runs_agencies__agency_id__clients__client_id__attribution_conversions__conversion_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/attribution/conversions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Attribution Conversions */
+        get: operations["list_attribution_conversions_agencies__agency_id__clients__client_id__attribution_conversions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1722,6 +1792,201 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agencies/{agency_id}/clients/{client_id}/reports/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Attribution Report */
+        get: operations["attribution_report_agencies__agency_id__clients__client_id__reports_attribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/reports/roas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Roas Report */
+        get: operations["roas_report_agencies__agency_id__clients__client_id__reports_roas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/reports/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Funnel Report */
+        get: operations["funnel_report_agencies__agency_id__clients__client_id__reports_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Exports */
+        get: operations["list_report_exports_agencies__agency_id__clients__client_id__report_exports_get"];
+        put?: never;
+        /** Create Report Export */
+        post: operations["create_report_export_agencies__agency_id__clients__client_id__report_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-exports/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Report Export */
+        get: operations["read_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__get"];
+        put?: never;
+        post?: never;
+        /** Revoke Report Export */
+        delete: operations["revoke_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-exports/{export_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Report Export */
+        get: operations["download_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Schedules */
+        get: operations["list_report_schedules_agencies__agency_id__clients__client_id__report_schedules_get"];
+        put?: never;
+        /** Create Report Schedule */
+        post: operations["create_report_schedule_agencies__agency_id__clients__client_id__report_schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Report Schedule */
+        get: operations["read_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Report Schedule */
+        delete: operations["delete_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change Report Schedule */
+        patch: operations["change_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__patch"];
+        trace?: never;
+    };
+    "/agencies/{agency_id}/clients/{client_id}/report-schedules/{schedule_id}/recipients/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave Report Schedule */
+        delete: operations["leave_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__recipients_me_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Branding */
+        get: operations["read_branding_agencies__agency_id__branding_get"];
+        /** Save Branding */
+        put: operations["save_branding_agencies__agency_id__branding_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agencies/{agency_id}/branding/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Branding Logo */
+        get: operations["read_branding_logo_agencies__agency_id__branding_logo_get"];
+        /** Save Branding Logo */
+        put: operations["save_branding_logo_agencies__agency_id__branding_logo_put"];
+        post?: never;
+        /** Delete Branding Logo */
+        delete: operations["delete_branding_logo_agencies__agency_id__branding_logo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
         parameters: {
             query?: never;
@@ -2173,11 +2438,72 @@ export interface components {
              */
             agency_id: string;
             role: components["schemas"]["Role"];
+            /**
+             * Status
+             * @description active, or closing for an Owner whose agency awaits its closure.
+             * @enum {string}
+             */
+            status: "active" | "closing";
+        };
+        /** AgencyBrandingView */
+        AgencyBrandingView: {
+            /**
+             * Agency Id
+             * Format: uuid
+             */
+            agency_id: string;
+            /** Configured */
+            configured: boolean;
+            /** Display Name */
+            display_name: string | null;
+            /** Accent Color */
+            accent_color: string | null;
+            logo: components["schemas"]["BrandingLogo"] | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** AgencyClosureInput */
+        AgencyClosureInput: {
+            /** Confirm Name */
+            confirm_name: string;
+            /** Password */
+            password?: string | null;
+        };
+        /** AgencyClosureResponse */
+        AgencyClosureResponse: {
+            /**
+             * Agency Id
+             * Format: uuid
+             */
+            agency_id: string;
+            /**
+             * Agency Status
+             * @enum {string}
+             */
+            agency_status: "active" | "closing";
+            closure: components["schemas"]["OpenAgencyClosure"] | null;
         };
         /** AgencyInput */
         AgencyInput: {
             /** Name */
             name: string;
+        };
+        /** AgencyPlanResponse */
+        AgencyPlanResponse: {
+            /**
+             * Agency Id
+             * Format: uuid
+             */
+            agency_id: string;
+            plan: components["schemas"]["PlanSummary"];
+            /** Limits */
+            limits: components["schemas"]["PlanLimitUse"][];
+            tracked_events: components["schemas"]["TrackedEventsUse"];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
         };
         /** AgencyResponse */
         AgencyResponse: {
@@ -2205,6 +2531,28 @@ export interface components {
             approved: true;
             /** Disclosure */
             disclosure: string;
+        };
+        /** AgreementAcceptance */
+        AgreementAcceptance: {
+            /** Terms */
+            terms: string;
+            /** Privacy */
+            privacy: string;
+        };
+        /** AgreementRequiredError */
+        AgreementRequiredError: {
+            /** Error */
+            error: string;
+            agreements?: components["schemas"]["AgreementVersions"] | null;
+        };
+        /** AgreementVersions */
+        AgreementVersions: {
+            /** Terms */
+            terms: string;
+            /** Privacy */
+            privacy: string;
+            /** Published */
+            published: boolean;
         };
         /** Amount */
         Amount: {
@@ -2244,6 +2592,169 @@ export interface components {
             /** Expected Revision */
             expected_revision?: number | null;
         };
+        /** AttributionExportInput */
+        AttributionExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "attribution";
+            /**
+             * Group By
+             * @default campaign
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link" | "recipient";
+            /**
+             * View
+             * @default groups
+             * @enum {string}
+             */
+            view: "groups" | "models";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** AttributionFreshness */
+        AttributionFreshness: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "caught_up" | "behind" | "rebuilding" | "failed";
+            /** Reason */
+            reason: string | null;
+            /** Published Generation */
+            published_generation: number;
+            /** Published At */
+            published_at: string | null;
+            /** Failure Code */
+            failure_code: string | null;
+            /** Unit */
+            unit: ("incremental" | "rebuild") | null;
+            consumer: components["schemas"]["ConsumerMarks"];
+            current: components["schemas"]["CurrentMarks"];
+        };
+        /** AttributionGroupRow */
+        AttributionGroupRow: {
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "campaign" | "direct" | "unknown";
+            /** Group Ref */
+            group_ref: string | null;
+            /** Registered */
+            registered: boolean | null;
+            /** Content Items */
+            content_items: components["schemas"]["SocialContentItem"][] | null;
+            sales: components["schemas"]["CreditSales"] | null;
+            leads: components["schemas"]["CreditLeads"] | null;
+            /** Models */
+            models: components["schemas"]["CreditModelValues"][] | null;
+        };
+        /** AttributionParameters */
+        AttributionParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "attribution";
+            /**
+             * Group By
+             * @default campaign
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link" | "recipient";
+            /**
+             * View
+             * @default groups
+             * @enum {string}
+             */
+            view: "groups" | "models";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** AttributionReportResult */
+        AttributionReportResult: {
+            /** Contract Version */
+            contract_version: string;
+            /**
+             * Family
+             * @constant
+             */
+            family: "attribution";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "groups" | "models";
+            /**
+             * Group By
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link" | "recipient";
+            period: components["schemas"]["PeriodView"];
+            comparison_period: components["schemas"]["PeriodView"] | null;
+            /**
+             * Day Zone
+             * @constant
+             */
+            day_zone: "UTC";
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "conversion_date";
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Revision */
+            revision: string;
+            model_version: components["schemas"]["ReportModelVersion"] | null;
+            /** Model Versions */
+            model_versions: components["schemas"]["ReportModelVersion"][] | null;
+            attribution: components["schemas"]["AttributionFreshness"];
+            /**
+             * Finance
+             * @enum {string}
+             */
+            finance: "available" | "permission_unavailable";
+            values: components["schemas"]["ValuesState"];
+            totals: components["schemas"]["CreditTotals"] | null;
+            /** Model Totals */
+            model_totals: components["schemas"]["CreditModelTotals"][] | null;
+            reconciliation: components["schemas"]["CreditReconciliation"] | null;
+            /** Model Reconciliation */
+            model_reconciliation: components["schemas"]["CreditModelReconciliation"][] | null;
+            /** Comparison */
+            comparison: components["schemas"]["CreditComparison"][] | null;
+            /** Rows */
+            rows: components["schemas"]["AttributionGroupRow"][];
+            page: components["schemas"]["PageView"];
+            /** Dependencies */
+            dependencies: components["schemas"]["Dependency"][];
+        };
         /** AttributionStatusView */
         AttributionStatusView: {
             /**
@@ -2269,10 +2780,12 @@ export interface components {
             /** Client Id */
             client_id: string | null;
             /**
-             * Actor User Id
-             * Format: uuid
+             * Actor Kind
+             * @enum {string}
              */
-            actor_user_id: string;
+            actor_kind: "user" | "platform_operator";
+            /** Actor User Id */
+            actor_user_id: string | null;
             /** Action */
             action: string;
             /** Resource Type */
@@ -2340,6 +2853,22 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** BrandingInput */
+        BrandingInput: {
+            /** Display Name */
+            display_name: string;
+            /** Accent Color */
+            accent_color: string;
+        };
+        /** BrandingLogo */
+        BrandingLogo: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Byte Size */
+            byte_size: number;
         };
         /** BucketCost */
         BucketCost: {
@@ -2589,6 +3118,15 @@ export interface components {
              */
             server_time: string;
         };
+        /** ConsumerMarks */
+        ConsumerMarks: {
+            /** Ledger Generation */
+            ledger_generation: number;
+            /** Receipt Ordinal */
+            receipt_ordinal: number;
+            /** Identity Seq */
+            identity_seq: number;
+        };
         /** ConsumerView */
         ConsumerView: {
             /** Generation */
@@ -2655,6 +3193,21 @@ export interface components {
             platform_label?: string | null;
             /** Status */
             status?: ("active" | "archived") | null;
+        };
+        /** ConversionListView */
+        ConversionListView: {
+            /** Generation */
+            generation: number;
+            model_version: components["schemas"]["ModelVersionView"];
+            /**
+             * Sales
+             * @enum {string}
+             */
+            sales: "available" | "permission_unavailable";
+            /** Items */
+            items: components["schemas"]["ListedConversion"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** ConversionRunsView */
         ConversionRunsView: {
@@ -2764,6 +3317,192 @@ export interface components {
             /** Metrics */
             metrics: components["schemas"]["MetricAvailability"][];
             cost: components["schemas"]["CostState"];
+        };
+        /** CreditComparison */
+        CreditComparison: {
+            /** Metric */
+            metric: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sale" | "lead";
+            /** Currency */
+            currency: string | null;
+            /** Exponent */
+            exponent: number | null;
+            /** Current Value */
+            current_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Previous Value */
+            previous_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Difference */
+            difference: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Percent Change */
+            percent_change: string | null;
+            /** Comparable */
+            comparable: boolean;
+            /** Reason */
+            reason: string | null;
+        };
+        /** CreditLeadTotal */
+        CreditLeadTotal: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "all" | "campaign" | "direct" | "unknown";
+            credited_leads: components["schemas"]["ExactShare"];
+            /** Conversions */
+            conversions: number;
+        };
+        /** CreditLeadTotals */
+        CreditLeadTotals: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "not_ready";
+            /** Reason */
+            reason: string | null;
+            /** Items */
+            items: components["schemas"]["CreditLeadTotal"][] | null;
+        };
+        /** CreditLeads */
+        CreditLeads: {
+            credited_leads: components["schemas"]["ExactShare"];
+            /** Conversions */
+            conversions: number;
+        };
+        /** CreditModelReconciliation */
+        CreditModelReconciliation: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable" | "not_ready" | "unavailable";
+            /** Reason */
+            reason: string | null;
+            /** Ledger */
+            ledger: ("available" | "unavailable" | "none") | null;
+            /** Items */
+            items: components["schemas"]["ReconciliationItem"][] | null;
+            /**
+             * Model Version Id
+             * Format: uuid
+             */
+            model_version_id: string;
+        };
+        /** CreditModelTotals */
+        CreditModelTotals: {
+            sales: components["schemas"]["CreditSaleTotals"];
+            leads: components["schemas"]["CreditLeadTotals"];
+            /**
+             * Model Version Id
+             * Format: uuid
+             */
+            model_version_id: string;
+        };
+        /** CreditModelValues */
+        CreditModelValues: {
+            /**
+             * Model Version Id
+             * Format: uuid
+             */
+            model_version_id: string;
+            sales: components["schemas"]["CreditSales"];
+            leads: components["schemas"]["CreditLeads"];
+        };
+        /** CreditReconciliation */
+        CreditReconciliation: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable" | "not_ready" | "unavailable";
+            /** Reason */
+            reason: string | null;
+            /** Ledger */
+            ledger: ("available" | "unavailable" | "none") | null;
+            /** Items */
+            items: components["schemas"]["ReconciliationItem"][] | null;
+        };
+        /** CreditSaleItem */
+        CreditSaleItem: {
+            /** Currency */
+            currency: string;
+            /** Exponent */
+            exponent: number;
+            credited_revenue: components["schemas"]["Amount"];
+            credited_sales: components["schemas"]["ExactShare"];
+            /** Conversions */
+            conversions: number;
+        };
+        /** CreditSaleTotal */
+        CreditSaleTotal: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            /** Currency */
+            currency: string;
+            /** Exponent */
+            exponent: number;
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "all" | "campaign" | "direct" | "unknown";
+            credited_revenue: components["schemas"]["Amount"];
+            credited_sales: components["schemas"]["ExactShare"];
+            /** Conversions */
+            conversions: number;
+        };
+        /** CreditSaleTotals */
+        CreditSaleTotals: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable" | "not_ready";
+            /** Reason */
+            reason: string | null;
+            /** Items */
+            items: components["schemas"]["CreditSaleTotal"][] | null;
+        };
+        /** CreditSales */
+        CreditSales: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable";
+            /** Items */
+            items: components["schemas"]["CreditSaleItem"][] | null;
+        };
+        /** CreditTotals */
+        CreditTotals: {
+            sales: components["schemas"]["CreditSaleTotals"];
+            leads: components["schemas"]["CreditLeadTotals"];
+        };
+        /** CurrentMarks */
+        CurrentMarks: {
+            /**
+             * Ledger
+             * @enum {string}
+             */
+            ledger: "available" | "unavailable" | "none";
+            /** Ledger Generation */
+            ledger_generation: number | null;
+            /** Receipt Ordinal */
+            receipt_ordinal: number | null;
+            /** Identity Seq */
+            identity_seq: number;
         };
         /** DealReport */
         DealReport: {
@@ -3012,9 +3751,11 @@ export interface components {
             capability: string;
             /**
              * State
-             * @constant
+             * @enum {string}
              */
-            state: "dependency_unavailable";
+            state: "available" | "dependency_unavailable";
+            /** Family */
+            family?: string | null;
             /** Requires */
             requires: string[];
         };
@@ -3341,6 +4082,15 @@ export interface components {
             /** Revision */
             revision: number;
         };
+        /** ExactShare */
+        ExactShare: {
+            /** Numerator */
+            numerator: number;
+            /** Denominator */
+            denominator: number;
+            /** Decimal */
+            decimal: string;
+        };
         /** ExcludedMetric */
         ExcludedMetric: {
             /** Stream */
@@ -3349,6 +4099,21 @@ export interface components {
             metric: string;
             /** Reason */
             reason: string;
+        };
+        /** ExportPeriod */
+        ExportPeriod: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Days */
+            days: number;
         };
         /** FinancialGrant */
         FinancialGrant: {
@@ -3411,6 +4176,233 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** FunnelBases */
+        FunnelBases: {
+            /**
+             * Visits
+             * @constant
+             */
+            visits: "received_date";
+            /**
+             * Leads
+             * @constant
+             */
+            leads: "conversion_date";
+            /**
+             * Sales
+             * @constant
+             */
+            sales: "conversion_date";
+            /**
+             * Revenue
+             * @constant
+             */
+            revenue: "conversion_date";
+        };
+        /** FunnelComparison */
+        FunnelComparison: {
+            /** Metric */
+            metric: string;
+            /** Currency */
+            currency: string | null;
+            /** Exponent */
+            exponent: number | null;
+            /** Current Value */
+            current_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Previous Value */
+            previous_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Difference */
+            difference: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | number | null;
+            /** Percent Change */
+            percent_change: string | null;
+            /** Comparable */
+            comparable: boolean;
+            /** Reason */
+            reason: string | null;
+        };
+        /** FunnelExportInput */
+        FunnelExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "funnel";
+            /**
+             * Group By
+             * @default campaign
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** FunnelLeadsTotal */
+        FunnelLeadsTotal: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "not_ready";
+            credited_leads: components["schemas"]["ExactShare"] | null;
+            /** Lead Conversions */
+            lead_conversions: number | null;
+        };
+        /** FunnelParameters */
+        FunnelParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "funnel";
+            /**
+             * Group By
+             * @default campaign
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** FunnelReportResult */
+        FunnelReportResult: {
+            /** Contract Version */
+            contract_version: string;
+            /**
+             * Family
+             * @constant
+             */
+            family: "funnel";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Group By
+             * @enum {string}
+             */
+            group_by: "campaign" | "content" | "link";
+            period: components["schemas"]["PeriodView"];
+            comparison_period: components["schemas"]["PeriodView"] | null;
+            /**
+             * Day Zone
+             * @constant
+             */
+            day_zone: "UTC";
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "conversion_date";
+            bases: components["schemas"]["FunnelBases"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Revision */
+            revision: string;
+            model_version: components["schemas"]["ReportModelVersion"] | null;
+            attribution: components["schemas"]["AttributionFreshness"];
+            /**
+             * Finance
+             * @enum {string}
+             */
+            finance: "available" | "permission_unavailable";
+            values: components["schemas"]["ValuesState"];
+            /** Totals */
+            totals: components["schemas"]["FunnelTotal"][];
+            /** Comparison */
+            comparison: components["schemas"]["FunnelComparison"][] | null;
+            /** Rows */
+            rows: components["schemas"]["FunnelRow"][];
+            page: components["schemas"]["PageView"];
+            /** Dependencies */
+            dependencies: components["schemas"]["Dependency"][];
+        };
+        /** FunnelRow */
+        FunnelRow: {
+            /**
+             * Recipient
+             * @enum {string}
+             */
+            recipient: "campaign" | "direct" | "unknown";
+            /** Group Ref */
+            group_ref: string | null;
+            /** Registered */
+            registered: boolean | null;
+            /** Content Items */
+            content_items: components["schemas"]["SocialContentItem"][] | null;
+            visits: components["schemas"]["FunnelVisits"];
+            leads: components["schemas"]["CreditLeads"] | null;
+            sales: components["schemas"]["CreditSales"] | null;
+        };
+        /** FunnelSaleItem */
+        FunnelSaleItem: {
+            /** Currency */
+            currency: string;
+            /** Exponent */
+            exponent: number;
+            credited_sales: components["schemas"]["ExactShare"];
+            credited_revenue: components["schemas"]["Amount"];
+            /** Sale Conversions */
+            sale_conversions: number;
+            /** Associated */
+            associated: number;
+            /** Unassociated */
+            unassociated: number;
+            ledger_net: components["schemas"]["Amount"] | null;
+        };
+        /** FunnelSalesTotal */
+        FunnelSalesTotal: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "permission_unavailable" | "not_ready";
+            /** Ledger */
+            ledger: ("available" | "unavailable" | "none") | null;
+            /** Items */
+            items: components["schemas"]["FunnelSaleItem"][] | null;
+        };
+        /** FunnelTotal */
+        FunnelTotal: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            /** Page Views */
+            page_views: number;
+            /** Link Page Views */
+            link_page_views: number;
+            leads: components["schemas"]["FunnelLeadsTotal"];
+            sales: components["schemas"]["FunnelSalesTotal"];
+        };
+        /** FunnelVisits */
+        FunnelVisits: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "unsupported";
+            /** Count */
+            count: number | null;
         };
         /** HandoffResponse */
         HandoffResponse: {
@@ -3623,6 +4615,77 @@ export interface components {
             /** Expires At */
             expires_at?: string | null;
         };
+        /** ListedConversion */
+        ListedConversion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sale" | "lead";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "superseded";
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /** Superseded At */
+            superseded_at: string | null;
+            /** Superseded Reason */
+            superseded_reason: string | null;
+            /** Scrubbed */
+            scrubbed: boolean;
+            /** Person Id */
+            person_id: string | null;
+            /** Lead Event Id */
+            lead_event_id: string | null;
+            transaction: components["schemas"]["ListedTransaction"] | null;
+            latest_run: components["schemas"]["ListedRun"] | null;
+        };
+        /** ListedRun */
+        ListedRun: {
+            /** Revision */
+            revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "no_verified_revenue" | "net_out_of_range" | "superseded";
+            /** Basis */
+            basis: string | null;
+            /** Causes */
+            causes: string[];
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Window End */
+            window_end: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Currency Exponent */
+            currency_exponent: number | null;
+            /** Verified Net Minor */
+            verified_net_minor: number | null;
+            /** Touch Bound Exceeded */
+            touch_bound_exceeded: boolean;
+        };
+        /** ListedTransaction */
+        ListedTransaction: {
+            /** Source Account Id */
+            source_account_id: string | null;
+            /** Sale Operation Id */
+            sale_operation_id: string | null;
+        };
         /** Login */
         Login: {
             /** Email */
@@ -3632,6 +4695,7 @@ export interface components {
              * Format: password
              */
             password: string;
+            agreements?: components["schemas"]["AgreementAcceptance"] | null;
         };
         /** MembershipResponse */
         MembershipResponse: {
@@ -3828,6 +4892,29 @@ export interface components {
             updated_at: string;
             /** Verified At */
             verified_at: string | null;
+        };
+        /** OpenAgencyClosure */
+        OpenAgencyClosure: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+            /**
+             * Requested By Membership Id
+             * Format: uuid
+             */
+            requested_by_membership_id: string;
         };
         /** OriginInput */
         OriginInput: {
@@ -4036,6 +5123,49 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** PlanLimitError */
+        PlanLimitError: {
+            /** Error */
+            error: string;
+            /** Limit */
+            limit?: ("clients" | "seats" | "connections" | "managed_links") | null;
+            /** Value */
+            value?: number | null;
+            /** Used */
+            used?: number | null;
+        };
+        /** PlanLimitUse */
+        PlanLimitUse: {
+            /**
+             * Limit
+             * @enum {string}
+             */
+            limit: "clients" | "seats" | "connections" | "managed_links";
+            /**
+             * Value
+             * @description The plan's limit; null when unlimited.
+             */
+            value: number | null;
+            /** Used */
+            used: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "within" | "at_limit" | "unlimited";
+        };
+        /** PlanSummary */
+        PlanSummary: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Assigned At
+             * Format: date-time
+             */
+            assigned_at: string;
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             /**
@@ -4050,6 +5180,28 @@ export interface components {
             operation_id: string;
             /** Reason */
             reason: string;
+        };
+        /** ReconciliationItem */
+        ReconciliationItem: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            /** Currency */
+            currency: string;
+            /** Exponent */
+            exponent: number;
+            credited_revenue: components["schemas"]["Amount"];
+            ledger_net: components["schemas"]["Amount"];
+            difference: components["schemas"]["Amount"];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "reconciled" | "difference";
+            /** Reason */
+            reason: string | null;
         };
         /** ReconnectInput */
         ReconnectInput: {
@@ -4144,6 +5296,187 @@ export interface components {
              * Format: password
              */
             password: string;
+            agreements?: components["schemas"]["AgreementAcceptance"] | null;
+        };
+        /** ReportExportList */
+        ReportExportList: {
+            /** Exports */
+            exports: components["schemas"]["ReportExportView"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** ReportExportView */
+        ReportExportView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Family
+             * @enum {string}
+             */
+            family: "social" | "spend" | "revenue" | "attribution" | "roas" | "funnel";
+            /** Parameters */
+            parameters: {
+                [key: string]: unknown;
+            };
+            period: components["schemas"]["ExportPeriod"];
+            /** Includes Financials */
+            includes_financials: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "schedule";
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Requested By Membership Id
+             * Format: uuid
+             */
+            requested_by_membership_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "revoked" | "expired";
+            /** Revoked Reason */
+            revoked_reason: ("manual" | "erasure" | "disconnection" | "connection_purged" | "client_archived") | null;
+            /** Revoked At */
+            revoked_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Row Count */
+            row_count: number | null;
+            /** Byte Size */
+            byte_size: number | null;
+            /** Report Revision */
+            report_revision: string | null;
+            /** Download Count */
+            download_count: number;
+            /** Last Downloaded At */
+            last_downloaded_at: string | null;
+        };
+        /** ReportModelVersion */
+        ReportModelVersion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Version Key */
+            version_key: string;
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "first_click" | "last_click" | "linear";
+            /** Window Days */
+            window_days: number;
+            /** Rules */
+            rules: string;
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "retired";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Retired At */
+            retired_at: string | null;
+        };
+        /** ReportScheduleList */
+        ReportScheduleList: {
+            /** Schedules */
+            schedules: components["schemas"]["ReportScheduleView"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** ReportScheduleView */
+        ReportScheduleView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Name */
+            name: string;
+            /** Report */
+            report: {
+                [key: string]: unknown;
+            };
+            /** Sale Values */
+            sale_values: boolean;
+            /**
+             * Cadence
+             * @enum {string}
+             */
+            cadence: "daily" | "weekly" | "monthly";
+            /** Weekday */
+            weekday: number | null;
+            /** Hour */
+            hour: number;
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+            /** Pause Reason */
+            pause_reason: ("manual" | "owner_access_lost" | "repeated_failures") | null;
+            /**
+             * Owner Membership Id
+             * Format: uuid
+             */
+            owner_membership_id: string;
+            /** Next Run At */
+            next_run_at: string | null;
+            last_run: components["schemas"]["ScheduleRun"];
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Receiving */
+            receiving: boolean;
+            /** Recipients */
+            recipients: string[] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** ReportStreamCoverage */
         ReportStreamCoverage: {
@@ -4178,6 +5511,36 @@ export interface components {
             comparable: boolean;
             /** Reason */
             reason: string | null;
+        };
+        /** RevenueExportInput */
+        RevenueExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "revenue";
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** RevenueParameters */
+        RevenueParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "revenue";
+            /** Compare */
+            compare?: "previous" | null;
         };
         /** RevenueReport */
         RevenueReport: {
@@ -4318,6 +5681,240 @@ export interface components {
              * @enum {string}
              */
             reason_code: "provider_contacted" | "awaiting_evidence" | "confirmed_duplicate" | "reviewed_no_action" | "new_information";
+        };
+        /** RoasComparison */
+        RoasComparison: {
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "spend" | "credited_revenue" | "credited_leads";
+            /** Currency */
+            currency: string | null;
+            /** Exponent */
+            exponent: number | null;
+            /** Current Value */
+            current_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | null;
+            /** Previous Value */
+            previous_value: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | null;
+            /** Difference */
+            difference: components["schemas"]["Amount"] | components["schemas"]["ExactShare"] | null;
+            /** Percent Change */
+            percent_change: string | null;
+            /** Comparable */
+            comparable: boolean;
+            /** Reason */
+            reason: string | null;
+        };
+        /** RoasExportInput */
+        RoasExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "roas";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Level
+             * @default ad
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** RoasParameters */
+        RoasParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "roas";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Level
+             * @default ad
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign";
+            /** Model Version */
+            model_version?: string | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** RoasReportResult */
+        RoasReportResult: {
+            /** Contract Version */
+            contract_version: string;
+            /**
+             * Family
+             * @constant
+             */
+            family: "roas";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign";
+            period: components["schemas"]["PeriodView"];
+            comparison_period: components["schemas"]["PeriodView"] | null;
+            /** Day Zone */
+            day_zone: string;
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "conversion_date";
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Revision */
+            revision: string;
+            model_version: components["schemas"]["ReportModelVersion"] | null;
+            attribution: components["schemas"]["AttributionFreshness"];
+            /**
+             * Finance
+             * @constant
+             */
+            finance: "available";
+            values: components["schemas"]["ValuesState"];
+            /** Totals */
+            totals: components["schemas"]["RoasTotal"][];
+            /** Unmatched */
+            unmatched: components["schemas"]["RoasUnmatched"][] | null;
+            /** Unmatched Leads */
+            unmatched_leads: components["schemas"]["RoasUnmatchedLeads"][] | null;
+            /** Comparison */
+            comparison: components["schemas"]["RoasComparison"][] | null;
+            /** Rows */
+            rows: components["schemas"]["RoasValue"][];
+            page: components["schemas"]["PageView"];
+            spend_source: components["schemas"]["SpendSource"];
+            /** Dependencies */
+            dependencies: components["schemas"]["Dependency"][];
+        };
+        /** RoasTotal */
+        RoasTotal: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign" | "account";
+            /** Object Id */
+            object_id: string;
+            /** Campaign Id */
+            campaign_id: string | null;
+            /** Adset Id */
+            adset_id: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Exponent */
+            exponent: number | null;
+            spend: components["schemas"]["Amount"] | null;
+            credited_revenue: components["schemas"]["Amount"] | null;
+            roas: components["schemas"]["ExactShare"] | null;
+            /** Roas Reason */
+            roas_reason: string | null;
+            /**
+             * Spend State
+             * @enum {string}
+             */
+            spend_state: "complete" | "provisional" | "incomplete";
+            credited_leads: components["schemas"]["ExactShare"] | null;
+            cost_per_lead: components["schemas"]["ExactShare"] | null;
+            /** Cost Per Lead Reason */
+            cost_per_lead_reason: string | null;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+        };
+        /** RoasUnmatched */
+        RoasUnmatched: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            /** Currency */
+            currency: string;
+            /** Exponent */
+            exponent: number;
+            credited_revenue: components["schemas"]["Amount"];
+        };
+        /** RoasUnmatchedLeads */
+        RoasUnmatchedLeads: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "current" | "previous";
+            credited_leads: components["schemas"]["ExactShare"];
+        };
+        /** RoasValue */
+        RoasValue: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign" | "account";
+            /** Object Id */
+            object_id: string;
+            /** Campaign Id */
+            campaign_id: string | null;
+            /** Adset Id */
+            adset_id: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Exponent */
+            exponent: number | null;
+            spend: components["schemas"]["Amount"] | null;
+            credited_revenue: components["schemas"]["Amount"] | null;
+            roas: components["schemas"]["ExactShare"] | null;
+            /** Roas Reason */
+            roas_reason: string | null;
+            /**
+             * Spend State
+             * @enum {string}
+             */
+            spend_state: "complete" | "provisional" | "incomplete";
+            credited_leads: components["schemas"]["ExactShare"] | null;
+            cost_per_lead: components["schemas"]["ExactShare"] | null;
+            /** Cost Per Lead Reason */
+            cost_per_lead_reason: string | null;
         };
         /**
          * Role
@@ -4497,6 +6094,68 @@ export interface components {
             /** Excluded */
             excluded: components["schemas"]["RunExcludedView"][];
         };
+        /** ScheduleChangeInput */
+        ScheduleChangeInput: {
+            /** Name */
+            name?: string | null;
+            /** Report */
+            report?: (components["schemas"]["SocialParameters"] | components["schemas"]["SpendParameters"] | components["schemas"]["RevenueParameters"] | components["schemas"]["AttributionParameters"] | components["schemas"]["RoasParameters"] | components["schemas"]["FunnelParameters"]) | null;
+            /** Sale Values */
+            sale_values?: boolean | null;
+            /** Cadence */
+            cadence?: ("daily" | "weekly" | "monthly") | null;
+            /** Weekday */
+            weekday?: number | null;
+            /** Hour */
+            hour?: number | null;
+            /** Time Zone */
+            time_zone?: string | null;
+            /** Recipients */
+            recipients?: string[] | null;
+            /** Status */
+            status?: ("active" | "paused") | null;
+        };
+        /** ScheduleInput */
+        ScheduleInput: {
+            /** Name */
+            name: string;
+            /** Report */
+            report: components["schemas"]["SocialParameters"] | components["schemas"]["SpendParameters"] | components["schemas"]["RevenueParameters"] | components["schemas"]["AttributionParameters"] | components["schemas"]["RoasParameters"] | components["schemas"]["FunnelParameters"];
+            /**
+             * Sale Values
+             * @default false
+             */
+            sale_values: boolean;
+            /**
+             * Cadence
+             * @enum {string}
+             */
+            cadence: "daily" | "weekly" | "monthly";
+            /** Weekday */
+            weekday?: number | null;
+            /** Hour */
+            hour: number;
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * Recipients
+             * @default []
+             */
+            recipients: string[];
+        };
+        /** ScheduleRun */
+        ScheduleRun: {
+            /** At */
+            at: string | null;
+            /** Outcome */
+            outcome: ("built" | "failed") | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Notified */
+            notified: number;
+            /** Skipped */
+            skipped: number;
+        };
         /** ServiceKeyInput */
         ServiceKeyInput: {
             /** Name */
@@ -4589,6 +6248,74 @@ export interface components {
             comparable: boolean;
             /** Reason */
             reason: string | null;
+        };
+        /** SocialContentItem */
+        SocialContentItem: {
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /** Provider */
+            provider: string;
+            /** Stream */
+            stream: string;
+            /** Content Id */
+            content_id: string;
+        };
+        /** SocialExportInput */
+        SocialExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "social";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "daily" | "content_cohort";
+            /** Metrics */
+            metrics?: string[] | null;
+            /** Compare */
+            compare?: "previous" | null;
+        };
+        /** SocialParameters */
+        SocialParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "social";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "daily" | "content_cohort";
+            /** Metrics */
+            metrics?: string[] | null;
+            /** Compare */
+            compare?: "previous" | null;
         };
         /** SocialReportResult */
         SocialReportResult: {
@@ -4886,6 +6613,37 @@ export interface components {
              */
             state: "not_synced" | "partial" | "complete";
         };
+        /** SpendExportInput */
+        SpendExportInput: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "spend";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Level
+             * @default ad
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign";
+            /** Compare */
+            compare?: "previous" | null;
+        };
         /** SpendFreshness */
         SpendFreshness: {
             /**
@@ -4897,6 +6655,27 @@ export interface components {
             freshness_hours: number;
             /** Last Stream Success At */
             last_stream_success_at: string | null;
+        };
+        /** SpendParameters */
+        SpendParameters: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            family: "spend";
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Level
+             * @default ad
+             * @enum {string}
+             */
+            level: "ad" | "adset" | "campaign";
+            /** Compare */
+            compare?: "previous" | null;
         };
         /** SpendPeriodStatus */
         SpendPeriodStatus: {
@@ -5304,6 +7083,36 @@ export interface components {
              */
             token: string;
         };
+        /** TrackedEventsUse */
+        TrackedEventsUse: {
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Count */
+            count: number;
+            /**
+             * Count Capped
+             * @description True when more events exist than the bounded count reports.
+             */
+            count_capped: boolean;
+            /**
+             * Allowance
+             * @description The monthly allowance; null when unlimited.
+             */
+            allowance: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "within" | "over_allowance" | "unlimited";
+        };
         /** Unresolved */
         Unresolved: {
             /**
@@ -5351,6 +7160,16 @@ export interface components {
              * Format: date-time
              */
             email_verified_at: string;
+        };
+        /** ValuesState */
+        ValuesState: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "not_ready";
+            /** Reason */
+            reason: string | null;
         };
         /** VerificationCode */
         VerificationCode: {
@@ -5506,6 +7325,98 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agreement_versions_auth_agreements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgreementVersions"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     register_auth_register_post: {
         parameters: {
             query?: never;
@@ -5576,13 +7487,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Entity */
+            /** @description agreement_required with the current versions, or validation_failed. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["AgreementRequiredError"];
                 };
             };
             /** @description Too Many Requests */
@@ -5968,13 +7879,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Entity */
+            /** @description agreement_required with the current versions, or validation_failed. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["AgreementRequiredError"];
                 };
             };
             /** @description Too Many Requests */
@@ -6680,7 +8591,10 @@ export interface operations {
     };
     start_auth_google_start_get: {
         parameters: {
-            query?: never;
+            query?: {
+                terms?: string | null;
+                privacy?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7515,13 +9429,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description plan_limit_reached with the limit, its value and the use, or another state conflict. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -7714,13 +9628,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description plan_limit_reached with the limit, its value and the use, or another state conflict. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -7920,13 +9834,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description plan_limit_reached with the limit, its value and the use, or another state conflict. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -8428,13 +10342,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description plan_limit_reached with the limit, its value and the use, or another state conflict. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -8891,6 +10805,404 @@ export interface operations {
             path: {
                 agency_id: string;
                 credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    agency_plan_agencies__agency_id__plan_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyPlanResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_closure_agencies__agency_id__closure_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyClosureResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_closure_agencies__agency_id__closure_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgencyClosureInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyClosureResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_closure_agencies__agency_id__closure_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
             };
             cookie?: never;
         };
@@ -12659,6 +14971,110 @@ export interface operations {
             };
         };
     };
+    list_attribution_conversions_agencies__agency_id__clients__client_id__attribution_conversions_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+                kind?: ("sale" | "lead") | null;
+                status?: ("active" | "superseded") | null;
+                person_id?: string | null;
+                model_version?: string | null;
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversionListView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_campaigns_agencies__agency_id__clients__client_id__link_campaigns_get: {
         parameters: {
             query?: {
@@ -14546,13 +16962,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Host or uniqueness conflict. */
+            /** @description Host or uniqueness conflict, or plan_limit_reached with the limit, its value and the use. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -14651,13 +17067,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description Host or uniqueness conflict, or plan_limit_reached with the limit, its value and the use. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -14951,13 +17367,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
+            /** @description plan_limit_reached with the limit, its value and the use, or another state conflict. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["PlanLimitError"];
                 };
             };
             /** @description Request Entity Too Large */
@@ -17470,6 +19886,1952 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RevenueReportResult"];
                     "text/csv": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    attribution_report_agencies__agency_id__clients__client_id__reports_attribution_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+                group_by?: "campaign" | "content" | "link" | "recipient";
+                view?: "groups" | "models";
+                model_version?: string | null;
+                compare?: "previous" | null;
+                page?: number;
+                page_size?: number;
+                expected_revision?: string | null;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as JSON, or as a CSV attachment with format=csv. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributionReportResult"];
+                    "text/csv": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    roas_report_agencies__agency_id__clients__client_id__reports_roas_get: {
+        parameters: {
+            query: {
+                connection_id: string;
+                start: string;
+                end: string;
+                level?: "ad" | "adset" | "campaign";
+                model_version?: string | null;
+                compare?: "previous" | null;
+                page?: number;
+                page_size?: number;
+                expected_revision?: string | null;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as JSON, or as a CSV attachment with format=csv. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoasReportResult"];
+                    "text/csv": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    funnel_report_agencies__agency_id__clients__client_id__reports_funnel_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+                group_by?: "campaign" | "content" | "link";
+                model_version?: string | null;
+                compare?: "previous" | null;
+                page?: number;
+                page_size?: number;
+                expected_revision?: string | null;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as JSON, or as a CSV attachment with format=csv. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunnelReportResult"];
+                    "text/csv": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_report_exports_agencies__agency_id__clients__client_id__report_exports_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportExportList"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_report_export_agencies__agency_id__clients__client_id__report_exports_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocialExportInput"] | components["schemas"]["SpendExportInput"] | components["schemas"]["RevenueExportInput"] | components["schemas"]["AttributionExportInput"] | components["schemas"]["RoasExportInput"] | components["schemas"]["FunnelExportInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportExportView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportExportView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revoke_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportExportView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    download_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored CSV attachment of the export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/csv": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_report_schedules_agencies__agency_id__clients__client_id__report_schedules_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleList"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_report_schedule_agencies__agency_id__clients__client_id__report_schedules_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    change_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleChangeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    leave_report_schedule_agencies__agency_id__clients__client_id__report_schedules__schedule_id__recipients_me_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+                client_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_branding_agencies__agency_id__branding_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyBrandingView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_branding_agencies__agency_id__branding_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandingInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyBrandingView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_branding_logo_agencies__agency_id__branding_logo_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored PNG logo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/png": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_branding_logo_agencies__agency_id__branding_logo_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/png": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyBrandingView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_branding_logo_agencies__agency_id__branding_logo_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required for mutations. */
+                Origin?: string | null;
+                /** @description Session-bound token from login or /auth/me; required for mutations. */
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                agency_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgencyBrandingView"];
                 };
             };
             /** @description Bad Request */

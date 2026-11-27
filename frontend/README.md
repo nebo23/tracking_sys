@@ -1,7 +1,7 @@
 # Frontend
 Connect, the web application of the Tracking System (specification 018). Slice 018-A is implemented: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page, in English and Arabic and in both themes. It is presented for the owner's review; see the [018-A evidence](../specs/018-react-workspace/evidence-018a.md) for what was checked and what was not. Later slices (018-B to 018-D) are not started.
 
-The agreement box of the sign-in and registration screens is enforced in the interface and recorded nowhere yet (D15). No real user may be given the application before that record and the legal texts exist.
+The agreement box of the sign-in and registration screens is enforced in the interface, and since Spec 017-A the API records it: registration, every sign-in and the Google start send the versions of `GET /auth/agreements`, and a version that changed while the page was open is refused with `agreement_required` and explained above the form (screen A03). The legal texts are not written yet (the versions are `draft-1`), so no real user may be given the application before they exist.
 
 ## Requirements
 - Node.js 24.15 or later and npm. Every package is local to this folder and pinned to an exact version; nothing is installed globally (D-011). Another package or another version needs an owner decision (D-084).

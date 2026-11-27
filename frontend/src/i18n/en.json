@@ -29,6 +29,9 @@
 
   "agreement.label": "I agree to the <terms>Terms of Service</terms> and the <privacy>Privacy Policy</privacy>.",
   "agreement.required": "Tick the box to agree before you continue.",
+  "agreement.changed.title": "The terms changed while this page was open.",
+  "agreement.changed.signIn": "Read the new Terms of Service and Privacy Policy, then tick the box again to sign in.",
+  "agreement.changed.register": "Read the new Terms of Service and Privacy Policy, then tick the box again to create your account.",
 
   "field.error.required": "This field is needed.",
   "field.error.email": "Enter a complete address, such as name@agency.com.",

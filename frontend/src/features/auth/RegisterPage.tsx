@@ -1,13 +1,14 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useRef, useState, type FormEvent } from 'react';
 import { FormattedMessage } from 'react-intl';
 
+import { currentAgreements, forgetAgreements, isAgreementRequired } from '@/api/agreements';
 import { describeError, type ErrorMessage } from '@/api/errors';
 import { register } from '@/api/session';
 import { AgreementBox } from '@/components/AgreementBox';
 import { Field, PasswordField } from '@/components/Field';
-import { ErrorNotice } from '@/components/Notice';
+import { ErrorNotice, Notice } from '@/components/Notice';
 import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { SubmitButton } from '@/components/SubmitButton';
 import type { MessageId } from '@/i18n';
@@ -25,6 +26,7 @@ interface Errors {
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   usePageTitle('register.title');
 
   const [name, setName] = useState('');
@@ -33,19 +35,33 @@ export function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
+  const [termsChanged, setTermsChanged] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const agreementRef = useRef<HTMLInputElement>(null);
 
+  // The versions changed while the page was open (A03): forget them so that the next attempt
+  // reads the new ones, untick the box and keep what was typed.
+  const refuseOutdatedTerms = () => {
+    forgetAgreements(queryClient);
+    setAgreed(false);
+    setTermsChanged(true);
+    agreementRef.current?.focus();
+  };
+
   const request = useMutation({
-    mutationFn: () => register(name.trim(), email.trim(), password),
+    mutationFn: async () => register(name.trim(), email.trim(), password, await currentAgreements(queryClient)),
     // The API answers the same way for every address, and so does this screen.
     onSuccess() {
       pendingEmail.set(email.trim());
       void navigate({ to: '/verify-email' });
     },
     onError(error) {
+      if (isAgreementRequired(error)) {
+        refuseOutdatedTerms();
+        return;
+      }
       setProblem(describeError(error));
     },
   });
@@ -67,7 +83,9 @@ export function RegisterPage() {
       [found.password, passwordRef],
       [found.agreement, agreementRef],
     );
-    if (!stopped) request.mutate();
+    if (stopped) return;
+    setTermsChanged(false);
+    request.mutate();
   };
 
   return (
@@ -84,6 +102,11 @@ export function RegisterPage() {
       <ErrorNotice message={problem} />
 
       <form className="l-stack" noValidate onSubmit={onSubmit}>
+        {termsChanged ? (
+          <Notice tone="warning" title={<FormattedMessage id="agreement.changed.title" />}>
+            <FormattedMessage id="agreement.changed.register" />
+          </Notice>
+        ) : null}
         <Field
           id="register-name"
           ref={nameRef}

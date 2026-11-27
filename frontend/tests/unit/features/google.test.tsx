@@ -29,7 +29,31 @@ describe('Google sign-in, when the build enables it', () => {
 
     await user.click(agreementBox());
     await user.click(screen.getByRole('button', { name: 'Sign in with Google' }));
-    expect(goTo).toHaveBeenCalledWith('http://127.0.0.1:8000/auth/google/start');
+    await waitFor(() =>
+      expect(goTo).toHaveBeenCalledWith('http://127.0.0.1:8000/auth/google/start?terms=draft-1&privacy=draft-1'),
+    );
+  });
+
+  it('cannot start while the current versions cannot be read', async () => {
+    fakeApi({ ...signedOut(), 'GET /auth/agreements': refused(503, 'temporarily_unavailable') });
+    const user = userEvent.setup();
+    openApp('/sign-in');
+
+    await user.click(await screen.findByRole('button', { name: 'Sign in with Google' }));
+    await user.click(agreementBox());
+    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Connect is busy for a moment.');
+    expect(goTo).not.toHaveBeenCalled();
+  });
+
+  it('comes back to the sign-in page when the terms changed before Google answered', async () => {
+    fakeApi(signedOut());
+    openApp('/auth/google/complete?error=agreement_required');
+
+    expect(await screen.findByText('The terms changed while this page was open.')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sign-in');
+    expect(agreementBox()).not.toBeChecked();
   });
 
   it('is linked from the account page through the address the API hands over', async () => {

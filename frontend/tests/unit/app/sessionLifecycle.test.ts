@@ -168,8 +168,8 @@ describe('moving to another agency', () => {
 
   it('works in the chosen agency while the person belongs to it, otherwise in the first', () => {
     const agencies = [
-      { agency_id: agency.id, role: 'owner' as const },
-      { agency_id: otherAgency, role: 'analyst' as const },
+      { agency_id: agency.id, role: 'owner' as const, status: 'active' as const },
+      { agency_id: otherAgency, role: 'analyst' as const, status: 'active' as const },
     ];
     expect(currentAccess(agencies, otherAgency)?.agency_id).toBe(otherAgency);
     expect(currentAccess(agencies, 'an-agency-the-person-left')?.agency_id).toBe(agency.id);

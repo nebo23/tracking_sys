@@ -40,6 +40,10 @@ export const agency = {
 
 export const password = 'correct horse battery staple';
 
+/** The agreement versions of GET /auth/agreements, and what a sign-in sends after ticking the box. */
+export const agreementVersions = { terms: 'draft-1', privacy: 'draft-1', published: false };
+export const accepted = { terms: 'draft-1', privacy: 'draft-1' };
+
 /** A token of the shape the API puts in mail links (43 URL-safe characters). */
 export const linkToken = 'Zm9yLXRlc3RzLW9ubHktbm90LWEtcmVhbC10b2tlbi0x';
 
@@ -74,10 +78,11 @@ export function fakeApi(routes: Record<string, Answer>) {
 /** The answers of an API where Mona is signed in and owns one agency. */
 export const signedIn = (): Record<string, Answer> => ({
   'GET /auth/me': json(200, session),
-  'GET /agencies': json(200, [{ agency_id: agency.id, role: 'owner' }]),
+  'GET /agencies': json(200, [{ agency_id: agency.id, role: 'owner', status: 'active' }]),
   [`GET /agencies/${agency.id}`]: json(200, agency),
 });
 
 export const signedOut = (): Record<string, Answer> => ({
   'GET /auth/me': refused(401, 'authentication_required'),
+  'GET /auth/agreements': json(200, agreementVersions),
 });
