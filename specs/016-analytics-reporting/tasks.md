@@ -1,6 +1,6 @@
 # Tasks: 016-analytics-reporting
 
-Updated: 2026-11-27. Preparation under D-071; 016-A implemented under D-072; 016-B implemented under D-089; 016-C prepared under D-094 ([entry review](entry-review-016c.md)) and implemented under D-095. Checked items are supported by the [evidence](evidence.md), the [016-B evidence](evidence-016b.md) and the [016-C evidence](evidence-016c.md); unchecked items remain open.
+Updated: 2026-11-27. Preparation under D-071; 016-A implemented under D-072; 016-B implemented under D-089; 016-C prepared under D-094 ([entry review](entry-review-016c.md)), implemented under D-095 and merged in PR 20 ([merge review](merge-review-016c.md), D-096). Checked items are supported by the [evidence](evidence.md), the [016-B evidence](evidence-016b.md) and the [016-C evidence](evidence-016c.md); unchecked items remain open.
 
 ## Preparation
 
