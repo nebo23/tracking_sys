@@ -43,6 +43,7 @@ const sample = {
   time: '16:00',
   total: 6,
   used: 38,
+  value: 40,
   address: 'go.olive.example/r/ramadan-reel',
   sites: 'shop.olive.example',
   host: 'go.olive.example',

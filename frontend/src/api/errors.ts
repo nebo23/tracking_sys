@@ -1,18 +1,39 @@
 import type { MessageId } from '@/i18n';
 
+const planLimits = ['clients', 'seats', 'connections', 'managed_links'] as const;
+
+/** The limit that a 409 plan_limit_reached names: which one, its value and its use (017-A). */
+export interface PlanLimit {
+  limit: (typeof planLimits)[number];
+  value: number;
+  used: number;
+}
+
+/** The limit in an error body, when the API named one completely; otherwise null. */
+export function planLimitOf(body: unknown): PlanLimit | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { limit, value, used } = body as Record<string, unknown>;
+  const known = planLimits.find((name) => name === limit);
+  if (!known || typeof value !== 'number' || typeof used !== 'number') return null;
+  return { limit: known, value, used };
+}
+
 /** An error answer of the API, or a request that never reached it (status 0). */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   /** Seconds from Retry-After, when the browser is allowed to read that header. */
   readonly retryAfterSeconds: number | null;
+  /** The limit of a plan_limit_reached answer, when the API named it. */
+  readonly planLimit: PlanLimit | null;
 
-  constructor(status: number, code: string, retryAfterSeconds: number | null = null) {
+  constructor(status: number, code: string, retryAfterSeconds: number | null = null, planLimit: PlanLimit | null = null) {
     super(code);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.planLimit = planLimit;
   }
 }
 
@@ -65,6 +86,11 @@ const byCode: Record<string, MessageId> = {
 
 export function describeError(error: unknown, overrides: Partial<Record<string, MessageId>> = {}): ErrorMessage {
   if (!isApiError(error)) return { id: 'error.unknown' };
+  // A named plan limit says more than any screen's own sentence for the code.
+  if (error.code === 'plan_limit_reached' && error.planLimit) {
+    const { limit, value, used } = error.planLimit;
+    return { id: `error.plan_limit_reached.${limit}`, values: { value, used } };
+  }
   const override = overrides[error.code];
   if (override) return { id: override };
   if (error.code === 'rate_limited' && error.retryAfterSeconds !== null) {

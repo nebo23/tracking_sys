@@ -99,6 +99,22 @@ describe('the audit log', () => {
     expect(row.getByText('someone who is not a member')).toBeInTheDocument();
   });
 
+  it('names the Connect operator for its rows and tells the actions of 017-A and 016-C', async () => {
+    fakeApi(
+      world([
+        event('agency.plan_assigned', { actor_kind: 'platform_operator', actor_user_id: null, resource_type: 'plan_assignment' }),
+        event('agency.closure_requested', { actor_kind: 'user', resource_type: 'agency_closure' }),
+        event('report_schedule.created', { actor_kind: 'user', client_id: client.id, resource_type: 'report_schedule' }),
+      ]),
+    );
+    openApp(auditPath);
+
+    expect(await screen.findByText("Assigned the agency's plan")).toBeInTheDocument();
+    expect(rowOf("Assigned the agency's plan").getByText('The Connect operator')).toBeInTheDocument();
+    expect(rowOf('Asked to close the agency').getByText('Mona Hassan')).toBeInTheDocument();
+    expect(rowOf('Scheduled a report').getByText('Olive & Thyme')).toBeInTheDocument();
+  });
+
   it('says so when nothing is recorded', async () => {
     fakeApi(world([]));
     openApp(auditPath);

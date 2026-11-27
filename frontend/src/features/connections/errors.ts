@@ -20,6 +20,8 @@ export const connectionErrors: Partial<Record<string, MessageId>> = {
   sync_required: 'connections.error.sync_required',
   invalid_stream: 'connections.error.sync_failed',
   invalid_backfill: 'connections.error.sync_failed',
+  // 017-A: the plan of the agency allows no more connections (named when the API names it).
+  plan_limit_reached: 'connections.error.plan_limit_reached',
   // In these operations a refusal means the role, and a conflict means the state moved on.
   access_denied: 'connections.error.access_denied',
 };

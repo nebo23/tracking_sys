@@ -41,8 +41,9 @@ export function AuditPage() {
     clientId ? [...(clients.data ?? []), ...(archived.data ?? [])].find((client) => client.id === clientId)?.name : undefined;
 
   const who = (event: AuditEvent): string => {
-    // A change the platform operator made has no member behind it (specification 017).
-    if (!event.actor_user_id) return intl.formatMessage({ id: 'audit.operator' });
+    // A change the platform operator made has no member behind it (017-A, actor_kind).
+    if (event.actor_kind === 'platform_operator') return intl.formatMessage({ id: 'audit.operator' });
+    if (!event.actor_user_id) return intl.formatMessage({ id: 'audit.someone' });
     return personName(members.data?.find((member) => member.user_id === event.actor_user_id));
   };
 

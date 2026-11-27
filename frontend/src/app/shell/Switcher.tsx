@@ -48,7 +48,9 @@ export function Switcher({ current, clientId, compact = false }: SwitcherProps) 
   const anyAgency = intl.formatMessage({ id: 'shell.switcher.agency' });
 
   const title = clientId ? client?.name : (agencyName ?? (mayNameAgency(current) ? undefined : anyAgency));
-  const subtitle = clientId ? agencyName : intl.formatMessage({ id: 'shell.switcher.all' });
+  const subtitle = clientId
+    ? agencyName
+    : intl.formatMessage({ id: current.status === 'closing' ? 'shell.switcher.closing' : 'shell.switcher.all' });
 
   const openClients = (keys: Selection) => {
     const key = only(keys);
@@ -128,7 +130,11 @@ export function Switcher({ current, clientId, compact = false }: SwitcherProps) 
                       </span>
                       <span className="u-grow u-truncate">{label}</span>
                       <span className="u-tertiary">
-                        <FormattedMessage id={`role.${agency.role}`} />
+                        {agency.status === 'closing' ? (
+                          <FormattedMessage id="shell.switcher.closing" />
+                        ) : (
+                          <FormattedMessage id={`role.${agency.role}`} />
+                        )}
                       </span>
                     </MenuItem>
                   );

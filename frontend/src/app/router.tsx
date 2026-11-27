@@ -16,6 +16,7 @@ import { clientQuery } from '@/api/clients';
 import { isApiError } from '@/api/errors';
 import { sessionQuery } from '@/api/session';
 import { AccountPage } from '@/features/account/AccountPage';
+import { ClosingPage } from '@/features/agency/ClosingPage';
 import { WelcomePage } from '@/features/agency/WelcomePage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage';
@@ -210,10 +211,14 @@ async function accessTo(queryClient: QueryClient, agencyId: string): Promise<Age
 const agencyRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: '/agencies/$agencyId',
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context, params, location }) => {
     const access = await accessTo(context.queryClient, params.agencyId);
     // The agency a person opens is the one the start address leads to next time.
     if (access && agencyChoice.get() !== access.agency_id) agencyChoice.set(access.agency_id);
+    // A closing agency (017-A) has one page: the API refuses every other route of it.
+    if (access?.status === 'closing' && location.pathname !== `/agencies/${params.agencyId}/closing`) {
+      throw redirect({ to: '/agencies/$agencyId/closing', params, replace: true });
+    }
     return { access };
   },
   // An address is not permission: an agency the person does not belong to does not exist for them.
@@ -234,6 +239,16 @@ const clientsRoute = createRoute({
   getParentRoute: () => agencyRoute,
   path: 'clients',
   component: ClientsPage,
+});
+
+// Screen B15: the page of an agency that is closing. An agency that is not closing has none.
+const closingRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'closing',
+  beforeLoad: ({ context, params }) => {
+    if (context.access?.status !== 'closing') throw redirect({ to: '/agencies/$agencyId/clients', params, replace: true });
+  },
+  component: ClosingPage,
 });
 
 /** The pages of the people who manage the agency. For anyone else they do not exist. */
@@ -380,6 +395,7 @@ const routeTree = rootRoute.addChildren([
     agencyRoute.addChildren([
       agencyIndexRoute,
       clientsRoute,
+      closingRoute,
       teamRoute,
       keysRoute,
       auditRoute,

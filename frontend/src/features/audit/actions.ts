@@ -74,6 +74,22 @@ const actions: Record<string, AuditAction> = {
   'attribution.model_created': action('audit.action.attribution.model_created'),
   'attribution.model_default_set': action('audit.action.attribution.model_default_set'),
   'attribution.model_retired': action('audit.action.attribution.model_retired'),
+  // 017-A: the plan, the operator's suspension and the closure of the agency.
+  'agency.plan_assigned': action('audit.action.agency.plan_assigned'),
+  'agency.suspended': action('audit.action.agency.suspended'),
+  'agency.reactivated': action('audit.action.agency.reactivated'),
+  'agency.closure_requested': action('audit.action.agency.closure_requested'),
+  'agency.closure_cancelled': action('audit.action.agency.closure_cancelled'),
+  // Platform rows without an agency; the agency's audit log never lists them.
+  'plan.created': action('audit.action.plan.created'),
+  'plan.default_set': action('audit.action.plan.default_set'),
+  // 016-C: retained exports, scheduled reports and the branding profile.
+  'report_export.created': action('audit.action.report_export.created'),
+  'report_export.revoked': action('audit.action.report_export.revoked'),
+  'report_schedule.created': action('audit.action.report_schedule.created'),
+  'report_schedule.updated': action('audit.action.report_schedule.updated'),
+  'report_schedule.deleted': action('audit.action.report_schedule.deleted'),
+  'branding.updated': action('audit.action.branding.updated'),
 };
 
 /** The sentence of an action code, or null for a code this interface does not know yet. */

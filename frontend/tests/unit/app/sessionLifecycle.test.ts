@@ -182,4 +182,14 @@ describe('moving to another agency', () => {
     expect(currentAccess(agencies, null)?.agency_id).toBe(agency.id);
     expect(currentAccess([], agency.id)).toBeUndefined();
   });
+
+  it('starts in an agency that is not closing, unless the person chose the closing one', () => {
+    const agencies = [
+      { agency_id: agency.id, role: 'owner' as const, status: 'closing' as const },
+      { agency_id: otherAgency, role: 'analyst' as const, status: 'active' as const },
+    ];
+    expect(currentAccess(agencies, null)?.agency_id).toBe(otherAgency);
+    expect(currentAccess(agencies, agency.id)?.agency_id).toBe(agency.id);
+    expect(currentAccess([agencies[0]!], null)?.agency_id).toBe(agency.id);
+  });
 });

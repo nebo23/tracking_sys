@@ -2,7 +2,7 @@ import createClient, { type Middleware } from 'openapi-fetch';
 
 import { apiOrigin } from '@/app/config';
 
-import { ApiError } from './errors';
+import { ApiError, planLimitOf } from './errors';
 import type { paths } from './schema';
 
 // The session is an HttpOnly cookie that this code never sees. The request-forgery token comes
@@ -74,5 +74,5 @@ export async function call<T>(pending: Promise<Answer<T>>, options: CallOptions 
   const code = errorCode(answer.error);
   // A wrong password is a 401 as well (invalid_credentials); it says nothing about the session.
   if (answer.response.status === 401 && code !== 'invalid_credentials' && !options.asksAboutSession) onUnauthorized?.();
-  throw new ApiError(answer.response.status, code, retryAfter(answer.response));
+  throw new ApiError(answer.response.status, code, retryAfter(answer.response), planLimitOf(answer.error));
 }

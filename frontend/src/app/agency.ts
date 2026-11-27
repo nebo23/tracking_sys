@@ -44,9 +44,16 @@ export const agencyChoice = {
   },
 };
 
-/** The chosen agency while the person still belongs to it, otherwise the first one. */
+/**
+ * The chosen agency while the person still belongs to it, otherwise the first one that is not
+ * closing, otherwise the first one.
+ */
 export function currentAccess(agencies: readonly AgencyAccess[], choice: string | null): AgencyAccess | undefined {
-  return agencies.find((agency) => agency.agency_id === choice) ?? agencies[0];
+  return (
+    agencies.find((agency) => agency.agency_id === choice) ??
+    agencies.find((agency) => agency.status !== 'closing') ??
+    agencies[0]
+  );
 }
 
 /** The agency and the client that the address names, when it names them by an identifier. */

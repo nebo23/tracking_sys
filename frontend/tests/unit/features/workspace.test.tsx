@@ -70,7 +70,7 @@ describe('the way into the workspace', () => {
       ...signedIn(),
       'GET /agencies': () => json(200, agencies),
       'POST /agencies': () => {
-        agencies = [{ agency_id: agency.id, role: 'owner' }];
+        agencies = [{ agency_id: agency.id, role: 'owner', status: 'active' }];
         return json(201, agency);
       },
     });
@@ -126,8 +126,8 @@ describe('the address', () => {
     fakeApi({
       ...signedIn(),
       'GET /agencies': json(200, [
-        { agency_id: agency.id, role: 'owner' },
-        { agency_id: second.id, role: 'analyst' },
+        { agency_id: agency.id, role: 'owner', status: 'active' },
+        { agency_id: second.id, role: 'analyst', status: 'active' },
       ]),
       [`GET /agencies/${second.id}`]: json(200, second),
       [`GET /agencies/${second.id}/clients`]: json(200, []),
@@ -305,12 +305,60 @@ describe('the workspace', () => {
     expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'سجل التدقيق', 'الحساب']);
   });
 
+  it('opens only the closing page of a closing agency, and marks it in the switcher', async () => {
+    const server = fakeApi({
+      ...signedIn(),
+      'GET /agencies': json(200, [
+        { agency_id: agency.id, role: 'owner', status: 'active' },
+        { agency_id: second.id, role: 'owner', status: 'closing' },
+      ]),
+      [`GET /agencies/${second.id}`]: json(200, second),
+      [`GET /agencies/${second.id}/clients`]: refused(403, 'access_denied'),
+    });
+    const user = userEvent.setup();
+    openApp(`/agencies/${second.id}/clients`);
+
+    expect(await screen.findByRole('heading', { name: 'This agency is closing', level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/agencies/${second.id}/closing`);
+    expect(screen.getByText(/Only its Owners still see it/)).toBeInTheDocument();
+    expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(1);
+
+    await user.click(switcher());
+    const menu = within(await screen.findByRole('menu'));
+    expect(menu.getByRole('menuitem', { name: /Lumen Studio/ })).toHaveTextContent('Owner');
+  });
+
+  it('has no closing page for an agency that is not closing', async () => {
+    fakeApi(signedIn());
+    openApp(`/agencies/${agency.id}/closing`);
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
+    expect(window.location.pathname).toBe(clientsPath);
+  });
+
+  it('marks another agency that is closing in the switcher', async () => {
+    fakeApi({
+      ...signedIn(),
+      'GET /agencies': json(200, [
+        { agency_id: agency.id, role: 'owner', status: 'active' },
+        { agency_id: second.id, role: 'owner', status: 'closing' },
+      ]),
+      [`GET /agencies/${second.id}`]: json(200, second),
+    });
+    const user = userEvent.setup();
+    openApp(clientsPath);
+    await screen.findByRole('heading', { name: 'Clients', level: 1 });
+
+    await user.click(switcher());
+    const menu = within(await screen.findByRole('menu'));
+    expect(menu.getByRole('menuitem', { name: /Northlight Media/ })).toHaveTextContent('Closing');
+  });
+
   it('moves to another agency and drops what was loaded for the first', async () => {
     fakeApi({
       ...signedIn(),
       'GET /agencies': json(200, [
-        { agency_id: agency.id, role: 'owner' },
-        { agency_id: second.id, role: 'analyst' },
+        { agency_id: agency.id, role: 'owner', status: 'active' },
+        { agency_id: second.id, role: 'analyst', status: 'active' },
       ]),
       [`GET /agencies/${second.id}`]: json(200, second),
       [`GET /agencies/${second.id}/clients`]: json(200, []),

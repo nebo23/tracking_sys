@@ -14,6 +14,7 @@ export const returnErrors = [
   'scopes_missing',
   'provider_unavailable',
   'connector_not_configured',
+  'plan_limit_reached',
 ] as const;
 
 export type ReturnError = (typeof returnErrors)[number];
@@ -34,4 +35,5 @@ export const returnErrorMessage: Record<ReturnError, MessageId> = {
   scopes_missing: 'connections.error.scopes_missing',
   provider_unavailable: 'connections.error.provider_unavailable',
   connector_not_configured: 'connections.error.provider_unavailable',
+  plan_limit_reached: 'connections.error.plan_limit_reached',
 };

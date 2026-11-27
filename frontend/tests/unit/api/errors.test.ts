@@ -51,6 +51,21 @@ function codesInTheBackend(): string[] {
   return [...found].sort();
 }
 
+describe('a plan limit', () => {
+  it('is named with its value and its use when the API names it, in both languages', () => {
+    const limit = { limit: 'managed_links' as const, value: 500, used: 500 };
+    const message = describeError(new ApiError(409, 'plan_limit_reached', null, limit), {
+      plan_limit_reached: 'connections.error.plan_limit_reached',
+    });
+    expect(message).toEqual({ id: 'error.plan_limit_reached.managed_links', values: { value: 500, used: 500 } });
+    for (const name of ['clients', 'seats', 'connections', 'managed_links'] as const) {
+      expect(messages.en[`error.plan_limit_reached.${name}`]).toContain('{used, number}');
+      expect(messages.ar[`error.plan_limit_reached.${name}`]).toContain('{used, number}');
+    }
+    expect(describeError(new ApiError(409, 'plan_limit_reached')).id).toBe('error.plan_limit_reached');
+  });
+});
+
 describe('the error table', () => {
   it.each(documented)('has a sentence in both languages for %s', (code) => {
     const { id } = describeError(new ApiError(400, code));

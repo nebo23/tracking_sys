@@ -65,6 +65,19 @@ describe('the API client', () => {
     expect(error).toMatchObject({ status: 409, code: 'state_conflict', retryAfterSeconds: null });
   });
 
+  it('keeps the limit that a plan_limit_reached answer names, and nothing that is not one', async () => {
+    fakeApi({ 'POST /auth/login': json(409, { error: 'plan_limit_reached', limit: 'seats', value: 10, used: 10 }) });
+    await expect(call(api.POST('/auth/login', { body: { email: 'a@b.example', password: 'x' } }))).rejects.toMatchObject({
+      status: 409,
+      code: 'plan_limit_reached',
+      planLimit: { limit: 'seats', value: 10, used: 10 },
+    });
+    fakeApi({ 'POST /auth/login': json(409, { error: 'plan_limit_reached', limit: 'tables', value: 10, used: 10 }) });
+    await expect(call(api.POST('/auth/login', { body: { email: 'a@b.example', password: 'x' } }))).rejects.toMatchObject({
+      planLimit: null,
+    });
+  });
+
   it('reads the waiting time of a rate limit when the browser may read it', async () => {
     fakeApi({ 'POST /auth/login': refused(429, 'rate_limited', { 'Retry-After': '41' }) });
     const error = await failure(call(api.POST('/auth/login', { body: { email: 'a@b.example', password: 'x' } })));
