@@ -135,7 +135,9 @@ class SecurityEvent(Base):
 class MailOutbox(Base):
     __tablename__ = "mail_outbox"
     __table_args__ = (
-        CheckConstraint("purpose IN ('verify', 'reset', 'invitation')", name="valid_purpose"),
+        CheckConstraint(
+            "purpose IN ('verify', 'reset', 'invitation', 'report_ready')", name="valid_purpose"
+        ),
         CheckConstraint("attempts >= 0", name="nonnegative_attempts"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)

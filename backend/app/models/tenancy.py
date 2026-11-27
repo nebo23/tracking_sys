@@ -220,7 +220,9 @@ class AuditEvent(Base):
             "'attribution.model_default_set', 'attribution.model_retired', "
             "'agency.plan_assigned', 'agency.suspended', 'agency.reactivated', "
             "'agency.closure_requested', 'agency.closure_cancelled', 'plan.created', "
-            "'plan.default_set')",
+            "'plan.default_set', 'report_export.created', 'report_export.revoked', "
+            "'report_schedule.created', 'report_schedule.updated', 'report_schedule.deleted', "
+            "'branding.updated')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -230,7 +232,8 @@ class AuditEvent(Base):
             "'destination', 'delivery', 'payment_source', 'revenue_import', "
             "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
             "'identity_subject', 'revenue_issue', 'revenue_association', "
-            "'attribution_model', 'plan', 'plan_assignment', 'agency_closure')",
+            "'attribution_model', 'plan', 'plan_assignment', 'agency_closure', "
+            "'report_export', 'report_schedule', 'agency_branding')",
             name="valid_resource",
         ),
         CheckConstraint(

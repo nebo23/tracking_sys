@@ -21617,6 +21617,936 @@
         }
       }
     },
+    "/agencies/{agency_id}/clients/{client_id}/report-exports": {
+      "post": {
+        "tags": [
+          "Report delivery"
+        ],
+        "summary": "Create Report Export",
+        "operationId": "create_report_export_agencies__agency_id__clients__client_id__report_exports_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SocialExportInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SpendExportInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RevenueExportInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AttributionExportInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RoasExportInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FunnelExportInput"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "family",
+                  "mapping": {
+                    "social": "#/components/schemas/SocialExportInput",
+                    "spend": "#/components/schemas/SpendExportInput",
+                    "revenue": "#/components/schemas/RevenueExportInput",
+                    "attribution": "#/components/schemas/AttributionExportInput",
+                    "roas": "#/components/schemas/RoasExportInput",
+                    "funnel": "#/components/schemas/FunnelExportInput"
+                  }
+                },
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportExportView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Report delivery"
+        ],
+        "summary": "List Report Exports",
+        "operationId": "list_report_exports_agencies__agency_id__clients__client_id__report_exports_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportExportList"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/report-exports/{export_id}": {
+      "get": {
+        "tags": [
+          "Report delivery"
+        ],
+        "summary": "Read Report Export",
+        "operationId": "read_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportExportView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Report delivery"
+        ],
+        "summary": "Revoke Report Export",
+        "operationId": "revoke_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__delete",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportExportView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/agencies/{agency_id}/clients/{client_id}/report-exports/{export_id}/download": {
+      "get": {
+        "tags": [
+          "Report delivery"
+        ],
+        "summary": "Download Report Export",
+        "operationId": "download_report_export_agencies__agency_id__clients__client_id__report_exports__export_id__download_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agency Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for mutations.",
+              "title": "Origin"
+            },
+            "description": "Required for mutations."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Session-bound token from login or /auth/me; required for mutations.",
+              "title": "X-Csrf-Token"
+            },
+            "description": "Session-bound token from login or /auth/me; required for mutations."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored CSV attachment of the export.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/payment-sources": {
       "post": {
         "tags": [
@@ -26505,6 +27435,77 @@
         ],
         "title": "AssociationInput"
       },
+      "AttributionExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "attribution",
+            "title": "Family"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "content",
+              "link",
+              "recipient"
+            ],
+            "title": "Group By",
+            "default": "campaign"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "groups",
+              "models"
+            ],
+            "title": "View",
+            "default": "groups"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family"
+        ],
+        "title": "AttributionExportInput"
+      },
       "AttributionFreshness": {
         "properties": {
           "state": {
@@ -30637,6 +31638,31 @@
         ],
         "title": "ExcludedMetric"
       },
+      "ExportPeriod": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "days"
+        ],
+        "title": "ExportPeriod"
+      },
       "FinancialGrant": {
         "properties": {
           "can_view_financials": {
@@ -30923,6 +31949,67 @@
           "reason"
         ],
         "title": "FunnelComparison"
+      },
+      "FunnelExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "funnel",
+            "title": "Family"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "campaign",
+              "content",
+              "link"
+            ],
+            "title": "Group By",
+            "default": "campaign"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family"
+        ],
+        "title": "FunnelExportInput"
       },
       "FunnelLeadsTotal": {
         "properties": {
@@ -33830,6 +34917,216 @@
         ],
         "title": "Registration"
       },
+      "ReportExportList": {
+        "properties": {
+          "exports": {
+            "items": {
+              "$ref": "#/components/schemas/ReportExportView"
+            },
+            "type": "array",
+            "title": "Exports"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exports",
+          "limit",
+          "offset"
+        ],
+        "title": "ReportExportList"
+      },
+      "ReportExportView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "social",
+              "spend",
+              "revenue",
+              "attribution",
+              "roas",
+              "funnel"
+            ],
+            "title": "Family"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters"
+          },
+          "period": {
+            "$ref": "#/components/schemas/ExportPeriod"
+          },
+          "includes_financials": {
+            "type": "boolean",
+            "title": "Includes Financials"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "schedule"
+            ],
+            "title": "Source"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "requested_by_membership_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Requested By Membership Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "revoked",
+              "expired"
+            ],
+            "title": "Status"
+          },
+          "revoked_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "erasure",
+                  "disconnection",
+                  "connection_purged",
+                  "client_archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "byte_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byte Size"
+          },
+          "report_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Revision"
+          },
+          "download_count": {
+            "type": "integer",
+            "title": "Download Count"
+          },
+          "last_downloaded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Downloaded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "client_id",
+          "family",
+          "parameters",
+          "period",
+          "includes_financials",
+          "source",
+          "schedule_id",
+          "requested_by_membership_id",
+          "status",
+          "revoked_reason",
+          "revoked_at",
+          "created_at",
+          "expires_at",
+          "row_count",
+          "byte_size",
+          "report_revision",
+          "download_count",
+          "last_downloaded_at"
+        ],
+        "title": "ReportExportView"
+      },
       "ReportModelVersion": {
         "properties": {
           "id": {
@@ -34037,6 +35334,45 @@
           "reason"
         ],
         "title": "RevenueComparison"
+      },
+      "RevenueExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "revenue",
+            "title": "Family"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family"
+        ],
+        "title": "RevenueExportInput"
       },
       "RevenueReport": {
         "properties": {
@@ -34563,6 +35899,73 @@
           "reason"
         ],
         "title": "RoasComparison"
+      },
+      "RoasExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "roas",
+            "title": "Family"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign"
+            ],
+            "title": "Level",
+            "default": "ad"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family",
+          "connection_id"
+        ],
+        "title": "RoasExportInput"
       },
       "RoasReportResult": {
         "properties": {
@@ -36002,6 +37405,77 @@
         ],
         "title": "SocialContentItem"
       },
+      "SocialExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "social",
+            "title": "Family"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "content_cohort"
+            ],
+            "title": "View"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_]{1,64}$"
+                },
+                "type": "array",
+                "maxItems": 25,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metrics"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family",
+          "connection_id",
+          "view"
+        ],
+        "title": "SocialExportInput"
+      },
       "SocialReportResult": {
         "properties": {
           "contract_version": {
@@ -37019,6 +38493,61 @@
           "state"
         ],
         "title": "SpendCoverage"
+      },
+      "SpendExportInput": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "family": {
+            "type": "string",
+            "const": "spend",
+            "title": "Family"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Connection Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ad",
+              "adset",
+              "campaign"
+            ],
+            "title": "Level",
+            "default": "ad"
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "previous"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "family",
+          "connection_id"
+        ],
+        "title": "SpendExportInput"
       },
       "SpendFreshness": {
         "properties": {

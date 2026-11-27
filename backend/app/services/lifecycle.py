@@ -27,7 +27,9 @@ booking_links first clears the booking's subject_id and linked_at together, and 
 deleted only once no booking references it (review finding R002, D-070). The booking itself is
 kept until its own retention. Specification 017-A (D-092) deletes the agreement records of a
 closed account with its credential state, and completes agency closures whose grace period has
-ended (app.services.agency_lifecycle).
+ended (app.services.agency_lifecycle). Specification 016-C (D-095 D5) deletes retained
+report exports at their expiry, 7 days after creation, and exports that never became ready
+(discarded, or pending for more than an hour), each content row before its export.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -84,6 +86,8 @@ from app.models import (
     PasswordCredential,
     PaymentCallbackDiagnostic,
     PaymentSourceSecret,
+    ReportExport,
+    ReportExportContent,
     RevenueImport,
     StoredConsentRecord,
     User,
@@ -690,6 +694,10 @@ def run_lifecycle(
             completed = _complete_closures(connection, cutoff, size, max_batches, incomplete)
             if completed:
                 deleted["agency_closures_completed"] = completed
+            # 016-C (D-095 D5): expired and never-ready exports, content first; reported only
+            # when an export was deleted.
+            exports = _delete_exports(connection, cutoff, size, max_batches, incomplete)
+            deleted.update((name, count) for name, count in exports.items() if count)
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))
@@ -730,6 +738,69 @@ def _complete_closures(
     else:
         incomplete.append("agency_closures")
     return completed
+
+
+# 016-C (D-095 D5): an export is deleted when it expired, when it was discarded, or when its
+# reservation is older than PENDING_EXPORT_WINDOW (its build failed without a discard).
+PENDING_EXPORT_WINDOW = timedelta(hours=1)
+
+
+def _export_eligible(cutoff: datetime) -> ColumnElement[bool]:
+    return or_(
+        ReportExport.expires_at < cutoff,
+        ReportExport.status == "discarded",
+        and_(
+            ReportExport.status == "pending",
+            ReportExport.created_at < cutoff - PENDING_EXPORT_WINDOW,
+        ),
+    )
+
+
+# One bounded batch: the content rows of the eligible exports, then the exports themselves.
+def _delete_export_batch(connection: Any, cutoff: datetime, size: int) -> tuple[int, int]:
+    condition = _export_eligible(cutoff)
+    connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
+    keys = list(
+        connection.execute(
+            select(ReportExport.id).where(condition).order_by(ReportExport.id).limit(size)
+        ).scalars()
+    )
+    if not keys:
+        return 0, 0
+    contents = connection.execute(
+        delete(ReportExportContent).where(ReportExportContent.export_id.in_(keys))
+    ).rowcount
+    exports = connection.execute(
+        delete(ReportExport).where(ReportExport.id.in_(keys), condition)
+    ).rowcount
+    return exports, contents
+
+
+def _delete_exports(
+    connection: Any,
+    cutoff: datetime,
+    size: int,
+    max_batches: int | None,
+    incomplete: list[str],
+) -> dict[str, int]:
+    counts = {"report_exports": 0, "report_export_contents": 0}
+    batches = 0
+    while max_batches is None or batches < max_batches:
+        try:
+            exports, contents = _delete_export_batch(connection, cutoff, size)
+            connection.commit()
+        except OperationalError:
+            connection.rollback()
+            incomplete.append("report_exports")
+            break
+        batches += 1
+        counts["report_exports"] += exports
+        counts["report_export_contents"] += contents
+        if exports < size:
+            break
+    else:
+        incomplete.append("report_exports")
+    return counts
 
 
 def _mark(incomplete: list[str], scoped: Sequence[Target]) -> None:

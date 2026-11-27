@@ -31,6 +31,7 @@ from app.api.payments import callback_router as payment_callback_router
 from app.api.payments import router as payments_router
 from app.api.plans import router as plans_router
 from app.api.public_cors import PlatformCors, PublicCollectionCors
+from app.api.report_delivery import router as report_delivery_router
 from app.api.reports import router as reports_router
 from app.api.revenue import router as revenue_router
 from app.api.schemas import ErrorResponse
@@ -342,6 +343,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(advertising_router)
     application.include_router(revenue_router)
     application.include_router(reports_router)
+    application.include_router(report_delivery_router)
     application.include_router(payments_router)
     application.include_router(payment_callback_router)
     application.include_router(integrations_router)
