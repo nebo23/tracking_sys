@@ -120,6 +120,9 @@ def test_postgresql_migration_cycle_and_runtime_permissions(
                 "report_schedules",
                 "report_schedule_recipients",
                 "agency_branding",
+                "agency_exports",
+                "agency_export_parts",
+                "agency_purges",
             }, "Refuse an unknown database schema."
             # 0031 seeds the development plan; it is the only row an empty database holds.
             for table in tables - {"alembic_version"}:

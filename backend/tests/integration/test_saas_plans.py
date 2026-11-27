@@ -43,7 +43,7 @@ from app.services.tenancy import tenancy_transaction
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0032_report_delivery"
+HEAD = "0033_agency_offboarding"
 PREVIOUS = "0030_reporting_indexes"
 NEW_TABLES = ("saas_plans", "agency_plan_assignments", "agency_closures", "user_agreements")
 DEVELOPMENT = {

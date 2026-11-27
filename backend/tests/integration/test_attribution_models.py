@@ -24,7 +24,7 @@ from app.models import AttributionModelVersion, AuditEvent, RevenueEvidence
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0032_report_delivery"
+HEAD = "0033_agency_offboarding"
 TABLES = (
     "attribution_model_versions",
     "attribution_conversions",

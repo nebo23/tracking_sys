@@ -30,6 +30,9 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "agency_export_parts",
+    "agency_exports",
+    "agency_purges",
     "report_export_contents",
     "report_exports",
     "report_schedule_recipients",
