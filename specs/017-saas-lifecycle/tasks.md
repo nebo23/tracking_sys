@@ -1,5 +1,5 @@
 # Tasks: 017-saas-lifecycle
-Status: 017-A is implemented under D-092 ([evidence](evidence-017a.md)) and merged in PR 19 after Claude's [merge review](merge-review-017a.md) (D-093); 017-B, approved under D-098 ([entry review](entry-review-017b.md)), is implemented and merged in PR 21 ([evidence](evidence-017b.md), [merge review](merge-review-017b.md), D-099); 017-C, approved as recommended under D-103 ([entry review](entry-review-017c.md)), is implemented and open for review ([evidence](evidence-017c.md)). This is a review checklist, not an implementation instruction.
+Status: 017-A is implemented under D-092 ([evidence](evidence-017a.md)) and merged in PR 19 after Claude's [merge review](merge-review-017a.md) (D-093); 017-B, approved under D-098 ([entry review](entry-review-017b.md)), is implemented and merged in PR 21 ([evidence](evidence-017b.md), [merge review](merge-review-017b.md), D-099); 017-C, approved as recommended under D-103 ([entry review](entry-review-017c.md)), is implemented and open for review in PR 22 ([evidence](evidence-017c.md)). This is a review checklist, not an implementation instruction.
 
 - [ ] Approve the scope and sources for saas subscriptions and usage lifecycle.
 - [ ] Resolve Q-003, Q-004, Q-005, Q-008 and record the owner decision.

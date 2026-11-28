@@ -1,6 +1,6 @@
 # Spec 017-C evidence: subscription billing, prices and the trial
 
-Prepared: 2026-11-28 under D-103. Branch: `codex/spec-017c-saas-billing`, created from `origin/claude/keen-fermat-otlr9d` at `72552f0`; merged `main` at `04dc323` (PR 21) is an ancestor and did not move. Scope: the [entry review](entry-review-017c.md) (D1-D14, approved without amendment), the [implementation handoff](implementation-prompt-017c.md) and the [design note](design-017c.md). Synthetic data, the disposable PostgreSQL service and a synthetic Paddle-shaped server only; native `tracking_sys` was never used, no Paddle account was touched and no live Paddle call was made.
+Prepared: 2026-11-28 under D-103. Branch: `codex/spec-017c-saas-billing`, created from `origin/claude/keen-fermat-otlr9d` at `72552f0`; merged `main` at `04dc323` (PR 21) is an ancestor and did not move. Scope: the [entry review](entry-review-017c.md) (D1-D14, approved without amendment), the [implementation handoff](implementation-prompt-017c.md) and the [design note](design-017c.md). Pull request: [PR 22](https://github.com/nebo23/tracking_sys/pull/22) against `main`, opened at `bd2deaf`. Synthetic data, the disposable PostgreSQL service and a synthetic Paddle-shaped server only; native `tracking_sys` was never used, no Paddle account was touched and no live Paddle call was made.
 
 ## 1. Commits
 
@@ -11,7 +11,7 @@ Prepared: 2026-11-28 under D-103. Branch: `codex/spec-017c-saas-billing`, create
 | P2 | `ad55f49` | The standing service and its hook in `create_agency`, `python -m app.billing_worker` (trials, grants, messages), `python -m app.agency_billing` (prices, registration, retirement, status, grants, trial extension, standings), the settings and the `paddle.billing` rule; BL01-BL04, BL18 for these subcommands, BL20 and the settings part of BL22 |
 | P3 | `111b660` | The complete Paddle adapter, `POST /billing/paddle/webhook`, the event processing and records, the `events` and `duplicates` subcommands, the log events, the OpenAPI snapshot; `0034` amended in place for the binding of unmatched events; BL06-BL08, BL10, BL12, BL16, BL19 and the log part of BL22 |
 | P4 | `f429369` | The Owner routes, the closure actions and the worker's action and reconciliation steps, the `reconcile` subcommand, the retention of events and checkouts, the journey and the OpenAPI snapshot; BL05, BL09, BL11, BL13-BL15, BL17, BL23 |
-| P5 | this commit and the next | Two tests corrected during the final verification and the mutation check, the evidence, the billing guide, the status lines; then the pull request number |
+| P5 | `bd2deaf` and the next | Two tests corrected during the final verification and the mutation check, the evidence, the billing guide, the status lines; then the pull request number |
 
 ## 2. Environment and deviation
 
