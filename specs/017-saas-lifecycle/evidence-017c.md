@@ -156,3 +156,27 @@ The separation mutation first held: the BL19 import check read only the module o
 - Disabling billing after it was enabled freezes every standing; an agency on hold keeps the hold plan until the operator acts.
 - `billing_events` are kept 13 months as a provisional period under Q-012.
 - The integration guard ran with the port deviation of section 2.
+
+## 9. Review corrections (D-104)
+
+Claude's [merge review](merge-review-017c.md) of pull request 22 at `b461f1e` found two defects of the billing worker. The owner chose to correct them before the merge (D-104), and `bb1b1fd` corrects them. Each regression fails at `b461f1e` and passes at `bb1b1fd`.
+
+| Finding | Defect | Correction | Regression |
+|---|---|---|---|
+| R017C-01 | A step selected agencies that it then left unchanged, without recording them: closed agencies for the end of trials and grants, and agencies that are not active for the messages. As many such agencies at the head of a batch (ordered by agency ID) as its size kept every other agency from being reached. A suspended agency on hold held back every other agency's hold message. | Each step selects only the agencies that it can change. An agency on hold is notified once it is active again. | `test_billing_standing.py::test_bl03_worker_batches_pass_agencies_that_a_step_skips` |
+| R017C-02 | A failed Paddle read left `reconciled_at` unchanged, so the subscription stayed at the head of the reconciliation batch. As many subscriptions that Paddle kept refusing as the batch size stopped every other reconciliation. | A failed read counts as the subscription's reconciliation attempt, under the agency lock. The subscription is read again after 24 hours, like the others. | `test_billing_owner.py::test_bl17_a_failing_read_does_not_hold_back_the_reconciliation` |
+
+Mutation check: each of three mutations makes its regression fail (3 of 3 caught), and the sources were restored byte for byte (SHA-256):
+- the trials step without its filter of closed agencies;
+- the hold messages without their filter of active agencies;
+- the reconciliation without the record of a failed read.
+
+The filters of the grant ends and of the trial reminders follow the same pattern and have no separate regression.
+
+Verification at `bb1b1fd`, by the reviewer:
+- **Unit:** 1030 passed.
+- **Integration:** 858 passed, 7 skipped (the same seven opt-in measurements) and none failed, with `TRACKING_RUN_BROWSER_TESTS=1` and Chromium. The suite ran in two shards (433 and 432 cases) on two fresh disposable services. The Firefox journey case was not run.
+- **Tracker:** 73 unit cases passed, and 25 browser cases passed with Chromium. Firefox is not installed in the review environment.
+- **Checks:** ruff, `pip check`, `git diff --check`, the links and the OpenAPI comparison are clean.
+
+The design note (section 8) and the [billing guide](../../docs/engineering/billing.md) describe the corrected selection.
