@@ -10,6 +10,8 @@ While the review ran, the branch moved to `e141077`. That commit changes only `e
 
 It also confirms the four display defects that `e141077` records (K1 to K4) and lists eight observations. Nothing was corrected: the corrections and the merge wait for the owner's decision.
 
+**Update.** At the owner's request, K1 to K4 were then corrected in `d29ac00` (notes in `fe68035`). Section 9 records the reviewer's verification of that correction. R018-01 to R018-06 are not corrected and still wait for the owner.
+
 ## 1. Scope
 
 The review read the frontend against:
@@ -238,3 +240,21 @@ Outside that path:
 - O5 to O7 belong to the screens of 017-B and 017-C.
 
 If the owner prefers to merge first, R018-01 and R018-05 should be the first corrections after the merge, and nothing should reach real users before them.
+
+Since then, K1 to K4 have been corrected and verified (section 9). The recommendation now concerns R018-01 to R018-06.
+
+## 9. Verification of the K1 to K4 correction (`fe68035`)
+
+The correction is `d29ac00`, frontend only; `fe68035` changes only the notes (`evidence-018-completion.md`, section 5, and `screens-a-to-z.md`). The reviewer checked it at `fe68035`:
+
+| Check | Result |
+|---|---|
+| The source | No `<td>` or `<th>` carries `u-num`: only the numbers inside the cells are wrapped. Content uses `chart-column`, and `image` left `IconName`. `MoneyFigure` splits the amount from its currency, which it writes once as the unit, in the order of the language. Each stream of the reporting catalog has a sentence in both languages. The changed files hold no literal invisible character. |
+| The defects of section 3 | The correction changes only markup in the files of R018-01 to R018-06. `ScheduleDialog.tsx`, `Shell.tsx`, `AttributionPage.tsx` and `router.tsx` are unchanged, so those defects remain as described. |
+| `npm run typecheck`, `npm run lint`, `npm run api:check` | Passed; no finding; the types match the contract. |
+| `npm test` | 34 files, 611 tests passed. |
+| `npm run build`, then `npm run build:check` | Built. "No secret, key, token or backend setting was found." The first page loads seven script files, 774.83 kB. |
+| The regressions at `e141077` | Run in a scratch copy of `e141077`, outside the repository, with the new test files copied in; the copy was removed afterwards. All of them fail there: the icon check names `image`; the table-cell check lists 30 cells; the overview test finds the currency twice; the money and stream tests fail because `moneyParts` and `streamNames` do not exist yet. One more test failed there only because the scratch copy lacked `docs/engineering`, and is not counted. |
+| Journeys | Not run again by the reviewer. The correcting session reports 64 journeys passing in each browser, with 0 axe findings. |
+
+K1 to K4 are closed.
