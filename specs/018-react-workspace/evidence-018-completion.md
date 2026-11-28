@@ -73,4 +73,33 @@ The checks ran in a separate worktree at the corrected commit, on a disposable s
 
 The design canvas was captured again from the corrected application: A03, B13 to B15, C01 to C10 and E03 to E08, and the website-tracking boards D09 to D12 and G03, whose diagnostics table showed K1.
 
-The other findings of the merge review, R018-01 to R018-06, are not part of this correction and wait for the owner's decision.
+The other findings of the merge review, R018-01 to R018-06, were not part of this correction; section 6 records theirs.
+
+## 6. Corrections of the merge review
+At the owner's request of 2026-11-28, the six defects of Claude's [merge review](merge-review-018.md), R018-01 to R018-06, were corrected the same day, frontend only, within D-106 and without any change to the API, the contract or the schema: in commit `0900d44`, completed for R018-04 by `6159bfd`. Journey 20 was adjusted in `0b6e50a`.
+
+| ID | Correction |
+|---|---|
+| R018-01 | The overview tells a revenue or spend report it could not read from an empty one: such a figure is "Not available", with the sentence of the error. `report_requires_ledger_upgrade` and `report_too_large` gain sentences in the error table, which the Revenue and Ad spend pages also use. |
+| R018-02 | The overview's spend figure carries the Provisional badge while a spend total is provisional, as the Ad spend page does. |
+| R018-03 | Without financial access, the models side by side say that their values are credited leads, because sale values need financial access. |
+| R018-04 | The closing page is drawn as B15, with its top bar and the page only. Nothing asks for the profile or the clients of a closing agency, which the API refuses while an agency is not active (`TenancyService._membership`): the switcher, which stays on the account page to reach another agency, calls a closing agency "Your agency", marked Closing (`6159bfd`), and the closing agency offers no destination of its own. |
+| R018-05 | The schedule form keeps listing recipients who are no longer active members (by name, or as a former member for a closed account or a removed membership), chosen and marked, so that they can be unticked; the schedules tab names `invalid_recipient` when a pause is refused for that reason. |
+| R018-06 | The return tab offers neither the CSV nor an export once its report was refused for want of financial access. |
+
+Seven regressions, in `analyze.test.tsx`, `attribution.test.tsx`, `settings.test.tsx` and `reports.test.tsx`, fail at `6fd3754` and at `7554857`, the head the review examined, and pass at `0900d44`. The run at `7554857` used a scratch worktree with the new test files copied in, removed afterwards; there, as expected, the rewritten closing test and the K4 assertion that `d29ac00` added to an overview test fail as well. Two tests of `workspace.test.tsx` fail at `0b6e50a` and pass at `6159bfd`: the closing test, which had asserted the switcher, and the request the API refuses, on the closing page, now asserts B15 and, on the account page, the switcher's "Your agency" with no name left loading; the test of another closing agency in the switcher no longer serves the profile that the API refuses.
+
+| Check | Result |
+|---|---|
+| `npm run typecheck`, `npm run lint`, `npm run api:check` | No error, no finding; the contract types match. Again at `6159bfd`. |
+| `npm test` | 34 files, 618 tests passed (611 before, and seven new), at `0900d44` and at `6159bfd`. |
+| `npm run build`, then `npm run build:check` | Built; no secret found. The first page loads seven script files, 776.69 kB (the new sentences in both languages), at both commits. |
+| Journeys, Chromium | 64 passed: 22 (1.7 minutes), 27 (6.8 minutes, in the background), 8 (1.4 minutes) and 7 (1.3 minutes). In the first run of the last group, journey 20 looked for the spend figure by the exact text of its label, which the new Provisional badge extends; `0b6e50a` matches the label by its text, and the group then passed. After `6159bfd` the last group, whose journey 22 closes an agency and keeps it, passed again: 7 (1.3 minutes). |
+| Journeys, Firefox | 64 passed: 22 (1.6 minutes), 27 (8.7 minutes, in the background) and 8 (1.6 minutes) at `0b6e50a`, and the last group, 7 (1.6 minutes), at `6159bfd`. Two earlier runs of that group are not counted: one at `0b6e50a`, which named journey 22 by a wrong file name, so it did not run, and one at `6159bfd`; journey 19 failed in both. |
+| Accessibility | The 22 axe tests of journey 10 in each browser: 0 findings of any severity. Commit `6159bfd` changes none of the pages they check: the closing page is drawn the same, and the other pages belong to an agency that is not closing. |
+
+Journey 19 failed in three of the six runs of the last group in this round, each time at its CRM step: after a signed stage change and a reload, the figure "Won, payment not matched" showed 0 instead of 1. This is the intermittent failure of section 2.4 of the [P0 evidence](evidence-018-update.md), more frequent now; its cause is still open there. The corrections do not touch the integrations pages or the API, and the failed runs' traces were not kept.
+
+The checks ran in a separate worktree at the corrected commits, on a disposable stack of its own (Compose project `tracking-e2e-fix` on 127.0.0.1:56444, API on 8020, application on 5193); the ports were changed only in that worktree and never committed. The branch was then fast-forwarded to those commits, so the commits verified are the commits on the branch.
+
+The design canvas shows B15 and the overview boards C01 to C04 captured again from the application at `6159bfd`.
