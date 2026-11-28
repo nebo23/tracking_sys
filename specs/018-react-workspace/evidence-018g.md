@@ -1,6 +1,6 @@
 # Evidence: Reports (018-G, phase P4)
 
-Status: slice 018-G, Reports, is drawn, approved (D-104) and implemented as described here on 2026-11-28, under D-099 and the [plan](plan-018g.md), on `codex/spec-018-workspace-screens`. It is not accepted until the owner has reviewed it. A pull request follows at the end of the round (D11).
+Status: slice 018-G, Reports, is drawn, approved (D-107) and implemented as described here on 2026-11-28, under D-106 and the [plan](plan-018g.md), on `codex/spec-018-workspace-screens`. It is not accepted until the owner has reviewed it. A pull request follows at the end of the round (D11).
 
 ## 1. What was built
 

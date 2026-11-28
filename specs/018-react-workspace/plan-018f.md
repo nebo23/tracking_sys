@@ -1,6 +1,6 @@
 # Plan of P3: Agency settings (018-F)
 
-Status: phase P3 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). Done on 2026-11-28: see the [evidence](evidence-018f.md). This plan was written down after the code, from the notes of the phase. It follows D7 and D8 of the packet; section 6 lists the two points that the packet left open and how they were settled.
+Status: phase P3 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-106 (2026-11-28). Done on 2026-11-28: see the [evidence](evidence-018f.md). This plan was written down after the code, from the notes of the phase. It follows D7 and D8 of the packet; section 6 lists the two points that the packet left open and how they were settled.
 
 ## 1. The destination
 Agency settings is a page of the agency at `/agencies/{a}/settings`, the last item of the agency group of the navigation, for everyone of the agency except its client viewers; for a client viewer the address does not exist. Its tabs are kept in the address (`tab`, the default left out):

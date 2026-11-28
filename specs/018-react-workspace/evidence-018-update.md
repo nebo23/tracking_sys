@@ -2,7 +2,9 @@
 
 Status: complete on 2026-11-28. Part 1 was written on `codex/spec-018-react-workspace` (pull request 17); part 2 covers `codex/spec-018-workspace-screens` after it took that branch. The plan is [plan-018-update.md](plan-018-update.md).
 
-Authority: D-091 (pull request 17 is brought up to date once, when the frontend work starts) and D-099 (the owner's approval of D1-D12 of the Spec 018 completion entry review and its implementation handoff, `specs/018-react-workspace/entry-review-completion.md` and `implementation-prompt-completion.md`). D-099 and those two files are recorded on `codex/spec-018-workspace-screens`, not on this branch.
+Authority: D-091 (pull request 17 is brought up to date once, when the frontend work starts) and D-106 (the owner's approval of D1-D12 of the Spec 018 completion entry review and its implementation handoff, `specs/018-react-workspace/entry-review-completion.md` and `implementation-prompt-completion.md`). D-106 and those two files are recorded on `codex/spec-018-workspace-screens`, not on this branch.
+
+Numbering: this evidence was written when the completion approval was D-099. In P5 it became D-106, and D-099 is now the 017-B merge on `main` (see the numbering note of the [register](../../docs/planning/decisions.md)). Where the sections below describe the renumbering of P0, they keep the numbers of that time.
 
 ## 1. Pull request 17
 

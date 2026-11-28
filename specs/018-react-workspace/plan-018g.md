@@ -1,6 +1,6 @@
 # Plan of P4: Reports (018-G)
 
-Status: phase P4 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). D9 asks for drawings first: they were made on 2026-11-28 (section 2) and the owner approved them the same day (D-104). Section 4 was then built: see the [evidence](evidence-018g.md).
+Status: phase P4 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-106 (2026-11-28). D9 asks for drawings first: they were made on 2026-11-28 (section 2) and the owner approved them the same day (D-107). Section 4 was then built: see the [evidence](evidence-018g.md).
 
 ## 1. The contract the drawings follow
 Spec 016-C on `main` ([entry review](../016-analytics-reporting/entry-review-016c.md), [design](../016-analytics-reporting/design-016c.md)), below `/agencies/{a}/clients/{c}`:

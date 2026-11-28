@@ -36,7 +36,7 @@ Connect is a multi-agency product (D-004): an agency connects its clients' socia
 Work with the owner in Arabic; write files, code, comments and commit messages in formal English (AGENTS.md).
 
 ## 2. Read first
-1. `README.md`, `AGENTS.md` and `docs/planning/decisions.md` (above all D-082, D-083, D-084, D-099, D-104 and D-105, and the numbering notes at its top).
+1. `README.md`, `AGENTS.md` and `docs/planning/decisions.md` (above all D-082, D-083, D-084, D-105, D-106 and D-107, and the numbering notes at its top).
 2. `specs/018-react-workspace/`: [spec.md](spec.md), [entry-review.md](entry-review.md), [entry-review-completion.md](entry-review-completion.md), [screens-a-to-z.md](screens-a-to-z.md), and the plans and evidence of each slice (018-A to 018-G).
 3. The design: [docs/design/README.md](../../docs/design/README.md), `docs/design/tokens/tokens.css`, `docs/design/ui/connect-ui.css`, `docs/design/ui/connect-icons.css`, `docs/design/brand/`, and the reference pages in `docs/design/preview/screens/` (their list is `docs/design/preview/screens.html`).
 4. The API: `contracts/openapi.json`, and the services under `backend/app/` whose rules the screens repeat (each section below names them).
@@ -45,7 +45,7 @@ Work with the owner in Arabic; write files, code, comments and commit messages i
 The repository is the source of truth. The design canvas "Connect App Screens" is a review copy of it.
 
 ## 3. Stack and boundaries
-- **Packages (D-084, D-099).** React 19.3.1 and React DOM, TanStack Router 1.170.46 and TanStack Query 5.107.1, React Aria Components 1.22.1, react-intl 12.1.7, openapi-fetch 0.17.0 with types generated from the contract (`npm run api:types`, checked by `npm run api:check`), Recharts 3.10.1 with react-is 19.3.1, and the IBM Plex fonts from `@fontsource` (Sans, Sans Arabic, Mono). Development: Vite, TypeScript, ESLint, Vitest with Testing Library and jsdom, Playwright 1.64.1 with axe-core. Exact versions, from `frontend/package.json` and its lockfile. No other package, no CSS framework and no CSS-in-JS without a recorded decision.
+- **Packages (D-084, D-106).** React 19.3.1 and React DOM, TanStack Router 1.170.46 and TanStack Query 5.107.1, React Aria Components 1.22.1, react-intl 12.1.7, openapi-fetch 0.17.0 with types generated from the contract (`npm run api:types`, checked by `npm run api:check`), Recharts 3.10.1 with react-is 19.3.1, and the IBM Plex fonts from `@fontsource` (Sans, Sans Arabic, Mono). Development: Vite, TypeScript, ESLint, Vitest with Testing Library and jsdom, Playwright 1.64.1 with axe-core. Exact versions, from `frontend/package.json` and its lockfile. No other package, no CSS framework and no CSS-in-JS without a recorded decision.
 - **No change to the API, the contract or the schema.** What the API cannot give is a decision for the owner, never a workaround in the browser.
 - **Data and environments.** Synthetic data and the disposable stack only (`frontend/tests/browser/support/stack.ts`: Docker Compose project `tracking-e2e-frontend`); never the owner's database `tracking_sys` (D-015). No live provider, no external email (local `.eml` capture), no deployment.
 - **Secrets.** Nothing secret in the bundle (`npm run build:check` fails otherwise). The session is the API's cookie; the CSRF token lives in memory only; tokens of mail links are read once and removed from the address; signed or one-time values are never stored or logged.

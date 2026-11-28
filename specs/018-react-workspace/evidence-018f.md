@@ -1,6 +1,6 @@
 # Evidence: Agency settings (018-F, phase P3)
 
-Status: slice 018-F, Agency settings, is implemented and checked as described here on 2026-11-28, under D-099 and the [plan](plan-018f.md), on `codex/spec-018-workspace-screens`. It is not accepted until the owner has reviewed it. A pull request follows at the end of the round (D11).
+Status: slice 018-F, Agency settings, is implemented and checked as described here on 2026-11-28, under D-106 and the [plan](plan-018f.md), on `codex/spec-018-workspace-screens`. It is not accepted until the owner has reviewed it. A pull request follows at the end of the round (D11).
 
 ## 1. What was built
 

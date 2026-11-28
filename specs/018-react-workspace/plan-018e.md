@@ -1,6 +1,6 @@
 # Plan of P2: Attribution (018-E)
 
-Status: phase P2 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). Done on 2026-11-28: see the [evidence](evidence-018e.md). This plan was written down after the code, from the notes of the phase; nothing in it deviates from the packet except the explicit range "up to today" of section 4.
+Status: phase P2 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-106 (2026-11-28). Done on 2026-11-28: see the [evidence](evidence-018e.md). This plan was written down after the code, from the notes of the phase; nothing in it deviates from the packet except the explicit range "up to today" of section 4.
 
 ## 1. The page
 One page at `/agencies/{a}/clients/{c}/attribution` with the tabs Credit (C08), Funnel (C09) and Return on ad spend (C10), the tab in the address (`tab`, the default left out), as D6 describes. The head is the one of Analyze: range, comparison and the CSV of the open tab.
