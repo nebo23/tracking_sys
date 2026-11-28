@@ -303,12 +303,15 @@ if provider == "synthetic_meta_capi":
     # A dataset is made up first, then the business grants it.
     stand_in.define_dataset(account, label)
     print(stand_in.approve(url, (account,)))
+elif provider == "synthetic_meta_ads":
+    # The ad account was made up with its campaigns before; the business grants it.
+    print(stand_in.approve(url, (account,)))
 else:
     print(stand_in.approve(url, account, label))
 `;
 
 export interface StandInAccount {
-  provider: 'synthetic' | 'synthetic_instagram' | 'synthetic_youtube' | 'synthetic_meta_capi';
+  provider: 'synthetic' | 'synthetic_instagram' | 'synthetic_youtube' | 'synthetic_meta_capi' | 'synthetic_meta_ads';
   /** The account's identifier at the stand-in provider. */
   account: string;
   /** The name the provider gives the account, as a person knows it. */
@@ -327,6 +330,38 @@ export function approveAtProvider(python: string, backendEnvironment: BackendEnv
   back.searchParams.set('code', code);
   back.searchParams.set('state', asked.get('state') ?? '');
   return back.toString();
+}
+
+// Makes up an ad account at the stand-in Meta ads provider, in Cairo time and Egyptian pounds,
+// with its campaigns, ad sets and ads; an ad spends the same every day from its first day on.
+const adAccount = `
+import json, sys
+from datetime import date
+from app.config import Settings
+from app.services.connectors import build_providers
+account, label, objects = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
+stand_in = build_providers(Settings())["synthetic_meta_ads"]
+stand_in.define_account(account, currency="EGP", zone="Africa/Cairo", name=label)
+for item in objects:
+    first = date.fromisoformat(item.pop("first")) if item.get("first") else None
+    stand_in.define_object(account, item.pop("id"), item.pop("level"), first=first, **item)
+print("defined")
+`;
+
+export interface StandInAdObject {
+  id: string;
+  level: 'campaign' | 'adset' | 'ad';
+  name: string;
+  campaign?: string;
+  adset?: string;
+  first?: string;
+  spend?: string;
+  impressions?: number;
+  clicks?: number;
+}
+
+export function defineAdAccount(python: string, backendEnvironment: BackendEnvironment, account: string, label: string, objects: StandInAdObject[]): void {
+  run(python, ['-c', adAccount, account, label, JSON.stringify(objects)], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The ad account');
 }
 
 /** Runs one pass of the connector worker: removals, the schedule and the queued reads. Returns its counts. */

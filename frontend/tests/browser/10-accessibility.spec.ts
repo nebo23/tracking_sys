@@ -4,7 +4,17 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { newPerson, registered, send, signedIn, signedInBrowser, withAgency } from './support/people.ts';
 import { stack } from './support/stack.ts';
 import { linkIn } from './support/mail.ts';
-import { acceptInvitation, inviteAs, standInAccount, withClient, withCollectSetup, withConnection, workerPass } from './support/tenants.ts';
+import {
+  acceptInvitation,
+  analyzeDays,
+  inviteAs,
+  standInAccount,
+  withAnalyzeData,
+  withClient,
+  withCollectSetup,
+  withConnection,
+  workerPass,
+} from './support/tenants.ts';
 
 // axe-core on every screen of the slice, in both languages and both themes (D12: WCAG 2.2 AA).
 // It finds what a machine can find. Screen readers, real phones and people stay to be checked.
@@ -63,6 +73,31 @@ async function agencyInUse(testInfo: TestInfo) {
   await acceptInvitation(analyst, linkIn(analyst.email, 'Agency invitation').split('#token=')[1] ?? '');
   return { owner, agencyId, clientId, connections: `/agencies/${agencyId}/clients/${clientId}/connections` };
 }
+
+/** A client whose Analyze pages have synthetic facts to show (018-C), with the days that hold them. */
+async function clientWithFacts(testInfo: TestInfo) {
+  const owner = await registered(newPerson(testInfo));
+  const agencyId = await withAgency(owner, 'Lumen Studio');
+  const session = await signedIn(owner);
+  const clientId = await withClient(session, agencyId, 'Olive & Thyme');
+  await withAnalyzeData(session, agencyId, clientId);
+  await send('POST /auth/logout', undefined, session);
+  return { owner, base: `/agencies/${agencyId}/clients/${clientId}`, days: `from=${analyzeDays.from}&to=${analyzeDays.to}&compare=true` };
+}
+
+const analyzePages = [
+  ['', 'overview'],
+  ['/content', 'content'],
+  ['/revenue', 'revenue'],
+  ['/ad-spend', 'ad spend'],
+] as const;
+
+/** An Analyze page has drawn what its reports answered. */
+const settled = async (page: Page) => {
+  await ready(page);
+  await expect(page.locator('main .c-card').first()).toBeVisible();
+  await expect(page.locator('main .c-skel')).toHaveCount(0);
+};
 
 const looks = [
   { language: 'en', theme: 'light' },
@@ -393,6 +428,35 @@ for (const look of looks) {
       await report(testInfo, found);
     });
 
+    test('the analyze pages have no serious accessibility finding', async ({ page, context }, testInfo) => {
+      const found: Found[] = [];
+      const { owner, base, days } = await clientWithFacts(testInfo);
+      await signedInBrowser(context, owner);
+      for (const [path, name] of analyzePages) {
+        await page.goto(`${base}${path}?${days}`);
+        await settled(page);
+        found.push(...(await findings(page, name)));
+      }
+
+      // A chart read as a table, and its time running left to right in both languages (D-083).
+      await page.goto(`${base}/content?${days}`);
+      await settled(page);
+      await expect(page.locator('main .c-chart-wrap').first()).toHaveAttribute('dir', 'ltr');
+      await page.locator('main .a-series__head button').first().click();
+      await expect(page.locator('main .a-series__table table')).toBeVisible();
+      found.push(...(await findings(page, 'content chart as a table')));
+
+      // The range choice, open, and the custom range with a problem.
+      await page.locator('main .a-range .c-select').click();
+      await expect(page.locator('[role="listbox"]')).toBeVisible();
+      found.push(...(await findings(page, 'range choice')));
+      await page.locator('[role="listbox"] [role="option"]').last().click();
+      await page.locator('main .a-range input[type="date"]').first().fill('2026-09-01');
+      await expect(page.locator('main .a-range .c-field__error')).toBeVisible();
+      found.push(...(await findings(page, 'custom range with a problem')));
+      await report(testInfo, found);
+    });
+
     test('the first-agency screen has no serious accessibility finding', async ({ page, context }, testInfo) => {
       const newcomer = await registered(newPerson(testInfo));
       await signedInBrowser(context, newcomer);
@@ -456,6 +520,23 @@ test.describe('on a phone', () => {
 
     // Nothing spills past the edge of a narrow screen.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    await report(testInfo, found);
+  });
+
+  test('the analyze pages fit a phone, and More opens the rest of the client', async ({ page, context }, testInfo) => {
+    const found: Found[] = [];
+    const { owner, base, days } = await clientWithFacts(testInfo);
+    await signedInBrowser(context, owner);
+    const overflowing = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    for (const [path, name] of analyzePages) {
+      await page.goto(`${base}${path}?${days}`);
+      await settled(page);
+      found.push(...(await findings(page, `${name} at 390`)));
+      expect(await overflowing(), name).toBeLessThanOrEqual(0);
+    }
+    await page.locator('.c-tabbar button').click();
+    await expect(page.locator('[role="menu"]')).toBeVisible();
+    found.push(...(await findings(page, 'more menu at 390')));
     await report(testInfo, found);
   });
 });

@@ -5,6 +5,7 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { revenueReportQuery, socialReportQuery, spendReportQuery, type RevenueReport, type SocialReport, type SpendReport } from '@/api/reports';
 import { useClient } from '@/app/tenant';
 import { Badge } from '@/components/Badge';
+import { TableScroll } from '@/components/TableScroll';
 import { SeriesChart } from '@/components/charts/SeriesChart';
 import { InlineSelect } from '@/components/Choice';
 import { Skeleton } from '@/components/Skeleton';
@@ -248,21 +249,23 @@ function Sources({ social, spend, connected }: { social: SocialReport | undefine
   return (
     <Card title={<FormattedMessage id="analyze.sources.title" />} subtitle={<FormattedMessage id="analyze.sources.lead" />} flush>
       {rows.length > 0 ? (
-        <table className="c-table">
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td>
-                  <span className="c-table__primary">{row.name}</span>
-                  <span className="c-table__sub u-ltr">{row.detail}</span>
-                </td>
-                <td className="is-num">
-                  <FreshnessBadge state={row.state} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScroll label={intl.formatMessage({ id: 'analyze.sources.title' })}>
+          <table className="c-table">
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <td>
+                    <span className="c-table__primary">{row.name}</span>
+                    <span className="c-table__sub u-ltr">{row.detail}</span>
+                  </td>
+                  <td className="is-num">
+                    <FreshnessBadge state={row.state} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       ) : null}
       {!connected.social || !connected.spend ? (
         <p className="a-pad u-secondary">

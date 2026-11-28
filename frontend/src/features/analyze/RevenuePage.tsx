@@ -6,6 +6,7 @@ import { revenueReportQuery, type RevenueReport, type RevenueTotal } from '@/api
 import { useClient } from '@/app/tenant';
 import { SeriesChart, type SeriesPoint } from '@/components/charts/SeriesChart';
 import { InlineSelect } from '@/components/Choice';
+import { TableScroll } from '@/components/TableScroll';
 import { QueryStates } from '@/components/ListStates';
 import { usePageTitle } from '@/components/PageHeading';
 
@@ -151,49 +152,51 @@ function BlockCard({ report, block }: { report: RevenueReport; block: RevenueTot
           <NoValue>{intl.formatMessage({ id: block === 'verified' ? 'analyze.revenue.none' : 'analyze.revenue.noDeclared' })}</NoValue>
         </p>
       ) : (
-        <table className="c-table">
-          <thead>
-            <tr>
-              <th scope="col">
-                <FormattedMessage id="analyze.revenue.field" />
-              </th>
-              {totals.map((total) => (
-                <th key={total.currency} scope="col" className="is-num">
-                  {total.currency}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map((field) => (
-              <tr key={field}>
-                <th scope="row">
-                  <FormattedMessage id={`analyze.revenue.field.${field}`} />
+        <TableScroll label={intl.formatMessage({ id: `analyze.revenue.${block}` })}>
+          <table className="c-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <FormattedMessage id="analyze.revenue.field" />
                 </th>
                 {totals.map((total) => (
-                  <td key={total.currency} className="is-num u-num">
-                    {money(intl, total[field], total.currency, total.exponent)}
-                  </td>
+                  <th key={total.currency} scope="col" className="is-num">
+                    {total.currency}
+                  </th>
                 ))}
               </tr>
-            ))}
-            {block === 'verified' && report.comparison
-              ? totals.map((total) => {
-                  const net = report.comparison?.find((item) => item.block === 'verified' && item.metric === 'net' && item.currency === total.currency);
-                  return net ? (
-                    <tr key={`change-${total.currency}`}>
-                      <th scope="row">
-                        <FormattedMessage id="analyze.change" /> ({total.currency})
-                      </th>
-                      <td colSpan={totals.length}>
-                        <Change comparable={net.comparable} percent={percent(intl, net.percent_change)} difference={net.difference ? net.difference.minor : null} reason={net.reason} />
-                      </td>
-                    </tr>
-                  ) : null;
-                })
-              : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fields.map((field) => (
+                <tr key={field}>
+                  <th scope="row">
+                    <FormattedMessage id={`analyze.revenue.field.${field}`} />
+                  </th>
+                  {totals.map((total) => (
+                    <td key={total.currency} className="is-num u-num">
+                      {money(intl, total[field], total.currency, total.exponent)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {block === 'verified' && report.comparison
+                ? totals.map((total) => {
+                    const net = report.comparison?.find((item) => item.block === 'verified' && item.metric === 'net' && item.currency === total.currency);
+                    return net ? (
+                      <tr key={`change-${total.currency}`}>
+                        <th scope="row">
+                          <FormattedMessage id="analyze.change" /> ({total.currency})
+                        </th>
+                        <td colSpan={totals.length}>
+                          <Change comparable={net.comparable} percent={percent(intl, net.percent_change)} difference={net.difference ? net.difference.minor : null} reason={net.reason} />
+                        </td>
+                      </tr>
+                    ) : null;
+                  })
+                : null}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </Card>
   );

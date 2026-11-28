@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expectStatus, send, signedIn, type Person, type Signed } from './api.ts';
-import { approveAtProvider, runConnectorWorker, type BackendEnvironment, type StandInAccount } from './stack.ts';
+import { approveAtProvider, defineAdAccount, runConnectorWorker, type BackendEnvironment, type StandInAccount, type StandInAdObject } from './stack.ts';
 
 // Clients, people and connections for the journeys, prepared through the API as the application
 // itself would. Everything is synthetic, and the stand-in providers contact nobody.
@@ -85,7 +85,7 @@ async function connected(signed: Signed, agencyId: string, clientId: string, acc
   const body =
     account.provider === 'synthetic_youtube'
       ? { provider: account.provider, agent_approval: { approved: true, disclosure: 'dev-agent-approval-1' } }
-      : account.provider === 'synthetic_meta_capi'
+      : account.provider === 'synthetic_meta_capi' || account.provider === 'synthetic_meta_ads'
         ? { provider: account.provider, account: account.account }
         : { provider: account.provider };
   const started = await send(`POST /agencies/${agencyId}/clients/${clientId}/connections`, body, signed);
@@ -180,4 +180,46 @@ export function withCollectSetup(owner: Who, agencyId: string, clientId: string)
     const dataset = await connected(signed, agencyId, clientId, standInDataset('Olive pixel'));
     await made(signed, `POST ${client}/conversion-destinations`, { connection_id: dataset, event_name: 'Purchase', test_event_code: null }, 201, 'The destination');
   });
+}
+
+/**
+ * Makes up an ad account at the stand-in Meta ads provider with its campaigns, ad sets and ads,
+ * then connects it to a client as the owner. Returns the connection's id.
+ */
+export function withAdAccount(owner: Who, agencyId: string, clientId: string, account: StandInAccount, objects: StandInAdObject[]): Promise<string> {
+  const { python, backend } = runningStack();
+  defineAdAccount(python, backend, account.account, account.label, objects);
+  return withConnection(owner, agencyId, clientId, account);
+}
+
+/** Records a declared sale of a client through the API, as an owner or admin does by hand. */
+export function declareSale(owner: Who, agencyId: string, clientId: string, operationId: string, amount: string, effectiveAt: string): Promise<void> {
+  return as(owner, async (signed) => {
+    const body = { operation_id: operationId, kind: 'sale', amount, currency: 'EGP', effective_at: effectiveAt, reason: 'A synthetic sale of the journey' };
+    await expectStatus(await send(`POST /agencies/${agencyId}/clients/${clientId}/revenue-declarations`, body, signed), 201, 'Declaring a sale');
+  });
+}
+
+/**
+ * The days that hold the stand-in providers' data: the synthetic Instagram account days around
+ * 2026-11-01, the ads that run from 2026-10-20, and the sale declared on 2026-11-05. Analyze pages
+ * are opened with these days in their address, so a journey sees the same states on any later date.
+ */
+export const analyzeDays = { from: '2026-10-20', to: '2026-11-09' } as const;
+
+/**
+ * Gives a client what its Analyze pages read: a stand-in Instagram account, a stand-in ad account
+ * with a campaign, an ad set and an ad, one synchronization of both, and a declared sale.
+ */
+export async function withAnalyzeData(owner: Who, agencyId: string, clientId: string): Promise<{ instagram: string; ads: string }> {
+  const instagram = await withConnection(owner, agencyId, clientId, standInAccount('@olive.thyme', 'synthetic_instagram'));
+  const account = { provider: 'synthetic_meta_ads' as const, account: `act_${Date.now().toString().slice(-9)}`, label: 'Olive ads' };
+  const ads = await withAdAccount(owner, agencyId, clientId, account, [
+    { id: '1201', level: 'campaign', name: 'Ramadan offers' },
+    { id: '1202', level: 'adset', name: 'Cairo women 25-34', campaign: '1201' },
+    { id: '1203', level: 'ad', name: 'Reel: new menu', campaign: '1201', adset: '1202', first: analyzeDays.from, spend: '125.50', impressions: 900, clicks: 21 },
+  ]);
+  workerPass();
+  await declareSale(owner, agencyId, clientId, `sale-${Date.now()}`, '1500.00', '2026-11-05T12:00:00Z');
+  return { instagram, ads };
 }

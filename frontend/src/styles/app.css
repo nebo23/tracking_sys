@@ -366,3 +366,51 @@ body {
   line-height: var(--type-title-lg-line);
   font-weight: var(--type-title-lg-weight);
 }
+
+/* ------------------------------------------------------------- Analyze -- */
+/* A chart's legend and its table switch share one row (018-C). */
+.a-series__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.a-series__summary {
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+.a-series__table {
+  max-block-size: 360px;
+  overflow-y: auto;
+}
+/* A figure in two currencies has one line for each. */
+.a-stat__line {
+  display: block;
+}
+/* Where a figure comes from: its source, its day and its last synchronization. */
+.a-source {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+/* A value that is not a number is said in words, in a quieter voice. */
+.a-novalue {
+  color: var(--text-secondary);
+  font-size: calc(var(--type-body-size) + var(--script-size-bump));
+  font-weight: 500;
+}
+.a-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.a-range {
+  gap: var(--space-3);
+}
+.a-range__field .c-input {
+  inline-size: auto;
+}
+.a-figures--flush {
+  padding: 0;
+}

@@ -1,6 +1,6 @@
 # Plan of P1: Analyze (018-C)
 
-Status: phase P1 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). Evidence: [evidence-018c.md](evidence-018c.md), written at the end of the phase.
+Status: phase P1 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). Done on 2026-11-28: see the [evidence](evidence-018c.md).
 
 ## 1. Packages (D3)
 `npm install --save-exact recharts@3.10.1 react-is@19.3.1`, then `npm ci`. The resolution is the one of section 4.5 of the entry review: 37 new lockfile entries (the two direct packages and the 35 they bring), the top-level `react-is` moves from 17.0.2 to 19.3.1, and `pretty-format` keeps its own 17.0.2. Licences: MIT, ISC, BSD-3-Clause, and "MIT AND ISC AND BSD-3-Clause" for `victory-vendor`. No other package changes.

@@ -228,7 +228,7 @@ export function RangeChoice({ range, onChange }: { range: DayRange; onChange: (r
               <FormattedMessage id="analyze.range.from" />
             </span>
             <input
-              className="c-input c-input--sm"
+              className="c-input"
               type="date"
               value={draft.from}
               max={draft.to}
@@ -241,7 +241,7 @@ export function RangeChoice({ range, onChange }: { range: DayRange; onChange: (r
               <FormattedMessage id="analyze.range.to" />
             </span>
             <input
-              className="c-input c-input--sm"
+              className="c-input"
               type="date"
               value={draft.to}
               min={draft.from}

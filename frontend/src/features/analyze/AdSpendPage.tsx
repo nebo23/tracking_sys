@@ -5,6 +5,7 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { spendNamesQuery, spendReportQuery, type SpendLevel, type SpendReport, type SpendRow } from '@/api/reports';
 import { useClient } from '@/app/tenant';
 import { InlineSelect } from '@/components/Choice';
+import { TableScroll } from '@/components/TableScroll';
 import { EmptyState } from '@/components/EmptyState';
 import { QueryStates } from '@/components/ListStates';
 import { usePageTitle } from '@/components/PageHeading';
@@ -90,7 +91,7 @@ export function AdSpendPage() {
           <SpendSource report={report} name={accountName(connection, intl)} accountId={connection.account?.external_account_id ?? null} />
           <SpendTotals report={report} />
           <Card title={<FormattedMessage id={`analyze.spend.rows.${level}`} />} subtitle={<FormattedMessage id="analyze.spend.rowsLead" />} flush>
-            <SpendTable rows={namedRows(report.rows, names.data)} />
+            <SpendTable rows={namedRows(report.rows, names.data)} label={intl.formatMessage({ id: `analyze.spend.rows.${level}` })} />
           </Card>
         </>
       ) : null}
@@ -203,7 +204,7 @@ function SpendTotals({ report }: { report: SpendReport }) {
   );
 }
 
-function SpendTable({ rows }: { rows: Array<SpendRow & { name: string | null }> }) {
+function SpendTable({ rows, label }: { rows: Array<SpendRow & { name: string | null }>; label: string }) {
   const intl = useIntl();
   if (rows.length === 0) {
     return (
@@ -213,42 +214,44 @@ function SpendTable({ rows }: { rows: Array<SpendRow & { name: string | null }> 
     );
   }
   return (
-    <table className="c-table">
-      <thead>
-        <tr>
-          <th scope="col">
-            <FormattedMessage id="analyze.spend.object" />
-          </th>
-          <th scope="col" className="is-num">
-            <FormattedMessage id="analyze.spend.spent" />
-          </th>
-          <th scope="col" className="is-num">
-            <FormattedMessage id="analyze.spend.impressions" />
-          </th>
-          <th scope="col" className="is-num">
-            <FormattedMessage id="analyze.spend.clicks" />
-          </th>
-          <th scope="col" className="is-num">
-            <FormattedMessage id="analyze.spend.days" />
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={`${row.object_id ?? 'none'}:${row.currency}`}>
-            <th scope="row">
-              <span className="c-table__primary">{row.name ?? (row.object_id ? <FormattedMessage id="analyze.spend.unnamed" /> : <FormattedMessage id="analyze.spend.noObject" />)}</span>
-              {row.object_id ? <span className="c-table__sub u-ltr">{row.object_id}</span> : null}
+    <TableScroll label={label}>
+      <table className="c-table">
+        <thead>
+          <tr>
+            <th scope="col">
+              <FormattedMessage id="analyze.spend.object" />
             </th>
-            <td className="is-num u-num">
-              {money(intl, row.spend, row.currency, row.exponent)} {row.provisional ? <ProvisionalBadge /> : null}
-            </td>
-            <td className="is-num u-num">{intl.formatNumber(row.impressions)}</td>
-            <td className="is-num u-num">{intl.formatNumber(row.clicks)}</td>
-            <td className="is-num u-num">{intl.formatNumber(row.days_with_spend)}</td>
+            <th scope="col" className="is-num">
+              <FormattedMessage id="analyze.spend.spent" />
+            </th>
+            <th scope="col" className="is-num">
+              <FormattedMessage id="analyze.spend.impressions" />
+            </th>
+            <th scope="col" className="is-num">
+              <FormattedMessage id="analyze.spend.clicks" />
+            </th>
+            <th scope="col" className="is-num">
+              <FormattedMessage id="analyze.spend.days" />
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.object_id ?? 'none'}:${row.currency}`}>
+              <th scope="row">
+                <span className="c-table__primary">{row.name ?? (row.object_id ? <FormattedMessage id="analyze.spend.unnamed" /> : <FormattedMessage id="analyze.spend.noObject" />)}</span>
+                {row.object_id ? <span className="c-table__sub u-ltr">{row.object_id}</span> : null}
+              </th>
+              <td className="is-num u-num">
+                {money(intl, row.spend, row.currency, row.exponent)} {row.provisional ? <ProvisionalBadge /> : null}
+              </td>
+              <td className="is-num u-num">{intl.formatNumber(row.impressions)}</td>
+              <td className="is-num u-num">{intl.formatNumber(row.clicks)}</td>
+              <td className="is-num u-num">{intl.formatNumber(row.days_with_spend)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
   );
 }

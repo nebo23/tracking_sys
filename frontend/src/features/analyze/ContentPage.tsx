@@ -6,6 +6,7 @@ import { socialReportQuery, type SocialReport, type SocialRow } from '@/api/repo
 import { useClient } from '@/app/tenant';
 import { SeriesChart } from '@/components/charts/SeriesChart';
 import { InlineSelect } from '@/components/Choice';
+import { TableScroll } from '@/components/TableScroll';
 import { EmptyState } from '@/components/EmptyState';
 import { QueryStates } from '@/components/ListStates';
 import { Notice } from '@/components/Notice';
@@ -79,7 +80,8 @@ export function ContentPage() {
 
   const change = (next: Partial<AnalyzeSearch>) => void navigate({ search: (current) => ({ ...current, ...next }), replace: true });
   const metrics = daily.data ? dailyMetrics(daily.data) : [];
-  const metric = search.metric && metrics.includes(search.metric) ? search.metric : (metrics[0] ?? 'views');
+  // Views first, as people read an account; otherwise the first metric the report totals.
+  const metric = search.metric && metrics.includes(search.metric) ? search.metric : metrics.includes('views') ? 'views' : (metrics[0] ?? 'views');
 
   return (
     <>
@@ -190,57 +192,59 @@ function TotalsTable({ report, metrics }: { report: SocialReport; metrics: strin
   const count = useCount();
   return (
     <Card title={<FormattedMessage id="analyze.content.totals" />} flush>
-      <table className="c-table">
-        <thead>
-          <tr>
-            <th scope="col">
-              <FormattedMessage id="analyze.metric" />
-            </th>
-            <th scope="col" className="is-num">
-              <FormattedMessage id="analyze.total" />
-            </th>
-            {report.comparison ? (
+      <TableScroll label={intl.formatMessage({ id: 'analyze.content.totals' })}>
+        <table className="c-table">
+          <thead>
+            <tr>
               <th scope="col">
-                <FormattedMessage id="analyze.change" />
+                <FormattedMessage id="analyze.metric" />
               </th>
-            ) : null}
-            <th scope="col">
-              <FormattedMessage id="analyze.state" />
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map((metric) => {
-            const total = totalOf(report, metric);
-            const comparison = comparisonOf(report, metric);
-            return (
-              <tr key={metric}>
-                <th scope="row">{metricName(metric)}</th>
-                <td className="is-num u-num">
-                  {total && total.value !== null ? count(total.value) : <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>}
-                </td>
-                {report.comparison ? (
-                  <td>
-                    {comparison ? (
-                      <Change
-                        comparable={comparison.comparable}
-                        percent={percent(intl, comparison.percent_change)}
-                        difference={comparison.difference}
-                        reason={comparison.reason}
-                      />
-                    ) : null}
+              <th scope="col" className="is-num">
+                <FormattedMessage id="analyze.total" />
+              </th>
+              {report.comparison ? (
+                <th scope="col">
+                  <FormattedMessage id="analyze.change" />
+                </th>
+              ) : null}
+              <th scope="col">
+                <FormattedMessage id="analyze.state" />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((metric) => {
+              const total = totalOf(report, metric);
+              const comparison = comparisonOf(report, metric);
+              return (
+                <tr key={metric}>
+                  <th scope="row">{metricName(metric)}</th>
+                  <td className="is-num u-num">
+                    {total && total.value !== null ? count(total.value) : <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>}
                   </td>
-                ) : null}
-                <td>
-                  {total ? <TotalState status={total.status} reason={total.reason} /> : null}
-                  {total?.provisional ? <ProvisionalBadge /> : null}
-                  {total && total.status === 'complete' && !total.provisional ? <FormattedMessage id="analyze.status.complete" /> : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  {report.comparison ? (
+                    <td>
+                      {comparison ? (
+                        <Change
+                          comparable={comparison.comparable}
+                          percent={percent(intl, comparison.percent_change)}
+                          difference={comparison.difference}
+                          reason={comparison.reason}
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
+                  <td>
+                    {total ? <TotalState status={total.status} reason={total.reason} /> : null}
+                    {total?.provisional ? <ProvisionalBadge /> : null}
+                    {total && total.status === 'complete' && !total.provisional ? <FormattedMessage id="analyze.status.complete" /> : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </TableScroll>
     </Card>
   );
 }
@@ -271,42 +275,44 @@ function CohortCard({ query }: { query: ReturnType<typeof useQuery<SocialReport>
         </p>
       ) : null}
       {items.length > 0 ? (
-        <table className="c-table">
-          <thead>
-            <tr>
-              <th scope="col">
-                <FormattedMessage id="analyze.content.item" />
-              </th>
-              <th scope="col">
-                <FormattedMessage id="analyze.content.published" />
-              </th>
-              {metrics.map((metric) => (
-                <th key={metric} scope="col" className="is-num">
-                  {metricName(metric)}
+        <TableScroll label={intl.formatMessage({ id: 'analyze.content.cohort' })}>
+          <table className="c-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <FormattedMessage id="analyze.content.item" />
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={`${item.stream}:${item.id}`}>
-                <th scope="row">
-                  <span className="c-table__primary u-ltr">{item.id}</span>
-                  <span className="c-table__sub">{item.productType ?? item.stream}</span>
+                <th scope="col">
+                  <FormattedMessage id="analyze.content.published" />
                 </th>
-                <td>{item.publishedDate ? intl.formatDate(new Date(`${item.publishedDate}T00:00:00Z`), { day: 'numeric', month: 'short', timeZone: 'UTC' }) : null}</td>
-                {metrics.map((metric) => {
-                  const row = item.values.get(metric);
-                  return (
-                    <td key={metric} className="is-num u-num">
-                      {row && row.availability === 'available' && typeof row.value === 'number' ? count(row.value) : <NoValue>{gapWords(row)}</NoValue>}
-                    </td>
-                  );
-                })}
+                {metrics.map((metric) => (
+                  <th key={metric} scope="col" className="is-num">
+                    {metricName(metric)}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={`${item.stream}:${item.id}`}>
+                  <th scope="row">
+                    <span className="c-table__primary u-ltr">{item.id}</span>
+                    <span className="c-table__sub">{item.productType ?? item.stream}</span>
+                  </th>
+                  <td>{item.publishedDate ? intl.formatDate(new Date(`${item.publishedDate}T00:00:00Z`), { day: 'numeric', month: 'short', timeZone: 'UTC' }) : null}</td>
+                  {metrics.map((metric) => {
+                    const row = item.values.get(metric);
+                    return (
+                      <td key={metric} className="is-num u-num">
+                        {row && row.availability === 'available' && typeof row.value === 'number' ? count(row.value) : <NoValue>{gapWords(row)}</NoValue>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       ) : null}
       {unknown > 0 ? (
         <p className="a-pad u-secondary">

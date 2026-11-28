@@ -56,7 +56,9 @@ test('an owner adds, opens, renames and finds clients', async ({ page, context }
     const menu = page.getByRole('menu');
     await expect(menu.getByRole('menuitemradio', { name: 'Cedar Fitness' })).toHaveAttribute('aria-checked', 'true');
     await menu.getByRole('menuitemradio', { name: 'Olive & Thyme' }).click();
-    await expect(page).toHaveURL(oliveAddress);
+    // A client opens on its overview (018-C).
+    await expect(page).toHaveURL(oliveAddress.replace(/\/connections$/, ''));
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
     await expect(switcher).toContainText('Olive & Thyme');
 
     await switcher.click();
@@ -134,6 +136,8 @@ test('an analyst sees only the client they were given, and manages nothing', asy
 
   // The granted client opens, read only.
   await page.getByRole('link', { name: 'Open: Olive & Thyme' }).click();
+  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+  await page.getByRole('complementary').getByRole('link', { name: 'Connections' }).click();
   await expect(page.getByRole('heading', { name: 'Connections', level: 1 })).toBeVisible();
   await expect(page.getByText('No account is connected for Olive & Thyme yet.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Connect account' })).toHaveCount(0);

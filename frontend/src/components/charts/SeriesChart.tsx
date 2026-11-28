@@ -3,6 +3,7 @@ import { FormattedMessage } from 'react-intl';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { Icon } from '@/components/Icon';
+import { TableScroll } from '@/components/TableScroll';
 
 /** One day of a series: this period's value and, when compared, the matching day of the previous one. */
 export interface SeriesPoint {
@@ -115,33 +116,35 @@ export function SeriesChart(props: SeriesChartProps) {
       </div>
       {asTable ? (
         <div className="a-series__table" id={tableId}>
-          <table className="c-table">
-            <caption className="u-sr">{title}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{dayLabel}</th>
-                <th scope="col" className="is-num">
-                  {currentLabel}
-                </th>
-                {compare ? (
+          <TableScroll label={title}>
+            <table className="c-table">
+              <caption className="u-sr">{title}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{dayLabel}</th>
                   <th scope="col" className="is-num">
-                    {previousLabel}
+                    {currentLabel}
                   </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((point) => (
-                <tr key={point.date}>
-                  <th scope="row">{formatDate(point.date)}</th>
-                  <td className="is-num u-num">{point.current === null ? point.gap : format(point.current)}</td>
                   {compare ? (
-                    <td className="is-num u-num">{point.previous === null || point.previous === undefined ? point.gap : format(point.previous)}</td>
+                    <th scope="col" className="is-num">
+                      {previousLabel}
+                    </th>
                   ) : null}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {points.map((point) => (
+                  <tr key={point.date}>
+                    <th scope="row">{formatDate(point.date)}</th>
+                    <td className="is-num u-num">{point.current === null ? point.gap : format(point.current)}</td>
+                    {compare ? (
+                      <td className="is-num u-num">{point.previous === null || point.previous === undefined ? point.gap : format(point.previous)}</td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         </div>
       ) : (
         <div className="c-chart-wrap" dir="ltr">

@@ -80,9 +80,13 @@ export function contentItems(report: SocialReport): ContentItem[] {
   return [...items.values()].sort((a, b) => (b.publishedDate ?? '').localeCompare(a.publishedDate ?? '') || a.id.localeCompare(b.id));
 }
 
-/** The metrics a content cohort shows as columns: those of its totals, at most four. */
+/**
+ * The metrics a content cohort shows as columns, at most five, of those its totals hold. Follows
+ * and profile visits apply to some kinds of content only, so their column shows what is not
+ * supported for the others, in words.
+ */
 export function cohortMetrics(report: SocialReport): string[] {
-  const order = ['views', 'reach', 'total_interactions', 'likes', 'comments', 'shares', 'engagedViews', 'estimatedMinutesWatched'];
+  const order = ['views', 'reach', 'total_interactions', 'likes', 'follows', 'profile_visits', 'comments', 'shares', 'engagedViews', 'estimatedMinutesWatched'];
   const present = new Set(report.totals.map((total) => total.metric));
-  return order.filter((metric) => present.has(metric)).slice(0, 4);
+  return order.filter((metric) => present.has(metric)).slice(0, 5);
 }
