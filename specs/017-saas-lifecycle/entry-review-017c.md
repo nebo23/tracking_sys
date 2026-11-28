@@ -2,7 +2,7 @@
 
 Prepared: 2026-11-28 under D-102.
 - **Baseline:** merged `main` at `04dc323` (PR 21: Spec 017-B, agency offboarding).
-- **Status:** proposed. D1-D14 wait for the owner's approval, which is recorded as D-103 before any application change or migration `0034`.
+- **Status:** approved. The owner approved D1-D14 as recommended, without amendment, on 2026-11-28 (D-103).
 - **Handoff:** the [implementation handoff](implementation-prompt-017c.md) executes this packet after approval.
 - **Owner inputs (2026-11-28):** the first paying agencies are worldwide and pay in USD; the company that sells the subscriptions is registered in Egypt and also outside Egypt.
 

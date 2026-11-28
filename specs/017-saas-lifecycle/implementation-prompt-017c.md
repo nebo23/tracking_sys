@@ -1,6 +1,6 @@
 # Spec 017-C implementation: subscription billing, prices and the trial
 
-Prepared 2026-11-28 under D-102. Execute this handoff only after the owner's approval of decisions D1-D14 of the [017-C entry review](entry-review-017c.md) is recorded as D-103 (see [Authority](#authority)). Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017c.md` on the branch below.
+Prepared 2026-11-28 under D-102. The owner approved decisions D1-D14 of the [017-C entry review](entry-review-017c.md) as recommended, without amendment, on 2026-11-28; the approval is recorded as D-103, so this handoff is ready to execute. Communicate with the owner in Arabic, and write every project file, commit and pull request in formal English. Save this handoff as `specs/017-saas-lifecycle/implementation-prompt-017c.md` on the branch below.
 
 ## Where to work
 
