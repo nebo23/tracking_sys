@@ -1,6 +1,6 @@
 # Spec 017-C design: subscription billing, prices and the trial
 
-Prepared: 2026-11-28 under D-103. Revision: 1 (2026-11-28). Status: approved scope ([D1-D14](entry-review-017c.md#4-decisions-for-the-owner), D-103, without amendment), design of Phase 0. This note fixes the exact schema, transitions, event mapping, adapter calls, answers, error codes, grants and tests before any code. Section 5 of the [entry review](entry-review-017c.md) is its source. Section 2 records the provider facts V-1 to V-16 read on Paddle's and Stripe's official pages; no fact changes a decision, and section 2.3 lists the differences. Section 15 lists the routine details resolved here. No material new choice was found that needs the owner.
+Prepared: 2026-11-28 under D-103. Revision: 2 (2026-11-28). Status: approved scope ([D1-D14](entry-review-017c.md#4-decisions-for-the-owner), D-103, without amendment), implemented. Revision 2 aligns the test inventory of section 14 with the implemented test names; the [evidence](evidence-017c.md) records the results and the details found during implementation (section 7). This note fixes the exact schema, transitions, event mapping, adapter calls, answers, error codes, grants and tests before any code. Section 5 of the [entry review](entry-review-017c.md) is its source. Section 2 records the provider facts V-1 to V-16 read on Paddle's and Stripe's official pages; no fact changes a decision, and section 2.3 lists the differences. Section 15 lists the routine details resolved here. No material new choice was found that needs the owner.
 
 ## 1. Inventory on the branch (P0)
 
@@ -399,31 +399,35 @@ Additions only: the nine routes of section 7 and the webhook, their request and 
 
 ## 14. Test inventory (BL01-BL23)
 
+Unit modules are in `backend/tests/`, integration modules in `backend/tests/integration/`.
+
 | Case | Tests |
 |---|---|
-| BL01 Prices | `test_billing_command.py::test_bl01_register_and_retire_prices`, `test_bl01_price_rules`; `test_billing_owner.py::test_bl01_price_list_offers_only_offered_prices` |
+| BL01 Prices | `test_billing_command.py::test_bl01_register_and_retire_prices`, `::test_bl01_price_rules`; `test_billing_owner.py::test_bl01_price_list_offers_only_offered_prices` |
 | BL02 Trial | `test_billing_standing.py::test_bl02_new_agency_standing_follows_the_setting`; `test_billing_migration.py::test_bl21_upgrade_from_a_populated_0033` (existing agencies) |
 | BL03 Trial end | `test_billing_standing.py::test_bl03_trial_reminder_and_end` |
 | BL04 Hold | `test_billing_standing.py::test_bl04_hold_refuses_creations_and_stops_nothing` |
-| BL05 Checkout | `test_billing_owner.py::test_bl05_checkout_roles_and_refusals`, `test_bl05_one_open_checkout_under_concurrency` |
-| BL06 Signature | `test_billing_paddle.py::test_bl06_signature_rules`; `test_billing_webhook.py::test_bl06_webhook_signature_bound_and_rate` |
+| BL05 Checkout | `test_billing_owner.py::test_bl05_checkout_roles_and_refusals`, `::test_bl05_one_open_checkout_under_concurrency` |
+| BL06 Signature | `test_billing_webhook_contract.py::test_bl06_signature_rules` (unit); `test_billing_webhook.py::test_bl06_webhook_signature_bound_and_rate` |
 | BL07 Idempotency and order | `test_billing_webhook.py::test_bl07_repeated_and_older_events` |
 | BL08 Activation | `test_billing_webhook.py::test_bl08_activation_ends_trial_and_hold` |
-| BL09 Plan changes | `test_billing_owner.py::test_bl09_plan_changes_and_preview`; `test_billing_paddle.py::test_bl09_adapter_sends_proration_modes` |
+| BL09 Plan changes | `test_billing_owner.py::test_bl09_plan_changes_and_preview`; `test_billing_webhook_contract.py::test_bl09_adapter_sends_the_documented_requests` (unit) |
 | BL10 Failed payments | `test_billing_webhook.py::test_bl10_past_due_recovery_and_cancellation` |
 | BL11 Cancellation | `test_billing_owner.py::test_bl11_cancel_undo_and_resubscribe` |
 | BL12 Records | `test_billing_webhook.py::test_bl12_payments_and_adjustments` |
 | BL13 Invoice | `test_billing_owner.py::test_bl13_invoice_redirect` |
 | BL14 Closure | `test_billing_owner.py::test_bl14_closure_actions` |
-| BL15 Purge | `test_billing_owner.py::test_bl15_purge_keeps_financial_records`; `test_agency_offboarding_migration.py::test_ov09_function_covers_every_scoped_table` |
+| BL15 Purge | `test_billing_owner.py::test_bl15_purge_keeps_financial_records`; `test_billing_migration.py::test_bl15_purge_waits_for_actions_and_keeps_financial_records`; `test_agency_offboarding_migration.py::test_ov09_function_covers_every_scoped_table` |
 | BL16 Unmatched and duplicates | `test_billing_webhook.py::test_bl16_unmatched_and_duplicates` |
 | BL17 Reconciliation | `test_billing_owner.py::test_bl17_reconciliation_corrects_a_missed_event` |
-| BL18 Operator command | `test_billing_command.py` (every subcommand, `--confirm`, audit rows, output) and `tests/test_billing_command_parser.py` |
+| BL18 Operator command | `test_billing_command.py::test_bl18_operator_subcommands`, `::test_bl18_command_runs_as_its_own_process_and_requires_confirm`; `test_billing_command_parser.py` (unit); BL16 and BL17 for `events`, `duplicates` and `reconcile` |
 | BL19 Separation | `test_billing_webhook.py::test_bl19_billing_never_touches_client_revenue` |
-| BL20 Isolation | `test_billing_standing.py::test_bl20_other_agencies_never_change` |
-| BL21 Migration | `test_billing_migration.py` (upgrade, grants, function, downgrade) |
-| BL22 Secrets and logs | `test_billing_paddle.py::test_bl22_settings_validation`; `test_billing_webhook.py::test_bl22_no_secret_in_logs_answers_or_outputs` |
-| BL23 Existing behavior | every existing suite; `test_billing_owner.py::test_bl23_journey` (the end-to-end journey of P4) and the OpenAPI comparison |
+| BL20 Isolation | `test_billing_standing.py::test_bl20_other_agencies_never_change`; the other agency's checks of BL04 and BL15 |
+| BL21 Migration | `test_billing_migration.py::test_bl21_upgrade_from_a_populated_0033`, `::test_bl21_grants`, `::test_bl21_constraints`, `::test_bl21_downgrade_restores_0033_and_refuses_stored_state` |
+| BL22 Secrets and logs | `test_billing_paddle.py::test_bl22_settings_validation` (unit); `test_billing_webhook.py::test_bl22_no_secret_in_logs_answers_or_outputs`; the log check of BL13 |
+| BL23 Existing behavior | `test_billing_owner.py::test_bl23_journey` (the end-to-end journey of P4), every existing suite and the OpenAPI comparison |
+
+Further cases: `test_billing_owner.py::test_billing_retention`, `test_billing_webhook_contract.py::test_event_envelope_and_allowlisted_snapshots` and the adapter cases of `test_billing_paddle.py` (the price read, the error mapping, malformed answers and the transport's bounds against a local socket).
 
 ## 15. Routine details resolved here
 

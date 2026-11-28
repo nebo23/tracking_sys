@@ -262,7 +262,12 @@ def test_sv08_operator_command_runs_as_its_own_process(world):
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
-    assert [item["key"] for item in json.loads(result.stdout)] == ["development", "billing_hold"]
+    # The two seeded plans (0031, 0034) may share one creation time; the listing then orders
+    # them by key.
+    assert sorted(item["key"] for item in json.loads(result.stdout)) == [
+        "billing_hold",
+        "development",
+    ]
     refused = subprocess.run(
         [sys.executable, "-m", "app.agency_plans", "suspend", "--agency", str(world.a)],
         cwd=BACKEND_ROOT,

@@ -1,12 +1,12 @@
 # Backend
-FastAPI, PostgreSQL 18, SQLAlchemy 2, Alembic and Psycopg 3 (D-013, D-014), with the specification slices merged so far (through Spec 017-B, PR 21). The migration head is `0033_agency_offboarding` (98 application tables); the generated API contract is [contracts/openapi.json](../contracts/openapi.json) (175 operations across 141 paths).
+FastAPI, PostgreSQL 18, SQLAlchemy 2, Alembic and Psycopg 3 (D-013, D-014), with the specification slices merged so far (through Spec 017-B, PR 21) and Spec 017-C, subscription billing, on its branch. The migration head is `0034_saas_billing` (106 application tables); the generated API contract is [contracts/openapi.json](../contracts/openapi.json) (185 operations across 150 paths).
 
 - `app/api/`: HTTP routes, schemas, identity dependencies and request controls (body bounds, rate limits, CORS for public collection routes).
 - `app/models/`: tenancy and authentication (002), collection and consent (004), links (005), the identity journey (006), the persisted ledger and sale association (007-B/C), persisted attribution (008-B), connectors (009-011), advertising (014), revenue evidence, payments, integrations, CRM and WhatsApp (015), report delivery (016-C), plans and agency closure (017-A) and agency offboarding (017-B).
 - `app/services/`: the scoped services behind the routes, including access resolution, collection and erasure, the identity journey, the connector runtime, advertising reads and delivery, the ledger store and its review, attribution storage and reports, Paymob intake, bookings, CRM deals, WhatsApp referrals, reports with their exports and schedules, plans and limits, and agency closure, export, offboarding and purge.
 - `app/ledger/`, `app/attribution/`, `app/identity/`, `app/reporting/`, `app/advertising/`, `app/privacy/`, `app/payments/`, `app/integrations/`, `app/connectors/`: pure contracts, rules and adapters (007-A, 008-A, 006, 016, 014, 003, 015, 009-014).
 - Commands: `app.mail_worker`, `app.lifecycle`, `app.connector_worker`, `app.connector_purge`, `app.whatsapp_binding` (D-070 operator binding), `app.ledger_backfill`, `app.attribution_worker`, `app.report_worker` (016-C scheduled reports), `app.agency_plans` (017-A operator command), `app.offboarding_worker` and `app.agency_offboarding` (017-B), `app.gmail_authorize` and the read-only feasibility tools.
-- `migrations/`: revisions `0001` to `0033` with restricted runtime and lifecycle grants and guarded downgrades.
+- `migrations/`: revisions `0001` to `0034` with restricted runtime and lifecycle grants and guarded downgrades.
 - `tests/`: unit and contract cases, and real PostgreSQL integration cases on the disposable service only; see [tests/README.md](tests/README.md) and each specification's evidence for counts and results.
 - `requirements.in` and `requirements-dev.in`: direct dependencies; the corresponding `.txt` files pin versions with hashes.
 

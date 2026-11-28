@@ -434,13 +434,19 @@ def test_bl19_billing_never_touches_client_revenue(authenticated_world, api):
     forbidden = ("app.services.revenue", "app.ledger", "app.services.payments", "app.payments")
     for module in modules:
         tree = ast.parse(Path(BACKEND_ROOT, module).read_bytes())
-        imported = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)} | {
+        # Both "import a.b" and "from a import b" count as importing a.b.
+        imported = {
+            f"{node.module}.{alias.name}"
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+            for alias in node.names
+        } | {
             alias.name
             for node in ast.walk(tree)
             if isinstance(node, ast.Import)
             for alias in node.names
         }
-        assert not {name for name in imported if name and name.startswith(forbidden)}, module
+        assert not {name for name in imported if name.startswith(forbidden)}, module
 
 
 class _Collect(logging.Handler):
