@@ -15,7 +15,7 @@ from app.config import BACKEND_ROOT
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0032_report_delivery"
+HEAD = "0033_agency_offboarding"
 PREVIOUS = "0031_saas_plans"
 NEW_TABLES = (
     "report_exports",

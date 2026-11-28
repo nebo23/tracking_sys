@@ -36,7 +36,8 @@ def test_migrated_schema_matches_registry(db):
     # five ledger tables (0027); 007-C revenue_identity_bindings (0028); 008-B the six
     # attribution tables (0029); 017-A the plan, assignment, closure and agreement tables
     # (0031), whose user_agreements.user_id is the eleventh single-column user reference;
-    # 016-C the export, content, schedule, recipient and branding tables (0032).
-    assert len(schema) == 96
+    # 016-C the export, content, schedule, recipient and branding tables (0032); 017-B the
+    # agency export, export part and purge tables (0033).
+    assert len(schema) == 99
     assert len(references) == 11
     assert registry_problems(schema, [tuple(row) for row in references]) == []

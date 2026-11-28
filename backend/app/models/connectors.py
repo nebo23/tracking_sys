@@ -87,7 +87,7 @@ class ConnectorConnection(Base):
         CheckConstraint(
             "status_reason IS NULL OR status_reason IN "
             "('credential_expired', 'provider_revoked', 'user_requested', 'deauthorized', "
-            "'deletion_requested', 'authorization_lost', 'operator_purged')",
+            "'deletion_requested', 'authorization_lost', 'operator_purged', 'agency_closed')",
             name="valid_reason",
         ),
         CheckConstraint(

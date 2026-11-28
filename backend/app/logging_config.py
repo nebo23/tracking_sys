@@ -42,6 +42,15 @@ EVENTS: dict[str, frozenset[str]] = {
     # One client's attribution pass stopped on a database error (008-B, D-079); the pass
     # continues with the next client, the client stays behind and readers answer stale.
     "attribution_client_failed": frozenset(),
+    # One closed agency's offboarding stopped on a database error (017-B, D-098 D6); the pass
+    # continues with the next agency and the next pass retries it.
+    "agency_offboarding_failed": frozenset(),
+    # An offboarding export build failed unexpectedly (017-B, D5); the export is marked failed
+    # with build_failed and nothing is stored.
+    "agency_export_failed": frozenset(),
+    # A sealed part of an offboarding export did not open during a download (017-B, D5); the
+    # stream ends.
+    "agency_export_unreadable": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without
