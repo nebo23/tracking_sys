@@ -352,6 +352,34 @@ def test_ov03_export_beyond_the_bound_fails_without_storing(authenticated_world,
     assert _export(w.db, export_id).status == "ready"
 
 
+def test_ov03_a_zip_that_fails_its_checks_is_not_stored(authenticated_world, api, monkeypatch):
+    w = authenticated_world
+    populate_direct(w.db, w.a, w.a1, owner_membership(w.db, w.a))
+    request_closure(w, api, w.a)
+    original = agency_exports.write_zip
+
+    def miscounted(engine, handle, agency_id, export_id):
+        files, manifest = original(engine, handle, agency_id, export_id)
+        return [{**files[0], "rows": files[0]["rows"] + 1}, *files[1:]], manifest
+
+    def damaged(engine, handle, agency_id, export_id):
+        files, manifest = original(engine, handle, agency_id, export_id)
+        handle.seek(-30, 2)
+        handle.write(b"\x00" * 30)
+        handle.flush()
+        return files, manifest
+
+    for tamper in (miscounted, damaged):
+        with monkeypatch.context() as patch:
+            patch.setattr(agency_exports, "write_zip", tamper)
+            _forget_throttles(w.db)
+            export_id = UUID(_requested(w, api)["export"]["id"])
+            assert build_pending(w.db.runtime, api.config)["failed"] == 1
+        failed = _export(w.db, export_id)
+        assert (failed.status, failed.error_code) == ("failed", "build_failed"), tamper
+        assert _parts(w.db, export_id) == []
+
+
 def test_ov04_parts_are_sealed_and_bound_to_their_export(authenticated_world, api, monkeypatch):
     w = authenticated_world
     populate_direct(w.db, w.a, w.a1, owner_membership(w.db, w.a))

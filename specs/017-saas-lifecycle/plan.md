@@ -1,5 +1,5 @@
 # Plan: 017-saas-lifecycle
-Status: Draft for 017-B and 017-C. The first slice, 017-A (plans, limits, the usage view, the operator command, agency closure, the agreement record and `Retry-After`), was approved under D-092, is implemented and merged in PR 19 (D-093); see its [design note](design-017a.md), [evidence](evidence-017a.md) and [merge review](merge-review-017a.md). 017-B is prepared under D-097 in its [entry review](entry-review-017b.md) and [implementation handoff](implementation-prompt-017b.md); the owner approved its decisions D1-D14 as recommended (D-098). This plan does not authorize further implementation or dependency selection.
+Status: Draft for 017-B and 017-C. The first slice, 017-A (plans, limits, the usage view, the operator command, agency closure, the agreement record and `Retry-After`), was approved under D-092, is implemented and merged in PR 19 (D-093); see its [design note](design-017a.md), [evidence](evidence-017a.md) and [merge review](merge-review-017a.md). 017-B, prepared under D-097 in its [entry review](entry-review-017b.md) and [implementation handoff](implementation-prompt-017b.md) and approved as recommended (D-098), is implemented on `codex/spec-017b-agency-offboarding`; see its [design note](design-017b.md) and [evidence](evidence-017b.md). This plan does not authorize further implementation or dependency selection.
 
 ## Expected outcome
 Define agency registration, invitations, onboarding, plans, entitlements, metering, approved trial/subscription flows, limits, offboarding, and support.
@@ -23,7 +23,7 @@ Prepare small, reviewable local changes. Complete the approved specification and
 - [x] Usage limits are enforced server-side, not only in React, and do not affect unrelated clients (017-A: hard limits on creation under the agency lock).
 - [ ] Duplicate or delayed billing webhooks are idempotent; SaaS subscription billing remains separate from agency-client revenue.
 - [x] Exceeding quotas or budgets has documented behavior that protects data and does not break critical redirects without an agreed policy (017-A: limits refuse only new creations; the event allowance is soft).
-- [ ] Closing an agency stops its jobs and applies export, deletion, and retention policies (017-A stops every job and intake at the request and closes the agency after 30 days; export and deletion belong to 017-B).
+- [x] Closing an agency stops its jobs and applies export, deletion, and retention policies (017-A stops every job and intake at the request and closes the agency after 30 days; 017-B adds the Owner's export during the closing period, the disconnection of every connection at completion and the guarded purge, OV01-OV20).
 
 ## Rollout and recovery
 Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.

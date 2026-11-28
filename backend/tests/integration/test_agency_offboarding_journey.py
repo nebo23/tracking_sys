@@ -268,12 +268,14 @@ def test_ov17_completion_against_an_export_build(
     monkeypatch.setattr(agency_exports, "seal_bytes", pause.wrap(agency_exports.seal_bytes))
     builder = Run(build_pending, w.db.runtime, api.config)
     builder.start()
-    assert pause.entered.wait(20)
-    end_grace_period(w.db, w.a)
-    blocked = run_lifecycle(lifecycle_engine, lifecycle_settings)
-    assert "agency_closures" in blocked["incomplete"]
-    assert _get(w.db, Agency, w.a).status == "closing"
-    pause.release.set()
+    try:
+        assert pause.entered.wait(20)
+        end_grace_period(w.db, w.a)
+        blocked = run_lifecycle(lifecycle_engine, lifecycle_settings)
+        assert "agency_closures" in blocked["incomplete"]
+        assert _get(w.db, Agency, w.a).status == "closing"
+    finally:
+        pause.release.set()
     assert builder.outcome()["built"] == 1
     monkeypatch.undo()
     ready = _get(w.db, AgencyExport, first)
@@ -292,11 +294,13 @@ def test_ov17_completion_against_an_export_build(
     )
     completion = Run(run_lifecycle, lifecycle_engine, lifecycle_settings)
     completion.start()
-    assert hold.entered.wait(20)
     builder = Run(build_pending, w.db.runtime, api.config)
-    builder.start()
-    _wait_for_lock_wait(w.db)
-    hold.release.set()
+    try:
+        assert hold.entered.wait(20)
+        builder.start()
+        _wait_for_lock_wait(w.db)
+    finally:
+        hold.release.set()
     assert completion.outcome()["deleted"]["agency_closures_completed"] == 1
     assert builder.outcome()["discarded"] == 1
     failed = _get(w.db, AgencyExport, second)
@@ -323,15 +327,17 @@ def test_ov17_two_offboarding_workers(lab, api, lifecycle_engine, lifecycle_sett
     )
     first = Run(run_offboarding, w.db.runtime, lab.config)
     first.start()
-    assert pause.entered.wait(20)
-    # The second worker finds the agency locked by the first and passes it by.
-    second = run_offboarding(w.db.runtime, lab.config)
+    try:
+        assert pause.entered.wait(20)
+        # The second worker finds the agency locked by the first and passes it by.
+        second = run_offboarding(w.db.runtime, lab.config)
+    finally:
+        pause.release.set()
     assert (second["offboarded"], second["skipped"], second["connections_disconnected"]) == (
         0,
         1,
         0,
     )
-    pause.release.set()
     result = first.outcome()
     assert (result["offboarded"], result["connections_disconnected"]) == (1, 2)
     for k in (k1, k2):
@@ -366,9 +372,14 @@ def test_ov17_purge_against_a_late_worker(lab, api, lifecycle_engine, lifecycle_
         run_teardowns, w.db.runtime, lab.config, {"synthetic": SlowProvider(lab.provider)}
     )
     teardown.start()
-    assert pause.entered.wait(20)
-    with lifecycle_engine.connect() as connection:
-        rows, outcome = purge_agency(connection, w.a, 25, 2)
+    try:
+        assert pause.entered.wait(20)
+        with lifecycle_engine.connect() as connection:
+            rows, outcome = purge_agency(connection, w.a, 25, 2)
+    except BaseException:
+        pause.release.set()
+        teardown.join(20)
+        raise
     assert outcome == "partial" and rows == 50
     # Late writes between and during the purge's calls: a diagnostic of a late intake.
     late = (
@@ -389,7 +400,7 @@ def test_ov17_purge_against_a_late_worker(lab, api, lifecycle_engine, lifecycle_
         writer.commit()
     finally:
         writer.close()
-    pause.release.set()
+        pause.release.set()
     # The late teardown finds nothing left to finish and fails nothing.
     assert teardown.outcome() in ({"skipped": 1}, {"disconnected": 1})
     result = run_lifecycle(lifecycle_engine, lifecycle_settings)

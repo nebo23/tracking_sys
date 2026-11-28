@@ -1,6 +1,6 @@
 # Spec 017-B design: offboarding export, provider disconnection and the purge of closed agencies
 
-Prepared: 2026-11-28 under D-098. Revision: 1. Status: approved scope ([D1-D14](entry-review-017b.md#3-decisions-for-the-owner), D-098, without amendment). This note fixes the exact schema, statements, answers, error codes, grants and tests before any code; section 4 of the [entry review](entry-review-017b.md) is its source. Section 12 lists the routine details resolved here. No material new choice was found that needs the owner.
+Prepared: 2026-11-28 under D-098. Revision: 2 (2026-11-28). Status: approved scope ([D1-D14](entry-review-017b.md#3-decisions-for-the-owner), D-098, without amendment), implemented. This note fixed the exact schema, statements, answers, error codes, grants and tests before any code; section 4 of the [entry review](entry-review-017b.md) is its source. Section 12 lists the routine details resolved here. No material new choice was found that needs the owner. Revision 2 aligns the test inventory of section 10 with the implemented test names; the [evidence](evidence-017b.md) records the results and the details found during implementation (section 6).
 
 ## 1. Inventory on the branch (P0)
 
@@ -469,23 +469,23 @@ Additions: the three routes of section 3.1 and the schemas `AgencyExportInput`, 
 |---|---|
 | OV01 | `integration/test_agency_export.py::test_ov01_export_request_is_owner_only_reauthenticated_and_audited`, `::test_ov01_export_window_and_agency_status` |
 | OV02 | `test_agency_export.py::test_ov02_export_contents_match_the_catalog_and_manifest`; `test_agency_export_contract.py` (catalog against the registry) |
-| OV03 | `test_agency_export.py::test_ov03_export_beyond_the_bound_fails_without_storing` |
+| OV03 | `test_agency_export.py::test_ov03_export_beyond_the_bound_fails_without_storing`, `::test_ov03_a_zip_that_fails_its_checks_is_not_stored` |
 | OV04 | `test_agency_export.py::test_ov04_parts_are_sealed_and_bound_to_their_export` |
 | OV05 | `test_agency_export.py::test_ov05_download_streams_the_built_zip_for_owners_only`, `::test_ov05_download_is_gone_after_expiry_revocation_or_purge` |
 | OV06 | `test_agency_export.py::test_ov06_export_pending_at_completion_is_discarded` |
 | OV07 | `integration/test_agency_offboarding.py::test_ov07_offboarding_disconnects_revokes_and_disables_once` |
-| OV08 | `test_agency_offboarding.py::test_ov08_teardown_revokes_at_the_provider_and_the_purge_waits` |
+| OV08 | `test_agency_offboarding.py::test_ov08_teardown_revokes_at_the_provider_and_the_purge_waits`, `::test_ov08_a_teardown_past_its_deadline_no_longer_holds_the_purge` |
 | OV09 | `integration/test_agency_offboarding_migration.py::test_ov09_function_covers_every_scoped_table`; `test_agency_offboarding.py::test_ov09_purge_leaves_no_row_of_the_agency` |
 | OV10 | `test_agency_offboarding.py::test_ov10_what_stays_after_the_purge` |
 | OV11 | `test_agency_offboarding.py::test_ov11_other_agencies_keep_every_row` |
 | OV12 | `test_agency_offboarding_migration.py::test_ov12_function_refuses_agencies_not_closed_and_offboarded`, `::test_ov12_lifecycle_role_cannot_delete_tenant_configuration` |
 | OV13 | `test_agency_offboarding.py::test_ov13_purge_is_bounded_and_resumable` |
 | OV14 | `test_agency_offboarding.py::test_ov14_whatsapp_number_and_custom_domain_are_released` |
-| OV15 | `test_agency_offboarding.py::test_ov15_workers_skip_closed_and_purged_agencies` |
+| OV15 | `test_agency_offboarding.py::test_ov15_workers_skip_closed_and_purged_agencies`, `::test_ov15_delivery_worker_skips_a_closed_agency` |
 | OV16 | `test_agency_offboarding.py::test_ov16_operator_command_status_and_run`; `test_agency_offboarding_command.py` (arguments, `--confirm`) |
-| OV17 | `integration/test_agency_offboarding_journey.py::test_ov17_completion_against_an_export_build`, `::test_ov17_two_offboarding_workers`, `::test_ov17_purge_against_a_late_worker` |
+| OV17 | `test_agency_export.py::test_ov17_a_completion_between_build_and_store_discards_the_export`; `integration/test_agency_offboarding_journey.py::test_ov17_completion_against_an_export_build`, `::test_ov17_two_offboarding_workers`, `::test_ov17_purge_against_a_late_worker` |
 | OV18 | `test_agency_offboarding_migration.py::test_ov18_upgrade_from_populated_0032`, `::test_ov18_grants`, `::test_ov18_downgrade_refuses_stored_rows`; the data policy rows in `test_data_policy.py` and `integration/test_data_policy_schema.py` |
-| OV19 | `test_agency_offboarding_journey.py::test_ov19_logs_and_outputs_carry_no_name_figure_token_or_content` |
+| OV19 | `test_agency_offboarding_journey.py::test_journey_export_completion_offboarding_teardown_purge` (every log line and output of the journey), `::test_ov19_failures_log_codes_only` |
 | OV20 | every existing module, updated only for the new head (`0033`), the table counts and the known tables; `test_contract.py`; the semantic OpenAPI diff of section 9 |
 
 The journey of P4 is `test_agency_offboarding_journey.py::test_journey_export_completion_offboarding_teardown_purge`. The mutation check of P5 disables, one at a time, each safeguard listed in the handoff and records which test fails.
@@ -513,5 +513,5 @@ The journey of P4 is `test_agency_offboarding_journey.py::test_journey_export_co
 
 - **Queued mail.** Invitation and `report_ready` messages carry no agency reference; they expire with their invitation or export and leave under the outbox rule (30 days after expiry). Their links stop working at once, because the offboarding revokes the invitations and exports.
 - **Backups.** Not edited (D10); a restore must reapply the recorded purges (the 003 journal, 020).
-- **Scale.** The bounds and the single-transaction offboarding are sized for development and the plan limits (5 clients, 10 connections); production sizes come with Q-004 and 020.
+- **Scale.** The bounds and the single-transaction offboarding are sized for development and the plan limits (5 clients, 10 connections); foreign keys without an index on the referencing side (the two self-references and `bookings.subject_id`) make each deleted parent scan its client's rows, as the existing retention does. Production sizes come with Q-004 and 020.
 - **Live providers.** The teardown of live connections is an owner-operated check after the merge (D13).

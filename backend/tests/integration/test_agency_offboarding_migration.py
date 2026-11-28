@@ -218,10 +218,18 @@ def test_ov12_function_refuses_agencies_not_closed_and_offboarded(
     assert _refused(lifecycle_engine, w.a) == "teardown_pending"
     for budget in (0, -1, 10_001):
         assert _refused(lifecycle_engine, w.a, budget) == "invalid_budget"
+    # A closed agency without any connection is still refused while its offboarding runs.
+    b_before = _rows(w.db, w.b)
+    _closed(w.db, w.b)
+    _record(w.db, w.b, "offboarding")
+    assert _refused(lifecycle_engine, w.b) == "offboarding_not_completed"
+    assert _rows(w.db, w.b) == b_before
     # Nothing was deleted by any refused call, and the other agency was never touched.
     assert _rows(w.db, w.a) == before
     assert _value(w.db, "SELECT state FROM agency_purges WHERE agency_id = :a", a=w.a) == "waiting"
-    assert _count(w.db, "SELECT count(*) FROM agency_purges WHERE agency_id = :a", a=w.b) == 0
+    assert _value(w.db, "SELECT state FROM agency_purges WHERE agency_id = :a", a=w.b) == (
+        "offboarding"
+    )
 
 
 def test_ov12_lifecycle_role_cannot_delete_tenant_configuration(db, world, lifecycle_engine):
