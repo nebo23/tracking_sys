@@ -61,15 +61,15 @@ export function Shell() {
   const agencyId = access?.agency_id ?? '';
   // The client level exists only inside the agency that the address names.
   const clientId = access && address.agencyId === access.agency_id ? address.clientId : undefined;
-  // A client viewer may not read the agency's profile, so its name is not asked for.
-  const mayNameAgency = access !== undefined && access.role !== 'client_viewer';
-  // A closing agency (017-A) has one page, and the API refuses its profile and its clients, so the
-  // shell asks for neither. That page is drawn as B15, with its top bar only. On a page whose
-  // address names no agency (the account page) the switcher stays, to move to another agency, and
-  // the closing agency offers no destination of its own.
+  // A client viewer may not read the agency's profile, and the API refuses the profile of a closing
+  // agency (017-A), so neither name is asked for.
+  const mayNameAgency = access !== undefined && access.role !== 'client_viewer' && access.status !== 'closing';
+  // A closing agency has one page, and the API refuses its clients as well. That page is drawn as
+  // B15, with its top bar only. On a page whose address names no agency (the account page) the
+  // switcher stays, to move to another agency, and the closing agency offers no destination of its own.
   const closingAgency = access?.status === 'closing';
   const closingPage = closingAgency && address.agencyId === access.agency_id;
-  const agency = useQuery({ ...agencyQuery(agencyId), enabled: mayNameAgency && !closingAgency });
+  const agency = useQuery({ ...agencyQuery(agencyId), enabled: mayNameAgency });
   const client = useQuery({ ...clientQuery(agencyId, clientId ?? ''), enabled: clientId !== undefined });
 
   const pathname = useLocation({ select: (location) => location.pathname });

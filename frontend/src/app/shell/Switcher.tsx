@@ -33,8 +33,9 @@ export function Switcher({ current, clientId, compact = false }: SwitcherProps) 
   const navigate = useNavigate();
   const { data: agencies } = useSuspenseQuery(agenciesQuery);
   const agencyId = current.agency_id;
-  // A client viewer may not read the agency's profile, so its name is not asked for.
-  const mayNameAgency = (access: AgencyAccess) => access.role !== 'client_viewer';
+  // A client viewer may not read the agency's profile, and the API refuses the profile of a closing
+  // agency (017-A): neither name is asked for, and such an agency is called "Your agency".
+  const mayNameAgency = (access: AgencyAccess) => access.role !== 'client_viewer' && access.status !== 'closing';
   const details = useQueries({
     queries: agencies.map((agency) => ({ ...agencyQuery(agency.agency_id), enabled: mayNameAgency(agency) })),
   });

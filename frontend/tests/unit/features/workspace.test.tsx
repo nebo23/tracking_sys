@@ -365,10 +365,14 @@ describe('the workspace', () => {
 
     // The account page keeps the switcher, which leads to the agency that is not closing.
     await user.click(screen.getByRole('link', { name: 'Go to my account' }));
-    await user.click(await waitFor(() => switcher()));
+    // The closing agency, still the current one, is called "Your agency", and no name is left loading.
+    expect(await waitFor(() => switcher())).toHaveTextContent('Your agency');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).querySelector('.c-skel')).toBeNull();
+    await user.click(switcher());
     const menu = within(await screen.findByRole('menu'));
     expect(menu.getByRole('menuitem', { name: /Lumen Studio/ })).toHaveTextContent('Owner');
     expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${second.id}`)).toHaveLength(0);
   });
 
   it('has no closing page for an agency that is not closing', async () => {
@@ -378,14 +382,14 @@ describe('the workspace', () => {
     expect(window.location.pathname).toBe(clientsPath);
   });
 
-  it('marks another agency that is closing in the switcher', async () => {
-    fakeApi({
+  it('marks another agency that is closing in the switcher, without asking for the profile the API refuses', async () => {
+    const server = fakeApi({
       ...signedIn(),
       'GET /agencies': json(200, [
         { agency_id: agency.id, role: 'owner', status: 'active' },
         { agency_id: second.id, role: 'owner', status: 'closing' },
       ]),
-      [`GET /agencies/${second.id}`]: json(200, second),
+      [`GET /agencies/${second.id}`]: refused(403, 'access_denied'),
     });
     const user = userEvent.setup();
     openApp(clientsPath);
@@ -393,7 +397,8 @@ describe('the workspace', () => {
 
     await user.click(switcher());
     const menu = within(await screen.findByRole('menu'));
-    expect(menu.getByRole('menuitem', { name: /Northlight Media/ })).toHaveTextContent('Closing');
+    expect(menu.getByRole('menuitem', { name: /Your agency/ })).toHaveTextContent('Closing');
+    expect(server.sent(`GET /agencies/${second.id}`)).toHaveLength(0);
   });
 
   it('moves to another agency and drops what was loaded for the first', async () => {
