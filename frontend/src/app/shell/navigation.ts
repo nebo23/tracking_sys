@@ -102,8 +102,7 @@ export function agencyGroups(agencyId: string, role: Role): DestinationGroup[] {
 
 /**
  * The client level (D11, and section 4.3 of the completion entry review): its overview, what is
- * analyzed, what the client collects, and what is managed for it. Destinations of later phases
- * (Reports) are absent, not disabled.
+ * analyzed, what the client collects, and what is managed for it, Reports included (018-G).
  */
 export function clientGroups(agencyId: string, clientId: string): DestinationGroup[] {
   const params = { agencyId, clientId };

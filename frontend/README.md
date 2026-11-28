@@ -4,13 +4,14 @@ Connect, the web application of the Tracking System (specification 018), in Engl
 - Slice 018-A: the toolchain, the stylesheet, the typed API client, the screens before the workspace, the workspace shell and the account page. See the [018-A evidence](../specs/018-react-workspace/evidence-018a.md).
 - Slice 018-B: the agency and the client in the address, the list of clients with archived clients, the connections of a client, the members of an agency with their client access, invitations, API keys and the audit log. See the [018-B evidence](../specs/018-react-workspace/evidence-018b.md).
 - Slice 018-D: the Collect group of a client: links with their campaigns, content, UTM templates, destination sites and domains; website tracking with its sources, forms, daily counters and erasure; and the integrations: Paymob, Cal.com and signed webhooks, CRM stages, WhatsApp and Meta conversions. See the [018-D evidence](../specs/018-react-workspace/evidence-018d.md).
+- The completion round (D-106): the update with `main` and the agreement versions of 017-A ([evidence](../specs/018-react-workspace/evidence-018-update.md)); Analyze, the overview, content, revenue and ad spend of a client on the 016-A reports, with charts ([018-C](../specs/018-react-workspace/evidence-018c.md)); Attribution, its credit, funnel and return on ad spend on 016-B ([018-E](../specs/018-react-workspace/evidence-018e.md)); Agency settings, the plan with its use, the branding profile and the closure ([018-F](../specs/018-react-workspace/evidence-018f.md)); and Reports, retained exports and scheduled reports on 016-C ([018-G](../specs/018-react-workspace/evidence-018g.md)). The [completion evidence](../specs/018-react-workspace/evidence-018-completion.md) records the checks of the whole.
 
-Both are presented for the owner's review; each evidence file says what was checked and what was not. Slices 018-C and 018-D are not started.
+Every slice is presented for the owner's review; each evidence file says what was checked and what was not. The screens are listed with their state in [screens-a-to-z.md](../specs/018-react-workspace/screens-a-to-z.md).
 
 The agreement box of the sign-in and registration screens is enforced in the interface, and since Spec 017-A the API records it: registration, every sign-in and the Google start send the versions of `GET /auth/agreements`, and a version that changed while the page was open is refused with `agreement_required` and explained above the form (screen A03). The legal texts are not written yet (the versions are `draft-1`), so no real user may be given the application before they exist.
 
 ## Requirements
-- Node.js 24.15 or later and npm. Every package is local to this folder and pinned to an exact version; nothing is installed globally (D-011). Another package or another version needs an owner decision (D-084).
+- Node.js 24.15 or later and npm. Every package is local to this folder and pinned to an exact version; nothing is installed globally (D-011). Another package or another version needs an owner decision (D-084; D-106 added `recharts` and `react-is`).
 - For the browser journeys and the sandbox only: Docker, the project's Python virtual environment with the backend requirements, and the Chromium and Firefox builds of Playwright 1.64.1.
 
 ```powershell
@@ -76,8 +77,9 @@ scripts/                    contract drift check, bundle search
 src/
   main.tsx                  start: link token, preferences, router, session watch
   app/                      providers, routes and guards, session life cycle, the agency and client of a page, preferences, shell
-  api/                      generated contract types, client, session, agencies, clients, connections, invitations, keys, error table
-  components/               thin wrappers over the reference markup
+  api/                      generated contract types, client, session, agencies, clients, connections, invitations, keys,
+                            links, tracking, integrations, reports, report delivery, agency settings, error table
+  components/               thin wrappers over the reference markup; charts/ draws with Recharts
   features/auth/            sign in, register, verify, forgotten and reset password, invitation, Google completion
   features/agency/          first agency
   features/account/         account page, account closure
@@ -89,6 +91,10 @@ src/
   features/links/           links, campaigns, content, UTM templates, destination sites, domains
   features/tracking/        website sources, forms, daily counters, erasure
   features/integrations/    Paymob, Cal.com and signed webhooks, CRM stages, WhatsApp, Meta conversions
+  features/analyze/         overview, content, revenue, ad spend; the states of a figure in words
+  features/attribution/     credit by model, funnel, return on ad spend
+  features/settings/        the plan and its use, the branding profile, closing the agency
+  features/reports/         retained exports, scheduled reports, the export a report email opens
   i18n/                     en.json and ar.json with the same keys
   lib/                      small helpers: link tokens, safe return path, field rules
   styles/                   one entry that imports the design files, and app.css
