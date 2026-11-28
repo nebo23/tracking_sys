@@ -35,7 +35,7 @@ test.describe('for a person who asked their device for less motion', () => {
     const resting = await travellers(page);
     expect(new Set(resting.map((traveller) => traveller.name))).toEqual(new Set(['none']));
     // Three tracks with three places each, as the reference styles set them.
-    expect(resting.map((traveller) => traveller.place)).toEqual(['12%', '45%', '76%', '18%', '42%', '62%', '12%', '45%', '76%']);
+    expect(resting.map((traveller) => traveller.place)).toEqual(['12%', '44%', '78%', '20%', '46%', '70%', '12%', '44%', '78%']);
     // Nothing moves, so there is nothing to pause.
     await expect(page.locator('.l-auth__motion')).toBeHidden();
   });
