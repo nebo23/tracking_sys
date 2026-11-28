@@ -47,11 +47,16 @@ Offset = Annotated[int, Query(ge=0, le=100000)]
 ClientStatus = Annotated[Literal["active", "archived"], Query()]
 
 
-# Create an agency; the authenticated verified user becomes its Owner. Audited.
+# Create an agency; the authenticated verified user becomes its Owner, and the agency starts its
+# trial while billing is allowed (017-C, D-103 D4). Audited.
 @router.post("/agencies", status_code=201, response_model=AgencyResponse)
-def create_agency(data: AgencyInput, session: SessionDep, browser: BrowserDep) -> AgencyResponse:
+def create_agency(
+    data: AgencyInput, request: Request, session: SessionDep, browser: BrowserDep
+) -> AgencyResponse:
     return AgencyResponse.model_validate(
-        TenancyService(session, browser.user.id).create_agency(data.name)
+        TenancyService(session, browser.user.id).create_agency(
+            data.name, request.app.state.settings
+        )
     )
 
 

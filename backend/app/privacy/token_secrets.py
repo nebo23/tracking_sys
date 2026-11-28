@@ -44,7 +44,9 @@ class SecretStatus(StrEnum):
 # secret_id the identity_key_secrets row ID and kind is "identity_matching_key". For a 016-C
 # retained report export (D-095 D4), connector_id and secret_id both hold the export ID, kind
 # is "report_export" and version is 1, so a ciphertext opens only for its export, agency and
-# client.
+# client. For a part of a 017-B offboarding export (D-098 D5), client_id, connector_id and
+# secret_id hold the export ID, kind is "agency_export" and version is the part number, so a
+# part opens only for its agency, its export and its place in the ZIP.
 @dataclass(frozen=True)
 class SecretContext:
     agency_id: UUID
@@ -60,6 +62,7 @@ class SecretContext:
         "integration_signing",
         "identity_matching_key",
         "report_export",
+        "agency_export",
     ]
     version: int
 

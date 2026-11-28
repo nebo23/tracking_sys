@@ -1,6 +1,6 @@
 # Plan: 016-analytics-reporting
 
-Updated: 2026-11-27. D-071 authorized preparation; D-072 approved D1-D12 as recommended. 016-A1 to 016-A4 are implemented, verified and merged in PR 14 (see the [evidence](evidence.md)). D-089 approved the 016-B decisions D1-D14; 016-B is implemented under the [016-B handoff](implementation-prompt-016b.md) and merged in PR 18 (see the [016-B evidence](evidence-016b.md)). 016-C is prepared under D-094 in its [entry review](entry-review-016c.md) and [implementation handoff](implementation-prompt-016c.md); the owner approved its decisions D1-D14 as recommended (D-095), and it is implemented in P0-P5 under its [design note](design-016c.md) (see the [016-C evidence](evidence-016c.md)).
+Updated: 2026-11-27. D-071 authorized preparation; D-072 approved D1-D12 as recommended. 016-A1 to 016-A4 are implemented, verified and merged in PR 14 (see the [evidence](evidence.md)). D-089 approved the 016-B decisions D1-D14; 016-B is implemented under the [016-B handoff](implementation-prompt-016b.md) and merged in PR 18 (see the [016-B evidence](evidence-016b.md)). 016-C is prepared under D-094 in its [entry review](entry-review-016c.md) and [implementation handoff](implementation-prompt-016c.md); the owner approved its decisions D1-D14 as recommended (D-095), and it is implemented in P0-P5 under its [design note](design-016c.md) (see the [016-C evidence](evidence-016c.md)) and merged in PR 20 after Claude's [merge review](merge-review-016c.md) (D-096).
 
 ## Preparation and decision
 

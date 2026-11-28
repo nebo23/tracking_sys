@@ -136,7 +136,9 @@ class MailOutbox(Base):
     __tablename__ = "mail_outbox"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('verify', 'reset', 'invitation', 'report_ready')", name="valid_purpose"
+            "purpose IN ('verify', 'reset', 'invitation', 'report_ready', 'trial_ending', "
+            "'billing_hold')",
+            name="valid_purpose",
         ),
         CheckConstraint("attempts >= 0", name="nonnegative_attempts"),
     )

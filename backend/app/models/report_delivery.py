@@ -48,6 +48,8 @@ REVOCATION_REASONS = (
     "disconnection",
     "connection_purged",
     "client_archived",
+    # 017-B (D-098 D6): the offboarding of a closed agency revokes its exports.
+    "agency_closed",
 )
 PAUSE_REASONS = ("manual", "owner_access_lost", "repeated_failures")
 RUN_ERRORS = (

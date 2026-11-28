@@ -346,6 +346,39 @@ class AgencyClosureResponse(Output):
     closure: OpenAgencyClosure | None
 
 
+# Offboarding export request (017-B, D-098 D3): the current password, or for an account without
+# one a recent session, as for account closure.
+class AgencyExportInput(Input):
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=128)
+
+
+# One offboarding export: its state, times, sizes and the manifest digest; never a name or path.
+class AgencyExportView(Output):
+    id: UUID
+    status: Literal["pending", "ready", "failed", "revoked", "expired"] = Field(
+        description="expired is a ready export past expires_at; its file is no longer served."
+    )
+    error_code: Literal["export_too_large", "closure_completed", "build_failed"] | None
+    requested_at: datetime
+    ready_at: datetime | None
+    expires_at: datetime
+    revoked_at: datetime | None
+    part_count: int | None
+    byte_size: int | None
+    row_count: int | None
+    manifest_sha256: str | None
+    download_count: int
+    last_downloaded_at: datetime | None
+
+
+# The agency's latest offboarding export and the end of its request window (24 hours before
+# the closing time while the agency is closing, otherwise null).
+class AgencyExportState(Output):
+    agency_id: UUID
+    window_ends_at: datetime | None
+    export: AgencyExportView | None
+
+
 # Audit event projection: identifiers and action codes only, without payload data. The actor
 # is a member, or the platform operator (017-A, D7), who has no user ID.
 class AuditResponse(Output):

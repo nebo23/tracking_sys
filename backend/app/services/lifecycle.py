@@ -30,6 +30,11 @@ closed account with its credential state, and completes agency closures whose gr
 ended (app.services.agency_lifecycle). Specification 016-C (D-095 D5) deletes retained
 report exports at their expiry, 7 days after creation, and exports that never became ready
 (discarded, or pending for more than an hour), each content row before its export.
+Specification 017-B (D-098 D7) purges closed agencies through purge_agency_batch once their
+offboarding is done and their teardowns have settled (app.services.agency_purge). Specification
+017-C (D-103) deletes billing events 395 days after receipt and open or expired checkouts 30
+days after their expiry, and the closure completion queues the cancellation of the agency's
+subscriptions.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -60,9 +65,13 @@ from sqlalchemy.orm import aliased
 from app.config import LifecycleSettings
 from app.models import (
     AdSpendFact,
+    AgencyExport,
+    AgencyExportPart,
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    BillingCheckout,
+    BillingEvent,
     Booking,
     CollectedEvent,
     CollectionSubject,
@@ -270,6 +279,17 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             settings.whatsapp_message_retention_days, cutoff
         )
 
+    # 017-C (D-103 D7, D6; provisional under Q-012): billing events 395 days after receipt, and
+    # open or expired checkouts 30 days after their expiry; a completed checkout stays.
+    def billing_events(cutoff: datetime) -> ColumnElement[bool]:
+        return BillingEvent.received_at < before(settings.billing_event_retention_days, cutoff)
+
+    def billing_checkouts(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            BillingCheckout.status.in_(("open", "expired")),
+            BillingCheckout.expires_at < before(settings.billing_checkout_retention_days, cutoff),
+        )
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -449,6 +469,8 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target("bookings", Booking, Booking.id, bookings),
         Target("crm_deals", CrmDeal, CrmDeal.id, deals),
         Target("whatsapp_messages", WhatsappMessage, WhatsappMessage.id, whatsapp_messages),
+        Target("billing_events", BillingEvent, BillingEvent.id, billing_events),
+        Target("billing_checkouts", BillingCheckout, BillingCheckout.id, billing_checkouts),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),
@@ -698,6 +720,17 @@ def run_lifecycle(
             # when an export was deleted.
             exports = _delete_exports(connection, cutoff, size, max_batches, incomplete)
             deleted.update((name, count) for name, count in exports.items() if count)
+            # 017-B (D-098 D5): the sealed parts of offboarding exports past their expiry; the
+            # export row stays with the agency until its purge. Reported only when not zero.
+            parts = _expire_agency_exports(connection, cutoff, size, max_batches, incomplete)
+            if parts:
+                deleted["agency_export_parts"] = parts
+            # 017-B (D-098 D7): the purge of closed agencies whose offboarding is done and whose
+            # teardowns have settled, through purge_agency_batch; reported only when not zero.
+            from app.services import agency_purge
+
+            purged = agency_purge.run_purges(connection, size, max_batches, incomplete)
+            deleted.update((name, count) for name, count in purged.items() if count)
         finally:
             connection.execute(
                 select(func.pg_advisory_unlock(LOCK_NAMESPACE, CREDENTIAL_STATE_JOB))
@@ -801,6 +834,52 @@ def _delete_exports(
     else:
         incomplete.append("report_exports")
     return counts
+
+
+# 017-B (D-098 D5): one bounded batch deletes every part of at most `size` expired exports that
+# still have parts. Only the granted columns are read: the export's ID and expiry, the part's
+# export ID.
+def _expire_agency_export_batch(connection: Any, cutoff: datetime, size: int) -> int:
+    connection.execute(text(f"SET LOCAL lock_timeout = '{BATCH_LOCK_TIMEOUT}'"))
+    keys = (
+        select(AgencyExport.id)
+        .where(
+            AgencyExport.expires_at < cutoff,
+            select(AgencyExportPart.export_id)
+            .where(AgencyExportPart.export_id == AgencyExport.id)
+            .exists(),
+        )
+        .order_by(AgencyExport.id)
+        .limit(size)
+    )
+    return connection.execute(
+        delete(AgencyExportPart).where(AgencyExportPart.export_id.in_(keys))
+    ).rowcount
+
+
+def _expire_agency_exports(
+    connection: Any,
+    cutoff: datetime,
+    size: int,
+    max_batches: int | None,
+    incomplete: list[str],
+) -> int:
+    deleted = batches = 0
+    while max_batches is None or batches < max_batches:
+        try:
+            count = _expire_agency_export_batch(connection, cutoff, size)
+            connection.commit()
+        except OperationalError:
+            connection.rollback()
+            incomplete.append("agency_export_parts")
+            break
+        batches += 1
+        deleted += count
+        if count == 0:
+            break
+    else:
+        incomplete.append("agency_export_parts")
+    return deleted
 
 
 def _mark(incomplete: list[str], scoped: Sequence[Target]) -> None:

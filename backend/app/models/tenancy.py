@@ -70,7 +70,9 @@ class User(Entity, Base):
 # Tenant boundary: an agency owns its client workspaces. Only an active agency works; a
 # suspended one is stopped by the platform operator, a closing one by its Owner's closure
 # request (017-A, D-092: 30 days in which an Owner may cancel), and a closed one for good.
-# SELECT id, name, status, created_at, updated_at
+# purged_at records the 017-B purge (D-098 D8): the name is then a pseudonym and only the
+# plan history and the purge record remain with the agency.
+# SELECT id, name, status, purged_at, created_at, updated_at
 # FROM public.agencies
 # WHERE id = '00000000-0000-0000-0000-000000000002'::uuid;
 # SELECT id, name, status, created_at
@@ -84,10 +86,12 @@ class Agency(Entity, Base):
         CheckConstraint(
             "status IN ('active', 'suspended', 'closing', 'closed')", name="valid_status"
         ),
+        CheckConstraint("purged_at IS NULL OR status = 'closed'", name="purged"),
     )
 
     name: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(16), server_default="active")
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # A user's role and status within one agency; disabling it affects no other agency.
@@ -222,7 +226,11 @@ class AuditEvent(Base):
             "'agency.closure_requested', 'agency.closure_cancelled', 'plan.created', "
             "'plan.default_set', 'report_export.created', 'report_export.revoked', "
             "'report_schedule.created', 'report_schedule.updated', 'report_schedule.deleted', "
-            "'branding.updated')",
+            "'branding.updated', 'agency.export_requested', 'agency.export_revoked', "
+            "'billing_price.registered', 'billing_price.retired', 'billing.granted', "
+            "'billing.grant_ended', 'billing.trial_extended', 'billing.reconciled', "
+            "'billing.checkout_created', 'billing.plan_change_requested', "
+            "'billing.cancel_scheduled', 'billing.cancel_removed')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -233,7 +241,8 @@ class AuditEvent(Base):
             "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
             "'identity_subject', 'revenue_issue', 'revenue_association', "
             "'attribution_model', 'plan', 'plan_assignment', 'agency_closure', "
-            "'report_export', 'report_schedule', 'agency_branding')",
+            "'report_export', 'report_schedule', 'agency_branding', 'agency_export', "
+            "'billing_price', 'agency_billing', 'billing_checkout', 'agency_subscription')",
             name="valid_resource",
         ),
         CheckConstraint(
@@ -243,7 +252,8 @@ class AuditEvent(Base):
         ),
         CheckConstraint(
             "agency_id IS NOT NULL "
-            "OR (actor_kind = 'platform_operator' AND resource_type = 'plan')",
+            "OR (actor_kind = 'platform_operator' "
+            "AND resource_type IN ('plan', 'billing_price'))",
             name="scope",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

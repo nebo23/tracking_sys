@@ -15,8 +15,10 @@ from uuid import UUID
 from sqlalchemy import Engine, Select, func, select
 from sqlalchemy.orm import Session
 
+from app.config import Settings
 from app.models import Agency, AgencyMembership, AuditEvent, ClientGrant, ClientWorkspace, User
 from app.services import plans
+from app.services.billing import record_new_agency
 
 
 # Uniform denial for missing, foreign, inactive, or unauthorized resources. The API maps it to
@@ -149,14 +151,16 @@ class TenancyService:
         )
         self.session.flush()
 
-    # Create an agency with the current default plan (017-A, D3) and an Owner membership for
-    # the actor, in one transaction; audited.
-    def create_agency(self, name: str) -> Agency:
+    # Create an agency with the current default plan (017-A, D3), its billing standing (017-C,
+    # D-103 D4: a trial while billing is allowed by `settings`, otherwise complimentary) and an
+    # Owner membership for the actor, in one transaction; audited.
+    def create_agency(self, name: str, settings: Settings | None = None) -> Agency:
         self._active_user(self.actor_user_id)
         agency = Agency(name=self._name(name))
         self.session.add(agency)
         self.session.flush()
         plans.assign_default(self.session, agency.id)
+        record_new_agency(self.session, settings, agency.id)
         self.session.add(
             AgencyMembership(agency_id=agency.id, user_id=self.actor_user_id, role=Role.OWNER.value)
         )

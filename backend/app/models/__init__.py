@@ -6,7 +6,8 @@
 # models, the D-027 event collection models, the D-033 managed-link models, the D-048
 # connector lifecycle models, the D-064 advertising models, the D-067 revenue and payment
 # models, the D-075 identity and ledger models, the D-079 attribution models, the D-092
-# plan, closure and agreement models, and the D-095 report delivery models.
+# plan, closure and agreement models, the D-095 report delivery models, the D-098
+# offboarding export and purge models, and the D-103 platform billing models.
 from app.models.access import (
     AgencyInvitation,
     InvitationClientGrant,
@@ -32,6 +33,16 @@ from app.models.auth import (
     PasswordCredential,
     SecurityEvent,
     VerificationChallenge,
+)
+from app.models.billing import (
+    AgencyBilling,
+    AgencySubscription,
+    BillingAction,
+    BillingAdjustment,
+    BillingCheckout,
+    BillingEvent,
+    BillingPayment,
+    BillingPrice,
 )
 from app.models.collection import (
     CollectedEvent,
@@ -96,6 +107,7 @@ from app.models.links import (
     LinkUtmTemplate,
     ManagedLink,
 )
+from app.models.offboarding import AgencyExport, AgencyExportPart, AgencyPurge
 from app.models.payments import PaymentCallbackDiagnostic, PaymentSource, PaymentSourceSecret
 from app.models.report_delivery import (
     AgencyBranding,
@@ -213,4 +225,15 @@ __all__ = [
     "ReportExportContent",
     "ReportSchedule",
     "ReportScheduleRecipient",
+    "AgencyExport",
+    "AgencyExportPart",
+    "AgencyPurge",
+    "AgencyBilling",
+    "AgencySubscription",
+    "BillingAction",
+    "BillingAdjustment",
+    "BillingCheckout",
+    "BillingEvent",
+    "BillingPayment",
+    "BillingPrice",
 ]

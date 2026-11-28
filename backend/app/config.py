@@ -5,6 +5,7 @@
 # Fernet is the authenticated symmetric scheme used here only to validate the mail key; the
 # mail service performs encryption. Imports do not execute an application feature by themselves.
 import binascii
+import re
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -23,6 +24,12 @@ from app.privacy.token_secrets import LocalKeyring
 # directory from which the API, worker, Alembic, or tests are started.
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
+# Paddle's documented credential forms (specification 017-C, design-017c.md section 2, V-4 and
+# V-12): the API key carries its environment, the client-side token is test_ or live_, and the
+# webhook secret is the notification destination's pdl_ntfset_ key.
+PADDLE_API_KEY = re.compile(r"pdl_(live|sdbx)_apikey_[a-z0-9]{26}_[A-Za-z0-9]{22}_[A-Za-z0-9]{3}")
+PADDLE_CLIENT_TOKEN = re.compile(r"(test|live)_[A-Za-z0-9]{27}")
+PADDLE_WEBHOOK_SECRET = re.compile(r"pdl_ntfset_[!-~]{5,245}")
 
 
 # Read and validate database connection settings shared by the API, worker, and migrations.
@@ -213,6 +220,18 @@ class Settings(DatabaseSettings):
     # Retained report exports (specification 016-C, D-095 D5): an export, sealed under the token
     # keyring, is downloadable for this many days after creation; 7 is the approved maximum.
     report_export_lifetime_days: int = Field(default=7, ge=1, le=7)
+    # Platform billing (specification 017-C, D-103 D4 and D14). Off by default: while it is off
+    # every new agency is complimentary on the default plan, exactly as before, and the billing
+    # routes, webhook, worker and command answer that billing is unavailable. Enabling it
+    # requires the Paddle API key and webhook secret of the configured environment from ignored
+    # .env, and the paddle.billing provider rule must be current. The client-side token is
+    # public (Paddle.js) and optional. Spec 017-C makes no live Paddle call.
+    billing_enabled: bool = False
+    billing_trial_days: int = Field(default=14, ge=1, le=30)
+    billing_paddle_environment: Literal["sandbox", "live"] = "sandbox"
+    billing_paddle_api_key: SecretStr = SecretStr("")
+    billing_paddle_webhook_secret: SecretStr = SecretStr("")
+    billing_paddle_client_token: str = ""
 
     # Registered field validator for the HMAC/CSRF key: require at least 32 bytes encoded as
     # hexadecimal. Unlike an ordinary helper, Pydantic invokes it automatically on validation.
@@ -283,6 +302,8 @@ class Settings(DatabaseSettings):
             self._validate_google()
         if self.mail_mode == "gmail":
             self._validate_gmail()
+        if self.billing_enabled:
+            self._validate_billing()
         if self.environment == "production":
             raise ValueError("Production requires an approved external mail delivery adapter.")
         return self
@@ -426,6 +447,23 @@ class Settings(DatabaseSettings):
         except EmailNotValidError as error:
             raise ValueError("The Gmail sender must be a valid email address.") from error
 
+    # Enabled billing needs Paddle's API key of the configured environment, whose documented
+    # form carries sdbx or live (V-12), and the notification destination's secret (V-4). An
+    # optional client-side token must be of the same environment (test_ or live_). Errors name
+    # the setting, never its value.
+    def _validate_billing(self) -> None:
+        sandbox = self.billing_paddle_environment == "sandbox"
+        key = PADDLE_API_KEY.fullmatch(self.billing_paddle_api_key.get_secret_value())
+        if key is None or (key.group(1) == "sdbx") != sandbox:
+            raise ValueError("Billing requires the Paddle API key of the configured environment.")
+        secret = self.billing_paddle_webhook_secret.get_secret_value()
+        if not PADDLE_WEBHOOK_SECRET.fullmatch(secret):
+            raise ValueError("Billing requires the Paddle webhook secret.")
+        if self.billing_paddle_client_token:
+            token = PADDLE_CLIENT_TOKEN.fullmatch(self.billing_paddle_client_token)
+            if token is None or (token.group(1) == "test") != sandbox:
+                raise ValueError("The Paddle client token must match the configured environment.")
+
     # The D-025 local token keyring, or None while unset. Parsing validates every key.
     def token_keys(self) -> "LocalKeyring | None":
         text = self.token_keyring.get_secret_value().strip()
@@ -527,6 +565,10 @@ class LifecycleSettings(DatabaseSettings):
     deal_retention_days: int = Field(default=395, ge=0, le=395)
     # 015-E (D-068 E9): WhatsApp referral messages 395 days after receipt.
     whatsapp_message_retention_days: int = Field(default=395, ge=0, le=395)
+    # 017-C (D-103 D7, provisional under Q-012): Paddle events 395 days after receipt, and open
+    # or expired checkouts 30 days after their expiry.
+    billing_event_retention_days: int = Field(default=395, ge=0, le=395)
+    billing_checkout_retention_days: int = Field(default=30, ge=0, le=30)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

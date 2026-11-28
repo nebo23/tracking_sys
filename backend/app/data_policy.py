@@ -177,7 +177,8 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.DIRECT,
             Provenance.PROVIDED,
-            "Delete with agency or client offboarding.",
+            "Deleted or, for an agency, replaced by a pseudonym in the purge of a closed agency "
+            "(017-B); client offboarding without closing the agency is undecided.",
             "017",
         ),
         DataClass(
@@ -186,7 +187,8 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.PSEUDONYMOUS,
             Provenance.SYSTEM,
-            "Delete with agency or client offboarding.",
+            "Deleted by the purge of a closed agency (017-B), which keeps the agency row and its "
+            "plan history (D-098 D8); client offboarding without closing the agency is undecided.",
             "017",
         ),
         DataClass(
@@ -282,7 +284,7 @@ CLASSES: dict[str, DataClass] = {
             Personal.NONE,
             Provenance.PROVIDED,
             "Keep for the workspace lifetime to preserve provenance and unrecycled slugs "
-            "(D-033); offboarding is 017.",
+            "(D-033), until the purge of a closed agency (017-B).",
             "005, 017",
         ),
         DataClass(
@@ -292,7 +294,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.DIRECT,
             Provenance.PROVIDED,
-            "Delete with client offboarding (017).",
+            "Deleted with the client workspace by the purge of a closed agency (017-B).",
             "005, 017",
         ),
         DataClass(
@@ -343,7 +345,8 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.LOW,
             Personal.NONE,
             Provenance.SYSTEM,
-            "Kept for the workspace lifetime; offboarding is 017. Run retention is Q-012.",
+            "Kept for the workspace lifetime, until the purge of a closed agency (017-B). Run "
+            "retention is Q-012.",
             "009, 017",
         ),
         DataClass(
@@ -488,7 +491,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Kept until workspace deletion (017); disabled to stop intake (D-067 D14).",
+            "Kept with the client workspace; disabled to stop intake (D-067 D14).",
             "015",
         ),
         DataClass(
@@ -518,7 +521,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Kept until workspace deletion (017); disabled to stop intake (D-068).",
+            "Kept with the client workspace; disabled to stop intake (D-068).",
             "015",
         ),
         DataClass(
@@ -547,7 +550,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.LOW,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Kept until workspace deletion (017).",
+            "Kept with the client workspace.",
             "015",
         ),
         DataClass(
@@ -567,7 +570,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.LOW,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Kept until workspace deletion (017); disabled to stop intake (D-068).",
+            "Kept with the client workspace; disabled to stop intake (D-068).",
             "015",
         ),
         DataClass(
@@ -723,7 +726,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.LOW,
             Personal.NONE,
             Provenance.SYSTEM,
-            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "Kept with the agency, also after the purge of a closed agency (D-098 D8).",
             "017-A",
         ),
         DataClass(
@@ -733,7 +736,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.PSEUDONYMOUS,
             Provenance.SYSTEM,
-            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "Kept with the agency; the purge of a closed agency deletes it (D-098).",
             "017-A",
         ),
         DataClass(
@@ -778,7 +781,7 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.MEDIUM,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Deleted by a manager; otherwise kept with the client workspace (017).",
+            "Deleted by a manager; otherwise kept with the client workspace.",
             "016-C",
         ),
         DataClass(
@@ -797,8 +800,131 @@ CLASSES: dict[str, DataClass] = {
             Sensitivity.LOW,
             Personal.NONE,
             Provenance.PROVIDED,
-            "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+            "Kept with the agency; deleted by the purge of a closed agency (D-098).",
             "016-C",
+        ),
+        DataClass(
+            "agency.export",
+            "Metadata of an agency's offboarding export: state, closed error code, the request, "
+            "ready, revocation and expiry times, part count, size, row counts by file path "
+            "(client IDs and table names), the manifest digest and the download count; "
+            "references to the agency and the requesting membership.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Kept with the agency until the purge of the closed agency (D-098 D5, D8).",
+            "017-B",
+        ),
+        DataClass(
+            "agency.export_content",
+            "Sealed parts of an offboarding ZIP (AES-GCM under the token keyring, bound to the "
+            "agency, the export and the part number); they hold every client's first-party data, "
+            "names and personal data included.",
+            Sensitivity.HIGH,
+            Personal.DIRECT,
+            Provenance.DERIVED,
+            "Deleted at revocation, by the lifecycle runner at the export's expiry 7 days after "
+            "the request, and by the purge (D-098 D5).",
+            "017-B",
+        ),
+        DataClass(
+            "agency.purge",
+            "Purge record of a closed agency: the copied closure times, the export summary, the "
+            "offboarding, teardown and purge times, the state and the deleted row count of each "
+            "table; never a name, a client ID or a figure.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept after the purge as the minimal record of the closed agency (D-098 D8).",
+            "017-B",
+        ),
+        DataClass(
+            "billing.price",
+            "Registered prices of the platform's plans: the plan, Paddle's price ID, the amount "
+            "in cents, the currency, the interval, the offer state and the times; never about a "
+            "person.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Never deleted: a price is immutable apart from its offer state and is referenced "
+            "by subscriptions and checkouts (D-103 D3).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.standing",
+            "Billing standing of an agency: the standing, a closed reason, the trial, grant and "
+            "hold times, the Paddle customer ID and a version.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Kept with the agency; deleted by the purge of a closed agency (D-103 D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.subscription",
+            "Paddle subscriptions of an agency: Paddle's subscription, transaction and price "
+            "IDs, the status, the billing period, the scheduled change and its origin, the "
+            "duplicate flag and the event and reconciliation times; never a name, email, "
+            "address or card detail.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.checkout",
+            "Checkouts of an agency: the price, the requesting membership, Paddle's transaction "
+            "ID, the state and the times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Open and expired checkouts deleted 30 days after their expiry; completed ones kept "
+            "until the purge of a closed agency (D-103 D6, D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.event",
+            "Verified Paddle events and reconciliations: the event ID, type, times, outcome, "
+            "error code, Paddle IDs and allowlisted fields (statuses, amounts, currency, times "
+            "and IDs); never a name, email, address or card detail.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 13 months (395 days) after receipt (provisional, Q-012) and by the purge "
+            "of a closed agency (D-103 D7, D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.payment",
+            "Paddle transactions of an agency: the transaction ID, status, origin, currency, "
+            "subtotal, tax and total in cents, the billing time and the invoice number.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10, D11).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.adjustment",
+            "Paddle adjustments (refunds, credits and chargebacks) of an agency's transactions: "
+            "the IDs, action, status, currency and total in cents.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10, D11).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.action",
+            "Provider actions of an agency closure: the subscription, the action, its reason, "
+            "state, attempts, times and the last closed error code.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with the agency; deleted by the purge of a closed agency once settled "
+            "(D-103 D10).",
+            "017-C",
         ),
         DataClass(
             "system.schema_version",
@@ -1053,14 +1179,17 @@ TABLES: dict[str, TablePolicy] = {
     "agencies": TablePolicy(
         {
             "name": "tenancy.label",
-            **_same("tenancy.configuration", "id", "status", "created_at", "updated_at"),
+            **_same(
+                "tenancy.configuration", "id", "status", "created_at", "updated_at", "purged_at"
+            ),
         },
         (
             _row(
-                RuleStatus.DEFERRED,
-                "017-B; D-092",
-                "Closure moves an agency to closing and then closed (017-A); the purge of a "
-                "closed agency's data belongs to 017-B.",
+                APPROVED,
+                "D-092; D-098",
+                "Closure moves an agency to closing and then closed (017-A); the purge "
+                "keeps the row with status closed, a pseudonymous name and purged_at "
+                "(017-B, D8).",
             ),
         ),
     ),
@@ -1071,7 +1200,14 @@ TABLES: dict[str, TablePolicy] = {
                 "tenancy.configuration", "id", "agency_id", "status", "created_at", "updated_at"
             ),
         },
-        (_row(RuleStatus.DEFERRED, "017", "Archiving is reversible; offboarding belongs to 017."),),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "017",
+                "Archiving is reversible; deleting one client without closing its agency "
+                "is undecided.",
+            ),
+        ),
     ),
     "agency_memberships": TablePolicy(
         {
@@ -1090,8 +1226,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-024",
-                "Disabled, never deleted, including on account closure (D-024); agency "
-                "offboarding belongs to 017.",
+                "Disabled, never deleted while the agency exists, including on account "
+                "closure (D-024).",
             ),
         ),
     ),
@@ -1154,7 +1290,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-027",
-                "Kept while the client exists; disabling keeps the row. Offboarding is 017.",
+                "Kept while the client exists; disabling keeps the row.",
             ),
         ),
     ),
@@ -1193,7 +1329,7 @@ TABLES: dict[str, TablePolicy] = {
             "created_at",
             "updated_at",
         ),
-        (_row(RuleStatus.DEFERRED, "017; D-027", "Kept while the client exists (017)."),),
+        (_row(RuleStatus.DEFERRED, "017; D-027", "Kept while the client exists."),),
     ),
     "collection_subjects": TablePolicy(
         _same(
@@ -1322,7 +1458,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 APPROVED,
                 "D-027",
-                "Kept for the workspace lifetime as the record of erasure; offboarding is 017.",
+                "Kept for the workspace lifetime as the record of erasure.",
             ),
         ),
     ),
@@ -1344,8 +1480,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 APPROVED,
                 "D-025; D-027",
-                "Insert-only for the runtime and unreachable by the lifecycle role; kept for the "
-                "workspace lifetime. Offboarding is 017.",
+                "Insert-only for the runtime and unreachable by the lifecycle role; kept for "
+                "the workspace lifetime.",
             ),
         ),
     ),
@@ -1367,8 +1503,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-033",
-                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
-                "and hostnames are not recycled. Offboarding is 017.",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, "
+                "slugs, and hostnames are not recycled while the workspace exists.",
             ),
         ),
     ),
@@ -1390,8 +1526,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-033",
-                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
-                "and hostnames are not recycled. Offboarding is 017.",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, "
+                "slugs, and hostnames are not recycled while the workspace exists.",
             ),
         ),
     ),
@@ -1414,8 +1550,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-033",
-                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
-                "and hostnames are not recycled. Offboarding is 017.",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, "
+                "slugs, and hostnames are not recycled while the workspace exists.",
             ),
         ),
     ),
@@ -1438,8 +1574,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-033",
-                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
-                "and hostnames are not recycled. Offboarding is 017.",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, "
+                "slugs, and hostnames are not recycled while the workspace exists.",
             ),
         ),
     ),
@@ -1473,7 +1609,8 @@ TABLES: dict[str, TablePolicy] = {
                 RuleStatus.DEFERRED,
                 "017; D-033",
                 "Kept for the workspace lifetime; disabling keeps the hostname reserved to the "
-                "client. Reassignment and offboarding need a later reviewed process (017).",
+                "client until the purge of a closed agency releases it (017-B). Reassignment "
+                "between clients needs a later reviewed process.",
             ),
         ),
     ),
@@ -1504,8 +1641,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-033",
-                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, slugs, "
-                "and hostnames are not recycled. Offboarding is 017.",
+                "Kept for the workspace lifetime; the runtime never deletes rows, so codes, "
+                "slugs, and hostnames are not recycled while the workspace exists.",
             ),
         ),
     ),
@@ -1553,7 +1690,7 @@ TABLES: dict[str, TablePolicy] = {
                 RuleStatus.DEFERRED,
                 "017; D-048",
                 "Kept for the workspace lifetime with its outcome; the disconnect purge clears "
-                "the account reference. Offboarding is 017.",
+                "the account reference.",
             ),
             EndOfLifeRule(
                 "external_account_id",
@@ -1625,7 +1762,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "017; D-048",
-                "The row is kept as destruction evidence with its connection; offboarding is 017.",
+                "The row is kept as destruction evidence with its connection.",
             ),
             EndOfLifeRule(
                 "ciphertext",
@@ -1870,7 +2007,7 @@ TABLES: dict[str, TablePolicy] = {
                 RuleStatus.DEFERRED,
                 "017; D-064",
                 "Kept until deleted; disabled when its connection's disconnect completes (D13). "
-                "Deletion and offboarding are 017 and 018.",
+                "Deletion outside the purge of a closed agency belongs to 018.",
             ),
         ),
     ),
@@ -1978,8 +2115,8 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "D-067; 017",
-                "Append-only; kept for the life of the client workspace (D14). Deletion with the "
-                "workspace belongs to 017 and 018; legal retention is pending Q-012 and Q-003.",
+                "Append-only; kept for the life of the client workspace (D14); legal "
+                "retention is pending Q-012 and Q-003.",
             ),
         ),
     ),
@@ -2008,7 +2145,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "D-067; 017",
-                "Kept until workspace deletion (017); a source is disabled to stop intake (D14).",
+                "Kept with the client workspace; a source is disabled to stop intake (D14).",
             ),
         ),
     ),
@@ -2099,7 +2236,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "D-068; 017",
-                "Kept until workspace deletion (017); a source is disabled to stop intake.",
+                "Kept with the client workspace; a source is disabled to stop intake.",
             ),
         ),
     ),
@@ -2191,7 +2328,7 @@ TABLES: dict[str, TablePolicy] = {
                 "crm.rule", "pipeline", "stage", "outcome", "status", "created_at", "updated_at"
             ),
         },
-        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),
+        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept with the client workspace."),),
     ),
     "crm_deals": TablePolicy(
         {
@@ -2240,7 +2377,14 @@ TABLES: dict[str, TablePolicy] = {
                 "verified_at",
             ),
         },
-        (_row(RuleStatus.DEFERRED, "D-068; 017", "Kept until workspace deletion (017)."),),
+        (
+            _row(
+                RuleStatus.DEFERRED,
+                "D-068; 017",
+                "Kept with the client workspace; the purge of a closed agency releases the "
+                "number (017-B).",
+            ),
+        ),
     ),
     "whatsapp_messages": TablePolicy(
         {
@@ -2275,8 +2419,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "D-075; 017",
-                "Kept for the client lifetime; never deleted by the lifecycle runner. "
-                "Destruction at offboarding belongs to 017.",
+                "Kept for the client lifetime; never deleted by the lifecycle runner.",
             ),
         ),
     ),
@@ -2898,10 +3041,10 @@ TABLES: dict[str, TablePolicy] = {
         ),
         (
             _row(
-                RuleStatus.DEFERRED,
-                "017-B; D-092",
-                "Insert-only history kept with the agency; the purge of a closed agency belongs "
-                "to 017-B.",
+                APPROVED,
+                "D-092; D-098",
+                "Insert-only history kept with the agency, also after the purge of a closed "
+                "agency, for 017-C billing (D8).",
             ),
         ),
     ),
@@ -2919,9 +3062,10 @@ TABLES: dict[str, TablePolicy] = {
         ),
         (
             _row(
-                RuleStatus.DEFERRED,
-                "017-B; D-092",
-                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+                APPROVED,
+                "D-092; D-098",
+                "Kept with the agency; the purge of a closed agency deletes it and keeps its "
+                "times in the purge record (D8).",
             ),
         ),
     ),
@@ -3032,8 +3176,7 @@ TABLES: dict[str, TablePolicy] = {
             _row(
                 RuleStatus.DEFERRED,
                 "D-095; 017",
-                "Deleted by an Owner or Admin; otherwise kept with the client workspace, "
-                "whose end of life belongs to 017.",
+                "Deleted by an Owner or Admin; otherwise kept with the client workspace.",
             ),
         ),
     ),
@@ -3065,9 +3208,290 @@ TABLES: dict[str, TablePolicy] = {
         ),
         (
             _row(
-                RuleStatus.DEFERRED,
-                "017-B; D-095",
-                "Kept with the agency; the purge of a closed agency belongs to 017-B.",
+                APPROVED,
+                "D-095; D-098",
+                "Kept with the agency; deleted by the purge of a closed agency (017-B).",
+            ),
+        ),
+    ),
+    # Specification 017-B (D-098): the offboarding export, its sealed parts and the purge record.
+    "agency_exports": TablePolicy(
+        _same(
+            "agency.export",
+            "id",
+            "agency_id",
+            "requested_by_membership_id",
+            "status",
+            "error_code",
+            "requested_at",
+            "ready_at",
+            "revoked_at",
+            "expires_at",
+            "part_count",
+            "byte_size",
+            "row_count",
+            "row_counts",
+            "manifest_sha256",
+            "download_count",
+            "last_downloaded_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-098",
+                "One per request; a new request or a cancellation revokes the open one. Kept "
+                "with the agency until its purge; its parts end at revocation, expiry or purge "
+                "(D5, D8).",
+            ),
+        ),
+    ),
+    "agency_export_parts": TablePolicy(
+        {
+            **_same("agency.export", "export_id", "part", "agency_id", "created_at"),
+            **_same(
+                "agency.export_content",
+                "kek_id",
+                "wrap_nonce",
+                "wrapped_dek",
+                "nonce",
+                "ciphertext",
+                "alg",
+                "aad_version",
+            ),
+        },
+        (
+            _row(
+                APPROVED,
+                "D-098",
+                "Deleted at once when its export is revoked, by tracking_lifecycle at the "
+                "export's expiry (7 days after the request) and by the purge (D5).",
+            ),
+        ),
+    ),
+    "agency_purges": TablePolicy(
+        _same(
+            "agency.purge",
+            "agency_id",
+            "state",
+            "closure_requested_at",
+            "closes_at",
+            "closure_completed_at",
+            "export_summary",
+            "offboarding_started_at",
+            "offboarding_completed_at",
+            "teardown_settled_at",
+            "purge_started_at",
+            "purge_completed_at",
+            "deleted_counts",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-098",
+                "Kept after the purge as the minimal record of a closed agency (D8).",
+            ),
+        ),
+    ),
+    # Specification 017-C (D-103): platform billing. Subscriptions, payments and adjustments
+    # stay after the purge as financial records (D10); the other scoped tables receive the
+    # purge rule below.
+    "billing_prices": TablePolicy(
+        _same(
+            "billing.price",
+            "id",
+            "plan_id",
+            "provider",
+            "provider_price_id",
+            "currency",
+            "amount_cents",
+            "billing_interval",
+            "offered",
+            "registered_at",
+            "retired_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Never deleted: immutable apart from the offer state, and referenced by "
+                "subscriptions and checkouts (D3).",
+            ),
+        ),
+    ),
+    "agency_billing": TablePolicy(
+        _same(
+            "billing.standing",
+            "agency_id",
+            "standing",
+            "reason",
+            "trial_ends_at",
+            "trial_reminded_at",
+            "grant_ends_at",
+            "hold_started_at",
+            "hold_notified_at",
+            "provider_customer_id",
+            "version",
+            "created_at",
+            "updated_at",
+        ),
+        (_row(APPROVED, "D-103", "One row per agency, kept with the agency (D5)."),),
+    ),
+    "agency_subscriptions": TablePolicy(
+        _same(
+            "billing.subscription",
+            "id",
+            "agency_id",
+            "provider",
+            "provider_subscription_id",
+            "provider_transaction_id",
+            "price_id",
+            "provider_price_id",
+            "status",
+            "current_period_starts_at",
+            "current_period_ends_at",
+            "next_billed_at",
+            "scheduled_action",
+            "scheduled_at",
+            "cancel_origin",
+            "canceled_at",
+            "duplicate",
+            "last_event_at",
+            "reconciled_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10).",
+            ),
+        ),
+    ),
+    "billing_checkouts": TablePolicy(
+        _same(
+            "billing.checkout",
+            "id",
+            "agency_id",
+            "price_id",
+            "requested_by_membership_id",
+            "provider_transaction_id",
+            "status",
+            "created_at",
+            "expires_at",
+            "completed_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Open and expired checkouts are deleted by tracking_lifecycle 30 days after "
+                "their expiry; completed ones stay with the agency (D6).",
+            ),
+        ),
+    ),
+    "billing_events": TablePolicy(
+        _same(
+            "billing.event",
+            "id",
+            "provider",
+            "provider_event_id",
+            "source",
+            "event_type",
+            "occurred_at",
+            "received_at",
+            "agency_id",
+            "subscription_id",
+            "provider_subscription_id",
+            "provider_transaction_id",
+            "outcome",
+            "error_code",
+            "fields",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Deleted by tracking_lifecycle 395 days after receipt (D7; a provisional "
+                "development period under Q-012).",
+            ),
+        ),
+    ),
+    "billing_payments": TablePolicy(
+        _same(
+            "billing.payment",
+            "id",
+            "agency_id",
+            "subscription_id",
+            "provider_transaction_id",
+            "status",
+            "origin",
+            "currency",
+            "subtotal_cents",
+            "tax_cents",
+            "total_cents",
+            "billed_at",
+            "invoice_number",
+            "last_event_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10, D11).",
+            ),
+        ),
+    ),
+    "billing_adjustments": TablePolicy(
+        _same(
+            "billing.adjustment",
+            "id",
+            "agency_id",
+            "payment_id",
+            "provider_adjustment_id",
+            "provider_transaction_id",
+            "action",
+            "status",
+            "currency",
+            "total_cents",
+            "last_event_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10, D11).",
+            ),
+        ),
+    ),
+    "billing_actions": TablePolicy(
+        _same(
+            "billing.action",
+            "id",
+            "agency_id",
+            "subscription_id",
+            "action",
+            "reason",
+            "status",
+            "attempts",
+            "next_attempt_at",
+            "last_error",
+            "created_at",
+            "completed_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept with the agency as the record of its closure's provider actions; the "
+                "purge waits until none is pending (D10).",
             ),
         ),
     ),
@@ -3076,6 +3500,35 @@ TABLES: dict[str, TablePolicy] = {
         (_row(RuleStatus.NOT_APPLICABLE, "001", "Schema revision marker; no personal data."),),
     ),
 }
+
+# 017-B (D-098 D7, D9): purge_agency_batch deletes every row of a closed agency from every table
+# that carries agency_id or client_id, except the record that stays (D8) and, since 017-C
+# (D-103 D10), the agency's subscriptions, payments and adjustments as financial records. The
+# rule is added to each other such table here, so a new scoped table gets it by construction.
+KEPT_AFTER_PURGE = frozenset(
+    {
+        "agency_plan_assignments",
+        "agency_purges",
+        "agency_subscriptions",
+        "billing_payments",
+        "billing_adjustments",
+    }
+)
+PURGE_RULE = _row(
+    APPROVED,
+    "D-098",
+    "Deleted by the purge of its closed agency (017-B), after the closing period's export "
+    "window and once every teardown of the agency has settled.",
+)
+
+
+def _add_purge_rule(tables: dict[str, TablePolicy]) -> None:
+    for name, policy in list(tables.items()):
+        if name not in KEPT_AFTER_PURGE and {"agency_id", "client_id"} & set(policy.columns):
+            tables[name] = TablePolicy(policy.columns, (*policy.rules, PURGE_RULE))
+
+
+_add_purge_rule(TABLES)
 
 
 # Compare a schema (table name -> column names) and its user references (table, column pairs
