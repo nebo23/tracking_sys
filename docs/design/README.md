@@ -131,6 +131,7 @@ Every screen of the product, from signing in to the last page, is laid out in or
 The sign-in screen, as the owner approved it (D-082):
 
 - The brand side shows a magnet that pulls people in; on the way they turn into sales. The picture is built from the `c-pull` classes and moves in a loop of 7.2 seconds.
+- Redrawn on 2026-11-28 at the owner's request, with the same idea: a larger magnet in the shape of the Connect C, its field drawn as drifting lines of iron filings, people who turn into gold sales near it, and a sale credited to a reel beside it. In Arabic the picture is mirrored, so the magnet stands at the start of the line as in English.
 - The language switch sits in the top corner at the end of the reading direction.
 - "Forgot password?" sits under the password field, in the secondary text color, so it does not compete with the links and the action below it.
 - A box that starts unticked asks the user to agree to the Terms of Service and the Privacy Policy. Both sign-in actions stay enabled; a sign-in without the tick is refused with a message at the box. The API records no acceptance of terms today and the two texts do not exist yet, so this needs backend work and the owner's legal texts before it is built.
@@ -158,6 +159,7 @@ Not verified: screen readers, keyboard-only walkthroughs, Firefox and Safari, re
 | Rendering | The Reports concept was drawn again on the 016-C contract as six pages (D9 of the [completion entry review](../../specs/018-react-workspace/entry-review-completion.md)): `reports.html`, `reports-schedules.html`, `report-save-export.html`, `report-schedule-form.html`, `report-export.html` and `report-export-gone.html`. All six rendered in Chromium (Playwright 1.64.1) at 1440 pixels and were reviewed as screenshots in light and dark. They wait for the owner's approval before they are built. |
 | Responsive check | The six pages at 390, 768, 1024 and 1440 pixels, light and dark: no horizontal overflow and no console errors. |
 | Not run | The token audit (no token changed), Arabic and right-to-left versions (none drawn), and everything listed as not verified above. |
+| Sign-in picture | The redrawn picture rendered in Chromium at 1440 pixels in English and Arabic, at rest and frozen in its loop, and reviewed as screenshots; journeys 01 to 09 and 11 (the application against this reference page) pass in Chromium and Firefox. |
 
 ## Sources
 Research evidence, measurements and links are in [research_notes/product-design/sources.md](../../research_notes/product-design/sources.md).
