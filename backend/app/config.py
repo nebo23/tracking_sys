@@ -565,6 +565,10 @@ class LifecycleSettings(DatabaseSettings):
     deal_retention_days: int = Field(default=395, ge=0, le=395)
     # 015-E (D-068 E9): WhatsApp referral messages 395 days after receipt.
     whatsapp_message_retention_days: int = Field(default=395, ge=0, le=395)
+    # 017-C (D-103 D7, provisional under Q-012): Paddle events 395 days after receipt, and open
+    # or expired checkouts 30 days after their expiry.
+    billing_event_retention_days: int = Field(default=395, ge=0, le=395)
+    billing_checkout_retention_days: int = Field(default=30, ge=0, le=30)
     outbox_retention_days: int = Field(default=30, ge=0, le=30)
     local_mail_retention_days: int = Field(default=7, ge=0, le=7)
     # Provisional development retention for collected data (D-027 decision 7): event rows 13

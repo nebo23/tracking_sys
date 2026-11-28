@@ -2,7 +2,9 @@
 
 Run by the lifecycle runner as tracking_lifecycle, which may read an agency's ID and status and
 a closure's ID, agency, closing time and outcome columns, and change only an agency's status
-(and updated_at) and a closure's completion time. One batch is one transaction: each due
+(and updated_at) and a closure's completion time; since 017-C (D-103 D10) it also queues the
+immediate cancellation of the agency's subscriptions that have not ended, reading their ID,
+agency and status only. One batch is one transaction: each due
 closure locks its agency first, as a cancellation does, then the closure, and completes only
 if the agency is still closing and the closure still open and due. A completed closure is never
 selected again, so the step is idempotent, and the caller bounds the number of batches.
@@ -14,6 +16,7 @@ from typing import Any
 from sqlalchemy import select, text, update
 
 from app.models import Agency, AgencyClosure
+from app.services.billing_actions import queue_closure_completion
 
 # A batch waits at most this long for an agency lock held by an API transaction.
 BATCH_LOCK_TIMEOUT = "100ms"
@@ -60,5 +63,8 @@ def complete_closures(connection: Any, cutoff: datetime, size: int) -> int:
             .where(Agency.id == agency_id, Agency.status == "closing")
             .values(status="closed", updated_at=cutoff)
         )
+        # 017-C (D-103 D10): every subscription that has not ended is canceled at once by the
+        # billing worker; the purge waits until the action is settled.
+        queue_closure_completion(connection, agency_id)
         completed += 1
     return completed

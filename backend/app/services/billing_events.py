@@ -140,7 +140,7 @@ def _checkout(session: Session, transaction_id: str | None) -> BillingCheckout |
     )
 
 
-def _price(session: Session, provider_price_id: str | None) -> BillingPrice | None:
+def registered_price(session: Session, provider_price_id: str | None) -> BillingPrice | None:
     if provider_price_id is None:
         return None
     return session.scalar(
@@ -244,7 +244,7 @@ def _stored(session: Session, event_id: str) -> bool:
     )
 
 
-def _copy_subscription(
+def copy_subscription(
     row: AgencySubscription,
     snapshot: SubscriptionSnapshot,
     price: BillingPrice | None,
@@ -275,7 +275,7 @@ def _price_error(snapshot: SubscriptionSnapshot, price: BillingPrice | None) -> 
     return None
 
 
-def _customer(session: Session, agency_id: UUID, customer_id: str | None) -> None:
+def record_customer(session: Session, agency_id: UUID, customer_id: str | None) -> None:
     item = billing.standing_of(session, agency_id)
     if item is not None and customer_id is not None and item.provider_customer_id is None:
         item.provider_customer_id = customer_id
@@ -308,8 +308,8 @@ def _replay_unmatched(
         except InvalidPayload:
             item.outcome, item.error_code = "ignored", "invalid_payload"
             continue
-        price = _price(session, snapshot.price_id) if snapshot.item_count == 1 else None
-        _copy_subscription(row, snapshot, price, item.occurred_at, now)
+        price = registered_price(session, snapshot.price_id) if snapshot.item_count == 1 else None
+        copy_subscription(row, snapshot, price, item.occurred_at, now)
         item.outcome, item.error_code, applied = "applied", _price_error(snapshot, price), True
     session.flush()
 
@@ -323,7 +323,7 @@ def _apply_subscription(
     now: datetime,
 ) -> Applied:
     row = _subscription(session, snapshot.id, lock=True)
-    price = _price(session, snapshot.price_id) if snapshot.item_count == 1 else None
+    price = registered_price(session, snapshot.price_id) if snapshot.item_count == 1 else None
     error = _price_error(snapshot, price)
     if row is None:
         checkout = resolution.checkout
@@ -338,7 +338,7 @@ def _apply_subscription(
             duplicate=billing.primary_subscription(session, agency.id) is not None,
             created_at=now,
         )
-        _copy_subscription(row, snapshot, price, event.occurred_at, now)
+        copy_subscription(row, snapshot, price, event.occurred_at, now)
         session.add(row)
         session.flush()
         if checkout.status == "open":
@@ -347,8 +347,8 @@ def _apply_subscription(
     elif event.occurred_at < row.last_event_at:
         return Applied("stale", None, row)
     else:
-        _copy_subscription(row, snapshot, price, event.occurred_at, now)
-    _customer(session, agency.id, snapshot.customer_id)
+        copy_subscription(row, snapshot, price, event.occurred_at, now)
+    record_customer(session, agency.id, snapshot.customer_id)
     session.flush()
     if agency.status == "closed":
         error = error or "agency_closed"

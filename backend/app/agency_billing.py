@@ -22,6 +22,7 @@ Usage:
       [--limit N]
   python -m app.agency_billing events --unmatched [--limit N]
   python -m app.agency_billing duplicates
+  python -m app.agency_billing reconcile [--agency <uuid>] [--limit N] --confirm
 
 Output is one JSON document with IDs, plan keys, amounts, closed codes and times only: never an
 agency or client name, a person, an email, a token or a secret. A refusal prints
@@ -58,10 +59,13 @@ from app.models import (
 )
 from app.models.billing import INTERVALS, MAX_AMOUNT_CENTS, STANDINGS
 from app.services import billing, plans
+from app.services.billing_actions import run_reconciliation
 
 PRICE_ID = re.compile(r"pri_[a-z0-9]{26}")
 PLAN_KEY = re.compile(r"[a-z][a-z0-9_-]{1,31}")
-CHANGES = frozenset({"register-price", "retire-price", "grant", "end-grant", "extend-trial"})
+CHANGES = frozenset(
+    {"register-price", "retire-price", "grant", "end-grant", "extend-trial", "reconcile"}
+)
 LISTINGS = frozenset({"prices", "status", "agencies", "events", "duplicates"})
 
 
@@ -466,6 +470,27 @@ def list_duplicates(session: Session) -> list[dict[str, Any]]:
     return views
 
 
+# Read the subscriptions from Paddle now and apply each difference as an audited correction
+# (D7, D12): one agency's subscriptions regardless of the 24-hour window, or a due batch.
+def reconcile(
+    engine: Engine,
+    settings: Settings,
+    provider: PaddleClient | None,
+    *,
+    agency: UUID | None = None,
+    limit: int = 25,
+    **_: Any,
+) -> dict[str, int]:
+    with Session(engine) as session:
+        now = billing.database_now(session)
+        billing.require_billing(settings, now.date())
+        if agency is not None and session.get(Agency, agency) is None:
+            raise Refused("agency_not_found")
+    if provider is None:
+        raise Refused("billing_unavailable")
+    return run_reconciliation(engine, provider, now, limit, agency_id=agency, audit=True)
+
+
 # Run one subcommand in its own transaction and return (exit code, JSON-ready result). Listings
 # read one REPEATABLE READ snapshot; changes run under READ COMMITTED with their locks and need
 # allowed billing.
@@ -498,6 +523,8 @@ def run(
                         after=options.get("after"),
                         limit=options.get("limit", 100),
                     )
+        if command == "reconcile":
+            return 0, reconcile(engine, settings, provider, **options)
         with Session(engine, expire_on_commit=False) as session, session.begin():
             billing.require_billing(settings, billing.database_now(session).date())
             if command == "register-price":
@@ -571,6 +598,9 @@ def parser() -> argparse.ArgumentParser:
     events.add_argument("--unmatched", action="store_true", required=True)
     events.add_argument("--limit", type=_bounded(1, 500), default=100, metavar="1-500")
     commands.add_parser("duplicates", help="List duplicate subscriptions.")
+    again = commands.add_parser("reconcile", help="Read subscriptions from Paddle and correct.")
+    again.add_argument("--agency", type=UUID)
+    again.add_argument("--limit", type=_bounded(1, 100), default=25, metavar="1-100")
     for name in CHANGES:
         commands.choices[name].add_argument("--confirm", action="store_true", help="Required.")
     return root

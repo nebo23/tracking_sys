@@ -2,8 +2,10 @@
 
 Specification 017-C (D-103 decisions D4, D5, D10, D11 and D7; design-017c.md section 8). As
 tracking_app, the pass ends trials and operator grants that are due (each agency under its row
-lock, a busy agency waits for the next pass), and queues the link-only trial_ending and
-billing_hold messages for the agencies' active, verified Owners; the mail worker delivers them.
+lock, a busy agency waits for the next pass), executes the pending provider actions of agency
+closures with bounded retries, reconciles the subscriptions that were not read from Paddle in
+the last 24 hours, and queues the link-only trial_ending and billing_hold messages for the
+agencies' active, verified Owners; the mail worker delivers them.
 While billing is not allowed (TRACKING_BILLING_ENABLED off or the paddle.billing rule not
 current) it prints {"status": "disabled"} and changes nothing. It prints counts only, never a
 name, an email, a figure or a secret. It is not a scheduler: production scheduling is decided
@@ -24,6 +26,12 @@ from app.config import Settings
 from app.database import create_database_engine
 from app.logging_config import configure_logging
 from app.services import billing
+from app.services.billing_actions import (
+    ACTION_OUTCOMES,
+    RECONCILE_OUTCOMES,
+    run_actions,
+    run_reconciliation,
+)
 
 
 def run_pass(
@@ -42,9 +50,17 @@ def run_pass(
     if not billing.billing_allowed(settings, moment.date()):
         return {"status": "disabled"}
     ended = billing.end_trials_and_grants(engine, moment, limit)
+    if provider is None:
+        actions = dict.fromkeys(ACTION_OUTCOMES, 0)
+        reconciled = dict.fromkeys(RECONCILE_OUTCOMES, 0)
+    else:
+        actions = run_actions(engine, provider, moment, limit)
+        reconciled = run_reconciliation(engine, provider, moment, limit)
     return {
         "status": "completed",
         **ended,
+        "actions": actions,
+        "reconciliation": reconciled,
         "messages": billing.send_messages(engine, settings, moment, limit),
     }
 

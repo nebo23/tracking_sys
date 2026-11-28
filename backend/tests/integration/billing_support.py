@@ -165,7 +165,8 @@ class BillingLab:
     # transaction.paid, subscription.created, subscription.activated, transaction.completed.
     def pay(self, transaction: str, start: datetime | None = None) -> dict:
         subscription = self.paddle.pay(transaction)
-        moment = start or datetime.now().astimezone()
+        # Paddle's events happened before they are delivered.
+        moment = start or datetime.now().astimezone() - timedelta(minutes=1)
         entity = self.paddle.transactions[transaction]
         paid = copy.deepcopy(entity)
         paid["status"] = "paid"

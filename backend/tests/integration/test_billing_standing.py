@@ -103,6 +103,8 @@ def test_bl03_trial_reminder_and_end(authenticated_world, api):
         "status": "completed",
         "trials_ended": 0,
         "grants_ended": 0,
+        "actions": {"done": 0, "skipped": 0, "retried": 0, "failed": 0},
+        "reconciliation": {"checked": 0, "corrected": 0, "failed": 0},
         "messages": {"trial_ending": 0, "billing_hold": 0},
     }
     # Within three days: one reminder, sent once.

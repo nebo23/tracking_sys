@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.advertising import router as advertising_router
 from app.api.attribution import router as attribution_router
 from app.api.auth import router as auth_router
+from app.api.billing import router as billing_router
 from app.api.billing import webhook_router as billing_webhook_router
 from app.api.branding import router as branding_router
 from app.api.collection import public_router as collection_public_router
@@ -349,6 +350,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(google_router)
     application.include_router(tenancy_router)
     application.include_router(plans_router)
+    application.include_router(billing_router)
     application.include_router(offboarding_router)
     application.include_router(collection_router)
     application.include_router(collection_public_router)
