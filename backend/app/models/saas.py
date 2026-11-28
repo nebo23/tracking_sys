@@ -90,14 +90,19 @@ class AgencyPlanAssignment(Base):
         UniqueConstraint("agency_id", "revision", name="uq_agency_plan_assignments_revision"),
         Index("ix_agency_plan_assignments_plan_id", "plan_id"),
         CheckConstraint("revision >= 1", name="positive_revision"),
+        # 017-C (D-103 D13): billing assigns the subscribed plan and the billing_hold plan.
         CheckConstraint(
-            "assigned_by IN ('default', 'platform_operator')", name="valid_assigned_by"
+            "assigned_by IN ('default', 'platform_operator', 'billing')", name="valid_assigned_by"
         ),
         CheckConstraint(
-            "reason IN ('initial', 'new_agency', 'plan_change', 'correction')", name="valid_reason"
+            "reason IN ('initial', 'new_agency', 'plan_change', 'correction', 'subscription', "
+            "'billing_hold')",
+            name="valid_reason",
         ),
         CheckConstraint(
-            "(assigned_by = 'default') = (reason IN ('initial', 'new_agency'))",
+            "(assigned_by = 'default' AND reason IN ('initial', 'new_agency')) "
+            "OR (assigned_by = 'platform_operator' AND reason IN ('plan_change', 'correction')) "
+            "OR (assigned_by = 'billing' AND reason IN ('subscription', 'billing_hold'))",
             name="reason_matches",
         ),
     )

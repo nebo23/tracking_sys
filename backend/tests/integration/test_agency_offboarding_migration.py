@@ -23,10 +23,18 @@ from app.models import AgencyMembership
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0033_agency_offboarding"
+HEAD = "0034_saas_billing"
 PREVIOUS = "0032_report_delivery"
 NEW_TABLES = ("agency_exports", "agency_export_parts", "agency_purges")
-KEPT = {"agency_plan_assignments", "agency_purges"}
+# The plan history and the purge record (017-B D8), and since 017-C (D-103 D10) the agency's
+# subscriptions, payments and adjustments, kept as financial records without personal data.
+KEPT = {
+    "agency_plan_assignments",
+    "agency_purges",
+    "agency_subscriptions",
+    "billing_payments",
+    "billing_adjustments",
+}
 FUNCTION = "purge_agency_batch(uuid, integer)"
 REFUSAL = "stored offboarding state"
 
@@ -154,7 +162,7 @@ def test_ov09_function_covers_every_scoped_table(db):
             )
         ).all()
     # Every table that carries agency_id or client_id is purged, except the record that stays.
-    assert len(order) == len(set(order)) == 81
+    assert len(order) == len(set(order)) == 85
     assert set(order) == scoped - KEPT
     assert KEPT <= scoped
     # Children first: a referencing table comes before the table it references.

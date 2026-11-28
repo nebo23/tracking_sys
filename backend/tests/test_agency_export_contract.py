@@ -72,6 +72,15 @@ EXCLUDED_TABLES = {
     "agency_invitations",
     "client_grants",
     "agency_memberships",
+    # 017-C (D-103): platform billing is agency administration, and Paddle issues the
+    # receipts and invoices.
+    "agency_billing",
+    "agency_subscriptions",
+    "billing_checkouts",
+    "billing_events",
+    "billing_payments",
+    "billing_adjustments",
+    "billing_actions",
 }
 DIGEST = re.compile(r"digest|sha256|fingerprint|secret|token|key_bytes|ciphertext|public_key")
 

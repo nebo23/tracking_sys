@@ -25,12 +25,19 @@ USER_REFERENCES = [
     for key in column.foreign_keys
     if key.target_fullname == "users.id"
 ]
-# Tables that carry agency_id or client_id, apart from the record that stays (017-B, D8).
+# Tables that carry agency_id or client_id, apart from the record that stays (017-B, D8) and
+# the billing records kept after the purge (017-C, D-103 D10).
+KEPT = {
+    "agency_plan_assignments",
+    "agency_purges",
+    "agency_subscriptions",
+    "billing_payments",
+    "billing_adjustments",
+}
 PURGED = {
     name
     for name, columns in SCHEMA.items()
-    if {"agency_id", "client_id"} & set(columns)
-    and name not in {"agency_plan_assignments", "agency_purges"}
+    if {"agency_id", "client_id"} & set(columns) and name not in KEPT
 }
 
 
@@ -43,9 +50,9 @@ def test_every_mapped_column_is_classified_with_a_row_rule():
     # at 0025_whatsapp (015-E), eleven more at 0026_identity_journey (006, D-075), five more
     # at 0027_ledger_persistence (007-B), one more at 0028_revenue_identity (007-C), six more
     # at 0029_attribution_persistence (008-B), four more at 0031_saas_plans (017-A), five more
-    # at 0032_report_delivery (016-C), three more at 0033_agency_offboarding (017-B), plus
-    # alembic_version.
-    assert len(SCHEMA) == 99
+    # at 0032_report_delivery (016-C), three more at 0033_agency_offboarding (017-B), eight
+    # more at 0034_saas_billing (017-C), plus alembic_version.
+    assert len(SCHEMA) == 107
 
 
 def test_synthetic_unclassified_column_and_table_are_reported():
@@ -205,6 +212,15 @@ def test_only_recorded_decisions_are_presented_as_approved():
         ("agency_plan_assignments", "row", "D-092; D-098"),
         ("agency_closures", "row", "D-092; D-098"),
         ("agency_branding", "row", "D-095; D-098"),
+        # D-103 (017-C, D3, D5-D7, D10, D11): the platform billing tables.
+        ("billing_prices", "row", "D-103"),
+        ("agency_billing", "row", "D-103"),
+        ("agency_subscriptions", "row", "D-103"),
+        ("billing_checkouts", "row", "D-103"),
+        ("billing_events", "row", "D-103"),
+        ("billing_payments", "row", "D-103"),
+        ("billing_adjustments", "row", "D-103"),
+        ("billing_actions", "row", "D-103"),
     } | {(table, "row", "D-098") for table in PURGED}
     # Security events stay unapproved; the audit log and invitations of an agency leave only
     # with its purge (D-098 D8), while their retention stays pending (Q-012).
@@ -219,10 +235,10 @@ def test_only_recorded_decisions_are_presented_as_approved():
 
 
 def test_every_scoped_table_except_the_kept_record_has_the_purge_rule():
-    # 017-B (D-098 D7, D8): 81 tables lose their rows with a closed agency; the plan history and
-    # the purge record stay with the agency row.
-    assert len(PURGED) == 81
-    assert {"agency_plan_assignments", "agency_purges"}.isdisjoint(PURGED)
+    # 017-B (D-098 D7, D8) and 017-C (D-103 D10): 85 tables lose their rows with a closed
+    # agency; the plan history, the purge record and the billing records stay with the agency.
+    assert len(PURGED) == 85
+    assert KEPT.isdisjoint(PURGED)
     for table in PURGED:
         assert any(
             rule.reference == "D-098" and "purge of its closed agency" in rule.description

@@ -839,6 +839,94 @@ CLASSES: dict[str, DataClass] = {
             "017-B",
         ),
         DataClass(
+            "billing.price",
+            "Registered prices of the platform's plans: the plan, Paddle's price ID, the amount "
+            "in cents, the currency, the interval, the offer state and the times; never about a "
+            "person.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Never deleted: a price is immutable apart from its offer state and is referenced "
+            "by subscriptions and checkouts (D-103 D3).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.standing",
+            "Billing standing of an agency: the standing, a closed reason, the trial, grant and "
+            "hold times, the Paddle customer ID and a version.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Kept with the agency; deleted by the purge of a closed agency (D-103 D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.subscription",
+            "Paddle subscriptions of an agency: Paddle's subscription, transaction and price "
+            "IDs, the status, the billing period, the scheduled change and its origin, the "
+            "duplicate flag and the event and reconciliation times; never a name, email, "
+            "address or card detail.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.checkout",
+            "Checkouts of an agency: the price, the requesting membership, Paddle's transaction "
+            "ID, the state and the times.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.SYSTEM,
+            "Open and expired checkouts deleted 30 days after their expiry; completed ones kept "
+            "until the purge of a closed agency (D-103 D6, D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.event",
+            "Verified Paddle events and reconciliations: the event ID, type, times, outcome, "
+            "error code, Paddle IDs and allowlisted fields (statuses, amounts, currency, times "
+            "and IDs); never a name, email, address or card detail.",
+            Sensitivity.MEDIUM,
+            Personal.PSEUDONYMOUS,
+            Provenance.OBSERVED,
+            "Deleted 13 months (395 days) after receipt (provisional, Q-012) and by the purge "
+            "of a closed agency (D-103 D7, D10).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.payment",
+            "Paddle transactions of an agency: the transaction ID, status, origin, currency, "
+            "subtotal, tax and total in cents, the billing time and the invoice number.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10, D11).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.adjustment",
+            "Paddle adjustments (refunds, credits and chargebacks) of an agency's transactions: "
+            "the IDs, action, status, currency and total in cents.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.OBSERVED,
+            "Kept as a financial record, also after the purge of a closed agency (D-103 D10, D11).",
+            "017-C",
+        ),
+        DataClass(
+            "billing.action",
+            "Provider actions of an agency closure: the subscription, the action, its reason, "
+            "state, attempts, times and the last closed error code.",
+            Sensitivity.LOW,
+            Personal.NONE,
+            Provenance.SYSTEM,
+            "Kept with the agency; deleted by the purge of a closed agency once settled "
+            "(D-103 D10).",
+            "017-C",
+        ),
+        DataClass(
             "system.schema_version",
             "Migration revision marker.",
             Sensitivity.LOW,
@@ -3204,6 +3292,209 @@ TABLES: dict[str, TablePolicy] = {
             ),
         ),
     ),
+    # Specification 017-C (D-103): platform billing. Subscriptions, payments and adjustments
+    # stay after the purge as financial records (D10); the other scoped tables receive the
+    # purge rule below.
+    "billing_prices": TablePolicy(
+        _same(
+            "billing.price",
+            "id",
+            "plan_id",
+            "provider",
+            "provider_price_id",
+            "currency",
+            "amount_cents",
+            "billing_interval",
+            "offered",
+            "registered_at",
+            "retired_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Never deleted: immutable apart from the offer state, and referenced by "
+                "subscriptions and checkouts (D3).",
+            ),
+        ),
+    ),
+    "agency_billing": TablePolicy(
+        _same(
+            "billing.standing",
+            "agency_id",
+            "standing",
+            "reason",
+            "trial_ends_at",
+            "trial_reminded_at",
+            "grant_ends_at",
+            "hold_started_at",
+            "hold_notified_at",
+            "provider_customer_id",
+            "version",
+            "created_at",
+            "updated_at",
+        ),
+        (_row(APPROVED, "D-103", "One row per agency, kept with the agency (D5)."),),
+    ),
+    "agency_subscriptions": TablePolicy(
+        _same(
+            "billing.subscription",
+            "id",
+            "agency_id",
+            "provider",
+            "provider_subscription_id",
+            "provider_transaction_id",
+            "price_id",
+            "provider_price_id",
+            "status",
+            "current_period_starts_at",
+            "current_period_ends_at",
+            "next_billed_at",
+            "scheduled_action",
+            "scheduled_at",
+            "cancel_origin",
+            "canceled_at",
+            "duplicate",
+            "last_event_at",
+            "reconciled_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10).",
+            ),
+        ),
+    ),
+    "billing_checkouts": TablePolicy(
+        _same(
+            "billing.checkout",
+            "id",
+            "agency_id",
+            "price_id",
+            "requested_by_membership_id",
+            "provider_transaction_id",
+            "status",
+            "created_at",
+            "expires_at",
+            "completed_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Open and expired checkouts are deleted by tracking_lifecycle 30 days after "
+                "their expiry; completed ones stay with the agency (D6).",
+            ),
+        ),
+    ),
+    "billing_events": TablePolicy(
+        _same(
+            "billing.event",
+            "id",
+            "provider",
+            "provider_event_id",
+            "source",
+            "event_type",
+            "occurred_at",
+            "received_at",
+            "agency_id",
+            "subscription_id",
+            "provider_subscription_id",
+            "provider_transaction_id",
+            "outcome",
+            "error_code",
+            "fields",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Deleted by tracking_lifecycle 395 days after receipt (D7; a provisional "
+                "development period under Q-012).",
+            ),
+        ),
+    ),
+    "billing_payments": TablePolicy(
+        _same(
+            "billing.payment",
+            "id",
+            "agency_id",
+            "subscription_id",
+            "provider_transaction_id",
+            "status",
+            "origin",
+            "currency",
+            "subtotal_cents",
+            "tax_cents",
+            "total_cents",
+            "billed_at",
+            "invoice_number",
+            "last_event_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10, D11).",
+            ),
+        ),
+    ),
+    "billing_adjustments": TablePolicy(
+        _same(
+            "billing.adjustment",
+            "id",
+            "agency_id",
+            "payment_id",
+            "provider_adjustment_id",
+            "provider_transaction_id",
+            "action",
+            "status",
+            "currency",
+            "total_cents",
+            "last_event_at",
+            "created_at",
+            "updated_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept as a financial record without personal data, also after the purge of a "
+                "closed agency (D10, D11).",
+            ),
+        ),
+    ),
+    "billing_actions": TablePolicy(
+        _same(
+            "billing.action",
+            "id",
+            "agency_id",
+            "subscription_id",
+            "action",
+            "reason",
+            "status",
+            "attempts",
+            "next_attempt_at",
+            "last_error",
+            "created_at",
+            "completed_at",
+        ),
+        (
+            _row(
+                APPROVED,
+                "D-103",
+                "Kept with the agency as the record of its closure's provider actions; the "
+                "purge waits until none is pending (D10).",
+            ),
+        ),
+    ),
     "alembic_version": TablePolicy(
         {"version_num": "system.schema_version"},
         (_row(RuleStatus.NOT_APPLICABLE, "001", "Schema revision marker; no personal data."),),
@@ -3211,9 +3502,18 @@ TABLES: dict[str, TablePolicy] = {
 }
 
 # 017-B (D-098 D7, D9): purge_agency_batch deletes every row of a closed agency from every table
-# that carries agency_id or client_id, except the record that stays (D8). The rule is added to
-# each such table here, so a new scoped table gets it by construction.
-KEPT_AFTER_PURGE = frozenset({"agency_plan_assignments", "agency_purges"})
+# that carries agency_id or client_id, except the record that stays (D8) and, since 017-C
+# (D-103 D10), the agency's subscriptions, payments and adjustments as financial records. The
+# rule is added to each other such table here, so a new scoped table gets it by construction.
+KEPT_AFTER_PURGE = frozenset(
+    {
+        "agency_plan_assignments",
+        "agency_purges",
+        "agency_subscriptions",
+        "billing_payments",
+        "billing_adjustments",
+    }
+)
 PURGE_RULE = _row(
     APPROVED,
     "D-098",

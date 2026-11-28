@@ -43,7 +43,7 @@ from app.services.tenancy import tenancy_transaction
 
 pytestmark = pytest.mark.integration
 CONFIG = Config(str(BACKEND_ROOT / "alembic.ini"))
-HEAD = "0033_agency_offboarding"
+HEAD = "0034_saas_billing"
 PREVIOUS = "0030_reporting_indexes"
 NEW_TABLES = ("saas_plans", "agency_plan_assignments", "agency_closures", "user_agreements")
 DEVELOPMENT = {
@@ -151,6 +151,7 @@ def test_sv08_operator_command_subcommands_audit_and_refusals(authenticated_worl
     assert code == 0
     assert {(item["key"], item["is_default"], item["agencies"]) for item in listed} == {
         ("development", True, 2),
+        ("billing_hold", False, 0),
         ("agency-pro", False, 0),
     }
     # Assignment: a new revision under the agency lock, audited; refusals by closed code.
@@ -261,7 +262,7 @@ def test_sv08_operator_command_runs_as_its_own_process(world):
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
-    assert [item["key"] for item in json.loads(result.stdout)] == ["development"]
+    assert [item["key"] for item in json.loads(result.stdout)] == ["development", "billing_hold"]
     refused = subprocess.run(
         [sys.executable, "-m", "app.agency_plans", "suspend", "--agency", str(world.a)],
         cwd=BACKEND_ROOT,
@@ -338,9 +339,11 @@ def test_sv18_upgrade_seeds_and_assigns_grants_and_guarded_downgrade(world):
         command.upgrade(CONFIG, "head")
         assert _version(w.db) == HEAD
         with Session(w.db.migration) as session:
-            plans = list(session.scalars(select(SaasPlan)))
+            plans = list(session.scalars(select(SaasPlan).order_by(SaasPlan.key.desc())))
+            # 0034 (017-C) also seeds the billing_hold plan, which is never assigned here.
             assert [(p.key, p.is_default, p.reason) for p in plans] == [
-                ("development", True, "seed")
+                ("development", True, "seed"),
+                ("billing_hold", False, "seed"),
             ]
             assigned = list(session.scalars(select(AgencyPlanAssignment)))
             agencies = set(session.scalars(text("SELECT id FROM agencies")))

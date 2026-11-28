@@ -226,7 +226,11 @@ class AuditEvent(Base):
             "'agency.closure_requested', 'agency.closure_cancelled', 'plan.created', "
             "'plan.default_set', 'report_export.created', 'report_export.revoked', "
             "'report_schedule.created', 'report_schedule.updated', 'report_schedule.deleted', "
-            "'branding.updated', 'agency.export_requested', 'agency.export_revoked')",
+            "'branding.updated', 'agency.export_requested', 'agency.export_revoked', "
+            "'billing_price.registered', 'billing_price.retired', 'billing.granted', "
+            "'billing.grant_ended', 'billing.trial_extended', 'billing.reconciled', "
+            "'billing.checkout_created', 'billing.plan_change_requested', "
+            "'billing.cancel_scheduled', 'billing.cancel_removed')",
             name="valid_action",
         ),
         CheckConstraint(
@@ -237,7 +241,8 @@ class AuditEvent(Base):
             "'revenue_evidence', 'integration_source', 'crm_rule', 'whatsapp_number', "
             "'identity_subject', 'revenue_issue', 'revenue_association', "
             "'attribution_model', 'plan', 'plan_assignment', 'agency_closure', "
-            "'report_export', 'report_schedule', 'agency_branding', 'agency_export')",
+            "'report_export', 'report_schedule', 'agency_branding', 'agency_export', "
+            "'billing_price', 'agency_billing', 'billing_checkout', 'agency_subscription')",
             name="valid_resource",
         ),
         CheckConstraint(
@@ -247,7 +252,8 @@ class AuditEvent(Base):
         ),
         CheckConstraint(
             "agency_id IS NOT NULL "
-            "OR (actor_kind = 'platform_operator' AND resource_type = 'plan')",
+            "OR (actor_kind = 'platform_operator' "
+            "AND resource_type IN ('plan', 'billing_price'))",
             name="scope",
         ),
         Index("ix_audit_events_agency_time", "agency_id", "occurred_at", "id"),

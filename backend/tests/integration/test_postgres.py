@@ -123,8 +123,17 @@ def test_postgresql_migration_cycle_and_runtime_permissions(
                 "agency_exports",
                 "agency_export_parts",
                 "agency_purges",
+                "billing_prices",
+                "agency_billing",
+                "agency_subscriptions",
+                "billing_checkouts",
+                "billing_events",
+                "billing_payments",
+                "billing_adjustments",
+                "billing_actions",
             }, "Refuse an unknown database schema."
-            # 0031 seeds the development plan; it is the only row an empty database holds.
+            # 0031 seeds the development plan and 0034 the billing_hold plan; they are the
+            # only rows an empty database holds.
             for table in tables - {"alembic_version"}:
                 rows = "saas_plans WHERE reason <> 'seed'" if table == "saas_plans" else table
                 assert not connection.execute(
