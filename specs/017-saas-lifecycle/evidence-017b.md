@@ -11,7 +11,9 @@ Prepared: 2026-11-28 under D-098. Branch: `codex/spec-017b-agency-offboarding`, 
 | P2 | `c249894` | Offboarding pass, lifecycle purge step, `python -m app.agency_offboarding`, teardown limited to one agency, OV07, OV08, OV09-OV11, OV13-OV16 |
 | P3 | `1cfbe9e` | Export routes, build, catalog, manifest, bounds, checks, sealed parts, expiry of parts, OpenAPI snapshot, OV01-OV06 and the sequenced OV17 case |
 | P4 | `a00a6a6` | End-to-end journey, OV17 with real concurrency, OV19 |
-| P5 | this commit and the next | Two tests strengthened for the mutation check, evidence, guides, status lines |
+| P5 | `2ba5cf7` and the next | Two tests strengthened for the mutation check, evidence, guides, status lines; then the pull request number |
+
+Pull request: [PR 21](https://github.com/nebo23/tracking_sys/pull/21) against `main`, opened at `2ba5cf7` for Claude's independent review, not merged.
 
 ## 2. Environment and deviation
 
