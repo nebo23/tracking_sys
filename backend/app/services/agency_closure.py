@@ -19,6 +19,7 @@ from app.config import Settings
 from app.models import Agency, AgencyClosure, AgencyMembership, AuthSession, User
 from app.security import now_utc
 from app.services.auth import AuthService
+from app.services.billing_actions import queue_closure_cancellation, queue_closure_request
 from app.services.tenancy import AccessDenied, Role, TenancyService
 
 GRACE_PERIOD = timedelta(days=30)
@@ -103,6 +104,9 @@ class ClosureService(TenancyService):
         self.session.add(closure)
         agency.status = "closing"
         self._audit(agency_id, "agency.closure_requested", "agency_closure", closure.id)
+        # 017-C (D-103 D10): the subscription's cancellation at the end of the paid period is
+        # queued for the billing worker, never called here.
+        queue_closure_request(self.session, agency_id)
         return closure
 
     # The agency's status and its open closure, for its Owners while active or closing.
@@ -129,4 +133,7 @@ class ClosureService(TenancyService):
         revoked = revoke_open(self.session, agency_id)
         if revoked is not None:
             self._audit(agency_id, "agency.export_revoked", "agency_export", revoked)
+        # 017-C (D-103 D10): the closure's own scheduled cancellation is removed; an Owner's
+        # earlier cancellation stays.
+        queue_closure_cancellation(self.session, agency_id, moment)
         return agency

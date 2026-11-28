@@ -13,6 +13,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.advertising import router as advertising_router
 from app.api.attribution import router as attribution_router
 from app.api.auth import router as auth_router
+from app.api.billing import router as billing_router
+from app.api.billing import webhook_router as billing_webhook_router
 from app.api.branding import router as branding_router
 from app.api.collection import public_router as collection_public_router
 from app.api.collection import router as collection_router
@@ -40,6 +42,7 @@ from app.api.schemas import ErrorResponse
 from app.api.tenancy import router as tenancy_router
 from app.api.whatsapp import router as whatsapp_router
 from app.api.whatsapp import webhook_router as whatsapp_webhook_router
+from app.billing.paddle import build_billing_provider
 from app.config import Settings
 from app.database import create_database_engine, expected_revision, readiness_failure
 from app.links.verification import DnsResolver, DomainVerifier, PinnedTlsProbe
@@ -49,6 +52,7 @@ from app.security import AuthError, RateLimited
 from app.services.agency_closure import ClosureRefused
 from app.services.agreements import AgreementRequired
 from app.services.attribution_models import AttributionError
+from app.services.billing import BillingRefused
 from app.services.collection import CollectionError, browser_origins
 from app.services.connectors import ConnectorError, build_providers
 from app.services.declarations import DeclarationRefused
@@ -128,7 +132,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Plans (specification 017-A): every agency has a plan whose limits the server "
             "enforces on creation, a usage view, agency closure by its Owner with a "
             "30-day grace period, and the record of agreement to the Terms of Service and "
-            "the Privacy Policy at registration and every sign-in."
+            "the Privacy Policy at registration and every sign-in. "
+            "Billing (specification 017-C): the platform's own subscriptions through Paddle "
+            "Billing as merchant of record, with prices, a trial, a hold, checkout, plan "
+            "changes, cancellation, payments and invoices, and Paddle's signed webhooks."
         ),
         lifespan=lifespan,
         responses={
@@ -142,6 +149,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # when their state file is configured, and the live Instagram adapter only when enabled,
     # configured, and allowed by current provider rules; tests substitute providers in code.
     application.state.connector_providers = build_providers(configuration)
+    # The Paddle adapter of platform billing (specification 017-C) when billing is enabled;
+    # tests substitute one bound to a synthetic Paddle-shaped server.
+    application.state.billing_provider = build_billing_provider(configuration)
     # Custom-domain verifier (specification 005-E): live DNS and TLS only when explicitly
     # enabled; otherwise verification answers 503. Tests substitute synthetic adapters in code.
     application.state.domain_verifier = (
@@ -284,6 +294,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status_code=422,
         )
 
+    # Billing refusals (017-C, D-103) carry a closed code; never a secret, a signature or a
+    # provider message.
+    @application.exception_handler(BillingRefused)
+    async def billing_refused(request: Request, error: BillingRefused) -> JSONResponse:
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
     # Agency closure refusals (017-A, D8) carry a closed code.
     @application.exception_handler(ClosureRefused)
     async def closure_refused(request: Request, error: ClosureRefused) -> JSONResponse:
@@ -334,6 +350,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(google_router)
     application.include_router(tenancy_router)
     application.include_router(plans_router)
+    application.include_router(billing_router)
     application.include_router(offboarding_router)
     application.include_router(collection_router)
     application.include_router(collection_public_router)
@@ -350,6 +367,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(branding_router)
     application.include_router(payments_router)
     application.include_router(payment_callback_router)
+    application.include_router(billing_webhook_router)
     application.include_router(integrations_router)
     application.include_router(integration_callback_router)
     application.include_router(whatsapp_router)

@@ -31,7 +31,10 @@ ended (app.services.agency_lifecycle). Specification 016-C (D-095 D5) deletes re
 report exports at their expiry, 7 days after creation, and exports that never became ready
 (discarded, or pending for more than an hour), each content row before its export.
 Specification 017-B (D-098 D7) purges closed agencies through purge_agency_batch once their
-offboarding is done and their teardowns have settled (app.services.agency_purge).
+offboarding is done and their teardowns have settled (app.services.agency_purge). Specification
+017-C (D-103) deletes billing events 395 days after receipt and open or expired checkouts 30
+days after their expiry, and the closure completion queues the cancellation of the agency's
+subscriptions.
 Predicates are re-evaluated on every run, so an interrupted, timed-out, or bounded run is
 completed by the next run without a cursor and no eligible row is skipped permanently.
 """
@@ -67,6 +70,8 @@ from app.models import (
     AuthRateLimit,
     AuthSession,
     AuthToken,
+    BillingCheckout,
+    BillingEvent,
     Booking,
     CollectedEvent,
     CollectionSubject,
@@ -274,6 +279,17 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
             settings.whatsapp_message_retention_days, cutoff
         )
 
+    # 017-C (D-103 D7, D6; provisional under Q-012): billing events 395 days after receipt, and
+    # open or expired checkouts 30 days after their expiry; a completed checkout stays.
+    def billing_events(cutoff: datetime) -> ColumnElement[bool]:
+        return BillingEvent.received_at < before(settings.billing_event_retention_days, cutoff)
+
+    def billing_checkouts(cutoff: datetime) -> ColumnElement[bool]:
+        return and_(
+            BillingCheckout.status.in_(("open", "expired")),
+            BillingCheckout.expires_at < before(settings.billing_checkout_retention_days, cutoff),
+        )
+
     def rate_limits(cutoff: datetime) -> ColumnElement[bool]:
         # An expired bucket already restarts at one attempt, so deleting it at expiry changes
         # no throttling decision.
@@ -453,6 +469,8 @@ def targets(settings: LifecycleSettings) -> tuple[Target, ...]:
         Target("bookings", Booking, Booking.id, bookings),
         Target("crm_deals", CrmDeal, CrmDeal.id, deals),
         Target("whatsapp_messages", WhatsappMessage, WhatsappMessage.id, whatsapp_messages),
+        Target("billing_events", BillingEvent, BillingEvent.id, billing_events),
+        Target("billing_checkouts", BillingCheckout, BillingCheckout.id, billing_checkouts),
         Target("auth_rate_limits", AuthRateLimit, AuthRateLimit.bucket_key, rate_limits),
         Target("mail_outbox", MailOutbox, MailOutbox.id, outbox),
         Target("collected_events", CollectedEvent, CollectedEvent.id, events, True),

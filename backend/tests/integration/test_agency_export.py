@@ -263,7 +263,7 @@ def test_ov02_export_contents_match_the_catalog_and_manifest(authenticated_world
     manifest = json.loads(manifest_bytes)
     assert hashlib.sha256(manifest_bytes).hexdigest() == item.manifest_sha256
     assert (manifest["format"], manifest["format_version"]) == ("tracking-agency-export", 1)
-    assert manifest["schema_version"] == "0033_agency_offboarding"
+    assert manifest["schema_version"] == "0034_saas_billing"
     assert (manifest["agency_id"], manifest["export_id"]) == (str(w.a), str(export_id))
     expected = {f"clients/{c}/{table}.jsonl" for c in (w.a1, w.a2) for table, _ in CATALOG}
     assert set(archive.namelist()) == expected | {"manifest.json"}

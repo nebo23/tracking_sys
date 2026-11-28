@@ -18,8 +18,10 @@ Paymob Accept row on 2026-11-21 against Paymob's callback, HMAC, transaction, re
 capture, intention, credential and security pages, Paymob's terms and PCI SSC FAQ 1154 of
 entry review section 2.4, and specification 015-D (D-068) added the Cal.com webhooks row on
 2026-11-21 against Cal.com's webhook pages of the second-round entry review, and 015-E the
-WhatsApp Cloud API row against Meta's WhatsApp webhook pages of that review. No row implies
-provider app approval or review access.
+WhatsApp Cloud API row against Meta's WhatsApp webhook pages of that review. Specification
+017-C (D-103) added the Paddle Billing row on 2026-11-28 against Paddle's signature, delivery,
+event, transaction, subscription, cancellation, invoice, authentication and recovery pages of
+design-017c.md section 2 (V-4 to V-13). No row implies provider app approval or review access.
 """
 
 from dataclasses import dataclass
@@ -65,6 +67,9 @@ REVIEW_014 = date(2027, 11, 20)
 # Specification 015-B re-verification (D-067) and the annual review it sets.
 REVERIFIED_015 = date(2026, 11, 21)
 REVIEW_015 = date(2027, 11, 21)
+# Specification 017-C verification (D-103) and the annual review it sets.
+VERIFIED_017 = date(2026, 11, 28)
+REVIEW_017 = date(2027, 11, 28)
 
 RULES: tuple[ProviderRule, ...] = (
     ProviderRule(
@@ -307,6 +312,27 @@ RULES: tuple[ProviderRule, ...] = (
         REVERIFIED_015,
         RuleStatus.CURRENT,
         REVIEW_015,
+    ),
+    ProviderRule(
+        "paddle",
+        "paddle.billing",
+        "billing.subscription",
+        "Paddle IDs, statuses, amounts in cents, currencies and times only; subscriptions, "
+        "payments and adjustments kept as financial records, also after the purge; events "
+        "13 months (provisional, Q-012); no name, email, address, card or payment-method "
+        "detail (D-103 D7, D10, D11)",
+        "The purge of a closed agency deletes its standing, checkouts, events and actions "
+        "(D10); events after 13 months and expired checkouts after 30 days",
+        "Paddle-Signature HMAC-SHA256 webhooks over HTTPS (020) within 300 seconds, stored once "
+        "by event_id; subscriptions not reconciled for 24 hours are read again",
+        "The platform's own subscriptions with Paddle as merchant of record; API key and "
+        "webhook secret in ignored .env; never agency-client revenue (015); no live call before "
+        "the owner's sandbox check",
+        ("V-4", "V-5", "V-6", "V-7", "V-8", "V-9", "V-10", "V-11", "V-12", "V-13"),
+        "017-C, 020",
+        VERIFIED_017,
+        RuleStatus.CURRENT,
+        REVIEW_017,
     ),
     ProviderRule(
         "google",

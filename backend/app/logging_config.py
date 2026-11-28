@@ -17,6 +17,22 @@ from typing import Any, TextIO
 FIELD_CODES: dict[str, frozenset[str]] = {
     "reason": frozenset({"database_unavailable", "schema_unavailable", "schema_mismatch"}),
     "outcome": frozenset({"unsupported", "failed"}),
+    # The closed provider codes of platform billing (017-C, app.billing.paddle.CODES).
+    "billing_code": frozenset(
+        {
+            "provider_unavailable",
+            "provider_rate_limited",
+            "provider_unauthorized",
+            "provider_not_found",
+            "provider_rejected",
+            "provider_invalid_response",
+            "subscription_locked",
+            "pending_change",
+            "past_due",
+            "subscription_canceled",
+            "change_limit",
+        }
+    ),
 }
 EVENTS: dict[str, frozenset[str]] = {
     "application_started": frozenset(),
@@ -51,6 +67,14 @@ EVENTS: dict[str, frozenset[str]] = {
     # A sealed part of an offboarding export did not open during a download (017-B, D5); the
     # stream ends.
     "agency_export_unreadable": frozenset(),
+    # A verified Paddle event of no known subscription, transaction or checkout (017-C, D7);
+    # it is stored unmatched and listed by the operator command.
+    "billing_event_unmatched": frozenset(),
+    # A Paddle call of a billing route or the billing worker failed with a closed code (017-C).
+    "billing_provider_failed": frozenset({"billing_code"}),
+    # A closure's provider action used all its attempts (017-C, D10); the operator cancels in
+    # Paddle.
+    "billing_action_failed": frozenset(),
 }
 
 # Constant message templates of known library loggers (uvicorn 0.54). They are emitted without

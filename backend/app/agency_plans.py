@@ -181,6 +181,9 @@ def create_plan(
 def set_default(session: Session, *, key: str) -> dict[str, Any]:
     _plan_lock(session)
     plan = _plan(session, key)
+    # 017-C (D-103 D5): the billing hold plan is assigned by billing only, never by default.
+    if plan.key == plans.HOLD_PLAN:
+        raise Refused("reserved_plan")
     if plan.is_default:
         raise Refused("already_default")
     session.execute(update(SaasPlan).where(SaasPlan.is_default.is_(True)).values(is_default=False))
@@ -193,6 +196,8 @@ def set_default(session: Session, *, key: str) -> dict[str, Any]:
 def assign(session: Session, *, agency_id: UUID, key: str, reason: str) -> dict[str, Any]:
     agency = _locked_agency(session, agency_id)
     plan = _plan(session, key)
+    if plan.key == plans.HOLD_PLAN:
+        raise Refused("reserved_plan")
     if agency.status == "closed":
         raise Refused("agency_closed")
     if plans.current_plan(session, agency_id).plan.id == plan.id:

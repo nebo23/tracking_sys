@@ -30,6 +30,14 @@ from app.services.tenancy import Role, tenancy_transaction
 
 # Children before parents, so each guarded test can empty the tables in this order.
 TABLES = (
+    "billing_actions",
+    "billing_adjustments",
+    "billing_payments",
+    "billing_events",
+    "billing_checkouts",
+    "agency_subscriptions",
+    "agency_billing",
+    "billing_prices",
     "agency_export_parts",
     "agency_exports",
     "agency_purges",
@@ -131,8 +139,9 @@ TABLES = (
 )
 
 TEST_PASSWORD = "Synthetic password for tests 123!"
-# Migration 0031 seeds the development plan (017-A, D3). It is the one row the guards accept in
-# an otherwise empty database, and the teardown keeps it as the default plan.
+# Migration 0031 seeds the development plan (017-A, D3) and 0034 the billing_hold plan
+# (017-C, D-103 D5). They are the rows the guards accept in an otherwise empty database, and
+# the teardown keeps them, with the development plan as the default.
 SEED_PLANS = "saas_plans WHERE reason <> 'seed'"
 
 
@@ -312,12 +321,15 @@ def db(runtime_engine: Engine, migration_engine: Engine) -> Iterator[SimpleNames
         yield SimpleNamespace(runtime=runtime_engine, migration=migration_engine)
     finally:
         # Only data created in this explicitly guarded, initially empty test run is removed.
-        # The seeded development plan stays, restored as the default (0031).
+        # The seeded plans stay, with the development plan restored as the default (0031).
         with migration_engine.begin() as connection:
             for table in TABLES:
                 connection.execute(text(f"DELETE FROM {_rows(table)}"))
             connection.execute(
-                text("UPDATE saas_plans SET is_default = true WHERE reason = 'seed'")
+                text(
+                    "UPDATE saas_plans SET is_default = true "
+                    "WHERE reason = 'seed' AND key = 'development'"
+                )
             )
 
 
