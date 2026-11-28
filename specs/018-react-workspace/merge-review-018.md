@@ -40,6 +40,7 @@ What was read, and how closely:
 | Journeys `22-agency-settings` and `23-reports`, Chromium | 2 passed (59.8 s) on the disposable stack `tracking-e2e-frontend`, which the run removed. Firefox and the other 62 journeys were not run again; the completion evidence records them. |
 | Scratch unit tests | Nine cases in a temporary file under `frontend/tests/unit/features/`, removed after the run. They draw the screens with the unit tests' stand-in API, and reproduced R018-01 to R018-06, K3 and O5 at `7554857` (sections 3 to 5). |
 | Scratch integration test | One case, removed after the run, on this review's own disposable PostgreSQL: Compose project `tracking-018-review-test` on 127.0.0.1:55433, synthetic settings, removed with `down --volumes`. It confirmed the API behavior behind R018-05 and O4. |
+| Scratch layout measurement | A table drawn in Chromium (Playwright 1.64.1) with the application's built stylesheet, outside the repository, and measured: it confirmed K1 (section 4). |
 
 The owner's database `tracking_sys` and the Compose projects of other sessions were not touched. Apart from this file, the working tree is as the branch left it.
 
@@ -142,7 +143,7 @@ The Revenue and Ad spend pages are not affected: they show the error through `Qu
 
 | ID | Defect | Confirmation |
 |---|---|---|
-| K1 | Table cells carry the utility `u-num`, which `docs/design/ui/connect-ui.css` sets to `display: inline-block`. Those cells stop being table cells, and their columns drift from their headers. | 30 `<td>` elements in 13 files have `u-num` in their class: `SeriesChart.tsx`, `AdSpendPage.tsx`, `ContentPage.tsx`, `RevenuePage.tsx`, `CreditTab.tsx`, `FunnelTab.tsx`, `RoasTab.tsx`, `ConversionsTab.tsx`, `WhatsappTab.tsx`, `ExportsTab.tsx`, `SchedulesTab.tsx`, `PlanTab.tsx` and `DiagnosticsCard.tsx`. |
+| K1 | Table cells carry the utility `u-num`, which `docs/design/ui/connect-ui.css` sets to `display: inline-block`. Those cells stop being table cells, and their columns drift from their headers. | 30 `<td>` elements in 13 files have `u-num` in their class: `SeriesChart.tsx`, `AdSpendPage.tsx`, `ContentPage.tsx`, `RevenuePage.tsx`, `CreditTab.tsx`, `FunnelTab.tsx`, `RoasTab.tsx`, `ConversionsTab.tsx`, `WhatsappTab.tsx`, `ExportsTab.tsx`, `SchedulesTab.tsx`, `PlanTab.tsx` and `DiagnosticsCard.tsx`. In Chromium, with the application's built stylesheet, three such cells computed to `display: inline-block` and sat side by side from 147 to 361 pixels, under headers at 147-492, 492-588 and 588-720 pixels. With `u-num` on an inner span, every cell lined up with its header. |
 | K2 | The Content destination asks for the icon `image`, which the icon set does not define. | `navigation.ts`, line 129; `connect-icons.css` has no `c-icon--image`. Of the 80 names of `IconName`, it is the only one missing. |
 | K3 | The Net revenue and Ad spend figures of the overview, and the Ad spend total, write the currency twice. | `OverviewPage.tsx` (lines 186 and 225) and `AdSpendPage.tsx` (line 177) put the currency before an amount that `money()` already formats with its currency. The scratch render of the spend figure read "EGPEGP 42,300.00". |
 | K4 | The Sources card of the overview shows the API's stream name. | `OverviewPage.tsx`, line 246, shows `stream.stream` (for example `account`), untranslated in Arabic. |
