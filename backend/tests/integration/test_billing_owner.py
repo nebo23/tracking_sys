@@ -565,6 +565,36 @@ def test_bl17_reconciliation_corrects_a_missed_event(authenticated_world, api):
     assert lab.worker(now=later, limit=1)["reconciliation"]["failed"] == 1
 
 
+def test_bl17_a_failing_read_does_not_hold_back_the_reconciliation(authenticated_world, api):
+    # Review finding R017C-02: a subscription that Paddle keeps refusing records its failed
+    # read as its reconciliation attempt, so the next subscription is read on the next pass and
+    # the failing one is read again after 24 hours, like the others.
+    w = authenticated_world
+    lab = make_billing_lab(w, api)
+    price = lab.price()
+    start = database_now(w.db) - timedelta(minutes=5)
+    lab.subscribe(w.a, price, start)
+    lab.subscribe(w.b, price, start)
+    with Session(w.db.migration) as session:
+        (_, failing), (_, healthy) = session.execute(
+            select(AgencySubscription.id, AgencySubscription.provider_subscription_id).order_by(
+                AgencySubscription.id
+            )
+        ).all()
+    # Paddle no longer knows the first subscription read (provider_not_found on every read).
+    del lab.paddle.subscriptions[failing]
+    passes = [lab.worker(limit=1)["reconciliation"] for _ in range(2)]
+    assert passes == [
+        {"checked": 0, "corrected": 0, "failed": 1},
+        {"checked": 1, "corrected": 0, "failed": 0},
+    ]
+    assert _subscription(w.db, failing).reconciled_at is not None
+    assert _subscription(w.db, healthy).reconciled_at is not None
+    assert lab.worker()["reconciliation"] == {"checked": 0, "corrected": 0, "failed": 0}
+    later = database_now(w.db) + timedelta(hours=25)
+    assert lab.worker(now=later)["reconciliation"] == {"checked": 1, "corrected": 0, "failed": 1}
+
+
 def test_billing_retention(authenticated_world, api, lifecycle_engine, lifecycle_settings):
     w = authenticated_world
     lab = make_billing_lab(w, api)

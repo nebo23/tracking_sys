@@ -325,11 +325,25 @@ def end_trials_and_grants(engine: Engine, now: datetime, limit: int) -> dict[str
             return False
         return end_grant(session, billing, now)
 
-    trials = select(AgencyBilling.agency_id).where(
-        AgencyBilling.standing == "trialing", AgencyBilling.trial_ends_at <= now
+    # Only agencies that the step can change are selected: a closed agency waiting for its
+    # purge would otherwise keep its place at the head of every batch (R017C-01).
+    trials = (
+        select(AgencyBilling.agency_id)
+        .join(Agency, Agency.id == AgencyBilling.agency_id)
+        .where(
+            AgencyBilling.standing == "trialing",
+            AgencyBilling.trial_ends_at <= now,
+            Agency.status != "closed",
+        )
     )
-    grants = select(AgencyBilling.agency_id).where(
-        AgencyBilling.grant_ends_at.is_not(None), AgencyBilling.grant_ends_at <= now
+    grants = (
+        select(AgencyBilling.agency_id)
+        .join(Agency, Agency.id == AgencyBilling.agency_id)
+        .where(
+            AgencyBilling.grant_ends_at.is_not(None),
+            AgencyBilling.grant_ends_at <= now,
+            Agency.status != "closed",
+        )
     )
     return {
         "trials_ended": for_each_agency(engine, trials, limit, trial),
@@ -364,14 +378,28 @@ def send_messages(engine: Engine, settings: Settings, now: datetime, limit: int)
         billing.hold_notified_at = now
         return True
 
-    reminders = select(AgencyBilling.agency_id).where(
-        AgencyBilling.standing == "trialing",
-        AgencyBilling.trial_reminded_at.is_(None),
-        AgencyBilling.trial_ends_at > now,
-        AgencyBilling.trial_ends_at <= now + TRIAL_REMINDER,
+    # Only active agencies are selected: a suspended or closing agency on hold is never
+    # notified and would otherwise keep its place at the head of every batch, so no other
+    # agency would receive its message (R017C-01). It is notified once it is active again.
+    reminders = (
+        select(AgencyBilling.agency_id)
+        .join(Agency, Agency.id == AgencyBilling.agency_id)
+        .where(
+            AgencyBilling.standing == "trialing",
+            AgencyBilling.trial_reminded_at.is_(None),
+            AgencyBilling.trial_ends_at > now,
+            AgencyBilling.trial_ends_at <= now + TRIAL_REMINDER,
+            Agency.status == "active",
+        )
     )
-    holds = select(AgencyBilling.agency_id).where(
-        AgencyBilling.standing == "hold", AgencyBilling.hold_notified_at.is_(None)
+    holds = (
+        select(AgencyBilling.agency_id)
+        .join(Agency, Agency.id == AgencyBilling.agency_id)
+        .where(
+            AgencyBilling.standing == "hold",
+            AgencyBilling.hold_notified_at.is_(None),
+            Agency.status == "active",
+        )
     )
     return {
         "trial_ending": for_each_agency(engine, reminders, limit, reminder),

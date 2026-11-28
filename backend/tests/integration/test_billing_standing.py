@@ -15,7 +15,7 @@ from email import policy
 from email.parser import BytesParser
 
 import pytest
-from billing_support import current_plan, make_billing_lab, set_trial, standing
+from billing_support import current_plan, database_now, make_billing_lab, set_trial, standing
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 from test_collection import c, envelope  # noqa: F401
@@ -146,6 +146,47 @@ def test_bl03_trial_reminder_and_end(authenticated_world, api):
     set_trial(w.db, agency, ends)
     assert disabled.worker(now=ends + timedelta(days=1)) == {"status": "disabled"}
     assert standing(w.db, agency).standing == "trialing"
+
+
+def test_bl03_worker_batches_pass_agencies_that_a_step_skips(authenticated_world, api):
+    # Review finding R017C-01: an agency that a step leaves unchanged (a closed agency for the
+    # end of trials and grants, an agency that is not active for the messages) is not selected,
+    # so it never holds the head of a batch and keeps the next agency from being reached.
+    w = authenticated_world
+    billing = make_billing_lab(w, api)
+    first, second = sorted([w.a, w.b], key=str)
+    past = database_now(w.db) - timedelta(days=1)
+    set_trial(w.db, first, past)
+    set_trial(w.db, second, past)
+
+    def status(agency, value) -> None:
+        with w.db.migration.begin() as connection:
+            connection.execute(
+                text("UPDATE agencies SET status = :s WHERE id = :a"), {"s": value, "a": agency}
+            )
+
+    # A closed agency's ended trial does not hold back the next agency's.
+    status(first, "closed")
+    one = billing.worker(limit=1)
+    assert (one["trials_ended"], one["messages"]["billing_hold"]) == (1, 1)
+    assert standing(w.db, first).standing == "trialing"
+    assert standing(w.db, second).standing == "hold"
+    # A suspended agency goes on hold, but is not notified and does not hold back the next hold.
+    status(first, "suspended")
+    two = billing.worker(limit=1)
+    assert (two["trials_ended"], two["messages"]["billing_hold"]) == (1, 0)
+    assert standing(w.db, first).hold_notified_at is None
+    with w.db.migration.begin() as connection:
+        connection.execute(
+            text("UPDATE agency_billing SET hold_notified_at = NULL WHERE agency_id = :a"),
+            {"a": second},
+        )
+    assert billing.worker(limit=1)["messages"]["billing_hold"] == 1
+    assert standing(w.db, second).hold_notified_at is not None
+    # Once active again, the agency receives its hold message.
+    status(first, "active")
+    assert billing.worker(limit=1)["messages"]["billing_hold"] == 1
+    assert standing(w.db, first).hold_notified_at is not None
 
 
 def _counts(db, agency) -> dict[str, int]:

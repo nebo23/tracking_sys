@@ -363,6 +363,22 @@ def reconcile_one(
         return outcome
 
 
+# A failed read counts as the subscription's reconciliation attempt (under the agency lock; a
+# busy agency is left for the next pass), so that a subscription that Paddle keeps refusing is
+# read again after RECONCILE_AFTER like any other and never holds the head of the batch
+# (R017C-02).
+def _record_failed_read(engine: Engine, subscription_id: UUID, read_at: datetime) -> None:
+    with Session(engine) as session, session.begin():
+        row = session.get(AgencySubscription, subscription_id)
+        if row is None or billing.lock_agency(session, row.agency_id, skip_locked=True) is None:
+            return
+        row = session.get(
+            AgencySubscription, subscription_id, with_for_update=True, populate_existing=True
+        )
+        if row is not None:
+            row.reconciled_at = read_at
+
+
 # Worker step 3 and the reconcile subcommand: subscriptions that have not ended, oldest
 # reconciliation first; with an agency, every one of its subscriptions regardless of the window.
 def run_reconciliation(
@@ -401,6 +417,7 @@ def run_reconciliation(
         except ProviderError as error:
             logger.warning("billing_provider_failed", extra={"billing_code": error.code})
             outcomes["failed"] += 1
+            _record_failed_read(engine, subscription_id, read_at)
             continue
         outcome = reconcile_one(engine, subscription_id, snapshot, read_at, audit=audit)
         if outcome == "busy":
