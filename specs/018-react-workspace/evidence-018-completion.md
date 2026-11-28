@@ -40,6 +40,11 @@ Every check ran on the final code of the branch, on 2026-11-28, on this workstat
 - Main's 017-B and 017-C have no screens yet: an Owner cannot ask for the copy of the agency's data from the closing page, and the subscription, the trial and the hold are not shown. While billing is enabled, an agency on hold is refused new clients, seats, connections and links by the existing plan limits, whose values are zero; the interface then shows its plan-limit message, which does not say that the reason is the hold. Billing is off by default and on the disposable stack.
 - The legal texts are not written (the agreement versions are `draft-1`), so no real user may be given the application before they exist.
 - The Arabic copy is written by a model and marked for review by a native editor (D12).
-- On the design canvas, the screens built on 2026-11-28 (A03, B13 to B15, C01 to C10, E03 to E08) still show the reference page each was built from.
+- Four display defects were found on 2026-11-28 after these checks, when the canvas was captured from the running application. They change no behavior, no test covers layout, and they are not corrected yet:
+  1. Thirty table cells in thirteen files carry the utility `u-num` on the `<td>` itself. `connect-ui.css` gives `.u-num` `display: inline-block`, so those cells stop being table cells and their columns no longer line up with the headers: Analyze, Attribution, Reports, the plan table, the tracking diagnostics, WhatsApp and the conversion deliveries.
+  2. The Content item of the client navigation asks for the icon `image`, which `connect-icons.css` does not define, so a filled square is drawn; the design uses `chart-column`.
+  3. The Net revenue and Ad spend figures of the overview, and the total of Ad spend, write the currency twice: a unit before an amount that is already formatted with its currency.
+  4. The Sources card of the overview shows the API's stream name (such as `account`) instead of a sentence, untranslated in Arabic.
+- The design canvas shows A03, B13 to B15, C01 to C10 and E03 to E08 as captured on 2026-11-28 from `7554857`, defects included.
 - Development email is the local `.eml` capture; production email, the report worker's schedule, hosting and deployment are decided in 020. No live provider was called; the journeys use the stand-in providers of the disposable stack.
 - The backend's tracker browser journeys were skipped, as in P0 (see section 2).
