@@ -124,7 +124,7 @@ The reference styles cover: buttons, form fields, select, checkbox, radio, switc
 Search is always a pill (`c-search`), in the top bar and above a list, so it is never mistaken for a button or for a field of a form. In the top bar it is a button that opens the command palette; above a list it holds an input.
 
 ## Screens
-See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Ad spend, Attribution (credit, funnel and return on ad spend), Connections, Links, Team and access, and Agency settings (with closing the agency). Three concepts have no API or decision yet: Privacy and data, Reports and Search. The first Attribution concept stays for reference; the attribution screens of 2026-11-27 follow the 016-B report contract instead. Each screen lists the specification that backs it.
+See [`preview/screens.html`](preview/screens.html). Sign in, Clients, Overview (light, dark, Arabic, phone), Content, Revenue, Ad spend, Attribution (credit, funnel and return on ad spend), Connections, Links, Team and access, Agency settings (with closing the agency), and Reports (exports, schedules, saving a report as an export, the schedule form, the export a report email opens and an export that is gone). Two concepts have no API or decision yet: Privacy and data, and Search. The first Attribution concept stays for reference; the attribution screens of 2026-11-27 follow the 016-B report contract instead. Each screen lists the specification that backs it.
 
 Every screen of the product, from signing in to the last page, is laid out in order on the "A to Z" page of the design canvas, with the state of each one (built, design or concept); [`specs/018-react-workspace/screens-a-to-z.md`](../../specs/018-react-workspace/screens-a-to-z.md) lists them.
 
@@ -151,6 +151,13 @@ Not verified: screen readers, keyboard-only walkthroughs, Firefox and Safari, re
 | Rendering | The ten new pages (ad spend, the three attribution tabs, agency settings, closing the agency, the closing state, and the three concepts) rendered in Chromium (Playwright 1.64.1) at 1440 pixels; five of them reviewed as screenshots (attribution credit, ad spend, closing the agency, the closing state and search). |
 | Responsive check | The ten new pages at 390, 768, 1024 and 1440 pixels, and dark at 390 and 1440: no horizontal overflow and no console errors. |
 | Not run | The token audit (no token changed), the Arabic and right-to-left rendering of the new pages (they have no Arabic version), and everything listed as not verified above. |
+
+### Additions of 2026-11-28
+| Check | Result |
+|---|---|
+| Rendering | The Reports concept was drawn again on the 016-C contract as six pages (D9 of the [completion entry review](../../specs/018-react-workspace/entry-review-completion.md)): `reports.html`, `reports-schedules.html`, `report-save-export.html`, `report-schedule-form.html`, `report-export.html` and `report-export-gone.html`. All six rendered in Chromium (Playwright 1.64.1) at 1440 pixels and were reviewed as screenshots in light and dark. They wait for the owner's approval before they are built. |
+| Responsive check | The six pages at 390, 768, 1024 and 1440 pixels, light and dark: no horizontal overflow and no console errors. |
+| Not run | The token audit (no token changed), Arabic and right-to-left versions (none drawn), and everything listed as not verified above. |
 
 ## Sources
 Research evidence, measurements and links are in [research_notes/product-design/sources.md](../../research_notes/product-design/sources.md).

@@ -39,7 +39,11 @@ The pictures of built screens were changed in four ways, and only these: keys, c
 | D09 to D12 | Website tracking, a new source, the install code, erasing a visitor | Built | `/agencies/{a}/clients/{c}/tracking` |
 | D13 to D16 | Integrations: payments, bookings and CRM, WhatsApp, Meta conversions | Built | `/agencies/{a}/clients/{c}/integrations` |
 | E01, E02 | Connections, connecting an account | Built | `/agencies/{a}/clients/{c}/connections` |
-| E03 | Reports | Concept | `reports.html` (016-C) |
+| E03, E04 | Reports: exports and schedules | Design | `reports.html`, `reports-schedules.html` (016-C), drawn on 2026-11-28 |
+| E05 | Saving a report as an export | Design | `report-save-export.html` (016-C) |
+| E06 | A new schedule | Design | `report-schedule-form.html` (016-C) |
+| E07 | The export a report email opens | Design | `report-export.html` (016-C), at `/agencies/{a}/clients/{c}/reports/exports/{id}` |
+| E08 | An export that is gone | Design | `report-export-gone.html` (016-C) |
 | F01, F02 | Account, closing the account | Built | `/account` |
 | F03, F04 | A page that does not exist, the server cannot be reached | Built | any address |
 | F05 | Search | Concept | `search.html` |
@@ -51,7 +55,7 @@ The pictures of built screens were changed in four ways, and only these: keys, c
 2. **Names of campaigns, ad sets and ads.** The 016-A spend report and the 016-B ROAS report return object IDs only. C07 and C10 show the names that the 014 ad-spend read (`/ad-spend`) returns for the same account, joined in the browser; no API change is assumed.
 3. **Agreement to the terms.** Main now has 017-A: signing in, registering and Google sign-in must send the current versions from `GET /auth/agreements`. The interface branches were made before 017-A and do not send them yet, so this must be added when they are brought up to date with main; A03 shows the refused state.
 4. **Agency settings (B13 to B15)** need a place in the navigation; the design adds "Agency settings" to the agency group. The API (plan, closure) exists on main.
-5. **Concepts B12, C11, E03 and F05** need a decision each before anything is built. Since this page was made, Spec 016-C (retained exports, scheduled reports and branding) merged on `main` (PR 20), so E03 now has an API; the [completion entry review](entry-review-completion.md) proposes drawing the Reports screens again on that contract (D9).
+5. **Concepts B12, C11 and F05** need a decision each before anything is built. The Reports concept E03 was drawn again on the 016-C contract on 2026-11-28 as E03 to E08 (D9 of the [completion entry review](entry-review-completion.md)); they replace the concept on the canvas, keep the other codes, and wait for the owner's approval before they are built.
 6. **Not on the page:** the Google sign-in return page, the return page of a provider connection, the terms and privacy pages (their texts are not written), and the operator's verification of a WhatsApp number, which is a command, not a screen.
 
 ## 4. Checks

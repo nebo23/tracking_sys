@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports, schedules, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Sidebar">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu"><span class="c-avatar c-avatar--org" aria-hidden="true">OT</span><span class="u-grow u-truncate"><span class="c-switcher__name u-truncate">Olive &amp; Thyme</span><span class="c-switcher__sub u-truncate">Lumen Studio</span></span><span class="u-sr">Switch client or agency</span><span class="c-icon c-icon--sm c-icon--chevrons-up-down" aria-hidden="true"></span></button>
+    <nav class="c-nav u-grow" aria-label="Primary">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="ad-spend.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item" href="attribution.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections</a>
+        <a class="c-nav__item is-active" aria-current="page" href="reports.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="#account"><span class="c-icon c-icon--user" aria-hidden="true"></span>Account</a>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><a href="clients.html">Lumen Studio</a><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong aria-current="page">Reports</strong></nav>
+      <div class="l-cluster u-end"><button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button></div>
+    </header>
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Reports</h1>
+          <p class="c-pagehead__lead">Exports that keep a report for 7 days, and reports that go out on a schedule. Every download is checked again.</p>
+        </div>
+        <div class="l-cluster"><button class="c-btn c-btn--primary" type="button"><span class="c-icon c-icon--sm c-icon--calendar-clock" aria-hidden="true"></span>New schedule</button></div>
+      </div>
+      <div class="c-tabs" role="tablist" aria-label="Reports"><button class="c-tab" type="button" role="tab" aria-selected="false">Exports</button><button class="c-tab is-active" type="button" role="tab" aria-selected="true">Schedules</button></div>
+      <article class="c-card">
+        <div class="c-card__header"><div><h2 class="c-card__title">Schedules of Olive &amp; Thyme</h2><p class="c-card__subtitle">2 of 10 active. A schedule runs with the access of its owner, checked at every run.</p></div></div>
+        <div class="c-card__body c-card__body--flush">
+          <div class="c-table-wrap">
+            <table class="c-table">
+              <thead><tr><th scope="col">Schedule</th><th scope="col">When</th><th scope="col">Next run</th><th scope="col">Last run</th><th scope="col">State</th><th scope="col" class="is-num">Recipients</th><th scope="col"><span class="u-sr">Actions</span></th></tr></thead>
+              <tbody>
+                  <tr><td><span class="c-table__primary">Weekly revenue</span><span class="c-table__sub">Revenue, the previous 7 days, with the previous period</span></td><td>Mondays at 09:00<span class="c-table__sub">Africa/Cairo</span></td><td>6 Apr 2026, 09:00</td><td>30 Mar 2026, 09:00<span class="c-table__sub">Built; 2 told, 1 skipped</span></td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Active</span></td><td class="is-num">3</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--icon c-btn--sm" type="button" aria-label="Actions for Weekly revenue"><span class="c-icon c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Monthly attribution</span><span class="c-table__sub">Attribution by campaign, Linear <span class="c-icon c-icon--xs c-icon--lock" aria-hidden="true"></span> With sale values</span></td><td>The 1st at 08:00<span class="c-table__sub">Africa/Cairo</span></td><td>1 Apr 2026, 08:00</td><td>1 Mar 2026, 08:00<span class="c-table__sub">Built; 2 told</span></td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Active</span></td><td class="is-num">2</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--icon c-btn--sm" type="button" aria-label="Actions for Monthly attribution"><span class="c-icon c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Daily Instagram</span><span class="c-table__sub">Content, daily, Instagram @olive.thyme</span></td><td>Every day at 07:00<span class="c-table__sub">UTC</span></td><td>&mdash;</td><td>31 Mar 2026, 09:00<span class="c-table__sub">Failed: its account cannot be read</span></td><td><span class="c-badge c-badge--warning"><span class="c-icon c-icon--circle-pause" aria-hidden="true"></span>Paused</span><span class="c-table__sub">After three failed runs in a row</span></td><td class="is-num">1</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--icon c-btn--sm" type="button" aria-label="Actions for Daily Instagram"><span class="c-icon c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Weekly ad spend</span><span class="c-table__sub">Ad spend by campaign, Meta ads</span></td><td>Sundays at 10:00<span class="c-table__sub">Africa/Cairo</span></td><td>&mdash;</td><td>22 Mar 2026, 10:00<span class="c-table__sub">Built; 1 told</span></td><td><span class="c-badge c-badge--warning"><span class="c-icon c-icon--circle-pause" aria-hidden="true"></span>Paused</span><span class="c-table__sub">Its owner lost access; resuming makes you its owner</span></td><td class="is-num">1</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--icon c-btn--sm" type="button" aria-label="Actions for Weekly ad spend"><span class="c-icon c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="c-card__footer"><span class="c-icon c-icon--sm c-icon--mail" aria-hidden="true"></span>Each recipient who may read the report gets an email with a link to the export, never its figures; anyone else is skipped and counted.</div>
+      </article>
+
+      <div class="l-grid l-grid--2">
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">As a recipient sees it</h2><p class="c-card__subtitle">Analysts and client viewers see only the schedules they receive</p></div></div>
+          <div class="c-card__body c-card__body--flush">
+            <div class="c-table-wrap">
+              <table class="c-table">
+                <thead><tr><th scope="col">Schedule</th><th scope="col">When</th><th scope="col"><span class="u-sr">Actions</span></th></tr></thead>
+                <tbody>
+                  <tr><td><span class="c-table__primary">Weekly revenue</span><span class="c-table__sub">You receive it</span></td><td>Mondays at 09:00<span class="c-table__sub">Africa/Cairo</span></td><td class="is-num"><button class="c-btn c-btn--secondary c-btn--sm" type="button">Stop receiving</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">What a run reports</h2></div></div>
+          <div class="c-card__body">
+            <dl class="c-dl c-dl--split">
+              <dt>Daily</dt><dd>The day before the run</dd>
+              <dt>Weekly</dt><dd>The 7 days before the run</dd>
+              <dt>Monthly, on the 1st</dt><dd>The previous calendar month</dd>
+            </dl>
+          </div>
+          <div class="c-card__footer"><span class="c-icon c-icon--sm c-icon--info" aria-hidden="true"></span>A run that was missed is not repeated: the next one reports its own period. Three failed runs in a row pause the schedule.</div>
+        </article>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>
