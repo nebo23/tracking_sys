@@ -10,7 +10,11 @@ While the review ran, the branch moved to `e141077`. That commit changes only `e
 
 It also confirms the four display defects that `e141077` records (K1 to K4) and lists eight observations. Nothing was corrected: the corrections and the merge wait for the owner's decision.
 
-**Update.** At the owner's request, K1 to K4 were then corrected in `d29ac00` (notes in `fe68035`). Section 9 records the reviewer's verification of that correction. R018-01 to R018-06 are not corrected and still wait for the owner.
+**Update.** At the owner's request, every finding was then corrected:
+- K1 to K4 in `d29ac00`, with notes in `fe68035`; section 9 records the reviewer's verification;
+- R018-01 to R018-06 in `0900d44`, `0b6e50a` and `6159bfd`, with notes in `36679e5`; section 10 records the reviewer's verification.
+
+No finding of this review remains open. The observations of section 5 stay as they are, apart from part of O3.
 
 ## 1. Scope
 
@@ -241,7 +245,7 @@ Outside that path:
 
 If the owner prefers to merge first, R018-01 and R018-05 should be the first corrections after the merge, and nothing should reach real users before them.
 
-Since then, K1 to K4 have been corrected and verified (section 9). The recommendation now concerns R018-01 to R018-06.
+Since then, K1 to K4 (section 9) and R018-01 to R018-06 (section 10) have been corrected and verified. Section 10 ends with the recommendation as it now stands.
 
 ## 9. Verification of the K1 to K4 correction (`fe68035`)
 
@@ -258,3 +262,50 @@ The correction is `d29ac00`, frontend only; `fe68035` changes only the notes (`e
 | Journeys | Not run again by the reviewer. The correcting session reports 64 journeys passing in each browser, with 0 axe findings. |
 
 K1 to K4 are closed.
+
+## 10. Verification of the R018-01 to R018-06 correction (`36679e5`)
+
+The correction is frontend only:
+- `0900d44`: the six corrections, with seven regressions;
+- `0b6e50a`: journey 20 matches a figure by the text of its label, which can now carry the Provisional badge;
+- `6159bfd`: completes R018-04 in the switcher and the account page;
+- `36679e5`: notes only, section 6 of the completion evidence.
+
+The backend, the contract and the schema are unchanged.
+
+### 10.1 Each finding
+
+| Finding | Correction | Reviewer's reading |
+|---|---|---|
+| R018-01 | A revenue or spend report that fails with anything other than `403` makes its overview figure "Not available", with the error's sentence below it. `report_requires_ledger_upgrade` and `report_too_large` gain sentences in both languages. | Correct. The financial refusal keeps its own words, and an empty report still says "No verified revenue" or "No spend is recorded". |
+| R018-02 | The Ad spend figure carries the Provisional badge when a current total is provisional, beside the freshness badge. | Correct, as on the Ad spend page. |
+| R018-03 | Without financial access, the models card says that its values are credited leads and that sale values need financial access. | Correct. The cells keep their lead counts, and the card now names them. |
+| R018-04 | The page of a closing agency is drawn with the top bar and the page only, as B15. A closing agency has no destinations, the shell and the switcher ask for neither its profile nor its clients, and the switcher calls it "Your agency", marked Closing. | Correct. `TenancyService._membership` requires an active agency, so the API does refuse those reads. The early return in `Shell` comes after every hook. |
+| R018-05 | The schedule form lists each recipient who is no longer an active member, named while the account is not closed and "A former member" otherwise. Such a recipient stays ticked and marked invalid until unticked. The schedules tab names `invalid_recipient` and points to editing the schedule. | Correct. A closed account is never named, as B1 requires. |
+| R018-06 | On the ROAS tab, the page head offers neither the CSV nor the export once the ROAS report is refused for want of financial access. It reads that refusal from the same query, which it never sends itself. | Correct. The query key is the one `RoasTab` uses, so no request is added. |
+
+### 10.2 Checks run by the reviewer at `36679e5`
+
+| Check | Result |
+|---|---|
+| `npm run typecheck`, `npm run lint`, `npm run api:check` | Passed; no finding; the types match the contract. |
+| `npm test` | 34 files, 618 tests passed. |
+| `npm run build`, then `npm run build:check` | Built. "No secret, key, token or backend setting was found." The first page loads seven script files, 776.69 kB. |
+| The regressions at `6fd3754` | Run in a scratch copy of `6fd3754`, outside the repository, with the five changed test files copied in; the copy was removed afterwards. Exactly the nine new or changed cases failed: the seven regressions of R018-01 to R018-06 and the two updated closing-agency cases of `workspace.test.tsx`. The other 93 cases of those files passed. |
+| Journeys 20 to 23, Chromium | 4 passed (1.0 minute) on the disposable stack, which the run removed. Firefox and the other journeys were not run again; the correcting session reports 64 passing in each browser, with 0 axe findings. |
+
+### 10.3 Notes
+
+- **Two closing agencies.** A person who is an Owner of two closing agencies would see both called "Your agency" in the switcher, each marked Closing. This is rare, and the API refuses their names.
+- **O3.** O3 is now answered for `report_requires_ledger_upgrade` and `report_too_large`. `export_too_large`, `source_unavailable`, `unsupported_currency` and `unsupported_declaration` still read "Something went wrong. Try again."
+- **Journey 19.** The correcting session reports that journey 19, the CRM count "Won, payment not matched", failed in three of its six runs of the group 17 to 23. Those runs were left out of its counts. This intermittent failure has been recorded since P0, and its cause has not been found. The corrections do not touch the integrations screens. A journey that fails at random can hide a real regression, so it deserves an investigation of its own.
+
+### 10.4 Recommendation
+
+Every defect of this review is corrected, has its regression, and passes the reviewer's checks. The reviewer sees no finding that stands in the way of the merge of PR 23, which also merges pull request 17. The merge remains the owner's decision.
+
+What remains are follow-ups, not conditions of the merge:
+- O4 and O8 need owner decisions.
+- O5 to O7 belong to the screens of 017-B and 017-C.
+- O1, O2 and the rest of O3 are small interface follow-ups.
+- Journey 19 needs the investigation described in 10.3.
