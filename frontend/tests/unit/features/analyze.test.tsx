@@ -192,6 +192,13 @@ describe('the overview of a client', () => {
     const spend = within(figures.getByText('Ad spend').closest('article') as HTMLElement);
     expect(spend.getByText(/42,300\.00/)).toBeInTheDocument();
     expect(spend.getByText('Some spend records could not be valued.')).toBeInTheDocument();
+    // Each money figure writes its currency once, as its unit.
+    expect(spend.getAllByText(/EGP/)).toHaveLength(1);
+    expect(within(figures.getByText('Net revenue').closest('article') as HTMLElement).getAllByText(/EGP/)).toHaveLength(1);
+    // A source names what its stream holds, never the API's code for it.
+    const sources = within(screen.getByRole('region', { name: 'Sources' }));
+    expect(sources.getByText('Daily figures of the account')).toBeInTheDocument();
+    expect(sources.queryByText('account', { exact: true })).not.toBeInTheDocument();
   });
 
   it('says what needs financial access and shows no amount without it', async () => {

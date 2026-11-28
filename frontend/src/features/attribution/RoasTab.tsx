@@ -11,7 +11,7 @@ import { Notice } from '@/components/Notice';
 import { TableScroll } from '@/components/TableScroll';
 
 import { Card, NoValue, ProvisionalBadge } from '../analyze/parts';
-import { FinanceNotice, accountName, chosenConnection, financeRefused, money, useSpendConnections } from '../analyze/shared';
+import { FinanceNotice, accountName, chosenConnection, financeRefused, money, numeral, useSpendConnections } from '../analyze/shared';
 import { FreshnessNotice } from './parts';
 import { roasReason, shareText } from './states';
 
@@ -107,8 +107,8 @@ export function RoasTab({ scope, version, connection: chosen, level, onChange }:
 function Ratio({ value, reason, currency, exponent }: { value: RoasRow['roas']; reason: string | null; currency?: string | null; exponent?: number | null }) {
   const intl = useIntl();
   if (!value) return <NoValue>{intl.formatMessage({ id: roasReason(reason) })}</NoValue>;
-  if (currency && exponent !== null && exponent !== undefined) return <>{money(intl, { minor: 0, decimal: value.decimal }, currency, exponent)}</>;
-  return <>{shareText(intl.locale, value)}</>;
+  if (currency && exponent !== null && exponent !== undefined) return <span className="u-num">{money(intl, { minor: 0, decimal: value.decimal }, currency, exponent)}</span>;
+  return numeral(shareText(intl.locale, value));
 }
 
 function RoasFigures({ report }: { report: RoasReport }) {
@@ -192,19 +192,19 @@ function RoasTable({ rows, names, label }: { rows: RoasRow[]; names: ReadonlyMap
                   <span className="c-table__primary">{name ?? <FormattedMessage id="analyze.spend.unnamed" />}</span>
                   <span className="c-table__sub u-ltr">{row.object_id}</span>
                 </th>
-                <td className="is-num u-num">
-                  {row.spend && row.currency ? money(intl, row.spend, row.currency, row.exponent ?? 2) : '-'}{' '}
+                <td className="is-num">
+                  <span className="u-num">{row.spend && row.currency ? money(intl, row.spend, row.currency, row.exponent ?? 2) : '-'}</span>{' '}
                   {row.spend_state === 'provisional' ? <ProvisionalBadge /> : null}
                   {row.spend_state === 'incomplete' ? <NoValue>{intl.formatMessage({ id: 'attribution.roas.incomplete' })}</NoValue> : null}
                 </td>
-                <td className="is-num u-num">
-                  {row.credited_revenue && row.currency ? money(intl, row.credited_revenue, row.currency, row.exponent ?? 2) : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}
+                <td className="is-num">
+                  {row.credited_revenue && row.currency ? <span className="u-num">{money(intl, row.credited_revenue, row.currency, row.exponent ?? 2)}</span> : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}
                 </td>
-                <td className="is-num u-num">
+                <td className="is-num">
                   <Ratio value={row.roas} reason={row.roas_reason} />
                 </td>
-                <td className="is-num u-num">{shareText(intl.locale, row.credited_leads) ?? <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
-                <td className="is-num u-num">
+                <td className="is-num">{numeral(shareText(intl.locale, row.credited_leads)) ?? <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
+                <td className="is-num">
                   <Ratio value={row.cost_per_lead} reason={row.cost_per_lead_reason} currency={row.currency} exponent={row.exponent} />
                 </td>
               </tr>

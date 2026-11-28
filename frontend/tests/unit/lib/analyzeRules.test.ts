@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { QueryClient } from '@tanstack/react-query';
+import { createIntl } from 'react-intl';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clientKey } from '@/api/clients';
@@ -8,7 +9,8 @@ import { reportCsv, reportKey, socialReportQuery, spendNamesQuery, spendReportQu
 import { namedRows } from '@/features/analyze/AdSpendPage';
 import { metricNames } from '@/features/analyze/parts';
 import { addDays, lastCompleteDay, presetRange, previousRange, rangeFromSearch, rangeProblem, toReportRange } from '@/features/analyze/range';
-import { comparisonReasons, freshnessStates, totalReasons, valueReasons } from '@/features/analyze/states';
+import { moneyParts } from '@/features/analyze/shared';
+import { comparisonReasons, freshnessStates, streamNames, totalReasons, valueReasons } from '@/features/analyze/states';
 import { messages } from '@/i18n';
 
 import { fakeApi, json } from '../support/api';
@@ -16,6 +18,17 @@ import { inRepository } from '../support/files';
 
 const reporting = (file: string) => readFileSync(inRepository('backend', 'app', 'reporting', file), 'utf8');
 const now = new Date('2026-11-28T09:30:00Z');
+
+describe('a money figure', () => {
+  it('writes its currency once, as the unit, in the order of each language', () => {
+    const amount = { minor: 524370, decimal: '5243.70' };
+    const english = createIntl({ locale: 'en', messages: messages.en });
+    expect(moneyParts(english, amount, 'EGP', 2)).toEqual({ unit: 'EGP', amount: '5,243.70', unitFirst: true });
+    expect(moneyParts(english, { minor: -1250, decimal: '-12.50' }, 'EGP', 2)).toEqual({ unit: 'EGP', amount: '-12.50', unitFirst: true });
+    // In Arabic the amount comes first and the pound follows, without the marks that order mixed text.
+    expect(moneyParts(createIntl({ locale: 'ar', messages: messages.ar }), amount, 'EGP', 2)).toEqual({ unit: '\u062c.\u0645.', amount: '5,243.70', unitFirst: false });
+  });
+});
 
 describe('the days of a report', () => {
   it('end on the last complete day, yesterday in UTC, whichever preset is chosen', () => {
@@ -87,6 +100,20 @@ describe('the states of the reports', () => {
   it('say every reason in both languages', () => {
     const ids = [...Object.values(valueReasons), ...Object.values(totalReasons), ...Object.values(comparisonReasons), ...Object.values(freshnessStates)];
     for (const id of ids) {
+      expect(messages.en[id], id).toMatch(/\S/);
+      expect(messages.ar[id], id).toMatch(/\S/);
+    }
+  });
+
+  it('name every stream of the catalog in a sentence in both languages, never by its code', () => {
+    const catalog = reporting('catalog.py');
+    const streams = new Set<string>();
+    for (const match of catalog.matchAll(/(?:daily_stream|publication_stream)="([a-z_]+)"/g)) streams.add(match[1] as string);
+    for (const match of catalog.matchAll(/content_streams=(\(([^)]*)\))/g)) for (const name of (match[2] ?? '').matchAll(/"([a-z_]+)"/g)) streams.add(name[1] as string);
+    for (const match of catalog.matchAll(/stream_delay_hours=MappingProxyType\(\s*\{([^}]*)\}/g)) for (const name of (match[1] ?? '').matchAll(/"([a-z_]+)"\s*:/g)) streams.add(name[1] as string);
+    expect(streams.size).toBeGreaterThanOrEqual(7);
+    expect(new Set(Object.keys(streamNames))).toEqual(streams);
+    for (const id of Object.values(streamNames)) {
       expect(messages.en[id], id).toMatch(/\S/);
       expect(messages.ar[id], id).toMatch(/\S/);
     }

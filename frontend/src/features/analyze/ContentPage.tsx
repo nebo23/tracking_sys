@@ -219,8 +219,8 @@ function TotalsTable({ report, metrics }: { report: SocialReport; metrics: strin
               return (
                 <tr key={metric}>
                   <th scope="row">{metricName(metric)}</th>
-                  <td className="is-num u-num">
-                    {total && total.value !== null ? count(total.value) : <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>}
+                  <td className="is-num">
+                    {total && total.value !== null ? <span className="u-num">{count(total.value)}</span> : <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>}
                   </td>
                   {report.comparison ? (
                     <td>
@@ -303,8 +303,8 @@ function CohortCard({ query }: { query: ReturnType<typeof useQuery<SocialReport>
                   {metrics.map((metric) => {
                     const row = item.values.get(metric);
                     return (
-                      <td key={metric} className="is-num u-num">
-                        {row && row.availability === 'available' && typeof row.value === 'number' ? count(row.value) : <NoValue>{gapWords(row)}</NoValue>}
+                      <td key={metric} className="is-num">
+                        {row && row.availability === 'available' && typeof row.value === 'number' ? <span className="u-num">{count(row.value)}</span> : <NoValue>{gapWords(row)}</NoValue>}
                       </td>
                     );
                   })}

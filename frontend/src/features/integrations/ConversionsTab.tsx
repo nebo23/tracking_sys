@@ -409,8 +409,8 @@ function DeliveriesCard() {
                         <DeliveryReason delivery={delivery} />
                       </span>
                     </td>
-                    <td className="is-num u-num">{value(delivery)}</td>
-                    <td className="is-num u-num">{intl.formatNumber(delivery.attempts)}</td>
+                    <td className="is-num"><span className="u-num">{value(delivery)}</span></td>
+                    <td className="is-num"><span className="u-num">{intl.formatNumber(delivery.attempts)}</span></td>
                     <td className="is-num">
                       {actions.length > 0 ? <RowMenu label={intl.formatMessage({ id: 'links.actionsForNamed' }, { name: delivery.event_name })} actions={actions} /> : null}
                     </td>

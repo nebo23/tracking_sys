@@ -142,19 +142,19 @@ function CreditTable({ report, group }: { report: AttributionReport; group: Attr
               <th scope="row">
                 <GroupName recipient={row.recipient} groupRef={row.group_ref} registered={row.registered} group={group} />
               </th>
-              <td className="is-num u-num">{row.leads ? shareText(intl.locale, row.leads.credited_leads) : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
-              <td className="is-num u-num">
+              <td className="is-num">{row.leads ? <span className="u-num">{shareText(intl.locale, row.leads.credited_leads)}</span> : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
+              <td className="is-num">
                 {!finance || row.sales?.state === 'permission_unavailable' ? (
                   <NeedsFinance />
                 ) : (
                   (row.sales?.items ?? []).map((item) => (
-                    <span key={item.currency} className="a-stat__line">
+                    <span key={item.currency} className="a-stat__line u-num">
                       {shareText(intl.locale, item.credited_sales)}
                     </span>
                   ))
                 )}
               </td>
-              <td className="is-num u-num">
+              <td className="is-num">
                 {!finance || row.sales?.state === 'permission_unavailable' ? (
                   <NeedsFinance />
                 ) : (
@@ -206,7 +206,7 @@ function ModelsCard({ report }: { report: AttributionReport }) {
                     ) : null}
                   </th>
                   {(['campaign', 'direct', 'unknown'] as const).map((recipient) => (
-                    <td key={recipient} className="is-num u-num">
+                    <td key={recipient} className="is-num">
                       {finance && entry.sales.state === 'available' ? (
                         <Amounts
                           items={(entry.sales.items ?? [])
@@ -214,7 +214,9 @@ function ModelsCard({ report }: { report: AttributionReport }) {
                             .map((item) => ({ currency: item.currency, exponent: item.exponent, amount: item.credited_revenue }))}
                         />
                       ) : (
-                        shareText(intl.locale, entry.leads.items?.find((item) => item.period === 'current' && item.recipient === recipient)?.credited_leads)
+                        <span className="u-num">
+                          {shareText(intl.locale, entry.leads.items?.find((item) => item.period === 'current' && item.recipient === recipient)?.credited_leads)}
+                        </span>
                       )}
                     </td>
                   ))}

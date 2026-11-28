@@ -174,7 +174,7 @@ export function SchedulesTab({ onEdit }: { onEdit: (schedule: ReportSchedule) =>
                           </>
                         )}
                       </td>
-                      {manager ? <td className="is-num u-num">{intl.formatNumber(schedule.recipients?.length ?? 0)}</td> : null}
+                      {manager ? <td className="is-num"><span className="u-num">{intl.formatNumber(schedule.recipients?.length ?? 0)}</span></td> : null}
                       <td className="is-num">
                         {manager ? (
                           <RowMenu

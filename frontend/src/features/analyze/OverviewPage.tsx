@@ -7,6 +7,7 @@ import { useClient } from '@/app/tenant';
 import { Badge } from '@/components/Badge';
 import { TableScroll } from '@/components/TableScroll';
 import { SeriesChart } from '@/components/charts/SeriesChart';
+import { cx } from '@/lib/cx';
 import { InlineSelect } from '@/components/Choice';
 import { Skeleton } from '@/components/Skeleton';
 import { usePageTitle } from '@/components/PageHeading';
@@ -15,10 +16,10 @@ import { SocialSourceNotices, useGapWords } from './ContentPage';
 import { Card, Change, FreshnessBadge, NoValue, SourceMeta, Stat, TotalState, useCount, useMetricName } from './parts';
 import {
   AnalyzeHead,
+  MoneyFigure,
   accountName,
   chosenConnection,
   financeRefused,
-  money,
   percent,
   reportScope,
   useSocialConnections,
@@ -26,6 +27,7 @@ import {
   type AnalyzeSearch,
 } from './shared';
 import { previousRange } from './range';
+import { streamName } from './states';
 import { comparisonOf, dailyMetrics, dailySeries, totalOf } from './social';
 
 const route = getRouteApi('/workspace/agencies/$agencyId/clients/$clientId/');
@@ -183,8 +185,7 @@ function RevenueStat({ query }: { query: UseQueryResult<RevenueReport> }) {
   else
     value = verified.map((total) => (
       <span key={total.currency} className="a-stat__line">
-        <span className="c-stat__unit">{total.currency}</span>
-        <span className="u-num">{money(intl, total.net, total.currency, total.exponent)}</span>
+        <MoneyFigure amount={total.net} currency={total.currency} exponent={total.exponent} />
       </span>
     ));
   const net = report?.comparison?.find((item) => item.block === 'verified' && item.metric === 'net');
@@ -222,8 +223,7 @@ function SpendStat({ query, connected, source }: { query: UseQueryResult<SpendRe
   else
     value = totals.map((total) => (
       <span key={total.currency} className="a-stat__line">
-        <span className="c-stat__unit">{total.currency}</span>
-        <span className="u-num">{money(intl, total.spend, total.currency, total.exponent)}</span>
+        <MoneyFigure amount={total.spend} currency={total.currency} exponent={total.exponent} />
       </span>
     ));
   const first = totals[0];
@@ -243,8 +243,14 @@ function Sources({ social, spend, connected }: { social: SocialReport | undefine
   const { agencyId, clientId } = useClient();
   const intl = useIntl();
   const rows = [
-    ...(social?.source_status.streams.map((stream) => ({ key: `social-${stream.stream}`, name: intl.formatMessage({ id: `provider.${social.source_status.provider}` as never }), detail: stream.stream, state: stream.freshness.state })) ?? []),
-    ...(spend ? [{ key: 'spend', name: intl.formatMessage({ id: `provider.${spend.source_status.provider}` as never }), detail: spend.source_status.account?.time_zone ?? '', state: spend.source_status.stream.freshness.state }] : []),
+    ...(social?.source_status.streams.map((stream) => {
+      // What the stream holds, in a sentence; a stream this interface does not know yet shows none.
+      const words = streamName(stream.stream);
+      const provider = intl.formatMessage({ id: `provider.${social.source_status.provider}` as never });
+      return { key: `social-${stream.stream}`, name: provider, detail: words ? intl.formatMessage({ id: words }) : '', ltr: false, state: stream.freshness.state };
+    }) ?? []),
+    // A time zone is a code, written left to right.
+    ...(spend ? [{ key: 'spend', name: intl.formatMessage({ id: `provider.${spend.source_status.provider}` as never }), detail: spend.source_status.account?.time_zone ?? '', ltr: true, state: spend.source_status.stream.freshness.state }] : []),
   ];
   return (
     <Card title={<FormattedMessage id="analyze.sources.title" />} subtitle={<FormattedMessage id="analyze.sources.lead" />} flush>
@@ -256,7 +262,7 @@ function Sources({ social, spend, connected }: { social: SocialReport | undefine
                 <tr key={row.key}>
                   <td>
                     <span className="c-table__primary">{row.name}</span>
-                    <span className="c-table__sub u-ltr">{row.detail}</span>
+                    <span className={cx('c-table__sub', row.ltr && 'u-ltr')}>{row.detail}</span>
                   </td>
                   <td className="is-num">
                     <FreshnessBadge state={row.state} />

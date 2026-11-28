@@ -136,9 +136,9 @@ export function SeriesChart(props: SeriesChartProps) {
                 {points.map((point) => (
                   <tr key={point.date}>
                     <th scope="row">{formatDate(point.date)}</th>
-                    <td className="is-num u-num">{point.current === null ? point.gap : format(point.current)}</td>
+                    <td className="is-num">{point.current === null ? point.gap : <span className="u-num">{format(point.current)}</span>}</td>
                     {compare ? (
-                      <td className="is-num u-num">{point.previous === null || point.previous === undefined ? point.gap : format(point.previous)}</td>
+                      <td className="is-num">{point.previous === null || point.previous === undefined ? point.gap : <span className="u-num">{format(point.previous)}</span>}</td>
                     ) : null}
                   </tr>
                 ))}

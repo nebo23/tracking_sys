@@ -309,8 +309,8 @@ function ReferralsCard() {
                       <span className="c-table__primary">{kind ? <FormattedMessage id={`integrations.referrals.type.${kind}`} /> : source.source_type}</span>
                       {source.source_id ? <span className="c-table__sub u-mono u-ltr">{source.source_id}</span> : null}
                     </td>
-                    <td className="is-num u-num">{intl.formatNumber(source.messages)}</td>
-                    <td className="is-num u-num">{intl.formatNumber(source.with_click_id)}</td>
+                    <td className="is-num"><span className="u-num">{intl.formatNumber(source.messages)}</span></td>
+                    <td className="is-num"><span className="u-num">{intl.formatNumber(source.with_click_id)}</span></td>
                   </tr>
                 );
               })}

@@ -43,7 +43,6 @@ export type IconName =
   | 'hash'
   | 'history'
   | 'hourglass'
-  | 'image'
   | 'info'
   | 'key-round'
   | 'layout-dashboard'

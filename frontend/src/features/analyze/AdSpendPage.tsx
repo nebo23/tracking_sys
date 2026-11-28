@@ -11,7 +11,7 @@ import { QueryStates } from '@/components/ListStates';
 import { usePageTitle } from '@/components/PageHeading';
 
 import { Card, Change, FreshnessBadge, NoValue, ProvisionalBadge, SourceMeta, TotalState } from './parts';
-import { AnalyzeHead, FinanceNotice, accountName, chosenConnection, financeRefused, money, percent, reportScope, useSpendConnections, type AnalyzeSearch } from './shared';
+import { AnalyzeHead, FinanceNotice, MoneyFigure, accountName, chosenConnection, financeRefused, money, percent, reportScope, useSpendConnections, type AnalyzeSearch } from './shared';
 
 const route = getRouteApi('/workspace/agencies/$agencyId/clients/$clientId/ad-spend');
 
@@ -174,8 +174,7 @@ function SpendTotals({ report }: { report: SpendReport }) {
               <FormattedMessage id="analyze.spend.spent" /> {total.provisional ? <ProvisionalBadge /> : null}
             </p>
             <div className="c-stat__value">
-              <span className="c-stat__unit">{total.currency}</span>
-              <span className="u-num">{money(intl, total.spend, total.currency, total.exponent)}</span>
+              <MoneyFigure amount={total.spend} currency={total.currency} exponent={total.exponent} />
             </div>
             {total.status !== 'complete' ? (
               <p className="c-stat__row">
@@ -242,12 +241,12 @@ function SpendTable({ rows, label }: { rows: Array<SpendRow & { name: string | n
                 <span className="c-table__primary">{row.name ?? (row.object_id ? <FormattedMessage id="analyze.spend.unnamed" /> : <FormattedMessage id="analyze.spend.noObject" />)}</span>
                 {row.object_id ? <span className="c-table__sub u-ltr">{row.object_id}</span> : null}
               </th>
-              <td className="is-num u-num">
-                {money(intl, row.spend, row.currency, row.exponent)} {row.provisional ? <ProvisionalBadge /> : null}
+              <td className="is-num">
+                <span className="u-num">{money(intl, row.spend, row.currency, row.exponent)}</span> {row.provisional ? <ProvisionalBadge /> : null}
               </td>
-              <td className="is-num u-num">{intl.formatNumber(row.impressions)}</td>
-              <td className="is-num u-num">{intl.formatNumber(row.clicks)}</td>
-              <td className="is-num u-num">{intl.formatNumber(row.days_with_spend)}</td>
+              <td className="is-num"><span className="u-num">{intl.formatNumber(row.impressions)}</span></td>
+              <td className="is-num"><span className="u-num">{intl.formatNumber(row.clicks)}</span></td>
+              <td className="is-num"><span className="u-num">{intl.formatNumber(row.days_with_spend)}</span></td>
             </tr>
           ))}
         </tbody>

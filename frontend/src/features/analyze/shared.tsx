@@ -90,6 +90,63 @@ export function money(intl: IntlShape, amount: Amount | null | undefined, curren
   }
 }
 
+// Marks that order text in both directions; a unit drawn on its own does not need them.
+const BIDI_MARKS = /[\u200e\u200f\u061c]/g;
+
+/**
+ * A money amount split as the designs draw a figure: the number, and the currency as its unit, in
+ * the order of the language (EGP 1,200.00 in English; the amount, then the pound, in Arabic). A figure
+ * that writes its unit beside the amount takes these parts; money() would write the currency again.
+ */
+export function moneyParts(intl: IntlShape, amount: Amount | null | undefined, currency: string, exponent: number): { unit: string; amount: string; unitFirst: boolean } {
+  if (!amount) return { unit: currency, amount: '', unitFirst: true };
+  try {
+    const format = new Intl.NumberFormat(intl.locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: exponent,
+      maximumFractionDigits: exponent,
+      numberingSystem: 'latn',
+    });
+    // Intl formats a decimal string exactly; the type definitions only name numbers.
+    const parts = format.formatToParts(amount.decimal as unknown as number);
+    const unitAt = parts.findIndex((part) => part.type === 'currency');
+    const numberAt = parts.findIndex((part) => part.type === 'integer');
+    const unit = unitAt < 0 ? currency : (parts[unitAt]?.value ?? currency).replace(BIDI_MARKS, '').trim();
+    const number = parts.filter((part) => part.type !== 'currency' && part.type !== 'literal').map((part) => part.value).join('');
+    return { unit, amount: number, unitFirst: unitAt < 0 || unitAt < numberAt };
+  } catch {
+    return { unit: currency, amount: amount.decimal, unitFirst: true };
+  }
+}
+
+/** A money figure with its currency as a unit, written once, in the order of the language. */
+export function MoneyFigure({ amount, currency, exponent }: { amount: Amount | null | undefined; currency: string; exponent: number }) {
+  const intl = useIntl();
+  const parts = moneyParts(intl, amount, currency, exponent);
+  const unit = <span className="c-stat__unit">{parts.unit}</span>;
+  const number = <span className="u-num">{parts.amount}</span>;
+  return parts.unitFirst ? (
+    <>
+      {unit}
+      {number}
+    </>
+  ) : (
+    <>
+      {number}
+      {unit}
+    </>
+  );
+}
+
+/**
+ * A number written left to right inside text of either direction. A table cell keeps its own
+ * display: `u-num` belongs on the number, never on the <td>.
+ */
+export function numeral(text: string | null | undefined): ReactNode {
+  return text === null || text === undefined ? null : <span className="u-num">{text}</span>;
+}
+
 /** A percentage the API computed, with its sign. */
 export function percent(intl: IntlShape, text: string | null | undefined): string | null {
   if (text === null || text === undefined) return null;

@@ -188,7 +188,7 @@ export function ExportsTab() {
                           ) : null}
                         </span>
                       </td>
-                      <td className="is-num u-num">
+                      <td className="is-num">
                         {gone === null && item.byte_size !== null ? (
                           <>
                             <FormattedMessage id="reports.detail.kib" values={{ kib: Math.max(1, Math.ceil(item.byte_size / 1024)) }} />
@@ -200,8 +200,8 @@ export function ExportsTab() {
                           '—'
                         )}
                       </td>
-                      <td className="is-num u-num">
-                        {intl.formatNumber(item.download_count)}
+                      <td className="is-num">
+                        <span className="u-num">{intl.formatNumber(item.download_count)}</span>
                         {item.last_downloaded_at ? (
                           <span className="c-table__sub">
                             <FormattedMessage

@@ -58,6 +58,17 @@ export const freshnessStates = {
   never_synced: 'analyze.freshness.never_synced',
 } as const satisfies Record<string, MessageId>;
 
+/** What each social stream holds, as the Sources card names it (backend/app/reporting/catalog.py). */
+export const streamNames = {
+  account: 'analyze.stream.account',
+  media: 'analyze.stream.media',
+  stories: 'analyze.stream.stories',
+  channel: 'analyze.stream.channel',
+  channel_daily: 'analyze.stream.channel_daily',
+  videos: 'analyze.stream.videos',
+  video_totals: 'analyze.stream.video_totals',
+} as const satisfies Record<string, MessageId>;
+
 export type Availability = 'available' | 'missing' | 'unsupported' | 'not_synced';
 
 const availabilityWords: Record<Availability, MessageId> = {
@@ -82,6 +93,11 @@ export function totalReason(reason: string | null | undefined): MessageId {
 
 export function comparisonReason(reason: string | null | undefined): MessageId {
   return lookup(comparisonReasons, reason) ?? 'analyze.compare.other';
+}
+
+/** The sentence for a stream, or null for one this interface does not know yet: never the API's name. */
+export function streamName(stream: string | null | undefined): MessageId | null {
+  return lookup(streamNames, stream);
 }
 
 export function freshnessState(state: string | null | undefined): MessageId {

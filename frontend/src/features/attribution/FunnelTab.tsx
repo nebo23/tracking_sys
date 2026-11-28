@@ -165,15 +165,15 @@ function FunnelTable({ report, group }: { report: FunnelReport; group: FunnelGro
               <th scope="row">
                 <GroupName recipient={row.recipient} groupRef={row.group_ref} registered={row.registered} group={group} />
               </th>
-              <td className="is-num u-num">
+              <td className="is-num">
                 {row.visits.state === 'available' && row.visits.count !== null ? (
-                  intl.formatNumber(row.visits.count)
+                  <span className="u-num">{intl.formatNumber(row.visits.count)}</span>
                 ) : (
                   <NoValue>{intl.formatMessage({ id: 'attribution.funnel.notMeasured' })}</NoValue>
                 )}
               </td>
-              <td className="is-num u-num">{row.leads ? shareText(intl.locale, row.leads.credited_leads) : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
-              <td className="is-num u-num">
+              <td className="is-num">{row.leads ? <span className="u-num">{shareText(intl.locale, row.leads.credited_leads)}</span> : <NoValue>{intl.formatMessage({ id: 'attribution.none' })}</NoValue>}</td>
+              <td className="is-num">
                 {!finance || row.sales?.state === 'permission_unavailable' ? (
                   <NeedsFinance />
                 ) : (

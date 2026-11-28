@@ -85,7 +85,7 @@ export function PlanTab({ agencyId }: { agencyId: string }) {
                           <FormattedMessage id={`settings.plan.limit.${limit.limit}.lead`} />
                         </span>
                       </th>
-                      <td className="is-num u-num">
+                      <td className="is-num">
                         {limit.value === null ? (
                           <FormattedMessage id="settings.plan.usedUnlimited" values={{ used: limit.used }} />
                         ) : (

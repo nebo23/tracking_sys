@@ -173,8 +173,8 @@ function BlockCard({ report, block }: { report: RevenueReport; block: RevenueTot
                     <FormattedMessage id={`analyze.revenue.field.${field}`} />
                   </th>
                   {totals.map((total) => (
-                    <td key={total.currency} className="is-num u-num">
-                      {money(intl, total[field], total.currency, total.exponent)}
+                    <td key={total.currency} className="is-num">
+                      <span className="u-num">{money(intl, total[field], total.currency, total.exponent)}</span>
                     </td>
                   ))}
                 </tr>

@@ -126,7 +126,7 @@ export function clientGroups(agencyId: string, clientId: string): DestinationGro
       items: [
         {
           key: 'content',
-          icon: 'image',
+          icon: 'chart-column',
           label: 'shell.nav.content',
           link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/content', params }),
         },

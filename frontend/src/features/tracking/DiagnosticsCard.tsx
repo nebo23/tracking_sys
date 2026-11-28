@@ -115,7 +115,7 @@ export function DiagnosticsCard() {
                     <td>
                       <Word message={reasonMessage(row.reason)} code={row.reason} />
                     </td>
-                    <td className="is-num u-num">{intl.formatNumber(row.count)}</td>
+                    <td className="is-num"><span className="u-num">{intl.formatNumber(row.count)}</span></td>
                   </tr>
                 ))}
               </tbody>
