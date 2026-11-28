@@ -90,6 +90,20 @@ const actions: Record<string, AuditAction> = {
   'report_schedule.updated': action('audit.action.report_schedule.updated'),
   'report_schedule.deleted': action('audit.action.report_schedule.deleted'),
   'branding.updated': action('audit.action.branding.updated'),
+  // 017-B and 017-C: the copy of the agency's data while it closes, and its subscription.
+  'agency.export_requested': action('audit.action.agency.export_requested'),
+  'agency.export_revoked': action('audit.action.agency.export_revoked'),
+  'billing.checkout_created': action('audit.action.billing.checkout_created'),
+  'billing.plan_change_requested': action('audit.action.billing.plan_change_requested'),
+  'billing.cancel_scheduled': action('audit.action.billing.cancel_scheduled'),
+  'billing.cancel_removed': action('audit.action.billing.cancel_removed'),
+  'billing.reconciled': action('audit.action.billing.reconciled'),
+  'billing.granted': action('audit.action.billing.granted'),
+  'billing.grant_ended': action('audit.action.billing.grant_ended'),
+  'billing.trial_extended': action('audit.action.billing.trial_extended'),
+  // Platform rows without an agency (017-C prices); the agency's audit log never lists them.
+  'billing_price.registered': action('audit.action.billing_price.registered'),
+  'billing_price.retired': action('audit.action.billing_price.retired'),
 };
 
 /** The sentence of an action code, or null for a code this interface does not know yet. */
