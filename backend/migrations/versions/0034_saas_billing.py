@@ -256,6 +256,8 @@ RUNTIME_GRANTS = (
     "current_period_ends_at, next_billed_at, scheduled_action, scheduled_at, cancel_origin, "
     f"canceled_at, last_event_at, reconciled_at, updated_at) ON {SUBSCRIPTIONS} TO tracking_app",
     f"GRANT UPDATE (status, completed_at) ON {CHECKOUTS} TO tracking_app",
+    # An unmatched event is bound to its agency when its subscription is (design section 5.2).
+    f"GRANT UPDATE (agency_id, subscription_id, outcome, error_code) ON {EVENTS} TO tracking_app",
     "GRANT UPDATE (subscription_id, status, origin, currency, subtotal_cents, tax_cents, "
     f"total_cents, billed_at, invoice_number, last_event_at, updated_at) ON {PAYMENTS} "
     "TO tracking_app",

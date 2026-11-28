@@ -3,10 +3,11 @@
 Specification 017-C (D-103, decision D12; specs/017-saas-lifecycle/design-017c.md section 9).
 The platform operator registers and retires prices, reads an agency's billing, grants
 complimentary periods (for example a bank transfer or a partner), ends them, extends trials and
-lists standings. There is no web interface: the command runs outside the agency roles, as
-tracking_app with the application settings. Every change needs --confirm and allowed billing
-(TRACKING_BILLING_ENABLED and a current paddle.billing rule), takes the agency's row lock or the
-plan lock, and writes an audit event whose actor is the platform operator.
+lists standings, unmatched events and duplicate subscriptions. There is no web interface: the
+command runs outside the agency roles, as tracking_app with the application settings. Every
+change needs --confirm and allowed billing (TRACKING_BILLING_ENABLED and a current
+paddle.billing rule), takes the agency's row lock or the plan lock, and writes an audit event
+whose actor is the platform operator.
 
 Usage:
   python -m app.agency_billing prices
@@ -19,6 +20,8 @@ Usage:
   python -m app.agency_billing extend-trial --agency <uuid> --days N --confirm
   python -m app.agency_billing agencies [--standing S] [--held-days N] [--after <uuid>]
       [--limit N]
+  python -m app.agency_billing events --unmatched [--limit N]
+  python -m app.agency_billing duplicates
 
 Output is one JSON document with IDs, plan keys, amounts, closed codes and times only: never an
 agency or client name, a person, an email, a token or a secret. A refusal prints
@@ -48,6 +51,7 @@ from app.models import (
     AuditEvent,
     BillingAction,
     BillingCheckout,
+    BillingEvent,
     BillingPayment,
     BillingPrice,
     SaasPlan,
@@ -58,7 +62,7 @@ from app.services import billing, plans
 PRICE_ID = re.compile(r"pri_[a-z0-9]{26}")
 PLAN_KEY = re.compile(r"[a-z][a-z0-9_-]{1,31}")
 CHANGES = frozenset({"register-price", "retire-price", "grant", "end-grant", "extend-trial"})
-LISTINGS = frozenset({"prices", "status", "agencies"})
+LISTINGS = frozenset({"prices", "status", "agencies", "events", "duplicates"})
 
 
 class Refused(Exception):
@@ -413,6 +417,55 @@ def list_agencies(
     return {"agencies": views, "next_after": following}
 
 
+# Verified events of no known subscription, transaction or checkout, newest first (D7, D12).
+def list_unmatched(session: Session, *, limit: int = 100) -> list[dict[str, Any]]:
+    rows = session.scalars(
+        select(BillingEvent)
+        .where(BillingEvent.outcome == "unmatched")
+        .order_by(BillingEvent.received_at.desc(), BillingEvent.id.desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "provider_event_id": row.provider_event_id,
+            "event_type": row.event_type,
+            "occurred_at": billing.iso(row.occurred_at),
+            "received_at": billing.iso(row.received_at),
+            "provider_subscription_id": row.provider_subscription_id,
+            "provider_transaction_id": row.provider_transaction_id,
+            "error_code": row.error_code,
+        }
+        for row in rows
+    ]
+
+
+# Duplicate subscriptions with their agency and the primary subscription (D12); nothing is
+# canceled automatically: the operator resolves them in Paddle.
+def list_duplicates(session: Session) -> list[dict[str, Any]]:
+    rows = list(
+        session.scalars(
+            select(AgencySubscription)
+            .where(AgencySubscription.duplicate.is_(True))
+            .order_by(AgencySubscription.created_at, AgencySubscription.id)
+        )
+    )
+    views = []
+    for row in rows:
+        primary = billing.primary_subscription(session, row.agency_id)
+        views.append(
+            {
+                "agency_id": str(row.agency_id),
+                "provider_subscription_id": row.provider_subscription_id,
+                "status": row.status,
+                "created_at": billing.iso(row.created_at),
+                "primary_subscription_id": None
+                if primary is None
+                else primary.provider_subscription_id,
+            }
+        )
+    return views
+
+
 # Run one subcommand in its own transaction and return (exit code, JSON-ready result). Listings
 # read one REPEATABLE READ snapshot; changes run under READ COMMITTED with their locks and need
 # allowed billing.
@@ -434,6 +487,10 @@ def run(
                         return 0, list_prices(session)
                     if command == "status":
                         return 0, status(session, agency_id=options["agency"])
+                    if command == "events":
+                        return 0, list_unmatched(session, limit=options.get("limit", 100))
+                    if command == "duplicates":
+                        return 0, list_duplicates(session)
                     return 0, list_agencies(
                         session,
                         standing=options.get("standing"),
@@ -510,6 +567,10 @@ def parser() -> argparse.ArgumentParser:
     listing.add_argument("--held-days", type=_bounded(0, 3650), metavar="N")
     listing.add_argument("--after", type=UUID)
     listing.add_argument("--limit", type=_bounded(1, 500), default=100, metavar="1-500")
+    events = commands.add_parser("events", help="List unmatched Paddle events.")
+    events.add_argument("--unmatched", action="store_true", required=True)
+    events.add_argument("--limit", type=_bounded(1, 500), default=100, metavar="1-500")
+    commands.add_parser("duplicates", help="List duplicate subscriptions.")
     for name in CHANGES:
         commands.choices[name].add_argument("--confirm", action="store_true", help="Required.")
     return root

@@ -6,20 +6,21 @@ its provider, the operator command and the worker. Nothing here reaches Paddle; 
 synthetic.
 """
 
+import copy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from paddle_api import API_KEY, CLIENT_TOKEN, WEBHOOK_SECRET, PaddleApi
+from paddle_api import API_KEY, CLIENT_TOKEN, WEBHOOK_SECRET, PaddleApi, created, event, signed
 from pydantic import SecretStr
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app import agency_billing, billing_worker
 from app.billing.paddle import PaddleClient
 from app.config import Settings
-from app.models import AgencyBilling, AgencyPlanAssignment, SaasPlan
+from app.models import AgencyBilling, AgencyMembership, AgencyPlanAssignment, SaasPlan
 
 
 def billing_config(config: Settings, **changes: Any) -> Settings:
@@ -98,6 +99,96 @@ class BillingLab:
             self.w.db.runtime, self.config, self.provider, now=now, **options
         )
 
+    # An unauthenticated client of the billing-enabled application (the webhook's caller).
+    def hook(self):
+        if "hook" not in self.clients:
+            client = self.api.new_client(self.config)
+            client.app.state.billing_provider = self.provider
+            self.clients["hook"] = client
+        return self.clients["hook"]
+
+    # Deliver a payload as Paddle does, signed with the destination secret; header=False sends
+    # no signature, a string replaces it.
+    def deliver(
+        self,
+        payload: dict | bytes,
+        *,
+        secret: str = WEBHOOK_SECRET,
+        ts: int | None = None,
+        header: str | bool | None = None,
+    ):
+        body, signature = signed(payload, secret, ts)
+        headers = {"Content-Type": "application/json"}
+        if header is not False:
+            headers["Paddle-Signature"] = signature if header is None else str(header)
+        return self.hook().post("/billing/paddle/webhook", content=body, headers=headers)
+
+    def delivered(self, payload: dict) -> None:
+        response = self.deliver(payload)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"status": "received"}
+
+    # A checkout as the owner route records it (P4): the Paddle transaction with our IDs in
+    # custom_data, and the open checkout row of the agency.
+    def open_checkout(self, agency: UUID, price: dict) -> tuple[UUID, str]:
+        checkout_id = uuid4()
+        transaction = self.provider.create_transaction(
+            price["provider_price_id"],
+            None,
+            {"agency_id": str(agency), "checkout_id": str(checkout_id)},
+        )
+        with self.w.db.migration.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE billing_checkouts SET status = 'expired' "
+                    "WHERE agency_id = :a AND status = 'open'"
+                ),
+                {"a": agency},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO billing_checkouts (id, agency_id, price_id, "
+                    "requested_by_membership_id, provider_transaction_id, expires_at) VALUES "
+                    "(:id, :a, :p, :m, :t, now() + interval '24 hours')"
+                ),
+                {
+                    "id": checkout_id,
+                    "a": agency,
+                    "p": price["id"],
+                    "m": owner_membership(self.w.db, agency),
+                    "t": transaction,
+                },
+            )
+        return checkout_id, transaction
+
+    # The buyer pays the checkout and Paddle sends its events in the documented order (V-6):
+    # transaction.paid, subscription.created, subscription.activated, transaction.completed.
+    def pay(self, transaction: str, start: datetime | None = None) -> dict:
+        subscription = self.paddle.pay(transaction)
+        moment = start or datetime.now().astimezone()
+        entity = self.paddle.transactions[transaction]
+        paid = copy.deepcopy(entity)
+        paid["status"] = "paid"
+        for index, payload in enumerate(
+            (
+                event("transaction.paid", paid, occurred_at=moment),
+                created(subscription, transaction, occurred_at=moment + timedelta(seconds=1)),
+                event(
+                    "subscription.activated",
+                    subscription,
+                    occurred_at=moment + timedelta(seconds=2),
+                ),
+                event("transaction.completed", entity, occurred_at=moment + timedelta(seconds=3)),
+            )
+        ):
+            assert index < 4
+            self.delivered(payload)
+        return subscription
+
+    def subscribe(self, agency: UUID, price: dict, start: datetime | None = None) -> dict:
+        _, transaction = self.open_checkout(agency, price)
+        return self.pay(transaction, start)
+
     # Register an offered price of a plan through the operator command; returns its view.
     def price(self, plan: str = "development", amount: int = 2900, interval: str = "month"):
         price_id = self.paddle.add_price(amount, interval)
@@ -110,6 +201,20 @@ class BillingLab:
         )
         assert code == 0, view
         return view
+
+
+def owner_membership(db, agency: UUID) -> UUID:
+    with Session(db.migration) as session:
+        return session.scalar(
+            select(AgencyMembership.id).where(
+                AgencyMembership.agency_id == agency, AgencyMembership.role == "owner"
+            )
+        )
+
+
+def database_now(db) -> datetime:
+    with Session(db.migration) as session:
+        return session.scalar(select(func.now()))
 
 
 def make_billing_lab(world, api, **changes: Any) -> BillingLab:

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tracking System API",
-    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads. Plans (specification 017-A): every agency has a plan whose limits the server enforces on creation, a usage view, agency closure by its Owner with a 30-day grace period, and the record of agreement to the Terms of Service and the Privacy Policy at registration and every sign-in.",
+    "description": "Agency/client access, email/password authentication, invitations, scoped service credentials, numeric email verification, and optional Google sign-in. Facebook sign-in is deferred. Cookie mutations require an allowed Origin and X-CSRF-Token from login or /auth/me. Event collection (specification 004): trusted intake with ingest keys, limited-trust public intake, generic signed webhooks, consent, erasure, and diagnostics. Managed links (specification 005): campaigns, content references, UTM templates, destination origins, custom domains, managed links, safe redirects, and a non-mutating public consent-state read for the website tracker. Connectors (specification 009-A): OAuth connection lifecycle with a synthetic development provider, status, sync requests, and disconnection. Revenue and payments (specification 015): the client ledger derived from stored evidence, Paymob sources with signed processed callbacks, and CSV imports and manual declarations of unverified revenue, Cal.com bookings and CRM stage changes through signed integration sources, and WhatsApp referrals. Reports (specification 016-A): social, advertising spend and recorded-revenue reports over stored facts on source-native days, with previous-period comparisons, revision-bound pages and bounded CSV downloads. Plans (specification 017-A): every agency has a plan whose limits the server enforces on creation, a usage view, agency closure by its Owner with a 30-day grace period, and the record of agreement to the Terms of Service and the Privacy Policy at registration and every sign-in. Billing (specification 017-C): the platform's own subscriptions through Paddle Billing as merchant of record, with prices, a trial, a hold, checkout, plan changes, cancellation, payments and invoices, and Paddle's signed webhooks.",
     "version": "0.5.0"
   },
   "paths": {
@@ -25751,6 +25751,128 @@
         }
       }
     },
+    "/billing/paddle/webhook": {
+      "post": {
+        "tags": [
+          "Billing webhooks"
+        ],
+        "summary": "Paddle Webhook",
+        "operationId": "paddle_webhook_billing_paddle_webhook_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookReceived"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A verified body without a valid event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A missing, old or invalid signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "A body above 256 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "description": "Too many notifications from the peer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Billing is not enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Paddle-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ts=<unix seconds>;h1=<HMAC-SHA256 of ts:body, hexadecimal>."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
     "/agencies/{agency_id}/clients/{client_id}/integration-sources": {
       "post": {
         "tags": [
@@ -43553,6 +43675,20 @@
           "identity_seq"
         ],
         "title": "WatermarkView"
+      },
+      "WebhookReceived": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "received",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "WebhookReceived"
       },
       "app__api__collection_schemas__IssuedSource": {
         "properties": {

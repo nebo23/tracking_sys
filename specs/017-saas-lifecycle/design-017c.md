@@ -44,7 +44,7 @@ Every page below was read on 2026-11-28 on the official site named. Facts that a
 ### 2.2 Facts the code depends on
 
 - **Signature (V-4).** Every `h1` value of the header is compared in constant time with the HMAC-SHA256 of `ts + ":" + raw body` under the webhook secret's UTF-8 bytes; a match of any `h1` is valid, which also covers a rotation.
-- **Binding (V-6).** A subscription is bound to an agency through the checkout's transaction ID (`subscription.created` carries `transaction_id`) or through `custom_data.checkout_id`, which Paddle copies from the checkout transaction to the subscription, so every subscription event of a checkout can be bound even when it arrives first.
+- **Binding (V-6).** A subscription is bound to an agency through the checkout's transaction ID, which `subscription.created` carries; `custom_data`, which Paddle copies from the checkout transaction to the subscription, is checked against the checkout. Earlier events of the subscription are kept unmatched with their fields and replayed at binding (section 5.2).
 - **Locks (V-8, V-9).** A plan change and a cancellation are refused within 30 minutes of `next_billed_at`; a plan change is also refused while a scheduled change exists, and a paused subscription is never canceled at the period end.
 - **Currency (V-7, V-15).** The checkout transaction is created with `currency_code: "USD"`, and every payment stores the currency Paddle reports.
 
@@ -225,7 +225,7 @@ Indexes: `ix_billing_actions_due` on `next_attempt_at` where pending; `ix_billin
 
 ### 3.10 Grants
 
-- **`tracking_app`:** `SELECT, INSERT` on the eight tables, and `UPDATE` only on: `billing_prices (offered, retired_at)`; `agency_billing` (every column except `agency_id` and `created_at`); `agency_subscriptions` (`price_id`, `provider_price_id`, `status`, the period, `next_billed_at`, the scheduled pair, `cancel_origin`, `canceled_at`, `last_event_at`, `reconciled_at`, `updated_at`); `billing_checkouts (status, completed_at)`; `billing_payments` (`subscription_id`, `status`, `origin`, `currency`, the three amounts, `billed_at`, `invoice_number`, `last_event_at`, `updated_at`); `billing_adjustments` (`payment_id`, `status`, `currency`, `total_cents`, `last_event_at`, `updated_at`); `billing_actions (status, attempts, next_attempt_at, last_error, completed_at)`. `billing_events` is insert-only. `tracking_app` deletes none of the tables.
+- **`tracking_app`:** `SELECT, INSERT` on the eight tables, and `UPDATE` only on: `billing_prices (offered, retired_at)`; `agency_billing` (every column except `agency_id` and `created_at`); `agency_subscriptions` (`price_id`, `provider_price_id`, `status`, the period, `next_billed_at`, the scheduled pair, `cancel_origin`, `canceled_at`, `last_event_at`, `reconciled_at`, `updated_at`); `billing_checkouts (status, completed_at)`; `billing_payments` (`subscription_id`, `status`, `origin`, `currency`, the three amounts, `billed_at`, `invoice_number`, `last_event_at`, `updated_at`); `billing_adjustments` (`payment_id`, `status`, `currency`, `total_cents`, `last_event_at`, `updated_at`); `billing_actions (status, attempts, next_attempt_at, last_error, completed_at)`; `billing_events (agency_id, subscription_id, outcome, error_code)`, so that an event stored unmatched before its subscription was bound is bound with it (section 5.2). `tracking_app` deletes none of the tables.
 - **`tracking_lifecycle`:** `SELECT (id, received_at)` and `DELETE` on `billing_events`; `SELECT (id, status, expires_at)` and `DELETE` on `billing_checkouts`; `SELECT (id, agency_id, status)` on `agency_subscriptions` and `INSERT` on `billing_actions`, for the closure completion (section 10).
 
 ### 3.11 Data policy
@@ -272,11 +272,12 @@ In this order: the gate (`TRACKING_BILLING_ENABLED` and a current `paddle.billin
 
 ### 5.2 Processing
 
-1. **Resolve** the agency without a lock: a stored subscription by `data.id` (subscription events) or `data.subscription_id`; a stored payment or checkout by the transaction ID; a checkout by `subscription.created`'s `transaction_id`; a checkout by `custom_data.checkout_id`. When `custom_data.agency_id` is present and names another agency than the checkout's, the event is `unmatched` with `binding_conflict`.
+1. **Resolve** the agency without a lock: a stored subscription by `data.id` (subscription events) or `data.subscription_id`; a stored payment or checkout by the transaction ID; a checkout by `subscription.created`'s `transaction_id`. When `custom_data` names another agency or checkout than the checkout found, the event is `unmatched` with `binding_conflict`.
 2. **No agency:** the event is stored `unmatched` (insert with `ON CONFLICT DO NOTHING`), and the log event `billing_event_unmatched` is written.
 3. **Lock** the agency row, then re-resolve (a concurrent event of the same subscription may have bound it). A stored `event_id` means a repeated delivery: nothing changes.
-4. **Order:** an event whose `occurred_at` is earlier than the `last_event_at` of the same subscription, payment or adjustment is stored `stale` and not applied; an equal time is applied.
-5. **Apply** by type, and store the event with its outcome and allowlisted fields.
+4. **Bind** only through the checkout's transaction ID, which `subscription.created` carries (D6). An event of the subscription that arrived earlier was stored `unmatched` with its allowlisted fields; at binding, the newest of those events that is later than the binding event is applied, and the others are marked `stale`, with the agency and subscription set.
+5. **Order:** an event whose `occurred_at` is earlier than the `last_event_at` of the same subscription, payment or adjustment is stored `stale` and not applied; an equal time is applied.
+6. **Apply** by type, and store the event with its outcome and allowlisted fields.
 
 | Type | Effect |
 |---|---|
@@ -428,7 +429,7 @@ Additions only: the nine routes of section 7 and the webhook, their request and 
 
 1. A checkout request for another price expires the open checkout and opens a new one; at most one checkout is open.
 2. An expired checkout still binds a late payment of its transaction; a second live subscription is flagged a duplicate.
-3. A subscription is bound through a stored subscription, the `transaction_id` of `subscription.created`, or `custom_data.checkout_id`; a conflicting `custom_data.agency_id` leaves the event unmatched.
+3. A subscription is bound only through the `transaction_id` of `subscription.created`, as D6 requires; `custom_data` is a check, and a conflict leaves the event unmatched. Events of the subscription that arrive before it are replayed from their stored fields at binding, so the order of delivery does not matter.
 4. An event with the same `occurred_at` as the last applied one is applied; only an earlier one is stale.
 5. Paddle's `trialing` status is treated as active, as Paddle advises.
 6. An unregistered price keeps the plan but never leaves a paying agency on the hold plan.

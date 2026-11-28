@@ -218,7 +218,7 @@ def test_bl21_grants(db):
             "updated_at",
         },
         "billing_checkouts": {"status", "completed_at"},
-        "billing_events": set(),
+        "billing_events": {"agency_id", "subscription_id", "outcome", "error_code"},
         "billing_payments": {
             "subscription_id",
             "status",
