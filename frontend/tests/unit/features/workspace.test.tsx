@@ -234,6 +234,7 @@ describe('the workspace', () => {
       'Website tracking',
       'Integrations',
       'Connections',
+      'Reports',
       'Account',
     ]);
     await user.keyboard('{Escape}');
@@ -258,6 +259,7 @@ describe('the workspace', () => {
       'Website tracking',
       'Integrations',
       'Connections',
+      'Reports',
       'Account',
     ]);
     expect(navigation.getByRole('link', { name: 'Connections' })).toHaveAttribute('aria-current', 'page');

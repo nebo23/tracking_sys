@@ -1,6 +1,6 @@
 # Plan of P4: Reports (018-G)
 
-Status: phase P4 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). D9 asks for drawings first: they were made on 2026-11-28 (section 2) and the owner approved them the same day (D-104). Section 4 is the plan of the build.
+Status: phase P4 of the [completion handoff](implementation-prompt-completion.md), approved with D1-D12 of the [completion entry review](entry-review-completion.md) by D-099 (2026-11-28). D9 asks for drawings first: they were made on 2026-11-28 (section 2) and the owner approved them the same day (D-104). Section 4 was then built: see the [evidence](evidence-018g.md).
 
 ## 1. The contract the drawings follow
 Spec 016-C on `main` ([entry review](../016-analytics-reporting/entry-review-016c.md), [design](../016-analytics-reporting/design-016c.md)), below `/agencies/{a}/clients/{c}`:
@@ -35,6 +35,8 @@ No PDF or printable page is drawn (D-095).
 The six pages rendered in Chromium at 1440 pixels and were reviewed as screenshots in light and dark; at 390, 768, 1024 and 1440 pixels, light and dark, none overflows and none logs a console error. The canvas artboards were not rendered: the canvas type does not allow it unless the owner asks.
 
 ## 4. After approval: the build
+Built as planned. Two points were settled while building: the explanatory card "As a recipient sees it" of E04 drew the view that analysts and client viewers really get (the schedules they receive, each with "Stop receiving"), so it is not a card of the built page; and a recipient who may not read the report is shown unavailable in the form, because the API refuses such a recipient when the schedule is saved.
+
 - **Address and navigation.** `/agencies/{a}/clients/{c}/reports` (tabs `exports` and `schedules`) and `/agencies/{a}/clients/{c}/reports/exports/{id}`; Reports joins the Manage group of the client.
 - **Save as export.** On Content, Revenue, Ad spend and the three tabs of Attribution, with the parameters each page already sends for its CSV.
 - **Rules.** Gone reasons, the bounds (50 exports, 10 active schedules, 20 recipients), pause reasons and run outcomes compared with `backend/app/services/report_exports.py`, `report_schedules.py` and `backend/app/api/report_delivery.py` by unit tests.

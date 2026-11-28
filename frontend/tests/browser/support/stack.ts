@@ -364,6 +364,35 @@ export function defineAdAccount(python: string, backendEnvironment: BackendEnvir
   run(python, ['-c', adAccount, account, label, JSON.stringify(objects)], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The ad account');
 }
 
+// Brings a schedule's next run to the past, as if its hour had come: the report worker only runs
+// schedules that are due, and a new one first runs at its next slot (016-C, D10).
+const dueSchedule = `
+import sys
+from sqlalchemy import text
+from app.config import Settings
+from app.database import create_database_engine
+engine = create_database_engine(Settings())
+try:
+    with engine.begin() as connection:
+        changed = connection.execute(
+            text("UPDATE report_schedules SET next_run_at = now() - interval '1 minute' WHERE id = :id AND status = 'active'"),
+            {"id": sys.argv[1]},
+        ).rowcount
+finally:
+    engine.dispose()
+print(changed)
+`;
+
+export function makeScheduleDue(python: string, backendEnvironment: BackendEnvironment, scheduleId: string): void {
+  const changed = run(python, ['-c', dueSchedule, scheduleId], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'Making the schedule due').trim();
+  if (changed !== '1') throw new Error(`No active schedule ${scheduleId} was made due.`);
+}
+
+/** Runs one pass of the report worker (016-C): due schedules are built and their recipients told. */
+export function runReportWorker(python: string, backendEnvironment: BackendEnvironment): string {
+  return run(python, ['-m', 'app.report_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The report worker');
+}
+
 /** Runs one pass of the attribution worker (008-B): conversions, credit and its publication. */
 export function runAttributionWorker(python: string, backendEnvironment: BackendEnvironment): string {
   return run(python, ['-m', 'app.attribution_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The attribution worker');

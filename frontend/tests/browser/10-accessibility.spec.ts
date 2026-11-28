@@ -498,6 +498,41 @@ for (const look of looks) {
       await page.locator('main .a-range input[type="date"]').first().fill('2026-09-01');
       await expect(page.locator('main .a-range .c-field__error')).toBeVisible();
       found.push(...(await findings(page, 'custom range with a problem')));
+
+      // Reports (018-G): saving a report as an export, the export, the list of exports, the one that
+      // is gone, the schedules and the schedule form with a problem.
+      await page.goto(`${base}/revenue?${days}`);
+      await settled(page);
+      await page.locator('main .c-pagehead .c-btn--secondary').last().click();
+      await expect(dialog(page)).toBeVisible();
+      found.push(...(await findings(page, 'save-as-export dialog')));
+      await dialogSubmit(page).click();
+      await expect(dialog(page)).toBeHidden();
+      await page.locator('main .c-banner--success a').click();
+      await expect(page.locator('main .c-dl')).toBeVisible();
+      found.push(...(await findings(page, 'export')));
+      await page.goto(`${base}/reports`);
+      await settled(page);
+      await expect(page.locator('main table tbody tr')).toHaveCount(1);
+      found.push(...(await findings(page, 'exports')));
+      await page.locator('main table .c-btn--icon').last().click();
+      await page.getByRole('menuitem').last().click();
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      found.push(...(await findings(page, 'revoke dialog')));
+      await dialogSubmit(page).click();
+      await expect(page.getByRole('alertdialog')).toBeHidden();
+      await page.locator('main table .c-btn--icon').last().click();
+      await page.getByRole('menuitem').first().click();
+      await expect(page.locator('main .a-gone')).toBeVisible();
+      found.push(...(await findings(page, 'export that is gone')));
+      await page.goto(`${base}/reports?tab=schedules`);
+      await settled(page);
+      found.push(...(await findings(page, 'schedules, none')));
+      await pageAction(page).click();
+      await expect(dialog(page)).toBeVisible();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error').first()).toBeVisible();
+      found.push(...(await findings(page, 'schedule form with a problem')));
       await report(testInfo, found);
     });
 
@@ -582,7 +617,11 @@ test.describe('on a phone', () => {
     await expect(page.locator('[role="menu"]')).toBeVisible();
     found.push(...(await findings(page, 'more menu at 390')));
     await page.keyboard.press('Escape');
-    // Agency settings (018-F) fit a phone too.
+    // Reports (018-G) and Agency settings (018-F) fit a phone too.
+    await page.goto(`${base}/reports`);
+    await settled(page);
+    found.push(...(await findings(page, 'reports at 390')));
+    expect(await overflowing(), 'reports').toBeLessThanOrEqual(0);
     const settings = `${base.split('/clients/')[0]}/settings`;
     for (const [query, name] of [['', 'plan and usage'], ['?tab=branding', 'branding'], ['?tab=closure', 'close the agency']] as const) {
       await page.goto(`${settings}${query}`);

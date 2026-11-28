@@ -1,14 +1,18 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 import { FormattedMessage, useIntl, type IntlShape } from 'react-intl';
 
 import { connectionsQuery, type Connection } from '@/api/connections';
 import { describeError, isApiError, type ErrorMessage } from '@/api/errors';
+import type { ReportExport } from '@/api/reportDelivery';
 import { reportCsv, type Amount, type ReportFamily, type ReportScope } from '@/api/reports';
 import { InlineSelect } from '@/components/Choice';
 import { Icon } from '@/components/Icon';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { PageHeading } from '@/components/PageHeading';
+import { Moment } from '@/components/Time';
+import { SaveExportButton } from '@/features/reports/SaveExport';
 
 import { daysIn, endsToday, isDate, presetOf, presetRange, presets, rangeFromSearch, rangeProblem, toReportRange, type DayRange, type Preset } from './range';
 import type { AnalyzeSearch } from './search';
@@ -128,6 +132,7 @@ interface AnalyzeHeadProps {
 /** The head of an Analyze page: its title, the days it covers, the comparison and the CSV. */
 export function AnalyzeHead({ title, lead, range, compare, comparable = true, onRange, onCompare, csv, children }: AnalyzeHeadProps) {
   const [problem, setProblem] = useState<ErrorMessage | null>(null);
+  const [saved, setSaved] = useState<ReportExport | null>(null);
   const download = useMutation({
     mutationFn: async () => {
       if (!csv) return;
@@ -161,9 +166,26 @@ export function AnalyzeHead({ title, lead, range, compare, comparable = true, on
               <FormattedMessage id="analyze.csv" />
             </button>
           ) : null}
+          {/* The same report, kept for a few days and downloaded again from Reports (016-C). */}
+          {csv ? <SaveExportButton choice={csv} onSaved={setSaved} /> : null}
         </div>
       </div>
       <ErrorNotice message={problem} />
+      {saved && csv ? (
+        <Notice
+          tone="success"
+          action={
+            <Link
+              to="/agencies/$agencyId/clients/$clientId/reports/exports/$exportId"
+              params={{ agencyId: csv.scope.agencyId, clientId: csv.scope.clientId, exportId: saved.id }}
+            >
+              <FormattedMessage id="reports.save.view" />
+            </Link>
+          }
+        >
+          <FormattedMessage id="reports.save.saved" values={{ until: <Moment value={saved.expires_at} /> }} />
+        </Notice>
+      ) : null}
       {endsToday(range) ? (
         <Notice tone="info">
           <FormattedMessage id="analyze.range.todayNotice" />

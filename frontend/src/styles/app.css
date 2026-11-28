@@ -453,3 +453,27 @@ body {
 .a-closing {
   max-inline-size: 560px;
 }
+
+/* -------------------------------------------------------------- Reports -- */
+/* The download and the menu of a row sit together at its end. */
+.a-row-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+/* A group of fields in a form: the legend names it; no frame of its own. */
+.a-fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* An export that is gone (E08): the reason in the middle of the page, and the ways on. */
+.a-gone {
+  max-inline-size: 640px;
+  margin-inline: auto;
+  padding-block: var(--space-12);
+}
+.a-gone__actions {
+  justify-content: center;
+}

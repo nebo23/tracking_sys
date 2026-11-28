@@ -6,7 +6,7 @@ import { deliverMail, mailDirectory, stack, type BackendEnvironment } from './st
 // The API queues its mail; the worker writes each message to a file (local capture). Nothing is
 // sent to a real mailbox. A journey reads its code or link from here, as a person reads their mail.
 
-export type MailKind = 'Verify your email' | 'Reset your password' | 'Agency invitation';
+export type MailKind = 'Verify your email' | 'Reset your password' | 'Agency invitation' | `Report ready: ${string}`;
 
 export interface CapturedMail {
   file: string;
@@ -59,8 +59,16 @@ export function verificationCode(to: string): string {
   return code;
 }
 
+/** The address a report message opens inside the application (016-C, section 8). */
+export function reportLinkIn(to: string, schedule: string): string {
+  const body = newestMail(to, `Report ready: ${schedule}`);
+  const start = body.indexOf(`${stack.webOrigin}/agencies/`);
+  if (start < 0) throw new Error('The report message holds no link to the application.');
+  return (/^\S+/.exec(body.slice(start))?.[0] ?? '').slice(stack.webOrigin.length);
+}
+
 /** The link of a reset or invitation message, as the path and fragment inside the application. */
-export function linkIn(to: string, kind: Exclude<MailKind, 'Verify your email'>): string {
+export function linkIn(to: string, kind: 'Reset your password' | 'Agency invitation'): string {
   const body = newestMail(to, kind);
   const start = body.indexOf(`${stack.webOrigin}/auth/`);
   if (start < 0) throw new Error(`The "${kind}" message holds no link to the application.`);

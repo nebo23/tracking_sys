@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import { agenciesQuery, type AgencyAccess } from '@/api/agencies';
 import { clientQuery } from '@/api/clients';
 import { isApiError } from '@/api/errors';
+import { exportQuery } from '@/api/reportDelivery';
 import { sessionQuery } from '@/api/session';
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage';
 import { AuthLayout } from '@/features/auth/AuthLayout';
@@ -27,6 +28,7 @@ import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
 import { integrationTabs, type IntegrationTabId } from '@/features/integrations/tabs';
 import { linksTabs, type LinksTabId } from '@/features/links/tabs';
+import { reportTabs, type ReportTab } from '@/features/reports/tabs';
 import { maySeeSettings, settingsTabs, type SettingsTab } from '@/features/settings/tabs';
 import { analyzeSearch, attributionSearch } from '@/features/analyze/search';
 import { isIdentifier } from '@/lib/identifier';
@@ -57,6 +59,8 @@ const RevenuePage = lazyRouteComponent(() => import('@/features/analyze/RevenueP
 const AdSpendPage = lazyRouteComponent(() => import('@/features/analyze/AdSpendPage'), 'AdSpendPage');
 const AttributionPage = lazyRouteComponent(() => import('@/features/attribution/AttributionPage'), 'AttributionPage');
 const SettingsPage = lazyRouteComponent(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
+const ReportsPage = lazyRouteComponent(() => import('@/features/reports/ReportsPage'), 'ReportsPage');
+const ExportPage = lazyRouteComponent(() => import('@/features/reports/ExportPage'), 'ExportPage');
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -359,6 +363,33 @@ const attributionRoute = createRoute({
   component: AttributionPage,
 });
 
+// Reports (E03 to E08; 016-C): exports and schedules, for every member who may read the client.
+const reportsRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'reports',
+  validateSearch: (search: Search): { tab?: ReportTab } => ({
+    tab: reportTabs.find((tab) => tab !== 'exports' && tab === search.tab),
+  }),
+  component: ReportsPage,
+});
+
+// The address a report email opens. An address is not permission: an export the person may not
+// see answers as an unknown one does, so it does not exist for them.
+const exportRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'reports/exports/$exportId',
+  loader: async ({ context, params }) => {
+    if (!isIdentifier(params.exportId)) throw notFound();
+    try {
+      await context.queryClient.ensureQueryData(exportQuery(params.agencyId, params.clientId, params.exportId));
+    } catch (error) {
+      if (isApiError(error) && (error.status === 403 || error.status === 404 || error.status === 422)) throw notFound();
+      throw error;
+    }
+  },
+  component: ExportPage,
+});
+
 const connectionsRoute = createRoute({
   getParentRoute: () => clientRoute,
   path: 'connections',
@@ -462,6 +493,8 @@ const routeTree = rootRoute.addChildren([
         revenueRoute,
         adSpendRoute,
         attributionRoute,
+        reportsRoute,
+        exportRoute,
         linksRoute,
         trackingRoute,
         integrationsRoute,

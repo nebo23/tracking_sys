@@ -186,6 +186,12 @@ export function clientGroups(agencyId: string, clientId: string): DestinationGro
           label: 'shell.nav.connections',
           link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/connections', params }),
         },
+        {
+          key: 'reports',
+          icon: 'file-chart-column',
+          label: 'shell.nav.reports',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/reports', params }),
+        },
       ],
     },
   ];

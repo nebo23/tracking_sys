@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { presetRange, toReportRange } from '@/features/analyze/range';
 
@@ -161,6 +161,17 @@ const world = (connections: unknown[], routes: Record<string, unknown> = {}) => 
   [`GET /agencies/${agency.id}/clients/${client.id}/ad-spend`]: json(200, { rows: [{ object_id: '120200', name: 'Ramadan offers' }], next_after: null }),
   ...routes,
 });
+
+// The pages load by route with their charts (D4). Loading them once before the tests keeps the first
+// test of a page from paying for it inside its wait when the whole suite runs at once.
+beforeAll(async () => {
+  await Promise.all([
+    import('@/features/analyze/OverviewPage'),
+    import('@/features/analyze/ContentPage'),
+    import('@/features/analyze/RevenuePage'),
+    import('@/features/analyze/AdSpendPage'),
+  ]);
+}, 30_000);
 
 describe('the overview of a client', () => {
   it('names a total that is partial or unavailable instead of showing it as a number, with its source', async () => {
