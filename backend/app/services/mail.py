@@ -134,6 +134,60 @@ def queue_report_mail(session: Session, settings: Settings, email: str, item: Re
     )
 
 
+@dataclass(frozen=True)
+class BillingNotice:
+    """The only fields a billing message carries (017-C, D-103 D11): its kind, the agency for
+    the link, the trial end of a reminder and the message's expiry. No name, figure or token;
+    the application authorizes the reader again."""
+
+    kind: str
+    agency_id: UUID
+    trial_ends_at: datetime | None
+    expires_at: datetime
+
+
+def billing_message(settings: Settings, notice: BillingNotice) -> tuple[str, str]:
+    link = f"{settings.frontend_origin}/agencies/{notice.agency_id}/billing"
+    kept = (
+        "new clients, members, connections and links are paused until a plan is active; "
+        "existing data, links, tracking and reports keep working, and nothing is deleted."
+    )
+    if notice.kind == "trial_ending":
+        assert notice.trial_ends_at is not None
+        until = notice.trial_ends_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+        subject = "Your trial ends soon"
+        lead = (
+            f"The trial of your agency workspace ends on {until} UTC. If it ends without a "
+            f"plan, {kept}"
+        )
+    elif notice.kind == "billing_hold":
+        subject = "Your agency is on hold"
+        lead = f"Your agency workspace has no active plan, so {kept}"
+    else:
+        raise ValueError("Unknown billing message.")
+    body = (
+        f"{lead}\n\nChoose a plan in the application:\n{link}\n\n"
+        "You receive this message because you are an Owner of the agency.\n"
+    )
+    return subject, body
+
+
+# Add one encrypted billing message in the caller's transaction; it expires with its subject
+# (the trial end, or 7 days for a hold), so a stale message is cleared unsent.
+def queue_billing_mail(
+    session: Session, settings: Settings, email: str, notice: BillingNotice
+) -> None:
+    subject, body = billing_message(settings, notice)
+    _store(
+        session,
+        settings,
+        uuid4(),
+        notice.kind,
+        {"to": email, "subject": subject, "body": body},
+        notice.expires_at,
+    )
+
+
 # Decrypt a claimed message payload ({"to", "subject", "body"}); raises on a missing or
 # undecryptable payload. Decrypted content is never logged.
 def message_payload(message: MailOutbox, settings: Settings) -> dict[str, str]:

@@ -45,6 +45,10 @@ COLUMNS: dict[str, str] = {
 # the bound with count_capped set (design-017a section 4).
 EVENT_COUNT_BOUND = 1_000_000
 LIVE_CONNECTIONS = ("active", "reconnect_required")
+# The plan of an agency on billing hold, seeded by migration 0034 (017-C, D-103 D5): its four
+# counted limits are zero, so every creation is refused and nothing else stops. It is never the
+# default and is assigned only by billing.
+HOLD_PLAN = "billing_hold"
 
 
 class PlanUnavailable(Exception):
