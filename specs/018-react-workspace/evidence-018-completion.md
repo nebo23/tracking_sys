@@ -33,7 +33,7 @@ Every check ran on the final code of the branch, on 2026-11-28, on this workstat
 | `git diff --check` | Clean. |
 
 ## 3. What the pull request holds
-One pull request from `codex/spec-018-workspace-screens` against `main` (D11 of the completion entry review), without a further upload request (D-106). It holds the commits of pull request 17 (slice 018-A, head `edc2d54`, open), on which this branch is stacked, so merging it also merges 018-A. Its description lists the decisions, the scope by phase, the packages, the addresses, the permissions, the checks with their counts, the limits and what remains. It is not merged: the merge is the owner's decision, after Claude's independent review.
+[Pull request 23](https://github.com/nebo23/tracking_sys/pull/23), opened at `4fb1806` from `codex/spec-018-workspace-screens` against `main` (D11 of the completion entry review), without a further upload request (D-106). It holds the commits of pull request 17 (slice 018-A, head `edc2d54`, open), on which this branch is stacked, so merging it also merges 018-A. Its description lists the decisions, the scope by phase, the packages, the addresses, the permissions, the checks with their counts, the limits and what remains. It is not merged: the merge is the owner's decision, after Claude's independent review.
 
 ## 4. Limits
 - The concepts B12 (privacy and data), C11 (a journey of one person) and F05 (search) are not built (D10); the agency's brand on the screens of client viewers waits for the owner's brief (D8); PDF files and printable pages are not part of this round (D-095).
