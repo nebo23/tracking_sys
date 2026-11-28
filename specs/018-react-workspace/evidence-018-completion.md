@@ -40,11 +40,37 @@ Every check ran on the final code of the branch, on 2026-11-28, on this workstat
 - Main's 017-B and 017-C have no screens yet: an Owner cannot ask for the copy of the agency's data from the closing page, and the subscription, the trial and the hold are not shown. While billing is enabled, an agency on hold is refused new clients, seats, connections and links by the existing plan limits, whose values are zero; the interface then shows its plan-limit message, which does not say that the reason is the hold. Billing is off by default and on the disposable stack.
 - The legal texts are not written (the agreement versions are `draft-1`), so no real user may be given the application before they exist.
 - The Arabic copy is written by a model and marked for review by a native editor (D12).
-- Four display defects were found on 2026-11-28 after these checks, when the canvas was captured from the running application. They change no behavior, no test covers layout, and they are not corrected yet:
-  1. Thirty table cells in thirteen files carry the utility `u-num` on the `<td>` itself. `connect-ui.css` gives `.u-num` `display: inline-block`, so those cells stop being table cells and their columns no longer line up with the headers: Analyze, Attribution, Reports, the plan table, the tracking diagnostics, WhatsApp and the conversion deliveries.
-  2. The Content item of the client navigation asks for the icon `image`, which `connect-icons.css` does not define, so a filled square is drawn; the design uses `chart-column`.
-  3. The Net revenue and Ad spend figures of the overview, and the total of Ad spend, write the currency twice: a unit before an amount that is already formatted with its currency.
-  4. The Sources card of the overview shows the API's stream name (such as `account`) instead of a sentence, untranslated in Arabic.
-- The design canvas shows A03, B13 to B15, C01 to C10 and E03 to E08 as captured on 2026-11-28 from `7554857`, defects included.
+- Four display defects were found on 2026-11-28 after these checks, when the design canvas was captured from the running application, and were corrected the same day: see section 5.
+- The design canvas shows the screens built in the completion round, and the website-tracking boards, as captured from the corrected application.
 - Development email is the local `.eml` capture; production email, the report worker's schedule, hosting and deployment are decided in 020. No live provider was called; the journeys use the stand-in providers of the disposable stack.
 - The backend's tracker browser journeys were skipped, as in P0 (see section 2).
+
+## 5. Corrections after P5
+The four display defects of section 4 were corrected on 2026-11-28 at the owner's request ("Yes, fix them"), within D-106 and without any change to the API, the contract or the schema, in commit `d29ac00`. Claude's [merge review](merge-review-018.md) confirmed them as K1 to K4.
+
+| ID | Defect | Correction |
+|---|---|---|
+| K1 | Thirty table cells in thirteen files carried `u-num`, which makes a cell an inline block. | No table cell carries `u-num`; the numbers inside are wrapped in `<span class="u-num">`, so an Arabic sentence in a cell keeps its own order. Cells that hold a sentence (the plan's use, an export's size and rows) keep the cell's direction. |
+| K2 | The Content destination asked for the icon `image`, which the icon set does not draw. | It uses `chart-column`, as the design does, and `image` left the icon union. |
+| K3 | Three money figures wrote the currency twice. | `MoneyFigure` splits the formatted amount into the number and the currency as its unit, in the order of the language: `EGP` before the amount in English, the pound after it in Arabic, as the designs draw them. |
+| K4 | The Sources card of the overview showed the API's stream name. | Each stream of `backend/app/reporting/catalog.py` has a sentence in both languages; an unknown stream shows none, and a time zone stays left to right. |
+
+The regressions fail at `e141077`, whose application equals `7554857`, and pass at `d29ac00`:
+- `tests/unit/lib/markup.test.ts`: every name of the icon union exists in `connect-icons.css`, and no table cell in `src` carries `u-num`;
+- `tests/unit/lib/analyzeRules.test.ts`: the money parts in English and Arabic, and the stream sentences compared with the reporting catalog;
+- `tests/unit/features/analyze.test.tsx`: the overview writes each currency once and names its stream in a sentence.
+
+| Check | Result |
+|---|---|
+| `npm run typecheck`, `npm run lint`, `npm run api:check` | No error, no finding; the contract types match. |
+| `npm test` | 34 files, 611 tests passed (607 before, and four new). |
+| `npm run build`, then `npm run build:check` | Built; no secret found. The first page loads seven script files, 774.83 kB (the stream sentences in both languages). |
+| Journeys, Chromium | 64 passed: 22 (1.7 minutes), 27 (6.9 minutes, in the background), 8 (1.4 minutes) and 7 (1.3 minutes). |
+| Journeys, Firefox | 64 passed: 22 (1.7 minutes), 27 (8.7 minutes, in the background), 8 (1.6 minutes) and 7 (1.5 minutes). |
+| Accessibility | The 22 axe tests of journey 10 in each browser: 0 findings of any severity. |
+
+The checks ran in a separate worktree at the corrected commit, on a disposable stack of its own (Compose project `tracking-e2e-fix` on 127.0.0.1:56444, API on 8020, application on 5193), so the merge review, which shares this branch's worktree, was not disturbed; the ports were changed only in that worktree and never committed. The commit was then applied on top of the review's own commits; the review file is the only difference.
+
+The design canvas was captured again from the corrected application: A03, B13 to B15, C01 to C10 and E03 to E08, and the website-tracking boards D09 to D12 and G03, whose diagnostics table showed K1.
+
+The other findings of the merge review, R018-01 to R018-06, are not part of this correction and wait for the owner's decision.
