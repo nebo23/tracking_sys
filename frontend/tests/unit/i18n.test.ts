@@ -47,6 +47,8 @@ const sample = {
   zone: 'UTC',
   when: '3 hours ago',
   metric: 'Views',
+  model: 'Linear',
+  leads: '58.5',
   to: '30 March 2026',
   impressions: '12,400',
   clicks: '310',

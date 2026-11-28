@@ -28,3 +28,26 @@ export function analyzeSearch(search: Record<string, unknown>): AnalyzeSearch {
     level: levels.find((level) => level === search.level),
   };
 }
+
+/** The tabs of the Attribution page (D6 of the completion entry review); the first is the default. */
+export const attributionTabs = ['credit', 'funnel', 'roas'] as const;
+export type AttributionTab = (typeof attributionTabs)[number];
+
+export const attributionGroups = ['campaign', 'content', 'link', 'recipient'] as const;
+export type AttributionGroupChoice = (typeof attributionGroups)[number];
+
+/** The Attribution page also keeps its tab, model version and grouping in the address. */
+export interface AttributionSearch extends AnalyzeSearch {
+  tab?: AttributionTab;
+  model?: string;
+  group?: AttributionGroupChoice;
+}
+
+export function attributionSearch(search: Record<string, unknown>): AttributionSearch {
+  return {
+    ...analyzeSearch(search),
+    tab: attributionTabs.find((tab) => tab !== 'credit' && tab === search.tab),
+    model: isIdentifier(search.model) ? search.model : undefined,
+    group: attributionGroups.find((group) => group !== 'campaign' && group === search.group),
+  };
+}

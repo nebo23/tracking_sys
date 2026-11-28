@@ -18,6 +18,16 @@ export type RevenueTotal = components['schemas']['RevenueTotal'];
 export type RevenueRow = components['schemas']['RevenueRow'];
 export type RevenueComparison = components['schemas']['RevenueComparison'];
 export type Amount = components['schemas']['Amount'];
+export type AttributionReport = components['schemas']['AttributionReportResult'];
+export type AttributionRow = components['schemas']['AttributionGroupRow'];
+export type FunnelReport = components['schemas']['FunnelReportResult'];
+export type FunnelRow = components['schemas']['FunnelRow'];
+export type RoasReport = components['schemas']['RoasReportResult'];
+export type RoasRow = components['schemas']['RoasValue'];
+export type ExactShare = components['schemas']['ExactShare'];
+export type ModelVersion = components['schemas']['ModelVersionView'];
+export type AttributionGroup = AttributionReport['group_by'];
+export type FunnelGroup = FunnelReport['group_by'];
 export type SocialView = SocialReport['view'];
 export type SpendLevel = SpendReport['level'];
 
@@ -155,6 +165,93 @@ export const revenueReportQuery = (scope: ReportScope) =>
       ),
   });
 
+/** The client's attribution model versions, with its default (008-B). */
+export const modelVersionsQuery = (agencyId: string, clientId: string) =>
+  queryOptions({
+    queryKey: clientKey(agencyId, clientId, 'attribution-models'),
+    queryFn: () => call(api.GET('/agencies/{agency_id}/clients/{client_id}/attribution/models', { params: { path: { agency_id: agencyId, client_id: clientId } } })),
+  });
+
+const model = (modelVersion: string | undefined) => (modelVersion ? { model_version: modelVersion } : {});
+
+/** Credit by campaign, content, link or recipient (016-B); the models view shows every active version. */
+export const attributionReportQuery = (scope: ReportScope, view: 'groups' | 'models', groupBy: AttributionGroup, modelVersion?: string) =>
+  queryOptions({
+    queryKey: reportKey(scope, 'attribution', { view, groupBy, modelVersion }),
+    queryFn: () =>
+      allPages<AttributionRow, AttributionReport>((page, revision) =>
+        json<AttributionReport>(
+          api.GET('/agencies/{agency_id}/clients/{client_id}/reports/attribution', {
+            params: {
+              path: path(scope),
+              query: {
+                start: scope.range.start,
+                end: scope.range.end,
+                group_by: groupBy,
+                view,
+                // The models view refuses a comparison and a model version (016-B).
+                ...(view === 'groups' ? { ...comparison(scope), ...model(modelVersion) } : {}),
+                page,
+                page_size: PAGE_SIZE,
+                ...(revision ? { expected_revision: revision } : {}),
+              },
+            },
+          }),
+        ),
+      ),
+  });
+
+export const funnelReportQuery = (scope: ReportScope, groupBy: FunnelGroup, modelVersion?: string) =>
+  queryOptions({
+    queryKey: reportKey(scope, 'funnel', { groupBy, modelVersion }),
+    queryFn: () =>
+      allPages<FunnelRow, FunnelReport>((page, revision) =>
+        json<FunnelReport>(
+          api.GET('/agencies/{agency_id}/clients/{client_id}/reports/funnel', {
+            params: {
+              path: path(scope),
+              query: {
+                start: scope.range.start,
+                end: scope.range.end,
+                group_by: groupBy,
+                ...comparison(scope),
+                ...model(modelVersion),
+                page,
+                page_size: PAGE_SIZE,
+                ...(revision ? { expected_revision: revision } : {}),
+              },
+            },
+          }),
+        ),
+      ),
+  });
+
+export const roasReportQuery = (scope: ReportScope, connectionId: string, level: SpendLevel, modelVersion?: string) =>
+  queryOptions({
+    queryKey: reportKey(scope, 'roas', { connectionId, level, modelVersion }),
+    queryFn: () =>
+      allPages<RoasRow, RoasReport>((page, revision) =>
+        json<RoasReport>(
+          api.GET('/agencies/{agency_id}/clients/{client_id}/reports/roas', {
+            params: {
+              path: path(scope),
+              query: {
+                connection_id: connectionId,
+                level,
+                start: scope.range.start,
+                end: scope.range.end,
+                ...comparison(scope),
+                ...model(modelVersion),
+                page,
+                page_size: PAGE_SIZE,
+                ...(revision ? { expected_revision: revision } : {}),
+              },
+            },
+          }),
+        ),
+      ),
+  });
+
 /** The day before an ISO date, for the 014 read, whose `until` is included. */
 export function dayBefore(date: string): string {
   const moment = new Date(`${date}T00:00:00Z`);
@@ -196,12 +293,15 @@ export const spendNamesQuery = (scope: ReportScope, connectionId: string, level:
     },
   });
 
-export type ReportFamily = 'social' | 'spend' | 'revenue';
+export type ReportFamily = 'social' | 'spend' | 'revenue' | 'attribution' | 'funnel' | 'roas';
 
 const csvPaths = {
   social: '/agencies/{agency_id}/clients/{client_id}/reports/social',
   spend: '/agencies/{agency_id}/clients/{client_id}/reports/spend',
   revenue: '/agencies/{agency_id}/clients/{client_id}/reports/revenue',
+  attribution: '/agencies/{agency_id}/clients/{client_id}/reports/attribution',
+  funnel: '/agencies/{agency_id}/clients/{client_id}/reports/funnel',
+  roas: '/agencies/{agency_id}/clients/{client_id}/reports/roas',
 } as const;
 
 /**
@@ -212,7 +312,8 @@ export async function reportCsv(scope: ReportScope, family: ReportFamily, parame
   const query = {
     start: scope.range.start,
     end: scope.range.end,
-    ...(family !== 'social' || parameters.view === 'daily' ? comparison(scope) : {}),
+    // A content cohort and the models view are never compared (016-A, 016-B).
+    ...((family === 'social' && parameters.view !== 'daily') || parameters.view === 'models' ? {} : comparison(scope)),
     ...parameters,
     format: 'csv',
   };

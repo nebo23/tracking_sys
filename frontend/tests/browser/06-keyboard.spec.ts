@@ -148,7 +148,8 @@ test('clients are added, opened and left with the keyboard alone', async ({ page
 
   await test.step('the switcher is a menu that the arrow keys move through', async () => {
     const switcher = page.getByRole('complementary').getByRole('button', { name: /Switch client or agency/ });
-    await tabTo(page, switcher, 12, 'Shift+Tab');
+    // Back past the client's menu (Overview, Analyze, Collect and Manage) to the switcher above it.
+    await tabTo(page, switcher, 24, 'Shift+Tab');
     expect(await showsFocus(switcher)).toBe(true);
     await page.keyboard.press('Enter');
     const menu = page.getByRole('menu');

@@ -40,7 +40,7 @@ export const firstAgencyDestination: Destination = {
  * The client destinations that keep a place of their own on the phone tab bar (D5 of the
  * completion entry review), after the way back to the clients; the rest are under More.
  */
-export const clientPhoneDestinations: readonly string[] = ['overview', 'links'];
+export const clientPhoneDestinations: readonly string[] = ['overview', 'attribution', 'links'];
 
 export const clientsDestination = (agencyId: string): Destination => ({
   key: 'clients',
@@ -91,7 +91,7 @@ export function agencyGroups(agencyId: string, manager: boolean): DestinationGro
 /**
  * The client level (D11, and section 4.3 of the completion entry review): its overview, what is
  * analyzed, what the client collects, and what is managed for it. Destinations of later phases
- * are absent, not disabled.
+ * (Reports) are absent, not disabled.
  */
 export function clientGroups(agencyId: string, clientId: string): DestinationGroup[] {
   const params = { agencyId, clientId };
@@ -130,6 +130,12 @@ export function clientGroups(agencyId: string, clientId: string): DestinationGro
           icon: 'megaphone',
           label: 'shell.nav.adSpend',
           link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/ad-spend', params }),
+        },
+        {
+          key: 'attribution',
+          icon: 'route',
+          label: 'shell.nav.attribution',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/attribution', params }),
         },
       ],
     },

@@ -71,6 +71,10 @@ const byCode: Record<string, MessageId> = {
   payments_unavailable: 'integrations.error.payments_unavailable',
   integration_unavailable: 'integrations.error.integration_unavailable',
   whatsapp_unavailable: 'integrations.error.whatsapp_unavailable',
+  // 016-A and 016-B: the stored facts changed between the pages of one report, or one currency
+  // has two numbers of decimals in a client's records.
+  report_changed: 'analyze.error.report_changed',
+  currency_exponent_conflict: 'analyze.error.currency_exponent_conflict',
   // 017-A: a sign-in or registration without the current agreement versions.
   agreement_required: 'agreement.changed.title',
   // Google sign-in. The same codes arrive in the address of the completion page.

@@ -214,8 +214,8 @@ describe('the workspace', () => {
     const { router } = openApp(connectionsPath);
     await screen.findByRole('heading', { name: 'Connections', level: 1 });
     const bar = () => within(screen.getByRole('navigation', { name: 'Sections' }));
-    // Inside a client (D5): the way back, the overview and the links, then More for the rest.
-    expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Overview', 'Links']);
+    // Inside a client (D5): the way back, the overview, attribution and the links, then More for the rest.
+    expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Overview', 'Attribution', 'Links']);
     // Connections is under More, so More reads as the current place.
     expect(bar().getByRole('button', { name: 'More' })).toHaveClass('is-active');
     const user = userEvent.setup();
@@ -247,6 +247,7 @@ describe('the workspace', () => {
       'Content',
       'Revenue',
       'Ad spend',
+      'Attribution',
       'Links',
       'Website tracking',
       'Integrations',

@@ -32,12 +32,16 @@ describe('the days of a report', () => {
     expect(rangeFromSearch({ from: '2026-11-01', to: '2026-11-15' }, now)).toEqual({ from: '2026-11-01', to: '2026-11-15' });
     expect(rangeFromSearch({ from: '2026-11-15', to: '2026-11-01' }, now)).toEqual(fallback);
     expect(rangeFromSearch({ from: '2026-10-01', to: '2026-11-15' }, now)).toEqual(fallback);
-    expect(rangeFromSearch({ from: '2026-11-20', to: '2026-11-28' }, now)).toEqual(fallback);
+    // Today may be asked for explicitly; a day that has not begun may not.
+    expect(rangeFromSearch({ from: '2026-11-20', to: '2026-11-28' }, now)).toEqual({ from: '2026-11-20', to: '2026-11-28' });
+    expect(rangeFromSearch({ from: '2026-11-20', to: '2026-11-29' }, now)).toEqual(fallback);
     expect(rangeFromSearch({ from: '2026-02-30', to: '2026-03-02' }, now)).toEqual(fallback);
     expect(rangeFromSearch({ from: 'yesterday' }, now)).toEqual(fallback);
     expect(rangeProblem({ from: '2026-10-28', to: '2026-11-27' }, now)).toBeNull();
     expect(rangeProblem({ from: '2026-10-27', to: '2026-11-27' }, now)).toBe('length');
-    expect(rangeProblem({ from: '2026-11-27', to: '2026-11-28' }, now)).toBe('future');
+    expect(rangeProblem({ from: '2026-11-27', to: '2026-11-28' }, now)).toBeNull();
+    expect(rangeProblem({ from: '2026-11-27', to: '2026-11-29' }, now)).toBe('future');
+    expect(presetRange('today', now)).toEqual({ from: '2026-10-30', to: '2026-11-28' });
   });
 
   it('are asked for as the API reads them, with the end excluded, and compare with the period before', () => {

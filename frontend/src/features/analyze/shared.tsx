@@ -10,7 +10,7 @@ import { Icon } from '@/components/Icon';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { PageHeading } from '@/components/PageHeading';
 
-import { daysIn, isDate, presetOf, presetRange, presets, rangeFromSearch, rangeProblem, toReportRange, type DayRange, type Preset } from './range';
+import { daysIn, endsToday, isDate, presetOf, presetRange, presets, rangeFromSearch, rangeProblem, toReportRange, type DayRange, type Preset } from './range';
 import type { AnalyzeSearch } from './search';
 
 // ------------------------------------------------------------------ The address --
@@ -164,6 +164,11 @@ export function AnalyzeHead({ title, lead, range, compare, comparable = true, on
         </div>
       </div>
       <ErrorNotice message={problem} />
+      {endsToday(range) ? (
+        <Notice tone="info">
+          <FormattedMessage id="analyze.range.todayNotice" />
+        </Notice>
+      ) : null}
     </>
   );
 }

@@ -3,8 +3,11 @@ import type { ReportRange } from '@/api/reports';
 /** The longest range a report accepts (016-A, "Parameters"). */
 export const MAX_DAYS = 31;
 
-/** The ranges a person can pick. Each ends on the last complete day. */
-export const presets = ['last7', 'last28', 'last30', 'month'] as const;
+/**
+ * The ranges a person can pick. Each ends on the last complete day, except "up to today", an
+ * explicit choice whose last day is still being collected (D10 of the 018 entry review).
+ */
+export const presets = ['last7', 'last28', 'last30', 'month', 'today'] as const;
 export type Preset = (typeof presets)[number];
 export const DEFAULT_PRESET: Preset = 'last30';
 
@@ -43,7 +46,16 @@ export function lastCompleteDay(now: Date = new Date()): string {
   return addDays(now.toISOString().slice(0, 10), -1);
 }
 
+/** Today in UTC: the last day a range may hold, as an explicit choice only. */
+export function today(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** Whether a range holds a day that has not ended: its values are provisional. */
+export const endsToday = (range: DayRange, now: Date = new Date()): boolean => range.to >= today(now);
+
 export function presetRange(preset: Preset, now: Date = new Date()): DayRange {
+  if (preset === 'today') return { from: addDays(today(now), -29), to: today(now) };
   const to = lastCompleteDay(now);
   if (preset === 'month') return { from: `${to.slice(0, 8)}01`, to };
   const length = { last7: 7, last28: 28, last30: 30 }[preset];
@@ -62,13 +74,14 @@ export function presetOf(range: DayRange, now: Date = new Date()): Preset | null
 export function rangeProblem(range: DayRange, now: Date = new Date()): 'order' | 'length' | 'future' | null {
   if (range.from > range.to) return 'order';
   if (daysIn(range) > MAX_DAYS) return 'length';
-  if (range.to > lastCompleteDay(now)) return 'future';
+  // Today may be chosen; a day that has not begun may not.
+  if (range.to > today(now)) return 'future';
   return null;
 }
 
 /**
- * The range an address asks for. A missing, malformed, reversed, too long or unfinished range
- * gives the default, so a shared address never asks the API for days that have not ended.
+ * The range an address asks for. A missing, malformed, reversed or too long range, or one past
+ * today, gives the default, which ends on the last complete day.
  */
 export function rangeFromSearch(search: { from?: unknown; to?: unknown }, now: Date = new Date()): DayRange {
   if (isDate(search.from) && isDate(search.to)) {

@@ -27,7 +27,7 @@ import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
 import { integrationTabs, type IntegrationTabId } from '@/features/integrations/tabs';
 import { linksTabs, type LinksTabId } from '@/features/links/tabs';
-import { analyzeSearch } from '@/features/analyze/search';
+import { analyzeSearch, attributionSearch } from '@/features/analyze/search';
 import { isIdentifier } from '@/lib/identifier';
 import { captureLinkToken, heldLinkToken } from '@/lib/linkToken';
 
@@ -54,6 +54,7 @@ const OverviewPage = lazyRouteComponent(() => import('@/features/analyze/Overvie
 const ContentPage = lazyRouteComponent(() => import('@/features/analyze/ContentPage'), 'ContentPage');
 const RevenuePage = lazyRouteComponent(() => import('@/features/analyze/RevenuePage'), 'RevenuePage');
 const AdSpendPage = lazyRouteComponent(() => import('@/features/analyze/AdSpendPage'), 'AdSpendPage');
+const AttributionPage = lazyRouteComponent(() => import('@/features/attribution/AttributionPage'), 'AttributionPage');
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -335,6 +336,14 @@ const adSpendRoute = createRoute({
   component: AdSpendPage,
 });
 
+// Credit, funnel and return on ad spend on the 016-B reports (018-E), with the tab in the address.
+const attributionRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'attribution',
+  validateSearch: attributionSearch,
+  component: AttributionPage,
+});
+
 const connectionsRoute = createRoute({
   getParentRoute: () => clientRoute,
   path: 'connections',
@@ -436,6 +445,7 @@ const routeTree = rootRoute.addChildren([
         contentRoute,
         revenueRoute,
         adSpendRoute,
+        attributionRoute,
         linksRoute,
         trackingRoute,
         integrationsRoute,

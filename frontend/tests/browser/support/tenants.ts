@@ -1,7 +1,18 @@
+import { randomBytes, randomUUID } from 'node:crypto';
+
 import type { Page } from '@playwright/test';
 
 import { expectStatus, send, signedIn, type Person, type Signed } from './api.ts';
-import { approveAtProvider, defineAdAccount, runConnectorWorker, type BackendEnvironment, type StandInAccount, type StandInAdObject } from './stack.ts';
+import {
+  approveAtProvider,
+  defineAdAccount,
+  runAttributionWorker,
+  runConnectorWorker,
+  stack,
+  type BackendEnvironment,
+  type StandInAccount,
+  type StandInAdObject,
+} from './stack.ts';
 
 // Clients, people and connections for the journeys, prepared through the API as the application
 // itself would. Everything is synthetic, and the stand-in providers contact nobody.
@@ -222,4 +233,86 @@ export async function withAnalyzeData(owner: Who, agencyId: string, clientId: st
   workerPass();
   await declareSale(owner, agencyId, clientId, `sale-${Date.now()}`, '1500.00', '2026-11-05T12:00:00Z');
   return { instagram, ads };
+}
+
+/** One pass of the attribution worker: the stored conversions get their credit, which is published. */
+export function attributionPass(): string {
+  const { python, backend } = runningStack();
+  return runAttributionWorker(python, backend);
+}
+
+const shop = 'https://shop.olive.example';
+const everything = { 'analytics.first_party': 'granted', attribution: 'granted', identity_link: 'granted' };
+
+async function collected<T>(publicKey: string, path: string, body: unknown, status: number, what: string): Promise<T> {
+  const response = await fetch(`${stack.apiOrigin}/collect/v1/${publicKey}/${path}`, {
+    method: 'POST',
+    headers: { Origin: shop, 'Content-Type': 'text/plain' },
+    body: JSON.stringify(body),
+  });
+  if (response.status !== status) throw new Error(`${what}: the API answered ${response.status} ${await response.text()}`);
+  return (response.status === 202 ? {} : await response.json()) as T;
+}
+
+/**
+ * A person who came through a campaign link and became a lead (006, 008-B), all through the API:
+ * a campaign and its managed link, a website source and an ingest key; then a visitor who agrees
+ * to analytics, attribution and identity, is identified by a verified email, views the page
+ * through the link, and sends a trusted lead signal from the shop's server. One attribution pass
+ * credits the lead to the campaign. Every value is synthetic.
+ */
+export function withCreditedLead(owner: Who, agencyId: string, clientId: string, code = 'ramadan-2026'): Promise<{ linkId: string }> {
+  return as(owner, async (signed) => {
+    const client = `/agencies/${agencyId}/clients/${clientId}`;
+    const stamp = Date.now().toString(36);
+    await made(signed, `POST ${client}/link-destination-origins`, { origin: shop, query_names: [] }, 201, 'The site');
+    const campaign = await made<{ id: string }>(signed, `POST ${client}/link-campaigns`, { public_code: code, label: 'Ramadan 2026' }, 201, 'The campaign');
+    const link = await made<{ id: string }>(signed, `POST ${client}/managed-links`, { slug: `ramadan-${stamp}`, destination: `${shop}/ramadan-box`, campaign_id: campaign.id }, 201, 'The link');
+    const source = await made<{ source: { public_key: string } }>(
+      signed,
+      `POST ${client}/ingestion-sources`,
+      { kind: 'browser', name: 'Main website', allowed_origins: [shop], notice_sha256: 'a'.repeat(64) },
+      201,
+      'The website source',
+    );
+    const issued = await made<{ key: string }>(signed, `POST /agencies/${agencyId}/service-credentials`, { name: 'Shop server', kind: 'ingest', clients: [{ client_id: clientId }] }, 201, 'The ingest key');
+    const key = source.source.public_key;
+    const ingest = async (route: string, body: unknown, what: string) => {
+      const response = await fetch(`${stack.apiOrigin}${client}/${route}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${issued.key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (response.status !== 200 && response.status !== 201) throw new Error(`${what}: the API answered ${response.status} ${await response.text()}`);
+    };
+
+    const consent = await collected<{ subject_token: string }>(key, 'consent', { choices: everything }, 200, 'The consent');
+    const token = consent.subject_token;
+    const event = (type: string, payload: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+      schema_version: 1,
+      event_id: randomUUID(),
+      event_type: type,
+      // After the identification: an event joins a person's journey from the moment the link holds.
+      occurred_at: new Date().toISOString(),
+      subject_token: token,
+      payload,
+      ...extra,
+    });
+    const challenge = randomBytes(24).toString('base64url');
+    const handoff = await collected<{ code: string }>(key, 'identity-handoff', { subject_token: token, challenge }, 201, 'The identity handoff');
+    await ingest(
+      'identity-assertions',
+      {
+        assertion_id: randomUUID(),
+        identifiers: [{ kind: 'email', value: `buyer-${stamp}@example.test`, method: 'email_code', verified_at: new Date(Date.now() - 5_000).toISOString() }],
+        handoff: handoff.code,
+        challenge,
+      },
+      'The identity assertion',
+    );
+    // The visitor is known before the visit, as in the attribution tests of the backend.
+    await collected(key, 'events', event('page_view', { url: `${shop}/ramadan-box` }, { link_id: link.id }), 202, 'The page view');
+    await ingest('events', event('lead_signal', { action: 'consultation_request' }), 'The lead signal');
+    return { linkId: link.id };
+  });
 }

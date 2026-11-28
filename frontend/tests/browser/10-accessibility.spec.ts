@@ -7,9 +7,11 @@ import { linkIn } from './support/mail.ts';
 import {
   acceptInvitation,
   analyzeDays,
+  attributionPass,
   inviteAs,
   standInAccount,
   withAnalyzeData,
+  withCreditedLead,
   withClient,
   withCollectSetup,
   withConnection,
@@ -81,16 +83,24 @@ async function clientWithFacts(testInfo: TestInfo) {
   const session = await signedIn(owner);
   const clientId = await withClient(session, agencyId, 'Olive & Thyme');
   await withAnalyzeData(session, agencyId, clientId);
+  await withCreditedLead(session, agencyId, clientId);
+  attributionPass();
   await send('POST /auth/logout', undefined, session);
   return { owner, base: `/agencies/${agencyId}/clients/${clientId}`, days: `from=${analyzeDays.from}&to=${analyzeDays.to}&compare=true` };
 }
 
+// The pages of Analyze (018-C) and the three tabs of Attribution (018-E), with the days that hold the facts.
 const analyzePages = [
   ['', 'overview'],
   ['/content', 'content'],
   ['/revenue', 'revenue'],
   ['/ad-spend', 'ad spend'],
+  ['/attribution', 'attribution credit'],
+  ['/attribution?tab=funnel', 'attribution funnel'],
+  ['/attribution?tab=roas', 'attribution return on ad spend'],
 ] as const;
+
+const at = (base: string, path: string, days: string) => `${base}${path}${path.includes('?') ? '&' : '?'}${days}`;
 
 /** An Analyze page has drawn what its reports answered. */
 const settled = async (page: Page) => {
@@ -433,7 +443,7 @@ for (const look of looks) {
       const { owner, base, days } = await clientWithFacts(testInfo);
       await signedInBrowser(context, owner);
       for (const [path, name] of analyzePages) {
-        await page.goto(`${base}${path}?${days}`);
+        await page.goto(at(base, path, days));
         await settled(page);
         found.push(...(await findings(page, name)));
       }
@@ -529,7 +539,7 @@ test.describe('on a phone', () => {
     await signedInBrowser(context, owner);
     const overflowing = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     for (const [path, name] of analyzePages) {
-      await page.goto(`${base}${path}?${days}`);
+      await page.goto(at(base, path, days));
       await settled(page);
       found.push(...(await findings(page, `${name} at 390`)));
       expect(await overflowing(), name).toBeLessThanOrEqual(0);

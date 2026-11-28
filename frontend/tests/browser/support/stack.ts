@@ -364,6 +364,11 @@ export function defineAdAccount(python: string, backendEnvironment: BackendEnvir
   run(python, ['-c', adAccount, account, label, JSON.stringify(objects)], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The ad account');
 }
 
+/** Runs one pass of the attribution worker (008-B): conversions, credit and its publication. */
+export function runAttributionWorker(python: string, backendEnvironment: BackendEnvironment): string {
+  return run(python, ['-m', 'app.attribution_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The attribution worker');
+}
+
 /** Runs one pass of the connector worker: removals, the schedule and the queued reads. Returns its counts. */
 export function runConnectorWorker(python: string, backendEnvironment: BackendEnvironment): string {
   return run(python, ['-m', 'app.connector_worker'], { cwd: backendRoot, env: { ...neutralEnvironment(), ...backendEnvironment } }, 'The connector worker');
