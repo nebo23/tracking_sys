@@ -36,6 +36,12 @@ export const firstAgencyDestination: Destination = {
   link: linkOptions({ to: '/welcome' }),
 };
 
+/**
+ * The client destinations that keep a place of their own on the phone tab bar (D5 of the
+ * completion entry review), after the way back to the clients; the rest are under More.
+ */
+export const clientPhoneDestinations: readonly string[] = ['overview', 'links'];
+
 export const clientsDestination = (agencyId: string): Destination => ({
   key: 'clients',
   icon: 'briefcase-business',
@@ -82,10 +88,51 @@ export function agencyGroups(agencyId: string, manager: boolean): DestinationGro
   return groups;
 }
 
-/** The client level (D11): what the client collects, and what is managed for it. Overview and Analyze follow 018-C. */
+/**
+ * The client level (D11, and section 4.3 of the completion entry review): its overview, what is
+ * analyzed, what the client collects, and what is managed for it. Destinations of later phases
+ * are absent, not disabled.
+ */
 export function clientGroups(agencyId: string, clientId: string): DestinationGroup[] {
   const params = { agencyId, clientId };
   return [
+    {
+      key: 'start',
+      items: [
+        {
+          key: 'overview',
+          icon: 'layout-dashboard',
+          label: 'shell.nav.overview',
+          // The client's other pages live under this address and are not the overview.
+          exact: true,
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId', params }),
+        },
+      ],
+    },
+    {
+      key: 'analyze',
+      label: 'shell.nav.group.analyze',
+      items: [
+        {
+          key: 'content',
+          icon: 'image',
+          label: 'shell.nav.content',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/content', params }),
+        },
+        {
+          key: 'revenue',
+          icon: 'banknote',
+          label: 'shell.nav.revenue',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/revenue', params }),
+        },
+        {
+          key: 'ad-spend',
+          icon: 'megaphone',
+          label: 'shell.nav.adSpend',
+          link: linkOptions({ to: '/agencies/$agencyId/clients/$clientId/ad-spend', params }),
+        },
+      ],
+    },
     {
       key: 'collect',
       label: 'shell.nav.group.collect',

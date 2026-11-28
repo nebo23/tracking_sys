@@ -18,14 +18,16 @@ import { useSignOut } from '../useSignOut';
 
 import { AccountMenu } from './AccountMenu';
 import {
+  type Destination,
+  type DestinationGroup,
   accountDestination,
   agencyGroups,
   clientGroups,
+  clientPhoneDestinations,
   clientsDestination,
   firstAgencyDestination,
-  type Destination,
-  type DestinationGroup,
 } from './navigation';
+import { MoreTab } from './MoreTab';
 import { Switcher } from './Switcher';
 
 const active = { className: 'is-active' };
@@ -73,10 +75,15 @@ export function Shell() {
   let groups: DestinationGroup[] = [{ key: 'start', items: [firstAgencyDestination] }];
   if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : agencyGroups(access.agency_id, isManager(access.role));
   const level = groups.flatMap((group) => group.items);
-  // On a phone the way back to the list of clients is a tab of its own. Five tabs share the width;
-  // when a level has more, the account is left to the menu in the top bar, which every width shows.
-  const tabs = [...(access && clientId ? [clientsDestination(access.agency_id)] : []), ...level];
-  if (tabs.length < PHONE_TABS) tabs.push(accountDestination);
+  // On a phone the way back to the list of clients is a tab of its own. Five tabs share the width:
+  // inside a client the rest of its menu is under More (D5); at the agency level, when there are
+  // more, the account is left to the menu in the top bar, which every width shows.
+  const inClient = access !== undefined && clientId !== undefined;
+  const tabs = inClient
+    ? [clientsDestination(access.agency_id), ...level.filter((destination) => clientPhoneDestinations.includes(destination.key))]
+    : [...level];
+  const more = inClient ? [...level.filter((destination) => !clientPhoneDestinations.includes(destination.key)), accountDestination] : [];
+  if (!inClient && tabs.length < PHONE_TABS) tabs.push(accountDestination);
 
   const isHere = (destination: Destination) => {
     const href = router.buildLocation(destination.link).pathname;
@@ -185,6 +192,7 @@ export function Shell() {
               <FormattedMessage id={destination.shortLabel ?? destination.label} />
             </Link>
           ))}
+          {more.length > 0 ? <MoreTab destinations={more} pathname={pathname} /> : null}
         </nav>
       </div>
     </div>

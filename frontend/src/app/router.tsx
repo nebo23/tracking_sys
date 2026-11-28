@@ -3,6 +3,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   notFound,
   Outlet,
   redirect,
@@ -15,10 +16,6 @@ import { agenciesQuery, type AgencyAccess } from '@/api/agencies';
 import { clientQuery } from '@/api/clients';
 import { isApiError } from '@/api/errors';
 import { sessionQuery } from '@/api/session';
-import { AccountPage } from '@/features/account/AccountPage';
-import { ClosingPage } from '@/features/agency/ClosingPage';
-import { WelcomePage } from '@/features/agency/WelcomePage';
-import { AuditPage } from '@/features/audit/AuditPage';
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage';
 import { AuthLayout } from '@/features/auth/AuthLayout';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
@@ -27,22 +24,36 @@ import { RegisterPage } from '@/features/auth/RegisterPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 import { SignInPage } from '@/features/auth/SignInPage';
 import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
-import { ClientsPage } from '@/features/clients/ClientsPage';
-import { ConnectionCompletePage } from '@/features/connections/ConnectionCompletePage';
-import { ConnectionsPage } from '@/features/connections/ConnectionsPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
-import { IntegrationsPage, integrationTabs, type IntegrationTabId } from '@/features/integrations/IntegrationsPage';
-import { KeysPage } from '@/features/keys/KeysPage';
-import { LinksPage, linksTabs, type LinksTabId } from '@/features/links/LinksPage';
-import { TeamPage } from '@/features/team/TeamPage';
-import { TrackingPage } from '@/features/tracking/TrackingPage';
+import { integrationTabs, type IntegrationTabId } from '@/features/integrations/tabs';
+import { linksTabs, type LinksTabId } from '@/features/links/tabs';
+import { analyzeSearch } from '@/features/analyze/search';
 import { isIdentifier } from '@/lib/identifier';
 import { captureLinkToken, heldLinkToken } from '@/lib/linkToken';
 
 import { agencyChoice, currentAccess, isManager } from './agency';
 import { ErrorPage, LegalPage, NotFoundPage, PendingPage } from './pages';
 import { signInNotices, type SignInNotice } from './sessionLifecycle';
-import { Shell } from './shell/Shell';
+
+// Every page after sign-in loads on its own (D4 of the completion entry review): the screens
+// before it carry no workspace code, and only the pages that draw charts load the chart package.
+const AccountPage = lazyRouteComponent(() => import('@/features/account/AccountPage'), 'AccountPage');
+const AuditPage = lazyRouteComponent(() => import('@/features/audit/AuditPage'), 'AuditPage');
+const ClientsPage = lazyRouteComponent(() => import('@/features/clients/ClientsPage'), 'ClientsPage');
+const ClosingPage = lazyRouteComponent(() => import('@/features/agency/ClosingPage'), 'ClosingPage');
+const ConnectionCompletePage = lazyRouteComponent(() => import('@/features/connections/ConnectionCompletePage'), 'ConnectionCompletePage');
+const ConnectionsPage = lazyRouteComponent(() => import('@/features/connections/ConnectionsPage'), 'ConnectionsPage');
+const IntegrationsPage = lazyRouteComponent(() => import('@/features/integrations/IntegrationsPage'), 'IntegrationsPage');
+const KeysPage = lazyRouteComponent(() => import('@/features/keys/KeysPage'), 'KeysPage');
+const LinksPage = lazyRouteComponent(() => import('@/features/links/LinksPage'), 'LinksPage');
+const Shell = lazyRouteComponent(() => import('./shell/Shell'), 'Shell');
+const TeamPage = lazyRouteComponent(() => import('@/features/team/TeamPage'), 'TeamPage');
+const TrackingPage = lazyRouteComponent(() => import('@/features/tracking/TrackingPage'), 'TrackingPage');
+const WelcomePage = lazyRouteComponent(() => import('@/features/agency/WelcomePage'), 'WelcomePage');
+const OverviewPage = lazyRouteComponent(() => import('@/features/analyze/OverviewPage'), 'OverviewPage');
+const ContentPage = lazyRouteComponent(() => import('@/features/analyze/ContentPage'), 'ContentPage');
+const RevenuePage = lazyRouteComponent(() => import('@/features/analyze/RevenuePage'), 'RevenuePage');
+const AdSpendPage = lazyRouteComponent(() => import('@/features/analyze/AdSpendPage'), 'AdSpendPage');
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -294,13 +305,34 @@ const clientRoute = createRoute({
   },
 });
 
-// The first page of a client. From 018-C it is the overview.
+// The first page of a client is its overview (C01), and Analyze holds content, revenue and
+// ad spend (018-C). Each keeps its range, comparison, account, metric and level in the address.
 const clientIndexRoute = createRoute({
   getParentRoute: () => clientRoute,
   path: '/',
-  beforeLoad: ({ params }) => {
-    throw redirect({ to: '/agencies/$agencyId/clients/$clientId/connections', params, replace: true });
-  },
+  validateSearch: analyzeSearch,
+  component: OverviewPage,
+});
+
+const contentRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'content',
+  validateSearch: analyzeSearch,
+  component: ContentPage,
+});
+
+const revenueRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'revenue',
+  validateSearch: analyzeSearch,
+  component: RevenuePage,
+});
+
+const adSpendRoute = createRoute({
+  getParentRoute: () => clientRoute,
+  path: 'ad-spend',
+  validateSearch: analyzeSearch,
+  component: AdSpendPage,
 });
 
 const connectionsRoute = createRoute({
@@ -399,7 +431,16 @@ const routeTree = rootRoute.addChildren([
       teamRoute,
       keysRoute,
       auditRoute,
-      clientRoute.addChildren([clientIndexRoute, linksRoute, trackingRoute, integrationsRoute, connectionsRoute]),
+      clientRoute.addChildren([
+        clientIndexRoute,
+        contentRoute,
+        revenueRoute,
+        adSpendRoute,
+        linksRoute,
+        trackingRoute,
+        integrationsRoute,
+        connectionsRoute,
+      ]),
     ]),
   ]),
   termsRoute,

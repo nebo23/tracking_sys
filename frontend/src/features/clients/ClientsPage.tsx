@@ -599,7 +599,7 @@ export function ClientsPage() {
             queryClient.setQueryData(clientQuery(agencyId, client.id).queryKey, client);
             await queryClient.invalidateQueries({ queryKey: clientsQuery(agencyId).queryKey, exact: true });
             // The next step for a new client is its first connection.
-            await navigate({ to: '/agencies/$agencyId/clients/$clientId', params: { agencyId, clientId: client.id } });
+            await navigate({ to: '/agencies/$agencyId/clients/$clientId/connections', params: { agencyId, clientId: client.id } });
           }}
         />
       ) : null}

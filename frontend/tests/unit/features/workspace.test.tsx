@@ -165,11 +165,11 @@ describe('the address', () => {
     expect(server.requests.some((request) => request.path.includes('not-an-identifier'))).toBe(false);
   });
 
-  it('opens the first page of a client when the address names only the client', async () => {
+  it('opens the overview of a client when the address names only the client', async () => {
     fakeApi(withClients([client]));
     openApp(`${clientsPath}/${client.id}`);
-    expect(await screen.findByRole('heading', { name: 'Connections', level: 1 })).toBeInTheDocument();
-    expect(window.location.pathname).toBe(connectionsPath);
+    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${clientsPath}/${client.id}`);
   });
 });
 
@@ -214,7 +214,23 @@ describe('the workspace', () => {
     const { router } = openApp(connectionsPath);
     await screen.findByRole('heading', { name: 'Connections', level: 1 });
     const bar = () => within(screen.getByRole('navigation', { name: 'Sections' }));
-    expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Links', 'Tracking', 'Integrations', 'Connections']);
+    // Inside a client (D5): the way back, the overview and the links, then More for the rest.
+    expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Overview', 'Links']);
+    // Connections is under More, so More reads as the current place.
+    expect(bar().getByRole('button', { name: 'More' })).toHaveClass('is-active');
+    const user = userEvent.setup();
+    await user.click(bar().getByRole('button', { name: 'More' }));
+    const more = within(await screen.findByRole('menu', { name: 'More' }));
+    expect(more.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Content',
+      'Revenue',
+      'Ad spend',
+      'Website tracking',
+      'Integrations',
+      'Connections',
+      'Account',
+    ]);
+    await user.keyboard('{Escape}');
 
     await router.navigate({ to: '/agencies/$agencyId/clients', params: { agencyId: agency.id } });
     await waitFor(() => expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Team', 'API keys', 'Audit', 'Account']));
@@ -226,8 +242,20 @@ describe('the workspace', () => {
 
     const navigation = await primary();
     await screen.findByRole('heading', { name: 'Connections', level: 1 });
-    expect(linkTexts(navigation)).toEqual(['Links', 'Website tracking', 'Integrations', 'Connections', 'Account']);
+    expect(linkTexts(navigation)).toEqual([
+      'Overview',
+      'Content',
+      'Revenue',
+      'Ad spend',
+      'Links',
+      'Website tracking',
+      'Integrations',
+      'Connections',
+      'Account',
+    ]);
     expect(navigation.getByRole('link', { name: 'Connections' })).toHaveAttribute('aria-current', 'page');
+    expect(navigation.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+    expect(navigation.getByRole('group', { name: 'Analyze' })).toBeInTheDocument();
     expect(navigation.getByRole('group', { name: 'Collect' })).toBeInTheDocument();
     expect(navigation.getByRole('group', { name: 'Manage' })).toBeInTheDocument();
 
@@ -262,8 +290,8 @@ describe('the workspace', () => {
     expect(menu.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['All clients', 'CFCedar Fitness', 'OTOlive & Thyme']);
     await user.click(menu.getByRole('menuitemradio', { name: 'Cedar Fitness' }));
 
-    expect(await screen.findByRole('heading', { name: 'Connections', level: 1 })).toBeInTheDocument();
-    expect(window.location.pathname).toBe(`${clientsPath}/${otherClient.id}/connections`);
+    expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${clientsPath}/${otherClient.id}`);
   });
 
   it('removes what was loaded for a client once the person has left it', async () => {
@@ -278,7 +306,7 @@ describe('the workspace', () => {
     // To another client: nothing of the first one is kept.
     await user.click(switcher());
     await user.click(await screen.findByRole('menuitemradio', { name: 'Cedar Fitness' }));
-    await screen.findByText('Connect the first account');
+    await screen.findByRole('heading', { name: 'Overview', level: 1 });
     await waitFor(() => expect(held()).toBe(0));
     expect(screen.queryByText('@olive.thyme')).not.toBeInTheDocument();
 

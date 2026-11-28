@@ -26,7 +26,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import type { MessageId } from '@/i18n';
 import { focusFirstInvalid } from '@/lib/focusFirstInvalid';
 
-import type { LinksTabId } from './LinksPage';
+import type { LinksTabId } from './tabs';
 import { destinationError, moment, readableAddress, shortAddress, slugError, SLUG_MAX, UTM_NAMES, utmValues, type UtmName } from './rules';
 
 const NONE = 'none';

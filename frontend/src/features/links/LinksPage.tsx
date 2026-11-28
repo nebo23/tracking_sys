@@ -11,14 +11,12 @@ import { PageHeading, usePageTitle } from '@/components/PageHeading';
 import { cx } from '@/lib/cx';
 
 import { DomainsTab } from './DomainsTab';
+import { linksTabs, type LinksTabId } from './tabs';
 import { LinksTab } from './LinksTab';
 import { CampaignsTab, ContentTab, SitesTab, TemplatesTab } from './SettingsTabs';
 
 const route = getRouteApi('/workspace/agencies/$agencyId/clients/$clientId/links');
 
-/** The tabs of the page. The first is the default and is left out of the address. */
-export const linksTabs = ['links', 'campaigns', 'content', 'templates', 'sites', 'domains'] as const;
-export type LinksTabId = (typeof linksTabs)[number];
 
 /**
  * The short links of a client, and what a link is made of: its campaign, the content it appears

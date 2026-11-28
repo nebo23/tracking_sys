@@ -10,15 +10,13 @@ import { returnErrorMessage } from '@/features/connections/returnErrors';
 import { cx } from '@/lib/cx';
 
 import { BookingsTab } from './BookingsTab';
+import { integrationTabs, type IntegrationTabId } from './tabs';
 import { ConversionsTab } from './ConversionsTab';
 import { PaymentsTab } from './PaymentsTab';
 import { WhatsappTab } from './WhatsappTab';
 
 const route = getRouteApi('/workspace/agencies/$agencyId/clients/$clientId/integrations');
 
-/** The tabs of the page, in order. Payments are configured by owners and admins only. */
-export const integrationTabs = ['payments', 'bookings', 'whatsapp', 'conversions'] as const;
-export type IntegrationTabId = (typeof integrationTabs)[number];
 
 /**
  * The client's payment, booking, CRM and messaging tools, and the Meta datasets that verified

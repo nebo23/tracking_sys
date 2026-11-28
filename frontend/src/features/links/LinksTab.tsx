@@ -19,7 +19,7 @@ import { Day } from '@/components/Time';
 import type { MessageId } from '@/i18n';
 import { cx } from '@/lib/cx';
 
-import type { LinksTabId } from './LinksPage';
+import type { LinksTabId } from './tabs';
 import { NewLinkPanel } from './NewLinkPanel';
 import { linkState, localValue, moment, readableAddress, shortAddress, type LinkState } from './rules';
 

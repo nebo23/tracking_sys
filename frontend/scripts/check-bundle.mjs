@@ -1,6 +1,7 @@
 // Searches the production build for anything that must never reach a browser (acceptance
 // criterion 5 of specification 018): secrets, keys, tokens and backend settings.
 // Usage: npm run build, then node scripts/check-bundle.mjs [build folder]
+import { Buffer } from 'node:buffer';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +50,27 @@ for (const file of all) {
   for (const match of content.matchAll(/https?:\/\/[A-Za-z0-9.-]+(?::\d+)?/g)) origins.add(match[0]);
 }
 
+// Loading by route (D4 of the Spec 018 completion entry review): the files that the first page
+// loads (the entry script and what index.html preloads) hold no workspace page and no chart code.
+const index = readFileSync(path.join(root, 'index.html'), 'utf8');
+const first = [...index.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((match) => match[1]);
+const markers = [
+  ['the chart package', /recharts/],
+  ['the workspace shell', /a-shell__/],
+  ['an Analyze page', /a-series__/],
+];
+let firstBytes = 0;
+for (const file of first) {
+  const content = readFileSync(path.join(root, file), 'utf8');
+  firstBytes += Buffer.byteLength(content);
+  for (const [what, pattern] of markers) {
+    if (pattern.test(content)) findings.push(`${file}: the first page would load ${what}`);
+  }
+}
+if (first.length === 0) findings.push('index.html: no entry script was found');
+
 console.log(`Checked ${all.length} files (${(bytes / 1024).toFixed(0)} KiB) in ${root}`);
+console.log(`The first page loads ${first.length} script files, ${(firstBytes / 1000).toFixed(2)} kB:\n  ${first.join('\n  ')}`);
 console.log(`Addresses named in the build:\n  ${[...origins].sort().join('\n  ')}`);
 if (findings.length > 0) {
   console.error(`\n${findings.length} finding(s):\n  ${findings.join('\n  ')}`);

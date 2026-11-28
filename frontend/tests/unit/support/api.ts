@@ -199,7 +199,7 @@ export const withClients = (
 /** Mona with another role in the agency. */
 export const asRole = (role: 'owner' | 'admin' | 'analyst' | 'client_viewer', routes: Record<string, Answer>): Record<string, Answer> => ({
   ...routes,
-  'GET /agencies': json(200, [{ agency_id: agency.id, role }]),
+  'GET /agencies': json(200, [{ agency_id: agency.id, role, status: 'active' }]),
   // A client viewer may not read the agency's profile.
   ...(role === 'client_viewer' ? { [`GET /agencies/${agency.id}`]: refused(403, 'access_denied') } : {}),
 });

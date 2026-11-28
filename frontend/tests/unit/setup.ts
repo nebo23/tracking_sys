@@ -1,7 +1,11 @@
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
+
+// The pages after sign-in load on their own (D4). A test's first visit to a page waits for the
+// test runner to prepare its module, the charts included, so screen queries wait a little longer.
+configure({ asyncUtilTimeout: 4000 });
 
 afterEach(() => {
   cleanup();
