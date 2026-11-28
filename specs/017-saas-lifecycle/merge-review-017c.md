@@ -64,4 +64,4 @@ The following points are recorded limits, without a change:
 
 ## Result
 
-The corrections were verified at `bb1b1fd`. The next commit adds only the [evidence](evidence-017c.md#9-review-corrections-d-104) of the corrections and this review. Under D-104, PR 22 merges into `main` at that head.
+The corrections were verified at `bb1b1fd`. The next commit, `fbba3bf`, adds only the [evidence](evidence-017c.md#9-review-corrections-d-104) of the corrections and this review. PR 22 merged into `main` as `7c7b5b5`, a merge commit of `04dc323` and `fbba3bf` whose tree equals the corrected head `fbba3bf`.
