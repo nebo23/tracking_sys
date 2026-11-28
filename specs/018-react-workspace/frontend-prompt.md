@@ -4,6 +4,30 @@ Status: prepared on 2026-11-28 at the owner's request, for the implementing mode
 
 ---
 
+## 0. Start here: the first message
+Paste this as the first message of a new session. It says where the work starts; the rest of this prompt is the brief it points to.
+
+```text
+You are continuing Spec 018, the Connect web application, in this repository.
+Work with the owner in Arabic; write files, code, comments and commits in formal English.
+
+1. Read AGENTS.md, then specs/018-react-workspace/frontend-prompt.md: it is the full brief
+   (sources of truth, design, screens, rules and checks).
+2. Find where the work stands before you change anything:
+   - Fetch, then work on codex/spec-018-workspace-screens unless the owner names another branch.
+     Read its latest commits, its open pull request and the latest plan and evidence files in
+     specs/018-react-workspace/.
+   - If frontend/ does not exist, start with step 1 of section 8 of the brief: the toolchain,
+     the design styles and the screens before signing in (A01 to A10).
+   - If it exists, run npm ci, npm run typecheck, npm run lint and npm test in frontend/,
+     compare the built screens with specs/018-react-workspace/screens-a-to-z.md, and continue
+     with the first screen or check that is not done.
+3. Plan the next slice (plan-018x.md), build it, run its checks, write its evidence
+   (evidence-018x.md), commit and push the branch. Ask the owner first about anything that needs
+   a decision: a new package, a new screen, a change of an approved design, or anything the API
+   cannot give.
+```
+
 ## 1. Your task
 Build the web application of Connect in `frontend/` so that every screen looks and behaves as the owner approved it, against the real API, in English and Arabic, light and dark, on a desktop and on a phone. Keep the addresses, the texts, the rules and the checks of this prompt. Where a screen already exists, keep its behavior and its tests unless this prompt says otherwise.
 
