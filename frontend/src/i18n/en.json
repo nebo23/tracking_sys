@@ -24,13 +24,11 @@
   "theme.dark": "Dark",
 
   "auth.brand.label": "About Connect",
-  "auth.brand.picture": "A magnet pulls people toward it. On the way they turn into sales, each credited to the content that brought it.",
+  "auth.brand.picture": "A magnet pulls people toward it. On the way they turn into sales.",
   "auth.brand.statement": "Turn your content into a sales magnet.",
   "auth.brand.point1": "See which posts pull in visits, leads and paid sales.",
   "auth.brand.point2": "Put your time and budget where the sales come from.",
   "auth.brand.note": "Read-only connections. Connect never posts or charges.",
-  "auth.brand.sale": "{amount} sale",
-  "auth.brand.saleFrom": "From the Ramadan reel",
   "auth.brand.pause": "Pause animation",
 
   "agreement.label": "I agree to the <terms>Terms of Service</terms> and the <privacy>Privacy Policy</privacy>.",

@@ -20,23 +20,6 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <div className="l-stack l-stack--loose">
           <div className="l-auth__picture">
             <PullPicture label={intl.formatMessage({ id: 'auth.brand.picture' })} />
-            {/* Part of the picture, which its label describes. */}
-            <p className="l-auth__sale" aria-hidden="true">
-              <span className="l-auth__sale-coin">
-                <Icon name="banknote" size="sm" />
-              </span>
-              <span>
-                <span className="l-auth__sale-amount">
-                  <FormattedMessage
-                    id="auth.brand.sale"
-                    values={{ amount: intl.formatNumber(1240, { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }) }}
-                  />
-                </span>
-                <span className="l-auth__sale-from">
-                  <FormattedMessage id="auth.brand.saleFrom" />
-                </span>
-              </span>
-            </p>
           </div>
           <p className="l-auth__statement">
             <FormattedMessage id="auth.brand.statement" />

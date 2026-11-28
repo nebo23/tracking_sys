@@ -131,7 +131,7 @@ Every screen of the product, from signing in to the last page, is laid out in or
 The sign-in screen, as the owner approved it (D-082):
 
 - The brand side shows a magnet that pulls people in; on the way they turn into sales. The picture is built from the `c-pull` classes and moves in a loop of 7.2 seconds.
-- Redrawn on 2026-11-28 at the owner's request, with the same idea: a larger magnet in the shape of the Connect C, its field drawn as drifting lines of iron filings, people who turn into gold sales near it, and a sale credited to a reel beside it. In Arabic the picture is mirrored, so the magnet stands at the start of the line as in English.
+- Redrawn on 2026-11-28 at the owner's request, with the same idea: a larger magnet in the shape of the Connect C, its field drawn as drifting lines of iron filings, and people who turn into gold sales near it. In Arabic the picture is mirrored, so the magnet stands at the start of the line as in English. The owner approved it without the example sale card first drawn beside the magnet (D-105).
 - The language switch sits in the top corner at the end of the reading direction.
 - "Forgot password?" sits under the password field, in the secondary text color, so it does not compete with the links and the action below it.
 - A box that starts unticked asks the user to agree to the Terms of Service and the Privacy Policy. Both sign-in actions stay enabled; a sign-in without the tick is refused with a message at the box. The API records no acceptance of terms today and the two texts do not exist yet, so this needs backend work and the owner's legal texts before it is built.

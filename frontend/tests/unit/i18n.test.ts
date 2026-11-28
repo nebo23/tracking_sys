@@ -44,7 +44,6 @@ const sample = {
   total: 6,
   used: 38,
   value: 40,
-  amount: 'EGP 1,240',
   zone: 'UTC',
   when: '3 hours ago',
   metric: 'Views',
