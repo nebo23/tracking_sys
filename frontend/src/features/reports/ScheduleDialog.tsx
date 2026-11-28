@@ -135,6 +135,9 @@ export function ScheduleDialog({ schedule, onClose }: { schedule: ReportSchedule
   const defaultVersion = versions.find((version) => version.is_default) ?? versions[0];
   const saleValues = saleValueFamilies.has(draft.family) && draft.saleValues;
   const people = (members.data ?? []).filter((member) => member.status === 'active' && member.account === 'active');
+  // The schedule's recipients who are no longer active members stay listed, and chosen, until they
+  // are unticked: the API refuses any change while one of them is kept, and skips them at each run.
+  const former = members.data ? (schedule?.recipients ?? []).filter((id) => !people.some((member) => member.id === id)) : [];
   const eligible = (memberId: string) => {
     const member = people.find((item) => item.id === memberId);
     return member ? mayReceive(member, clientId, draft.family, saleValues) : false;
@@ -353,6 +356,32 @@ export function ScheduleDialog({ schedule, onClose }: { schedule: ReportSchedule
                   />
                 </span>
               )}
+            </Checkbox>
+          );
+        })}
+        {former.map((id) => {
+          const known = members.data?.find((member) => member.id === id);
+          // A closed account is never named under its pseudonyms (B1): it reads as a former member.
+          const named = known && known.account !== 'closed' ? (known.display_name ?? known.email_normalized) : null;
+          const chosen = draft.recipients.includes(id);
+          return (
+            <Checkbox
+              key={id}
+              id={`schedule-recipient-${id}`}
+              checked={chosen}
+              disabled={!chosen}
+              invalid={chosen}
+              onChange={(checked) => update({ recipients: checked ? [...draft.recipients, id] : draft.recipients.filter((item) => item !== id) })}
+            >
+              <span className="u-strong">{named ?? <FormattedMessage id="reports.schedule.recipient.former" />}</span>{' '}
+              {named && known ? (
+                <span className="u-secondary">
+                  <FormattedMessage id={`role.${known.role}`} />
+                </span>
+              ) : null}
+              <span className="c-field__hint">
+                <FormattedMessage id="reports.schedule.recipient.inactive" />
+              </span>
             </Checkbox>
           );
         })}

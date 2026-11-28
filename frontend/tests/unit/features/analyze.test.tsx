@@ -201,6 +201,30 @@ describe('the overview of a client', () => {
     expect(sources.queryByText('account', { exact: true })).not.toBeInTheDocument();
   });
 
+  it('names a revenue or spend report it could not read as not available, with why, never as none (R018-01)', async () => {
+    fakeApi(world([instagram, meta], { [`${reports}/revenue`]: refused(409, 'report_requires_ledger_upgrade'), [`${reports}/spend`]: refused(422, 'report_too_large') }) as never);
+    openApp(base);
+    const figures = within(await screen.findByRole('region', { name: 'Key figures' }));
+    const revenue = within((await figures.findByText('Net revenue')).closest('article') as HTMLElement);
+    expect(await revenue.findByText('This client has more revenue records than this report can read for now.')).toBeInTheDocument();
+    expect(revenue.getByText('Not available')).toBeInTheDocument();
+    const spend = within(figures.getByText('Ad spend').closest('article') as HTMLElement);
+    expect(await spend.findByText('This report holds more rows than one request may read. Choose fewer days.')).toBeInTheDocument();
+    expect(spend.getByText('Not available')).toBeInTheDocument();
+    expect(figures.queryByText('No verified revenue')).not.toBeInTheDocument();
+    expect(figures.queryByText('No spend is recorded for this range.')).not.toBeInTheDocument();
+  });
+
+  it('marks a provisional spend total as provisional (R018-02)', async () => {
+    const total = { period: 'current', currency: 'EGP', exponent: 2, spend: { minor: 4230000, decimal: '42300.00' }, impressions: 12400, clicks: 310, days_with_spend: 9, provisional: true, status: 'complete', reason: null };
+    fakeApi(world([instagram, meta], { [`${reports}/spend`]: json(200, spendReport({ totals: [total] })) }) as never);
+    openApp(base);
+    const figures = within(await screen.findByRole('region', { name: 'Key figures' }));
+    const spend = within((await figures.findByText('Ad spend')).closest('article') as HTMLElement);
+    expect(await spend.findByText(/42,300\.00/)).toBeInTheDocument();
+    expect(spend.getByText('Provisional')).toBeInTheDocument();
+  });
+
   it('says what needs financial access and shows no amount without it', async () => {
     fakeApi(
       asRole('analyst', world([instagram, meta], { [`${reports}/revenue`]: refused(403, 'access_denied'), [`${reports}/spend`]: refused(403, 'access_denied') }) as never) as never,

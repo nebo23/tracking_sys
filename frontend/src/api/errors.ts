@@ -75,6 +75,9 @@ const byCode: Record<string, MessageId> = {
   // has two numbers of decimals in a client's records.
   report_changed: 'analyze.error.report_changed',
   currency_exponent_conflict: 'analyze.error.currency_exponent_conflict',
+  // Bounds of a report that no retry changes (the bounds table of docs/engineering/reporting.md).
+  report_requires_ledger_upgrade: 'analyze.error.report_requires_ledger_upgrade',
+  report_too_large: 'analyze.error.report_too_large',
   // 017-A: a sign-in or registration without the current agreement versions.
   agreement_required: 'agreement.changed.title',
   // Google sign-in. The same codes arrive in the address of the completion page.

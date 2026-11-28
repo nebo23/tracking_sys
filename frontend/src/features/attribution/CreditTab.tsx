@@ -177,7 +177,12 @@ function ModelsCard({ report }: { report: AttributionReport }) {
   const totals = report.model_totals ?? [];
   const finance = report.finance === 'available';
   return (
-    <Card title={<FormattedMessage id="attribution.models.title" />} subtitle={<FormattedMessage id="attribution.models.lead" />} flush>
+    // Without financial access the cells hold credited leads, and the card says so.
+    <Card
+      title={<FormattedMessage id="attribution.models.title" />}
+      subtitle={<FormattedMessage id={finance ? 'attribution.models.lead' : 'attribution.models.leadsLead'} />}
+      flush
+    >
       <TableScroll label={intl.formatMessage({ id: 'attribution.models.title' })}>
         <table className="c-table">
           <thead>

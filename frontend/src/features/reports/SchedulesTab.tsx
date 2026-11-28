@@ -23,6 +23,8 @@ import { cadencePeriods, cadences, pauseReasons, runError, SCHEDULE_LIMIT } from
 export const scheduleErrors = {
   schedule_limit_reached: 'reports.schedule.error.schedule_limit_reached',
   source_unavailable: 'reports.schedule.error.source_unavailable',
+  // A pause or a change while a recipient lacks access: the API checks every recipient each time.
+  invalid_recipient: 'reports.schedules.error.invalid_recipient',
 } as const satisfies Record<string, MessageId>;
 
 /** The words of when a schedule runs: every day, every given weekday, or on the 1st, at an hour. */

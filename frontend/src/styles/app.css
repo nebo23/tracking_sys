@@ -453,6 +453,10 @@ body {
 .a-closing {
   max-inline-size: 560px;
 }
+/* The shell of a closing agency (B15): its top bar and its one page, without a sidebar. */
+.a-app--single {
+  flex-direction: column;
+}
 
 /* -------------------------------------------------------------- Reports -- */
 /* The download and the menu of a row sit together at its end. */

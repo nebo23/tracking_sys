@@ -3,14 +3,14 @@ import { getRouteApi } from '@tanstack/react-router';
 import { Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
 import { FormattedMessage, useIntl } from 'react-intl';
 
-import { modelVersionsQuery, type FunnelGroup, type ReportFamily, type SpendLevel } from '@/api/reports';
+import { modelVersionsQuery, roasReportQuery, type FunnelGroup, type ReportFamily, type SpendLevel } from '@/api/reports';
 import { useClient } from '@/app/tenant';
 import { QueryStates } from '@/components/ListStates';
 import { usePageTitle } from '@/components/PageHeading';
 import { cx } from '@/lib/cx';
 
 import { attributionTabs, type AttributionGroupChoice, type AttributionSearch, type AttributionTab } from '../analyze/search';
-import { AnalyzeHead, chosenConnection, reportScope, useSpendConnections } from '../analyze/shared';
+import { AnalyzeHead, chosenConnection, financeRefused, reportScope, useSpendConnections } from '../analyze/shared';
 import { CreditTab } from './CreditTab';
 import { FunnelTab } from './FunnelTab';
 import { ModelChoice, orderedVersions } from './parts';
@@ -41,13 +41,18 @@ export function AttributionPage() {
   const spendConnection = chosenConnection(spendConnections.data, search.connection);
   const change = (next: Partial<AttributionSearch>) => void navigate({ search: (current) => ({ ...current, ...next }), replace: true });
 
+  // The return tab reads its own report. Refused for want of financial access, the head offers
+  // neither its CSV nor an export, which the API would refuse as well.
+  const roas = useQuery({ ...roasReportQuery(scope, spendConnection?.id ?? '', level, version?.id), enabled: false });
+  const roasRefused = roas.isError && financeRefused(roas.error);
+
   const modelParameter: Record<string, string> = version ? { model_version: version.id } : {};
   const csv: { family: ReportFamily; parameters: Record<string, string> } | null =
     tab === 'credit'
       ? { family: 'attribution', parameters: { view: 'groups', group_by: group, ...modelParameter } }
       : tab === 'funnel'
         ? { family: 'funnel', parameters: { group_by: funnelGroup, ...modelParameter } }
-        : spendConnection
+        : spendConnection && !roasRefused
           ? { family: 'roas', parameters: { connection_id: spendConnection.id, level, ...modelParameter } }
           : null;
 

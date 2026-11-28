@@ -342,7 +342,7 @@ describe('the workspace', () => {
     expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'سجل التدقيق', 'إعدادات الوكالة', 'الحساب']);
   });
 
-  it('opens only the closing page of a closing agency, and marks it in the switcher', async () => {
+  it('opens only the closing page of a closing agency, drawn as B15, and offers the other agencies from the account page', async () => {
     const server = fakeApi({
       ...signedIn(),
       'GET /agencies': json(200, [
@@ -358,11 +358,17 @@ describe('the workspace', () => {
     expect(await screen.findByRole('heading', { name: 'This agency is closing', level: 1 })).toBeInTheDocument();
     expect(window.location.pathname).toBe(`/agencies/${second.id}/closing`);
     expect(screen.getByText(/Members and client viewers no longer see the agency/)).toBeInTheDocument();
-    expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(1);
+    // B15: the top bar and the page only, and nothing the API refuses for a closing agency (R018-04).
+    expect(screen.queryAllByRole('button', { name: /Switch client or agency/ })).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${second.id}`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(0);
 
-    await user.click(switcher());
+    // The account page keeps the switcher, which leads to the agency that is not closing.
+    await user.click(screen.getByRole('link', { name: 'Go to my account' }));
+    await user.click(await waitFor(() => switcher()));
     const menu = within(await screen.findByRole('menu'));
     expect(menu.getByRole('menuitem', { name: /Lumen Studio/ })).toHaveTextContent('Owner');
+    expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(0);
   });
 
   it('has no closing page for an agency that is not closing', async () => {

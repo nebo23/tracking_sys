@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { agency, client, connection, fakeApi, json, withClients } from '../support/api';
+import { agency, client, connection, fakeApi, json, refused, withClients } from '../support/api';
 import { forgetEverything, openApp } from '../support/app';
 
 afterEach(forgetEverything);
@@ -167,6 +167,34 @@ describe('the credit of a client', () => {
     expect(screen.queryByText(/1,200\.00/)).not.toBeInTheDocument();
   });
 
+  it('names the values of the models side by side as leads when sale values need financial access (R018-03)', async () => {
+    const leads = (recipient: string, decimal: string) => ({ period: 'current', recipient, credited_leads: { decimal } });
+    const totals = [
+      {
+        model_version_id: linear.id,
+        sales: { state: 'permission_unavailable', items: null },
+        leads: { items: [leads('campaign', '40.5'), leads('direct', '3'), leads('unknown', '18')] },
+      },
+    ];
+    const withheld = { finance: 'permission_unavailable', totals: { sales: { state: 'permission_unavailable', reason: null, items: null }, leads: attribution().totals.leads } };
+    fakeApi(
+      world({
+        [`${reports}/attribution`]: ({ url }: { url: string }) =>
+          json(
+            200,
+            new URL(url).searchParams.get('view') === 'models'
+              ? attribution({ view: 'models', model_version: null, model_versions: [linear, first], model_totals: totals, ...withheld })
+              : attribution(withheld),
+          ),
+      }) as never,
+    );
+    openApp(base);
+    const card = within((await screen.findByRole('heading', { name: 'The models side by side' })).closest('article') as HTMLElement);
+    expect(await card.findByText('40.5')).toBeInTheDocument();
+    // The numbers are leads, and the card says so: sale values need financial access.
+    expect(card.getByText('Credited leads under each model: sale values need financial access. Each model is calculated on its own; values do not add across models.')).toBeInTheDocument();
+  });
+
   it('says that attribution has not been calculated instead of showing zero, and names a store that is behind', async () => {
     const notReady = attribution({
       values: { state: 'not_ready', reason: 'attribution_not_ready' },
@@ -222,6 +250,14 @@ describe('the funnel of a client', () => {
 });
 
 describe('the return on ad spend of a client', () => {
+  it('offers neither the CSV nor an export once the report was refused for want of financial access (R018-06)', async () => {
+    fakeApi(world({ [`${reports}/roas`]: refused(403, 'access_denied') }) as never);
+    openApp(`${base}?tab=roas`);
+    expect(await screen.findByText('Revenue and spend need financial access to this client. Ask an owner or admin of the agency to give it to you.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download CSV' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save as export' })).not.toBeInTheDocument();
+  });
+
   it('names each campaign from the ad account, and says why a return is not worked out', async () => {
     fakeApi(world() as never);
     openApp(`${base}?tab=roas`);

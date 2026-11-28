@@ -215,6 +215,43 @@ describe('the schedules of a client', () => {
     });
   });
 
+  it('keep a recipient who lost access listed, so that the schedule can still be changed (R018-05)', async () => {
+    const nour = member({ id: 'b3333333-3333-4333-8333-333333333333', user_id: 'u3', role: 'analyst', display_name: 'Nour Adel', email_normalized: 'nour@lumen.example', status: 'disabled' });
+    const gone = 'b4444444-4444-4444-8444-444444444444';
+    const change = `PATCH ${base}/report-schedules/${schedule().id}`;
+    const server = fakeApi(
+      reporting({
+        [`GET /agencies/${agency.id}/members`]: json(200, [member(), youssef, nour]),
+        [schedulesRoute]: json(200, { schedules: [schedule({ recipients: [member().id, nour.id, gone] })], limit: 100, offset: 0 }),
+        [change]: json(200, schedule()),
+      }),
+    );
+    const user = userEvent.setup();
+    openApp(`${reportsPath}?tab=schedules`);
+    await user.click(await screen.findByRole('button', { name: 'Actions for Weekly revenue' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    const disabled = await dialog.findByRole('checkbox', { name: /Nour Adel/ });
+    const former = dialog.getByRole('checkbox', { name: /A former member/ });
+    expect(disabled).toBeChecked();
+    expect(former).toBeChecked();
+    expect(dialog.getAllByText('No longer an active member: skipped at each run. Untick them to save the schedule.')).toHaveLength(2);
+    await user.click(disabled);
+    await user.click(former);
+    await user.click(dialog.getByRole('button', { name: 'Save the schedule' }));
+    await waitFor(() => expect(server.sent(change)).toHaveLength(1));
+    expect(server.sent(change)[0]?.body).toMatchObject({ recipients: [member().id] });
+  });
+
+  it('say why a pause was refused while a recipient lacks access (R018-05)', async () => {
+    fakeApi(reporting({ [`PATCH ${base}/report-schedules/${schedule().id}`]: refused(422, 'invalid_recipient') }));
+    const user = userEvent.setup();
+    openApp(`${reportsPath}?tab=schedules`);
+    await user.click(await screen.findByRole('button', { name: 'Actions for Weekly revenue' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Pause' }));
+    expect(await screen.findByText('A recipient of this schedule may no longer read its report. Edit the schedule and untick them first.')).toBeInTheDocument();
+  });
+
   it('say why the API refused a schedule', async () => {
     fakeApi(reporting({ [`POST ${base}/report-schedules`]: refused(409, 'schedule_limit_reached') }));
     const user = userEvent.setup();

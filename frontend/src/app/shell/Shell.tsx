@@ -63,7 +63,13 @@ export function Shell() {
   const clientId = access && address.agencyId === access.agency_id ? address.clientId : undefined;
   // A client viewer may not read the agency's profile, so its name is not asked for.
   const mayNameAgency = access !== undefined && access.role !== 'client_viewer';
-  const agency = useQuery({ ...agencyQuery(agencyId), enabled: mayNameAgency });
+  // A closing agency (017-A) has one page, and the API refuses its profile and its clients, so the
+  // shell asks for neither. That page is drawn as B15, with its top bar only. On a page whose
+  // address names no agency (the account page) the switcher stays, to move to another agency, and
+  // the closing agency offers no destination of its own.
+  const closingAgency = access?.status === 'closing';
+  const closingPage = closingAgency && address.agencyId === access.agency_id;
+  const agency = useQuery({ ...agencyQuery(agencyId), enabled: mayNameAgency && !closingAgency });
   const client = useQuery({ ...clientQuery(agencyId, clientId ?? ''), enabled: clientId !== undefined });
 
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -73,7 +79,7 @@ export function Shell() {
   if (!session) return null;
 
   let groups: DestinationGroup[] = [{ key: 'start', items: [firstAgencyDestination] }];
-  if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : agencyGroups(access.agency_id, access.role);
+  if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : closingAgency ? [] : agencyGroups(access.agency_id, access.role);
   const level = groups.flatMap((group) => group.items);
   // On a phone the way back to the list of clients is a tab of its own. Five tabs share the width:
   // inside a client the rest of its menu is under More (D5); at the agency level, when there are
@@ -96,6 +102,28 @@ export function Shell() {
     setProblem(null);
     leave.mutate(false);
   };
+
+  if (closingPage) {
+    return (
+      <div className="l-app a-app--single">
+        <a className="a-skip" href="#main" onClick={skipToMain}>
+          <FormattedMessage id="shell.skip" />
+        </a>
+        <header className="l-topbar">
+          <Link className="c-logo" to="/" activeOptions={{ exact: true }} activeProps={{}}>
+            <Logo />
+          </Link>
+          <div className="l-cluster u-end">
+            <AccountMenu user={session.user} onSignOut={signOut} />
+          </div>
+        </header>
+        <Main className="l-page a-shell__page" id="main" tabIndex={-1}>
+          <ErrorNotice message={problem} />
+          <Outlet />
+        </Main>
+      </div>
+    );
+  }
 
   const agencyName = agency.data?.name ?? (mayNameAgency ? <span className="c-skel a-skel--name" /> : null);
   const separator = <Icon name="chevron-right" size="xs" mirror />;

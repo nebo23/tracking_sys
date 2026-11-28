@@ -355,6 +355,24 @@ describe('closing the agency', () => {
     expect(server.sent(`DELETE /agencies/${agency.id}/closure`)).toHaveLength(1);
   });
 
+  it('draws the closing page without the agency\'s navigation and asks nothing the API refuses (R018-04)', async () => {
+    const server = fakeApi(
+      world({
+        'GET /agencies': json(200, [{ agency_id: agency.id, role: 'owner', status: 'closing' }]),
+        [`GET /agencies/${agency.id}/closure`]: json(200, closing),
+        [`GET /agencies/${agency.id}`]: json(200, agency),
+      }),
+    );
+    openApp(`/agencies/${agency.id}/team`);
+    await waitFor(() => expect(window.location.pathname).toBe(`/agencies/${agency.id}/closing`));
+    expect(await screen.findByRole('button', { name: 'Keep the agency' })).toBeInTheDocument();
+    for (const name of ['Clients', 'Team and access', 'API keys', 'Audit log', 'Agency settings']) {
+      expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
+    }
+    expect(server.sent(`GET /agencies/${agency.id}`)).toHaveLength(0);
+    expect(server.sent(`GET /agencies/${agency.id}/clients`)).toHaveLength(0);
+  });
+
   it('says when the closure is no longer open', async () => {
     fakeApi(
       world({

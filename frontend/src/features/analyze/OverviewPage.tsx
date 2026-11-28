@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { getRouteApi, Link } from '@tanstack/react-router';
 import { FormattedMessage, useIntl } from 'react-intl';
 
+import { describeError, type ErrorMessage } from '@/api/errors';
 import { revenueReportQuery, socialReportQuery, spendReportQuery, type RevenueReport, type SocialReport, type SpendReport } from '@/api/reports';
 import { useClient } from '@/app/tenant';
 import { Badge } from '@/components/Badge';
@@ -13,7 +14,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { usePageTitle } from '@/components/PageHeading';
 
 import { SocialSourceNotices, useGapWords } from './ContentPage';
-import { Card, Change, FreshnessBadge, NoValue, SourceMeta, Stat, TotalState, useCount, useMetricName } from './parts';
+import { Card, Change, FreshnessBadge, NoValue, ProvisionalBadge, SourceMeta, Stat, TotalState, useCount, useMetricName } from './parts';
 import {
   AnalyzeHead,
   MoneyFigure,
@@ -173,13 +174,25 @@ function SocialStat({ query, metric, connected, source }: { query: UseQueryResul
   );
 }
 
+/** Why a figure's report could not be read, in the words of the error table. */
+function FailedRow({ message }: { message: ErrorMessage }) {
+  return (
+    <p className="c-stat__row u-secondary">
+      <FormattedMessage id={message.id} values={message.values} />
+    </p>
+  );
+}
+
 function RevenueStat({ query }: { query: UseQueryResult<RevenueReport> }) {
   const intl = useIntl();
   const report = query.data;
   const verified = report?.totals.filter((total) => total.block === 'verified' && total.period === 'current') ?? [];
   const unresolved = report ? report.unresolved.pending + report.unresolved.held + report.unresolved.reconciliation : 0;
+  // A report that could not be read is not an empty one: its figure is not available, and says why.
+  const failed = query.isError && !financeRefused(query.error) ? describeError(query.error) : null;
   let value;
   if (query.isError && financeRefused(query.error)) value = <NoValue>{intl.formatMessage({ id: 'analyze.finance.short' })}</NoValue>;
+  else if (failed) value = <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>;
   else if (query.isPending) value = <span className="c-skel a-skel--name" />;
   else if (verified.length === 0) value = <NoValue>{intl.formatMessage({ id: 'analyze.revenue.none' })}</NoValue>;
   else
@@ -195,6 +208,7 @@ function RevenueStat({ query }: { query: UseQueryResult<RevenueReport> }) {
       value={value}
       rows={
         <>
+          {failed ? <FailedRow message={failed} /> : null}
           {net ? <Change comparable={net.comparable} percent={percent(intl, net.percent_change)} difference={net.difference ? Number(net.difference.minor) : null} reason={net.reason} /> : null}
           {unresolved > 0 ? (
             <p className="c-stat__row">
@@ -215,9 +229,11 @@ function SpendStat({ query, connected, source }: { query: UseQueryResult<SpendRe
   const report = query.data;
   const totals = report?.totals.filter((total) => total.period === 'current') ?? [];
   const freshness = report?.source_status.stream.freshness.state;
+  const failed = connected && query.isError && !financeRefused(query.error) ? describeError(query.error) : null;
   let value;
   if (!connected) value = <NoValue>{intl.formatMessage({ id: 'analyze.spend.noAccount' })}</NoValue>;
   else if (query.isError && financeRefused(query.error)) value = <NoValue>{intl.formatMessage({ id: 'analyze.finance.short' })}</NoValue>;
+  else if (failed) value = <NoValue>{intl.formatMessage({ id: 'analyze.status.unavailable' })}</NoValue>;
   else if (query.isPending) value = <span className="c-skel a-skel--name" />;
   else if (totals.length === 0) value = <NoValue>{intl.formatMessage({ id: 'analyze.reason.no_spend_facts' })}</NoValue>;
   else
@@ -227,12 +243,28 @@ function SpendStat({ query, connected, source }: { query: UseQueryResult<SpendRe
       </span>
     ));
   const first = totals[0];
+  // A spend fact stays provisional until its provider's delay has passed, as on the Ad spend page.
+  const stale = freshness && freshness !== 'fresh' ? <FreshnessBadge state={freshness} /> : null;
+  const provisional = totals.some((total) => total.provisional) ? <ProvisionalBadge /> : null;
   return (
     <Stat
       label={<FormattedMessage id="analyze.spend.title" />}
-      badge={freshness && freshness !== 'fresh' ? <FreshnessBadge state={freshness} /> : null}
+      badge={
+        stale || provisional ? (
+          <>
+            {stale}
+            {stale && provisional ? ' ' : null}
+            {provisional}
+          </>
+        ) : null
+      }
       value={value}
-      rows={first && first.status !== 'complete' ? <p className="c-stat__row"><TotalState status={first.status} reason={first.reason} /></p> : null}
+      rows={
+        <>
+          {failed ? <FailedRow message={failed} /> : null}
+          {first && first.status !== 'complete' ? <p className="c-stat__row"><TotalState status={first.status} reason={first.reason} /></p> : null}
+        </>
+      }
       meta={report ? <SourceMeta source={source} dayZone={report.day_zone} /> : source}
     />
   );

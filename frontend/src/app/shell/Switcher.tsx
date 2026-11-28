@@ -39,7 +39,8 @@ export function Switcher({ current, clientId, compact = false }: SwitcherProps) 
     queries: agencies.map((agency) => ({ ...agencyQuery(agency.agency_id), enabled: mayNameAgency(agency) })),
   });
   const nameOf = (id: string) => details[agencies.findIndex((agency) => agency.agency_id === id)]?.data?.name;
-  const clients = useQuery(clientsQuery(agencyId));
+  // The API refuses the clients of a closing agency (017-A): they are not asked for.
+  const clients = useQuery({ ...clientsQuery(agencyId), enabled: current.status !== 'closing' });
   const sorted = [...(clients.data ?? [])].sort(byName(intl.locale));
 
   const agencyName = nameOf(agencyId);
