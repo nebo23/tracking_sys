@@ -12,7 +12,9 @@ import { analyzeDays, withAnalyzeData, withClient } from './support/tenants.ts';
 
 const days = `from=${analyzeDays.from}&to=${analyzeDays.to}`;
 const card = (page: Page, title: string) => page.locator('article').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
-const figure = (page: Page, label: string) => page.getByRole('region', { name: 'Key figures' }).locator('article').filter({ has: page.getByText(label, { exact: true }) });
+// A figure's label may carry a state badge (stale, provisional), so the label is matched by its text.
+const figure = (page: Page, label: string) =>
+  page.getByRole('region', { name: 'Key figures' }).locator('article').filter({ has: page.locator('.c-stat__label', { hasText: label }) });
 
 test('an owner reads the overview, content, revenue and ad spend of a client, with every state named', async ({ page }, testInfo) => {
   const owner = await registered(newPerson(testInfo));
