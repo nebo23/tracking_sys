@@ -178,15 +178,21 @@ describe('the workspace', () => {
     fakeApi(signedIn());
     openApp('/');
     const navigation = await primary();
-    expect(linkTexts(navigation)).toEqual(['Clients', 'Team and access', 'API keys', 'Audit log', 'Account']);
+    expect(linkTexts(navigation)).toEqual(['Clients', 'Team and access', 'API keys', 'Audit log', 'Agency settings', 'Account']);
     expect(navigation.getByRole('link', { name: 'Clients' })).toHaveAttribute('aria-current', 'page');
     expect(navigation.getByRole('link', { name: 'Account' })).not.toHaveAttribute('aria-current');
     expect(navigation.getByRole('group', { name: 'Agency' })).toBeInTheDocument();
     expect(document.title).toBe('Clients · Connect');
   });
 
-  it.each(['analyst', 'client_viewer'] as const)('offers a %s the clients only', async (role) => {
-    fakeApi(asRole(role, signedIn()));
+  it('offers an analyst the clients and Agency settings, where the plan can be read', async () => {
+    fakeApi(asRole('analyst', signedIn()));
+    openApp('/');
+    expect(linkTexts(await primary())).toEqual(['Clients', 'Agency settings', 'Account']);
+  });
+
+  it('offers a client viewer the clients only', async () => {
+    fakeApi(asRole('client_viewer', signedIn()));
     openApp('/');
     expect(linkTexts(await primary())).toEqual(['Clients', 'Account']);
   });
@@ -233,7 +239,7 @@ describe('the workspace', () => {
     await user.keyboard('{Escape}');
 
     await router.navigate({ to: '/agencies/$agencyId/clients', params: { agencyId: agency.id } });
-    await waitFor(() => expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Team', 'API keys', 'Audit', 'Account']));
+    await waitFor(() => expect(bar().getAllByRole('link').map((link) => link.textContent)).toEqual(['Clients', 'Team', 'API keys', 'Audit', 'Settings']));
   });
 
   it('shows the client level inside a client, with the way back to the agency', async () => {
@@ -331,7 +337,7 @@ describe('the workspace', () => {
     expect(await screen.findByRole('heading', { name: 'العملاء', level: 1 })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     const navigation = within(screen.getByRole('navigation', { name: 'التنقل الرئيسي' }));
-    expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'سجل التدقيق', 'الحساب']);
+    expect(linkTexts(navigation)).toEqual(['العملاء', 'الفريق والصلاحيات', 'مفاتيح API', 'سجل التدقيق', 'إعدادات الوكالة', 'الحساب']);
   });
 
   it('opens only the closing page of a closing agency, and marks it in the switcher', async () => {
@@ -349,7 +355,7 @@ describe('the workspace', () => {
 
     expect(await screen.findByRole('heading', { name: 'This agency is closing', level: 1 })).toBeInTheDocument();
     expect(window.location.pathname).toBe(`/agencies/${second.id}/closing`);
-    expect(screen.getByText(/Only its Owners still see it/)).toBeInTheDocument();
+    expect(screen.getByText(/Members and client viewers no longer see the agency/)).toBeInTheDocument();
     expect(server.sent(`GET /agencies/${second.id}/clients`)).toHaveLength(1);
 
     await user.click(switcher());
@@ -403,7 +409,7 @@ describe('the workspace', () => {
     await user.click(await menu.findByRole('menuitem', { name: /Northlight Media/ }));
 
     await waitFor(() => expect(window.location.pathname).toBe(`/agencies/${second.id}/clients`));
-    expect(linkTexts(await primary())).toEqual(['Clients', 'Account']);
+    expect(linkTexts(await primary())).toEqual(['Clients', 'Agency settings', 'Account']);
     await waitFor(() => expect(queryClient.getQueryData(tenantKey(agency.id, 'clients'))).toBeUndefined());
     expect(queryClient.getQueryData(tenantKey(second.id, 'clients'))).toEqual([]);
     expect(agencyChoice.get()).toBe(second.id);

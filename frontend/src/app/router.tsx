@@ -27,6 +27,7 @@ import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
 import { returnErrors, returnOutcomes, type ReturnError, type ReturnOutcome } from '@/features/connections/returnErrors';
 import { integrationTabs, type IntegrationTabId } from '@/features/integrations/tabs';
 import { linksTabs, type LinksTabId } from '@/features/links/tabs';
+import { maySeeSettings, settingsTabs, type SettingsTab } from '@/features/settings/tabs';
 import { analyzeSearch, attributionSearch } from '@/features/analyze/search';
 import { isIdentifier } from '@/lib/identifier';
 import { captureLinkToken, heldLinkToken } from '@/lib/linkToken';
@@ -55,6 +56,7 @@ const ContentPage = lazyRouteComponent(() => import('@/features/analyze/ContentP
 const RevenuePage = lazyRouteComponent(() => import('@/features/analyze/RevenuePage'), 'RevenuePage');
 const AdSpendPage = lazyRouteComponent(() => import('@/features/analyze/AdSpendPage'), 'AdSpendPage');
 const AttributionPage = lazyRouteComponent(() => import('@/features/attribution/AttributionPage'), 'AttributionPage');
+const SettingsPage = lazyRouteComponent(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -289,6 +291,19 @@ const auditRoute = createRoute({
   component: AuditPage,
 });
 
+// Agency settings (B13, B14): every member but a client viewer, for whom the page does not exist.
+const settingsRoute = createRoute({
+  getParentRoute: () => agencyRoute,
+  path: 'settings',
+  validateSearch: (search: Search): { tab?: SettingsTab } => ({
+    tab: settingsTabs.find((tab) => tab !== 'plan' && tab === search.tab),
+  }),
+  loader: ({ context }) => {
+    if (!context.access || !maySeeSettings(context.access.role)) throw notFound();
+  },
+  component: SettingsPage,
+});
+
 // ------------------------------------------------------------- A client --
 const clientRoute = createRoute({
   getParentRoute: () => agencyRoute,
@@ -440,6 +455,7 @@ const routeTree = rootRoute.addChildren([
       teamRoute,
       keysRoute,
       auditRoute,
+      settingsRoute,
       clientRoute.addChildren([
         clientIndexRoute,
         contentRoute,

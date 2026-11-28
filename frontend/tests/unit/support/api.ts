@@ -50,6 +50,15 @@ export const accepted = { terms: 'draft-1', privacy: 'draft-1' };
 /** A token of the shape the API puts in mail links (43 URL-safe characters). */
 export const linkToken = 'Zm9yLXRlc3RzLW9ubHktbm90LWEtcmVhbC10b2tlbi0x';
 
+/** A JSON body as its value; any other body (a PNG logo, say) as its text. */
+function readBody(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
 export function fakeApi(routes: Record<string, Answer>) {
   const requests: Sent[] = [];
   const handle = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -62,7 +71,7 @@ export function fakeApi(routes: Record<string, Answer>) {
       url: request.url,
       headers: request.headers,
       credentials: request.credentials,
-      body: text === '' ? undefined : (JSON.parse(text) as unknown),
+      body: text === '' ? undefined : readBody(text),
     };
     requests.push(sent);
     const answer = routes[`${sent.method} ${sent.path}`];

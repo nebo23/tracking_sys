@@ -414,3 +414,42 @@ body {
 .a-figures--flush {
   padding: 0;
 }
+
+/* ------------------------------------------------------ Agency settings -- */
+/* The accent color: a swatch to pick it and its text beside it (018-F). */
+.a-color {
+  inline-size: 44px;
+  block-size: 40px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+.a-color__text {
+  inline-size: 9em;
+}
+.a-logo {
+  border-block-start: 1px solid var(--border-default);
+}
+/* How a report email names the agency: a preview on the settings page only (D8). */
+.a-brand-preview {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-block-start: 4px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.a-brand-preview__logo {
+  max-block-size: 48px;
+  max-inline-size: 160px;
+  object-fit: contain;
+}
+.a-brand-preview__name {
+  margin: 0;
+  font-weight: 600;
+}
+.a-closing {
+  max-inline-size: 560px;
+}

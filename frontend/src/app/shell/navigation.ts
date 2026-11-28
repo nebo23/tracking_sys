@@ -1,7 +1,11 @@
 import { linkOptions, type LinkProps } from '@tanstack/react-router';
 
+import type { Role } from '@/api/agencies';
 import type { IconName } from '@/components/Icon';
+import { maySeeSettings } from '@/features/settings/tabs';
 import type { MessageId } from '@/i18n';
+
+import { isManager } from '../agency';
 
 /** One place a person can go from the sidebar or the phone tab bar. */
 export interface Destination {
@@ -52,39 +56,47 @@ export const clientsDestination = (agencyId: string): Destination => ({
 });
 
 /**
- * The agency level (D11): the clients, and for the people who manage the agency its team, keys and audit log.
- * Destinations of later slices are absent, not disabled.
+ * The agency level (D11, and section 4.3 of the completion entry review): the clients; for the
+ * people who manage the agency its team, keys and audit log; and Agency settings for everyone
+ * but client viewers (D7). Destinations of later slices are absent, not disabled.
  */
-export function agencyGroups(agencyId: string, manager: boolean): DestinationGroup[] {
+export function agencyGroups(agencyId: string, role: Role): DestinationGroup[] {
   const groups: DestinationGroup[] = [{ key: 'start', items: [clientsDestination(agencyId)] }];
-  if (manager) {
-    groups.push({
-      key: 'agency',
-      label: 'shell.nav.group.agency',
-      items: [
-        {
-          key: 'team',
-          icon: 'users',
-          label: 'shell.nav.team',
-          shortLabel: 'shell.nav.team.short',
-          link: linkOptions({ to: '/agencies/$agencyId/team', params: { agencyId } }),
-        },
-        {
-          key: 'keys',
-          icon: 'key-round',
-          label: 'shell.nav.keys',
-          link: linkOptions({ to: '/agencies/$agencyId/keys', params: { agencyId } }),
-        },
-        {
-          key: 'audit',
-          icon: 'scroll-text',
-          label: 'shell.nav.audit',
-          shortLabel: 'shell.nav.audit.short',
-          link: linkOptions({ to: '/agencies/$agencyId/audit', params: { agencyId } }),
-        },
-      ],
+  const items: Destination[] = [];
+  if (isManager(role)) {
+    items.push(
+      {
+        key: 'team',
+        icon: 'users',
+        label: 'shell.nav.team',
+        shortLabel: 'shell.nav.team.short',
+        link: linkOptions({ to: '/agencies/$agencyId/team', params: { agencyId } }),
+      },
+      {
+        key: 'keys',
+        icon: 'key-round',
+        label: 'shell.nav.keys',
+        link: linkOptions({ to: '/agencies/$agencyId/keys', params: { agencyId } }),
+      },
+      {
+        key: 'audit',
+        icon: 'scroll-text',
+        label: 'shell.nav.audit',
+        shortLabel: 'shell.nav.audit.short',
+        link: linkOptions({ to: '/agencies/$agencyId/audit', params: { agencyId } }),
+      },
+    );
+  }
+  if (maySeeSettings(role)) {
+    items.push({
+      key: 'settings',
+      icon: 'settings',
+      label: 'shell.nav.settings',
+      shortLabel: 'shell.nav.settings.short',
+      link: linkOptions({ to: '/agencies/$agencyId/settings', params: { agencyId } }),
     });
   }
+  if (items.length > 0) groups.push({ key: 'agency', label: 'shell.nav.group.agency', items });
   return groups;
 }
 

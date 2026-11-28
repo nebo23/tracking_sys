@@ -1,7 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link, useParams } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { FormattedMessage } from 'react-intl';
 
+import { agenciesQuery } from '@/api/agencies';
 import type { ErrorMessage } from '@/api/errors';
+import { isManager } from '@/app/agency';
 import { cx } from '@/lib/cx';
 
 import { Icon, type IconName } from './Icon';
@@ -43,11 +47,27 @@ export function Notice({ tone = 'info', title, children, action, quiet = false }
   );
 }
 
+/** The way from a plan limit to the agency's Plan and usage (017-A), when the address names an agency. */
+function PlanLink() {
+  const agencyId = useParams({ strict: false, select: (params) => params.agencyId });
+  // Only read from what is loaded: the notice is also drawn outside the pages of an agency.
+  const { data: agencies } = useQuery({ ...agenciesQuery, enabled: false });
+  const role = agencies?.find((agency) => agency.agency_id === agencyId)?.role;
+  // Owners and admins change what uses the plan (018-F, D7).
+  if (!agencyId || !isManager(role)) return null;
+  return (
+    <Link to="/agencies/$agencyId/settings" params={{ agencyId }}>
+      <FormattedMessage id="settings.plan.link" />
+    </Link>
+  );
+}
+
 /** The sentence for a failed request, or nothing while there is no failure. */
 export function ErrorNotice({ message, action }: { message: ErrorMessage | null; action?: ReactNode }) {
   if (!message) return null;
+  const planLimit = message.id.startsWith('error.plan_limit_reached');
   return (
-    <Notice tone="danger" action={action}>
+    <Notice tone="danger" action={action ?? (planLimit ? <PlanLink /> : undefined)}>
       <FormattedMessage id={message.id} values={message.values} />
     </Notice>
   );

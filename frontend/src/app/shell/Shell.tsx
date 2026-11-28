@@ -12,7 +12,7 @@ import { Logo } from '@/components/Logo';
 import { Main } from '@/components/Main';
 import { ErrorNotice } from '@/components/Notice';
 
-import { isManager, useCurrentAgency, useTenantAddress } from '../agency';
+import { useCurrentAgency, useTenantAddress } from '../agency';
 import { useForgetWhatWasLeft } from '../tenant';
 import { useSignOut } from '../useSignOut';
 
@@ -73,7 +73,7 @@ export function Shell() {
   if (!session) return null;
 
   let groups: DestinationGroup[] = [{ key: 'start', items: [firstAgencyDestination] }];
-  if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : agencyGroups(access.agency_id, isManager(access.role));
+  if (access) groups = clientId ? clientGroups(access.agency_id, clientId) : agencyGroups(access.agency_id, access.role);
   const level = groups.flatMap((group) => group.items);
   // On a phone the way back to the list of clients is a tab of its own. Five tabs share the width:
   // inside a client the rest of its menu is under More (D5); at the agency level, when there are

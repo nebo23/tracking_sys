@@ -303,6 +303,27 @@ for (const look of looks) {
       await expect(page.locator('main .c-empty')).toBeVisible();
       found.push(...(await findings(page, 'not found in the workspace')));
 
+      // Agency settings (018-F): the plan, the branding profile with an error, and the closure dialog with an error.
+      await page.goto(`/agencies/${agencyId}/settings`);
+      await settled(page);
+      await expect(page.locator('main table tbody tr')).toHaveCount(4);
+      found.push(...(await findings(page, 'plan and usage')));
+      await page.goto(`/agencies/${agencyId}/settings?tab=branding`);
+      await settled(page);
+      await submit(page).click();
+      await expect(page.locator('main .c-field__error')).toBeVisible();
+      found.push(...(await findings(page, 'branding with an error')));
+      await page.goto(`/agencies/${agencyId}/settings?tab=closure`);
+      await settled(page);
+      found.push(...(await findings(page, 'close the agency')));
+      await page.locator('main .c-btn--danger').click();
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      await dialogSubmit(page).click();
+      await expect(dialog(page).locator('.c-field__error')).toBeVisible();
+      found.push(...(await findings(page, 'close-agency dialog with an error')));
+      await page.keyboard.press('Escape');
+      await expect(dialog(page)).toBeHidden();
+
       await page.goto('/account');
       await ready(page);
       found.push(...(await findings(page, 'account')));
@@ -313,6 +334,19 @@ for (const look of looks) {
       await page.locator('.c-btn--danger-quiet').click();
       await expect(page.getByRole('alertdialog')).toBeVisible();
       found.push(...(await findings(page, 'close-account dialog')));
+      await page.keyboard.press('Escape');
+      await expect(dialog(page)).toBeHidden();
+
+      // The page of a closing agency (B15), after a real closure request.
+      await page.goto(`/agencies/${agencyId}/settings?tab=closure`);
+      await settled(page);
+      await page.locator('main .c-btn--danger').click();
+      await dialog(page).locator('#closure-name').fill('Lumen Studio');
+      await dialog(page).locator('#closure-password').fill(owner.password);
+      await dialogSubmit(page).click();
+      await expect(page.locator('.a-closing')).toBeVisible();
+      await expect(page.locator('.a-closing .c-skel')).toHaveCount(0);
+      found.push(...(await findings(page, 'closing agency')));
 
       await report(testInfo, found);
     });
@@ -547,6 +581,15 @@ test.describe('on a phone', () => {
     await page.locator('.c-tabbar button').click();
     await expect(page.locator('[role="menu"]')).toBeVisible();
     found.push(...(await findings(page, 'more menu at 390')));
+    await page.keyboard.press('Escape');
+    // Agency settings (018-F) fit a phone too.
+    const settings = `${base.split('/clients/')[0]}/settings`;
+    for (const [query, name] of [['', 'plan and usage'], ['?tab=branding', 'branding'], ['?tab=closure', 'close the agency']] as const) {
+      await page.goto(`${settings}${query}`);
+      await settled(page);
+      found.push(...(await findings(page, `${name} at 390`)));
+      expect(await overflowing(), name).toBeLessThanOrEqual(0);
+    }
     await report(testInfo, found);
   });
 });
