@@ -1,0 +1,483 @@
+/* Rules only the running application needs. Product styles live in docs/design/ui/connect-ui.css
+ * and are not repeated here. Every value comes from docs/design/tokens/tokens.css.
+ *
+ * Naming: a- for these rules, beside the l-, c-, u- and is- names of the reference styles.
+ */
+
+/* ----------------------------------------------------------------- Page -- */
+html,
+body,
+#root {
+  block-size: 100%;
+}
+body {
+  margin: 0;
+}
+.a-center {
+  display: grid;
+  place-items: center;
+  min-block-size: 100%;
+  padding: var(--space-8);
+  color: var(--text-tertiary);
+}
+.a-center > .c-empty {
+  color: var(--text-primary);
+}
+/* A heading or region that takes focus after a move to another page is not a control. */
+.c-root h1[tabindex="-1"]:focus-visible,
+.c-root main[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+.a-contents {
+  display: contents;
+}
+
+/* ---------------------------------------------------------------- Forms -- */
+/* The control that shows a password sits inside the field, at the end of the line. */
+.a-password > .c-input {
+  padding-inline: var(--space-5) 44px;
+}
+.a-password__toggle {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 6px;
+  transform: translateY(-50%);
+}
+.a-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 440px;
+}
+.a-narrow {
+  max-inline-size: 720px;
+}
+.a-dl--controls {
+  align-items: center;
+}
+
+/* ------------------------------------------------------- Before sign-in -- */
+.a-auth__logo {
+  align-self: flex-start;
+  inline-size: auto;
+}
+.a-legal {
+  max-inline-size: 720px;
+}
+
+/* ---------------------------------------------------------------- Shell -- */
+.a-skip {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-start: var(--space-4);
+  z-index: var(--z-toast);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-300%);
+}
+.a-skip:focus {
+  transform: none;
+}
+.a-shell__page {
+  flex: 1 0 auto;
+}
+/* The account link rests at the foot of the sidebar. */
+.a-nav__end {
+  margin-block-start: auto;
+}
+.a-skel--name {
+  display: inline-block;
+  inline-size: 12ch;
+  vertical-align: middle;
+}
+.a-skeleton > .c-skel:nth-child(2n) {
+  inline-size: 70%;
+}
+.a-phone,
+.a-tabbar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .a-phone {
+    display: flex;
+    min-inline-size: 0;
+  }
+  .a-desktop {
+    display: none;
+  }
+  .l-app .l-topbar {
+    flex-wrap: nowrap;
+  }
+  .a-tabbar {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    display: grid;
+  }
+  .a-switcher--compact {
+    min-block-size: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+/* ------------------------------------------------------------- Overlays -- */
+/* React Aria draws a menu as a list inside the box that it places beside its trigger. */
+.a-menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.a-menu__who {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: 280px;
+  padding: var(--space-3) var(--space-4);
+  font-size: calc(var(--type-body-sm-size) + var(--script-size-bump));
+}
+.a-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  overflow-y: auto;
+}
+.a-modal {
+  inline-size: min(480px, 100%);
+}
+.a-modal > .c-dialog {
+  inline-size: 100%;
+  outline: none;
+}
+.a-modal--wide {
+  inline-size: min(600px, 100%);
+}
+/* A long menu scrolls inside itself, so its trigger stays in view. */
+.a-menu--tall {
+  max-block-size: min(480px, 70vh);
+  max-inline-size: min(360px, 90vw);
+  overflow-y: auto;
+}
+.a-menu--select {
+  min-inline-size: var(--trigger-width);
+  max-inline-size: min(440px, 90vw);
+}
+.a-option__label,
+.a-option__hint {
+  display: block;
+}
+.a-option__hint {
+  color: var(--text-tertiary);
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+  white-space: normal;
+}
+.c-menu__item.is-focused {
+  background: var(--surface-selected);
+}
+
+/* ---------------------------------------------------------------- Lists -- */
+.a-skel--figure {
+  display: inline-block;
+  inline-size: 3ch;
+  block-size: 1em;
+  vertical-align: middle;
+}
+.a-skel--chip {
+  display: inline-block;
+  inline-size: 9ch;
+  vertical-align: middle;
+}
+/* A sentence that stands where the rows of a list would be. */
+.a-none {
+  padding: var(--space-8) var(--space-7);
+  color: var(--text-secondary);
+}
+.a-pad {
+  padding: var(--space-7);
+}
+/* A day is read as one thing; it is not broken across two lines. */
+.a-nowrap {
+  white-space: nowrap;
+}
+/* The number beside the name of a tab: members, or invitations still waiting. */
+.a-tab-count {
+  margin-inline-start: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+/* A member's avatar, name and email stay on one line beside each other. */
+.a-person {
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
+.a-row-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+/* ---------------------------------------------------- Choices in a form -- */
+.a-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* A part of a form that is closed until the person opens it. */
+.a-fieldset[hidden] {
+  display: none;
+}
+/* One choice out of a few, each with a sentence that says what it means. */
+.a-choice--card {
+  display: flex;
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.a-choice--card:has(:checked) {
+  border-color: var(--border-focus);
+  background: var(--surface-selected);
+}
+/* The sentence sits on a line of its own, under the name and clear of the control. */
+.a-choice__more {
+  flex-basis: 100%;
+  padding-inline-start: calc(24px + var(--space-3));
+}
+/* The clients a person or a key may open: a name to tick, and its financial data beside it. */
+.a-grants {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 240px;
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+.a-grants__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  padding-block: var(--space-3);
+}
+.a-grants__row + .a-grants__row {
+  border-block-start: 1px solid var(--border-default);
+}
+.a-grants__client {
+  flex: 1 1 12ch;
+  min-inline-size: 0;
+}
+.a-copy {
+  flex-wrap: nowrap;
+}
+/* A value to copy that spans several lines, such as the code a website installs: the button stays at its top. */
+.a-copy--block {
+  align-items: flex-start;
+}
+.a-code {
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+/* A row of small values, such as the UTM values of a template. */
+.a-chips {
+  gap: var(--space-2);
+}
+
+/* -------------------------------------------------------------- Panels -- */
+/* The panels of a page's tabs keep their distance from the tabs. */
+.a-tabpanels {
+  margin-block-start: var(--space-6);
+}
+/* A button that shows or hides the part of a form below it. */
+.a-disclosure {
+  align-self: flex-start;
+}
+.a-turned {
+  transform: rotate(180deg);
+}
+/* Notices at the top of a card body that has no padding of its own. */
+.a-pad--x {
+  padding-inline: var(--space-7);
+}
+.a-pad--x:empty {
+  display: none;
+}
+/* Long values that have no spaces, such as a digest, break anywhere rather than widen the dialog. */
+.a-break {
+  overflow-wrap: anywhere;
+}
+/* The steps of an installation, numbered in the language of the page. */
+.a-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-7);
+  color: var(--text-secondary);
+  /* The reference styles take the numbers off lists; steps keep theirs. */
+  list-style: decimal;
+}
+.a-steps > li::marker {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+/* The fields of a form being registered, each in a box of its own. */
+.a-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.a-fields__item {
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+/* A row of figures over a table: a label and its number. */
+.a-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0 var(--space-7) var(--space-5);
+}
+.a-figures__item dt {
+  color: var(--text-tertiary);
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+.a-figures__item dd {
+  margin: 0;
+  font-size: calc(var(--type-title-lg-size) + var(--script-size-bump));
+  line-height: var(--type-title-lg-line);
+  font-weight: var(--type-title-lg-weight);
+}
+
+/* ------------------------------------------------------------- Analyze -- */
+/* A chart's legend and its table switch share one row (018-C). */
+.a-series__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.a-series__summary {
+  font-size: calc(var(--type-caption-size) + var(--script-size-bump));
+}
+.a-series__table {
+  max-block-size: 360px;
+  overflow-y: auto;
+}
+/* A figure in two currencies has one line for each. */
+.a-stat__line {
+  display: block;
+}
+/* Where a figure comes from: its source, its day and its last synchronization. */
+.a-source {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+/* A value that is not a number is said in words, in a quieter voice. */
+.a-novalue {
+  color: var(--text-secondary);
+  font-size: calc(var(--type-body-size) + var(--script-size-bump));
+  font-weight: 500;
+}
+.a-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.a-range {
+  gap: var(--space-3);
+}
+.a-range__field .c-input {
+  inline-size: auto;
+}
+.a-figures--flush {
+  padding: 0;
+}
+
+/* ------------------------------------------------------ Agency settings -- */
+/* The accent color: a swatch to pick it and its text beside it (018-F). */
+.a-color {
+  inline-size: 44px;
+  block-size: 40px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+.a-color__text {
+  inline-size: 9em;
+}
+.a-logo {
+  border-block-start: 1px solid var(--border-default);
+}
+/* How a report email names the agency: a preview on the settings page only (D8). */
+.a-brand-preview {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-block-start: 4px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.a-brand-preview__logo {
+  max-block-size: 48px;
+  max-inline-size: 160px;
+  object-fit: contain;
+}
+.a-brand-preview__name {
+  margin: 0;
+  font-weight: 600;
+}
+.a-closing {
+  max-inline-size: 560px;
+}
+/* The shell of a closing agency (B15): its top bar and its one page, without a sidebar. */
+.a-app--single {
+  flex-direction: column;
+}
+
+/* -------------------------------------------------------------- Reports -- */
+/* The download and the menu of a row sit together at its end. */
+.a-row-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+/* A group of fields in a form: the legend names it; no frame of its own. */
+.a-fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* An export that is gone (E08): the reason in the middle of the page, and the ways on. */
+.a-gone {
+  max-inline-size: 640px;
+  margin-inline: auto;
+  padding-block: var(--space-12);
+}
+.a-gone__actions {
+  justify-content: center;
+}

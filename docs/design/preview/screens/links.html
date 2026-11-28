@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Links, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Primary">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu" aria-label="Switch client">
+      <span class="c-avatar c-avatar--org">OT</span>
+      <span class="u-grow"><span class="c-switcher__name">Olive &amp; Thyme</span><span class="c-switcher__sub">Lumen Studio</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <nav class="c-nav u-grow" aria-label="Client workspace">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item" href="journey.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item is-active" href="links.html" aria-current="page"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections<span class="c-nav__count" aria-label="1 needs attention">1</span></a>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+      <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Settings</a>
+      <a class="c-nav__item" href="../index.html"><span class="c-icon c-icon--circle-help" aria-hidden="true"></span>Help</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong>Links</strong></nav>
+      <div class="l-cluster u-end">
+        <button class="c-search" type="button"><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span><span class="c-search__label">Search</span><span class="c-kbd">Ctrl K</span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button>
+      </div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Links</h1>
+          <p class="c-pagehead__lead">Short links that carry a campaign and a piece of content with them, so a visit can be traced back to the post that sent it.</p>
+        </div>
+        <div class="l-cluster">
+          <button class="c-btn c-btn--secondary" type="button" aria-expanded="true"><span class="c-icon c-icon--sm c-icon--plus" aria-hidden="true"></span>Create link</button>
+        </div>
+      </div>
+
+      <div class="c-tabs" role="tablist" aria-label="Link settings">
+        <button class="c-tab is-active" role="tab" aria-selected="true" type="button">Links</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">Campaigns</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">UTM templates</button>
+        <button class="c-tab" role="tab" aria-selected="false" type="button">Domains</button>
+      </div>
+
+      <div class="l-split">
+        <article class="c-card">
+          <div class="c-card__header">
+            <label class="c-search"><span class="u-sr">Search links</span><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span><input class="c-search__input" type="search" placeholder="Search by name or address" id="link-search"></label>
+            <div class="l-cluster"><button class="c-select c-select--inline" type="button" aria-label="Campaign"><span>All campaigns</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><div class="c-seg" role="group" aria-label="Status"><button class="c-seg__item is-active" type="button">Active</button><button class="c-seg__item" type="button">Paused</button></div></div>
+          </div>
+          <div class="c-card__body c-card__body--flush">
+            <div class="c-table-wrap">
+              <table class="c-table">
+                <thead><tr><th scope="col">Link</th><th scope="col">Campaign</th><th scope="col">Content</th><th scope="col">Created</th><th scope="col"><span class="u-sr">Actions</span></th></tr></thead>
+                <tbody>
+                  <tr><td><span class="c-table__primary">Ramadan offer, reel</span><span class="c-table__sub u-mono u-ltr">go.olivethyme.example/ramadan-reel</span></td><td>Ramadan 2026</td><td>Ramadan offer teaser</td><td>12 Mar</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Copy link"><span class="c-icon c-icon--sm c-icon--copy" aria-hidden="true"></span></button><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="More actions"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Ramadan offer, story</span><span class="c-table__sub u-mono u-ltr">go.olivethyme.example/ramadan-story</span></td><td>Ramadan 2026</td><td>Behind the scenes</td><td>9 Mar</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Copy link"><span class="c-icon c-icon--sm c-icon--copy" aria-hidden="true"></span></button><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="More actions"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Iftar menu</span><span class="c-table__sub u-mono u-ltr">go.olivethyme.example/iftar</span></td><td>Ramadan 2026</td><td>Iftar menu carousel</td><td>10 Mar</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Copy link"><span class="c-icon c-icon--sm c-icon--copy" aria-hidden="true"></span></button><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="More actions"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Catering enquiry</span><span class="c-table__sub u-mono u-ltr">go.olivethyme.example/catering</span></td><td>Always on</td><td class="is-absent">No content linked</td><td>2 Feb</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Copy link"><span class="c-icon c-icon--sm c-icon--copy" aria-hidden="true"></span></button><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="More actions"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                  <tr><td><span class="c-table__primary">Fatayer recipe video</span><span class="c-table__sub u-mono u-ltr">go.olivethyme.example/fatayer</span></td><td>Always on</td><td>How we fold the perfect fatayer</td><td>5 Mar</td><td class="is-num"><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Copy link"><span class="c-icon c-icon--sm c-icon--copy" aria-hidden="true"></span></button><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="More actions"><span class="c-icon c-icon--sm c-icon--ellipsis" aria-hidden="true"></span></button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="c-card__footer"><span>5 of 18 active links</span><span class="l-cluster u-end"><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Previous page" disabled><span class="c-icon c-icon--sm c-icon--chevron-left c-icon--mirror" aria-hidden="true"></span></button><button class="c-btn c-btn--secondary c-btn--sm c-btn--icon" type="button" aria-label="Next page"><span class="c-icon c-icon--sm c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span></button></span></div>
+        </article>
+
+        <form class="c-card" aria-labelledby="new-link-title">
+          <div class="c-card__header"><div><h2 class="c-card__title" id="new-link-title">New link</h2><p class="c-card__subtitle">Opens beside the list when you choose Create link</p></div><button class="c-btn c-btn--ghost c-btn--sm c-btn--icon" type="button" aria-label="Close"><span class="c-icon c-icon--sm c-icon--x" aria-hidden="true"></span></button></div>
+          <div class="c-card__body l-stack">
+            <label class="c-field"><span class="c-field__label">Destination</span><input class="c-input u-ltr" type="url" value="https://olivethyme.example/ramadan-box" id="link-destination"><span class="c-field__hint">Must be on a destination site this client has approved.</span></label>
+            <div class="c-field"><span class="c-field__label" id="short-label">Short address</span><div class="l-cluster" style="flex-wrap: nowrap"><button class="c-select" type="button" aria-labelledby="short-label" style="flex: 1 1 60%"><span class="u-ltr u-truncate">go.olivethyme.example</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><input class="c-input u-ltr" type="text" value="suhoor-box" aria-label="Ending" id="link-slug" style="flex: 1 1 40%"></div></div>
+            <div class="c-field"><span class="c-field__label" id="campaign-label">Campaign</span><button class="c-select" type="button" aria-labelledby="campaign-label"><span>Ramadan 2026</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button></div>
+            <div class="c-field"><span class="c-field__label" id="content-label">Content it will appear in</span><button class="c-select" type="button" aria-labelledby="content-label"><span>Suhoor box unboxing, reel</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><span class="c-field__hint">Lets a visit be traced to this piece.</span></div>
+            <div class="c-field"><span class="c-field__label">Address visitors arrive at</span><p class="c-chip u-mono u-ltr" style="white-space: normal; padding-block: 8px; line-height: 1.5; word-break: break-all">https://olivethyme.example/ramadan-box?utm_source=instagram&amp;utm_medium=reel&amp;utm_campaign=ramadan-2026</p><span class="c-field__hint">From the template “Instagram organic”.</span></div>
+          </div>
+          <div class="c-card__footer"><button class="c-btn c-btn--primary" type="button">Create link</button><button class="c-btn c-btn--ghost" type="button">Cancel</button></div>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

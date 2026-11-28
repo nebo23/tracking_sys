@@ -1,6 +1,6 @@
 """Authenticated tenant administration and client-scoped service reads."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -19,6 +19,8 @@ from app.api.schemas import (
     InvitationInput,
     InvitationResponse,
     IssuedServiceKey,
+    MemberClientGrant,
+    MemberDetail,
     MembershipResponse,
     MembershipUpdate,
     ServiceKeyInput,
@@ -33,7 +35,7 @@ from app.services.access import (
     resolve_scope,
 )
 from app.services.auth import enforce_rate_limit
-from app.services.tenancy import AccessDenied, TenancyService
+from app.services.tenancy import AccessDenied, MemberDetailRow, TenancyService
 
 # Tenant administration router. Every route authenticates through BrowserDep or ReaderDep and
 # delegates authorization to the tenancy/access services; mutations commit with their audit
@@ -41,6 +43,8 @@ from app.services.tenancy import AccessDenied, TenancyService
 router = APIRouter(tags=["Agency access"])
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0, le=100000)]
+# active (the default) or archived, which only Owners and Admins may list (018-B plan, B2).
+ClientStatus = Annotated[Literal["active", "archived"], Query()]
 
 
 # Create an agency; the authenticated verified user becomes its Owner, and the agency starts its
@@ -119,7 +123,9 @@ def create_client(
 
 
 # List active clients readable by the principal: managers see all, restricted members see
-# explicit grants, and a service key sees only its own granted clients in its own agency.
+# explicit grants, and a service key sees only its own granted clients in its own agency. With
+# status=archived, Owners and Admins list the archived clients they may restore (018-B plan, B2);
+# everyone else, service keys included, is denied.
 @router.get("/agencies/{agency_id}/clients", response_model=list[ClientResponse])
 def list_clients(
     agency_id: UUID,
@@ -127,14 +133,15 @@ def list_clients(
     principal: ReaderDep,
     limit: Limit = 100,
     offset: Offset = 0,
+    status: ClientStatus = "active",
 ) -> list[ClientResponse]:
     if principal.kind == "user":
         clients = TenancyService(session, principal.identifier).list_clients(
-            agency_id, limit=limit, offset=offset
+            agency_id, status=status, limit=limit, offset=offset
         )
     else:
         key = live_service_credential(session, principal.identifier)
-        if key.agency_id != agency_id:
+        if key.agency_id != agency_id or status != "active":
             raise AccessDenied()
         clients = session.scalars(
             select(ClientWorkspace)
@@ -188,18 +195,36 @@ def update_client(
     )
 
 
-# List agency memberships (Owner/Admin only).
-@router.get("/agencies/{agency_id}/members", response_model=list[MembershipResponse])
+# One member as Owners and Admins see it: a closed account's pseudonyms are never returned.
+def _member_detail(row: MemberDetailRow) -> MemberDetail:
+    named = row.account != "closed"
+    return MemberDetail(
+        id=row.membership.id,
+        agency_id=row.membership.agency_id,
+        user_id=row.membership.user_id,
+        role=row.membership.role,
+        status=row.membership.status,
+        joined_at=row.membership.created_at,
+        display_name=row.user.display_name if named else None,
+        email_normalized=row.user.email_normalized if named else None,
+        account=row.account,
+        clients=[MemberClientGrant.model_validate(grant) for grant in row.grants],
+    )
+
+
+# List agency memberships with each person's name, email, account state and client grants
+# (Owner/Admin only; 018-B plan, B1; D-101).
+@router.get("/agencies/{agency_id}/members", response_model=list[MemberDetail])
 def list_members(
     agency_id: UUID,
     session: SessionDep,
     browser: BrowserDep,
     limit: Limit = 100,
     offset: Offset = 0,
-) -> list[MembershipResponse]:
+) -> list[MemberDetail]:
     return [
-        MembershipResponse.model_validate(member)
-        for member in TenancyService(session, browser.user.id).list_members(
+        _member_detail(row)
+        for row in TenancyService(session, browser.user.id).list_member_details(
             agency_id, limit=limit, offset=offset
         )
     ]

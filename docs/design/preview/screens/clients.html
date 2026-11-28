@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clients, Lumen Studio</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Primary">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu" aria-label="Switch client">
+      <span class="c-avatar c-avatar--org">LS</span>
+      <span class="u-grow"><span class="c-switcher__name">Lumen Studio</span><span class="c-switcher__sub">All clients</span></span>
+      <span class="c-icon c-icon--sm c-icon--chevrons-up-down u-tertiary" aria-hidden="true"></span>
+    </button>
+    <nav class="c-nav u-grow" aria-label="Agency">
+      <div class="c-nav__group">
+        <a class="c-nav__item is-active" href="clients.html" aria-current="page"><span class="c-icon c-icon--briefcase-business" aria-hidden="true"></span>Clients</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Agency</p>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--users" aria-hidden="true"></span>Team and access</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--key-round" aria-hidden="true"></span>API keys</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--scroll-text" aria-hidden="true"></span>Audit log</a>
+        <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--shield-check" aria-hidden="true"></span>Privacy and data</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+      <a class="c-nav__item" href="team.html"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Settings</a>
+      <a class="c-nav__item" href="../index.html"><span class="c-icon c-icon--circle-help" aria-hidden="true"></span>Help</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><span>Lumen Studio</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong>Clients</strong></nav>
+      <div class="l-cluster u-end">
+        <button class="c-search" type="button"><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span><span class="c-search__label">Search</span><span class="c-kbd">Ctrl K</span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Notifications"><span class="c-icon c-icon--bell" aria-hidden="true"></span></button>
+        <button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button>
+      </div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Clients</h1>
+          <p class="c-pagehead__lead">Each client is a separate workspace. Its data, connections and reports are never mixed with another client's.</p>
+        </div>
+        <div class="l-cluster">
+          <button class="c-btn c-btn--primary" type="button"><span class="c-icon c-icon--sm c-icon--plus" aria-hidden="true"></span>Add client</button>
+        </div>
+      </div>
+
+      <section class="l-grid l-grid--3" aria-label="Agency summary">
+        <article class="c-card c-stat"><p class="c-stat__label">Active clients</p><p class="c-stat__value"><span class="u-num">6</span></p><p class="c-stat__row">1 archived</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Connections that need attention</p><p class="c-stat__value"><span class="u-num">2</span></p><p class="c-stat__row"><span class="c-badge c-badge--danger"><span class="c-icon c-icon--circle-alert" aria-hidden="true"></span>1 to reconnect</span><span class="c-badge c-badge--warning"><span class="c-icon c-icon--clock" aria-hidden="true"></span>1 stale</span></p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Clients with nothing connected</p><p class="c-stat__value"><span class="u-num">1</span></p><p class="c-stat__row">Nile Home was added 3 days ago</p></article>
+      </section>
+
+      <article class="c-card">
+        <div class="c-card__header">
+          <label class="c-search"><span class="u-sr">Search clients</span><span class="c-icon c-icon--sm c-icon--search" aria-hidden="true"></span><input class="c-search__input" type="search" placeholder="Search clients" id="client-search"></label>
+          <div class="c-seg" role="group" aria-label="Show"><button class="c-seg__item is-active" type="button">Active</button><button class="c-seg__item" type="button">Archived</button></div>
+        </div>
+        <div class="c-card__body c-card__body--flush">
+          <div class="c-table-wrap">
+            <table class="c-table">
+              <thead><tr><th scope="col">Client</th><th scope="col">Connections</th><th scope="col">Last sync</th><th scope="col">Status</th><th scope="col">People with access</th><th scope="col"><span class="u-sr">Open</span></th></tr></thead>
+              <tbody>
+                <tr><td><span class="l-cluster"><span class="c-avatar c-avatar--org">OT</span><span><span class="c-table__primary">Olive &amp; Thyme</span><span class="c-table__sub">Restaurant, added 12 January</span></span></span></td><td><span class="l-cluster"><span class="c-glyph c-glyph--instagram" role="img" aria-label="Instagram"></span><span class="c-glyph c-glyph--youtube" role="img" aria-label="YouTube"></span><span class="c-glyph c-glyph--meta" role="img" aria-label="Meta ads"></span><span class="c-icon c-icon--credit-card" role="img" aria-label="Payments"></span></span></td><td>3 hours ago</td><td><span class="c-badge c-badge--danger"><span class="c-icon c-icon--circle-alert" aria-hidden="true"></span>Reconnect YouTube</span></td><td>5</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="overview.html">Open</a></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-avatar c-avatar--org">CF</span><span><span class="c-table__primary">Cedar Fitness</span><span class="c-table__sub">Gym chain, added 3 February</span></span></span></td><td><span class="l-cluster"><span class="c-glyph c-glyph--instagram" role="img" aria-label="Instagram"></span><span class="c-glyph c-glyph--meta" role="img" aria-label="Meta ads"></span><span class="c-icon c-icon--credit-card" role="img" aria-label="Payments"></span></span></td><td>1 hour ago</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>All fresh</span></td><td>4</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="overview.html">Open</a></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-avatar c-avatar--org">SB</span><span><span class="c-table__primary">Sahara Books</span><span class="c-table__sub">Online bookshop, added 18 February</span></span></span></td><td><span class="l-cluster"><span class="c-glyph c-glyph--instagram" role="img" aria-label="Instagram"></span><span class="c-glyph c-glyph--youtube" role="img" aria-label="YouTube"></span></span></td><td>5 hours ago</td><td><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>All fresh</span></td><td>3</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="overview.html">Open</a></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-avatar c-avatar--org">MD</span><span><span class="c-table__primary">Mint Dental</span><span class="c-table__sub">Clinic, added 1 March</span></span></span></td><td><span class="l-cluster"><span class="c-glyph c-glyph--instagram" role="img" aria-label="Instagram"></span><span class="c-glyph c-glyph--meta" role="img" aria-label="Meta ads"></span></span></td><td>3 days ago</td><td><span class="c-badge c-badge--warning"><span class="c-icon c-icon--clock" aria-hidden="true"></span>Meta ads stale</span></td><td>2</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="overview.html">Open</a></td></tr>
+                <tr><td><span class="l-cluster"><span class="c-avatar c-avatar--org">NH</span><span><span class="c-table__primary">Nile Home</span><span class="c-table__sub">Furniture, added 31 March</span></span></span></td><td class="is-absent">None yet</td><td class="is-absent">Never</td><td><span class="c-badge"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connect the first account</span></td><td>2</td><td class="is-num"><a class="c-btn c-btn--secondary c-btn--sm" href="connections.html">Set up</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="c-card__footer"><span>5 of 6 active clients</span></div>
+      </article>
+    </main>
+  </div>
+</div>
+</body>
+</html>

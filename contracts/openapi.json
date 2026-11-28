@@ -3023,6 +3023,20 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "archived"
+              ],
+              "type": "string",
+              "default": "active",
+              "title": "Status"
+            }
           }
         ],
         "responses": {
@@ -3527,7 +3541,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/MembershipResponse"
+                    "$ref": "#/components/schemas/MemberDetail"
                   },
                   "title": "Response List Members Agencies  Agency Id  Members Get"
                 }
@@ -38442,6 +38456,117 @@
           "password"
         ],
         "title": "Login"
+      },
+      "MemberClientGrant": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Id"
+          },
+          "can_view_financials": {
+            "type": "boolean",
+            "title": "Can View Financials"
+          },
+          "can_view_identities": {
+            "type": "boolean",
+            "title": "Can View Identities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "can_view_financials",
+          "can_view_identities"
+        ],
+        "title": "MemberClientGrant"
+      },
+      "MemberDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "agency_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Agency Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joined At"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "Null for an account its person closed."
+          },
+          "email_normalized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Normalized",
+            "description": "Null for an account its person closed."
+          },
+          "account": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled",
+              "closed"
+            ],
+            "title": "Account",
+            "description": "closed after the person closed it; disabled when an administrator disabled it."
+          },
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/MemberClientGrant"
+            },
+            "type": "array",
+            "title": "Clients",
+            "description": "Explicit client grants, archived clients included. Owners and Admins read every active client whatever their grants."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "agency_id",
+          "user_id",
+          "role",
+          "status",
+          "joined_at",
+          "display_name",
+          "email_normalized",
+          "account",
+          "clients"
+        ],
+        "title": "MemberDetail"
       },
       "MembershipResponse": {
         "properties": {

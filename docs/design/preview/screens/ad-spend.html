@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ad spend, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Sidebar">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu"><span class="c-avatar c-avatar--org" aria-hidden="true">OT</span><span class="u-grow u-truncate"><span class="c-switcher__name u-truncate">Olive &amp; Thyme</span><span class="c-switcher__sub u-truncate">Lumen Studio</span></span><span class="u-sr">Switch client or agency</span><span class="c-icon c-icon--sm c-icon--chevrons-up-down" aria-hidden="true"></span></button>
+    <nav class="c-nav u-grow" aria-label="Primary">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item is-active" href="ad-spend.html" aria-current="page"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item" href="attribution.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections</a>
+        <a class="c-nav__item" href="reports.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+        <a class="c-nav__item" href="#account"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Account</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><a href="clients.html">Lumen Studio</a><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong aria-current="page">Ad spend</strong></nav>
+      <div class="l-cluster u-end"><button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button></div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Ad spend</h1>
+          <p class="c-pagehead__lead">What each advertising account reports as spent, in its own currency and time zone, never mixed with revenue.</p>
+        </div>
+        <div class="l-cluster"><button class="c-select c-select--inline" type="button" aria-label="Advertising account"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span><span>Meta ads, Olive &amp; Thyme</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><button class="c-select c-select--inline" type="button" aria-label="Date range"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>1 &ndash; 28 March 2026</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><label class="c-choice"><input class="c-switch" type="checkbox" checked id="compare"><span>Compare with previous period</span></label><button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--download" aria-hidden="true"></span>Export CSV</button></div>
+      </div>
+      <div class="c-banner c-banner--neutral" role="note">
+        <span class="c-icon c-icon--info" aria-hidden="true"></span>
+        <div class="c-banner__text"><p><span class="c-banner__title">The range ends on 28 March, the last complete day.</span> <span class="u-secondary">Meta can still change its figures for 29 and 30 March, so they stay out of the totals until they are final.</span></p></div>
+      </div>
+
+      <section class="l-grid l-grid--4" aria-label="Key figures">
+        <article class="c-card c-stat"><p class="c-stat__label">Spend</p><p class="c-stat__value"><span class="c-stat__unit">EGP</span><span class="u-num">38,940.00</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+12.4%</span></span><span>vs 1 to 28 February</span></p><p class="c-stat__meta"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span>Meta ads, account days in Cairo</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Impressions</p><p class="c-stat__value"><span class="u-num">1,184,320</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+8.1%</span></span><span>vs 1 to 28 February</span></p><p class="c-stat__meta"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span>As Meta counts them</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Clicks</p><p class="c-stat__value"><span class="u-num">16,904</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+15.0%</span></span><span>vs 1 to 28 February</span></p><p class="c-stat__meta"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span>Link clicks and other clicks, as Meta counts them</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Days with spend</p><p class="c-stat__value"><span class="u-num">28</span></p><p class="c-stat__row"><span>of the 28 days in the range</span></p><p class="c-stat__meta"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Every day of the range is complete</p></article>
+      </section>
+
+      <div class="l-split">
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">Spend by campaign</h2><p class="c-card__subtitle">As Meta reports it, 1 to 28 March, in Egyptian pounds</p></div><div class="c-seg" role="group" aria-label="Level"><button class="c-seg__item is-active" type="button" aria-pressed="true">Campaigns</button><button class="c-seg__item" type="button" aria-pressed="false">Ad sets</button><button class="c-seg__item" type="button" aria-pressed="false">Ads</button></div></div>
+          <div class="c-card__body c-card__body--flush">
+            <div class="c-table-wrap">
+              <table class="c-table">
+                <thead><tr><th scope="col">Campaign</th><th scope="col" class="is-num">Spend</th><th scope="col" class="is-num">Impressions</th><th scope="col" class="is-num">Clicks</th><th scope="col" class="is-num">Days with spend</th><th scope="col">Share of spend</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="c-table__primary">Ramadan 2026, reels</span><span class="c-table__sub">Campaign <span class="u-mono u-ltr">120210000184520471</span></span></td><td class="is-num">18,420.00</td><td class="is-num">562,180</td><td class="is-num">8,214</td><td class="is-num">28</td><td><span class="c-meter" role="img" aria-label="47 percent"><span class="c-meter__fill" style="inline-size: 47%"></span></span></td></tr>
+                  <tr><td><span class="c-table__primary">Iftar menu, carousel</span><span class="c-table__sub">Campaign <span class="u-mono u-ltr">120210000184520488</span></span></td><td class="is-num">11,260.00</td><td class="is-num">341,905</td><td class="is-num">4,980</td><td class="is-num">28</td><td><span class="c-meter" role="img" aria-label="29 percent"><span class="c-meter__fill" style="inline-size: 29%"></span></span></td></tr>
+                  <tr><td><span class="c-table__primary">Catering, lead form</span><span class="c-table__sub">Campaign <span class="u-mono u-ltr">120210000184520512</span></span></td><td class="is-num">6,880.00</td><td class="is-num">214,330</td><td class="is-num">2,906</td><td class="is-num">21</td><td><span class="c-meter" role="img" aria-label="18 percent"><span class="c-meter__fill" style="inline-size: 18%"></span></span></td></tr>
+                  <tr><td><span class="c-table__primary">Brand awareness</span><span class="c-table__sub">Campaign <span class="u-mono u-ltr">120210000184520530</span></span></td><td class="is-num">2,380.00</td><td class="is-num">65,905</td><td class="is-num">804</td><td class="is-num">9</td><td><span class="c-meter" role="img" aria-label="6 percent"><span class="c-meter__fill" style="inline-size: 6%"></span></span></td></tr>
+                </tbody>
+                <tfoot><tr><th scope="row">Total</th><td class="is-num u-strong">38,940.00</td><td class="is-num">1,184,320</td><td class="is-num">16,904</td><td class="is-num">28</td><td></td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+          <div class="c-card__footer"><span class="c-source"><span class="c-glyph c-glyph--meta" aria-hidden="true"></span>Meta ads</span><span>Names as Meta gave them at the last sync</span><span class="c-badge c-badge--success u-end"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Complete</span></div>
+        </article>
+
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">Source</h2><p class="c-card__subtitle">Where these figures come from</p></div></div>
+          <div class="c-card__body">
+            <dl class="c-dl">
+              <dt>Account</dt><dd><span class="u-strong">Olive &amp; Thyme ads</span><span class="c-table__sub">Egyptian pounds, Africa/Cairo time</span></dd>
+              <dt>Last sync</dt><dd><span class="c-badge c-badge--success"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Fresh</span> <span class="u-secondary">2 hours ago</span></dd>
+              <dt>Account days</dt><dd><div class="c-coverage" role="img" aria-label="Stored from 4 April 2024, complete through 28 March 2026, provisional to 30 March"><span class="c-coverage__range" style="inset-inline-start: 0; inline-size: 96%"></span><span class="c-coverage__range c-coverage__range--provisional" style="inset-inline-start: 96%; inline-size: 4%"></span></div><span class="c-table__sub">4 Apr 2024 to 28 Mar 2026, then 2 provisional days</span></dd>
+              <dt>Rows refused</dt><dd>None. Every stored row could be read.</dd>
+            </dl>
+          </div>
+          <div class="c-card__footer"><a href="connections.html">Manage connections</a></div>
+        </article>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

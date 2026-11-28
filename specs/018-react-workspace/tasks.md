@@ -1,18 +1,22 @@
 # Tasks: 018-react-workspace
-Status: Not completed; this is a review checklist, not an implementation instruction.
+Status: implemented on `codex/spec-018-workspace-screens` and verified as a whole (D-106, [completion evidence](evidence-018-completion.md)); the owner's review and acceptance are pending. This is a review checklist, not an implementation instruction.
 
 - [ ] Approve the scope and sources for react workspace and user experience.
-- [ ] Resolve Q-006, Q-009; approve user flows and design before implementation and record the owner decision.
-- [ ] Verify dependencies: 016-analytics-reporting, 017-saas-lifecycle.
+- [x] Resolve Q-006, Q-009; approve user flows and design before implementation and record the owner decision. (D-082 and D-083. The currency and FX part of Q-006 stays open with specification 007, and D-084 approves the package list of the [018-A plan](plan-018a.md).)
+- [x] Verify dependencies: 016-analytics-reporting, 017-saas-lifecycle. (016-A to 016-C and 017-A to 017-C are merged on `main`; the branch took `main` at `7c7b5b5` in P5.)
 - [ ] Prepare applicable contracts and synthetic data/permission examples.
-- [ ] Define independently reviewable local changes for the approved specification.
-- [ ] Implement the first approved slice.
-- [ ] Verify: A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows.
-- [ ] Verify: Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization.
-- [ ] Verify: Approved RTL/LTR layouts, keyboard navigation, and loading, empty, error, stale, and partial states work correctly.
-- [ ] Verify: Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions.
-- [ ] Verify: Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely.
-- [ ] Update documentation, limitations, and untested assumptions.
-- [ ] Present a reviewable result to the owner.
-- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012).
+- [x] Define independently reviewable local changes for the approved specification. (D14 in D-083: slices 018-A to 018-D; the first is planned in the [018-A plan](plan-018a.md).)
+- [x] Implement the first approved slice. (018-A under D-084; see the [018-A evidence](evidence-018a.md). The owner's review is pending.)
+- [x] Implement the second slice. (018-B under D-100 and D-101: clients, connections, members, invitations, keys, archived clients and the audit log; see the [018-B evidence](evidence-018b.md). The owner's review is pending.)
+- [x] Implement the third slice. (018-D under D-100: links, website tracking and integrations; see the [018-D evidence](evidence-018d.md).)
+- [x] Approve the completion of the remaining screens. (D-106 on 2026-11-28; proposed on 2026-11-27 in the [completion entry review](entry-review-completion.md), D1-D12, with its [implementation handoff](implementation-prompt-completion.md): bringing both branches up to date with `main`, then 018-C, 018-E, 018-F and 018-G.)
+- [x] Complete the remaining screens. (P0 to P5 under D-106: the update with `main` and the agreement versions of 017-A, Analyze (018-C), Attribution (018-E), Agency settings (018-F) and Reports (018-G, drawings approved by D-107); see the [completion evidence](evidence-018-completion.md).)
+- [x] Verify: A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows. (018-B connects stand-in providers; 018-C and 018-E name the source and state of every figure. No live provider was used.)
+- [x] Verify: Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization. (Checked for the screens of 018-B by unit tests and by journeys with two agencies and with an analyst who was given one of two clients, see the [018-B evidence](evidence-018b.md); every later slice keys its data by agency and client, and in 018-G an export's address opens nothing for a reader who may not see it.)
+- [x] Verify: Approved RTL/LTR layouts, keyboard navigation, and loading, empty, error, stale, and partial states work correctly. (018-A for the first screens; the axe scans of journey 10 cover every later page in the four looks and at 390 pixels; Analyze and Attribution name stale, partial, provisional, missing and unsupported values in words, see the [018-C evidence](evidence-018c.md).)
+- [x] Verify: Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions. (Unit tests compare the rules with the backend sources: financial values only with `finance:read`, the plan limits and the soft event allowance of 017-A, the bounds of 016-C; journey 23 checks an analyst without financial access.)
+- [x] Verify: Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely. (The bundle search of `npm run build:check` after every slice and in P5; text from the API is rendered as text, with no raw HTML.)
+- [x] Update documentation, limitations, and untested assumptions. (Each slice's evidence lists its limits; P5 updated the guides, the screen list and the status lines.)
+- [x] Present a reviewable result to the owner. (018-A was pushed to the specification branch under D-051 on 2026-11-26 and is open in pull request 17. The remaining slices were pushed under D-051 and opened together in [PR 23](https://github.com/nebo23/tracking_sys/pull/23) under D-106, which holds 018-A as well.)
+- [ ] Obtain owner review and upload approval, then push and create or update a PR (D-012). (018-A: pushed under D-051 and opened as pull request 17 under D-086. The whole specification: [PR 23](https://github.com/nebo23/tracking_sys/pull/23) under D-106, without a further upload request. The review and the merge are pending.)
 - [ ] Record owner acceptance before progressing to dependent work.

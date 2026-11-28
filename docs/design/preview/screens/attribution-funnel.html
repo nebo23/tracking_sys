@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attribution, funnel, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Sidebar">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu"><span class="c-avatar c-avatar--org" aria-hidden="true">OT</span><span class="u-grow u-truncate"><span class="c-switcher__name u-truncate">Olive &amp; Thyme</span><span class="c-switcher__sub u-truncate">Lumen Studio</span></span><span class="u-sr">Switch client or agency</span><span class="c-icon c-icon--sm c-icon--chevrons-up-down" aria-hidden="true"></span></button>
+    <nav class="c-nav u-grow" aria-label="Primary">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="ad-spend.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item is-active" href="attribution.html" aria-current="page"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections</a>
+        <a class="c-nav__item" href="reports.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+    </nav>
+    <div class="c-nav__group">
+        <a class="c-nav__item" href="#account"><span class="c-icon c-icon--settings" aria-hidden="true"></span>Account</a>
+    </div>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><a href="clients.html">Lumen Studio</a><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong aria-current="page">Attribution</strong></nav>
+      <div class="l-cluster u-end"><button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button></div>
+    </header>
+
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Attribution</h1>
+          <p class="c-pagehead__lead">Which campaigns, content and links earned credit for leads and verified sales, under the model you choose. Credit is an allocation under that model, not proof of cause.</p>
+        </div>
+        <div class="l-cluster"><button class="c-select c-select--inline" type="button" aria-label="Date range"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>1 &ndash; 30 March 2026</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><label class="c-choice"><input class="c-switch" type="checkbox" checked id="compare"><span>Compare with previous period</span></label><button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--download" aria-hidden="true"></span>Export CSV</button></div>
+      </div>
+      <div class="c-tabs" role="tablist" aria-label="Attribution"><button class="c-tab" type="button" role="tab" aria-selected="false">Credit</button><button class="c-tab is-active" type="button" role="tab" aria-selected="true">Funnel</button><button class="c-tab" type="button" role="tab" aria-selected="false">Return on ad spend</button></div>
+      <div class="l-spread">
+        <div class="l-cluster"><div class="c-seg" role="group" aria-label="Attribution model"><button class="c-seg__item is-active" type="button" aria-pressed="true">Linear</button><button class="c-seg__item" type="button" aria-pressed="false">First click</button><button class="c-seg__item" type="button" aria-pressed="false">Last click</button></div><span class="u-secondary">30-day window. Linear is the default for this client.</span></div>
+        <button class="c-select c-select--inline" type="button" aria-label="Group by"><span>By campaign</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button>
+      </div>
+
+      <section class="l-grid l-grid--4" aria-label="Steps">
+        <article class="c-card c-stat"><p class="c-stat__label">Page views</p><p class="c-stat__value"><span class="u-num">48,210</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+11.3%</span></span><span>vs previous 30 days</span></p><p class="c-stat__meta"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracker, by the day received</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Through a link</p><p class="c-stat__value"><span class="u-num">12,906</span></p><p class="c-stat__row"><span class="u-num">26.8%</span>&nbsp;of page views</p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+19.5%</span></span><span>vs previous 30 days</span></p><p class="c-stat__meta"><span class="c-icon c-icon--link" aria-hidden="true"></span>Arrived through a Connect link</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Leads</p><p class="c-stat__value"><span class="u-num">127.0</span></p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+7.2%</span></span><span>vs previous 30 days</span></p><p class="c-stat__meta"><span class="c-icon c-icon--file-text" aria-hidden="true"></span>Credited under Linear, by conversion date</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Sales</p><p class="c-stat__value"><span class="u-num">320.0</span></p><p class="c-stat__row"><span class="u-num">EGP 128,450.75</span>&nbsp;credited</p><p class="c-stat__row"><span class="c-delta c-delta--good"><span class="c-icon c-icon--arrow-up-right" aria-hidden="true"></span><span class="u-num">+6.1%</span></span><span>vs previous 30 days</span></p><p class="c-stat__meta"><span class="c-icon c-icon--badge-check" aria-hidden="true"></span>Verified sales, by conversion date</p></article>
+      </section>
+
+      <div class="l-split">
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">Steps by campaign</h2><p class="c-card__subtitle">Page views through each campaign&rsquo;s links, and the leads and sales credited to it</p></div></div>
+          <div class="c-card__body c-card__body--flush">
+            <div class="c-table-wrap">
+              <table class="c-table">
+                <thead><tr><th scope="col">Campaign</th><th scope="col" class="is-num">Page views</th><th scope="col" class="is-num">Leads</th><th scope="col" class="is-num">Sales</th><th scope="col" class="is-num">Credited revenue</th><th scope="col" class="is-num">Leads per 1,000 views</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="c-table__primary">Ramadan 2026</span><span class="c-table__sub">Through its links</span></td><td class="is-num">6,840</td><td class="is-num">58.5</td><td class="is-num">96.3</td><td class="is-num u-strong">41,260.40</td><td class="is-num">8.6</td></tr>
+                  <tr><td><span class="c-table__primary">Iftar menu</span><span class="c-table__sub">Through its links</span></td><td class="is-num">3,912</td><td class="is-num">31.0</td><td class="is-num">52.8</td><td class="is-num u-strong">22,410.00</td><td class="is-num">7.9</td></tr>
+                  <tr><td><span class="c-table__primary">Catering</span><span class="c-table__sub">Through its link</span></td><td class="is-num">1,604</td><td class="is-num">12.5</td><td class="is-num">18.4</td><td class="is-num u-strong">8,940.60</td><td class="is-num">7.8</td></tr>
+                  <tr><td><span class="c-table__primary u-mono u-ltr">spring_sale</span><span class="c-table__sub"><span class="c-badge c-badge--plain">Not a Connect campaign</span></span></td><td class="is-num">550</td><td class="is-num">2.0</td><td class="is-num">3.5</td><td class="is-num u-strong">1,509.00</td><td class="is-num">3.6</td></tr>
+                  <tr><td><span class="c-table__primary">Direct</span><span class="c-table__sub">Page views without a link</span></td><td class="is-num">35,304</td><td class="is-num">9.0</td><td class="is-num">61.0</td><td class="is-num u-strong">21,930.75</td><td class="is-num">0.3</td></tr>
+                  <tr><td><span class="c-table__primary">Unknown</span><span class="c-table__sub">No journey could be linked</span></td><td class="is-num is-absent">Not measured</td><td class="is-num">14.0</td><td class="is-num">88.0</td><td class="is-num u-strong">32,400.00</td><td class="is-num is-absent">&mdash;</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="c-card__footer"><span>Amounts in EGP</span><span class="c-badge c-badge--success u-end"><span class="c-icon c-icon--circle-check" aria-hidden="true"></span>Up to date, published 12 minutes ago</span></div>
+        </article>
+
+        <article class="c-card">
+          <div class="c-card__header"><div><h2 class="c-card__title">How the steps are counted</h2></div></div>
+          <div class="c-card__body">
+            <dl class="l-stack">
+              <div><dt class="u-strong">Each step on its own</dt><dd class="u-secondary">A sale can come without a lead, so the steps are not a strict funnel and are not divided into one another.</dd></div>
+              <div><dt class="u-strong">Page views by the day received</dt><dd class="u-secondary">Counted only for visitors who agreed to be counted, on UTC days.</dd></div>
+              <div><dt class="u-strong">Leads and sales by conversion date</dt><dd class="u-secondary">Credited under the model above, in the 30-day window.</dd></div>
+              <div><dt class="u-strong">Unknown has no page views</dt><dd class="u-secondary">Without a journey there is no visit to count, so the cell says so instead of showing 0.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

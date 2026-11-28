@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Save as export, Olive &amp; Thyme</title>
+<link rel="icon" href="../../brand/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../tokens/tokens.css">
+<link rel="stylesheet" href="../../ui/connect-icons.css">
+<link rel="stylesheet" href="../../ui/connect-ui.css">
+<link rel="stylesheet" href="../preview.css">
+<script src="../theme.js"></script>
+</head>
+<body class="c-root">
+<div class="l-app">
+
+  <aside class="l-sidebar" aria-label="Sidebar">
+    <a class="c-logo" href="clients.html"><img class="g-only-light" src="../../brand/connect-logo.svg" alt="Connect"><img class="g-only-dark" src="../../brand/connect-logo-reversed.svg" alt="Connect"></a>
+    <button class="c-switcher" type="button" aria-haspopup="menu"><span class="c-avatar c-avatar--org" aria-hidden="true">OT</span><span class="u-grow u-truncate"><span class="c-switcher__name u-truncate">Olive &amp; Thyme</span><span class="c-switcher__sub u-truncate">Lumen Studio</span></span><span class="u-sr">Switch client or agency</span><span class="c-icon c-icon--sm c-icon--chevrons-up-down" aria-hidden="true"></span></button>
+    <nav class="c-nav u-grow" aria-label="Primary">
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="overview.html"><span class="c-icon c-icon--layout-dashboard" aria-hidden="true"></span>Overview</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Analyze</p>
+        <a class="c-nav__item" href="content.html"><span class="c-icon c-icon--chart-column" aria-hidden="true"></span>Content</a>
+        <a class="c-nav__item" href="revenue.html"><span class="c-icon c-icon--banknote" aria-hidden="true"></span>Revenue</a>
+        <a class="c-nav__item" href="ad-spend.html"><span class="c-icon c-icon--megaphone" aria-hidden="true"></span>Ad spend</a>
+        <a class="c-nav__item is-active" aria-current="page" href="attribution.html"><span class="c-icon c-icon--waypoints" aria-hidden="true"></span>Attribution</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Collect</p>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--link" aria-hidden="true"></span>Links</a>
+        <a class="c-nav__item" href="links.html"><span class="c-icon c-icon--activity" aria-hidden="true"></span>Website tracking</a>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--blocks" aria-hidden="true"></span>Integrations</a>
+      </div>
+      <div class="c-nav__group">
+        <p class="c-nav__label">Manage</p>
+        <a class="c-nav__item" href="connections.html"><span class="c-icon c-icon--plug" aria-hidden="true"></span>Connections</a>
+        <a class="c-nav__item" href="reports.html"><span class="c-icon c-icon--file-chart-column" aria-hidden="true"></span>Reports</a>
+      </div>
+      <div class="c-nav__group">
+        <a class="c-nav__item" href="#account"><span class="c-icon c-icon--user" aria-hidden="true"></span>Account</a>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="l-main">
+    <header class="l-topbar">
+      <nav class="c-crumbs" aria-label="Breadcrumb"><a href="clients.html">Lumen Studio</a><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><span>Olive &amp; Thyme</span><span class="c-icon c-icon--xs c-icon--chevron-right c-icon--mirror" aria-hidden="true"></span><strong aria-current="page">Attribution</strong></nav>
+      <div class="l-cluster u-end"><button class="c-btn c-btn--ghost c-btn--icon" type="button" aria-label="Account: Mona Hassan"><span class="c-avatar">MH</span></button></div>
+    </header>
+    <main class="l-page">
+      <div class="c-pagehead">
+        <div>
+          <h1 class="c-pagehead__title">Attribution</h1>
+          <p class="c-pagehead__lead">Which campaigns, content and links earned credit for leads and verified sales, under the model you choose. Credit is an allocation under that model, not proof of cause.</p>
+        </div>
+        <div class="l-cluster"><button class="c-select c-select--inline" type="button" aria-label="Date range"><span class="c-icon c-icon--sm c-icon--calendar" aria-hidden="true"></span><span>1 &ndash; 30 March 2026</span><span class="c-icon c-icon--sm c-icon--chevron-down" aria-hidden="true"></span></button><label class="c-choice"><input class="c-switch" type="checkbox" checked><span>Compare with the previous period</span></label><button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--download" aria-hidden="true"></span>Download CSV</button><button class="c-btn c-btn--secondary" type="button"><span class="c-icon c-icon--sm c-icon--bookmark" aria-hidden="true"></span>Save as export</button></div>
+      </div>
+      <div class="c-tabs" role="tablist" aria-label="Attribution"><button class="c-tab is-active" type="button" role="tab" aria-selected="true">Credit</button><button class="c-tab" type="button" role="tab" aria-selected="false">Funnel</button><button class="c-tab" type="button" role="tab" aria-selected="false">Return on ad spend</button></div>
+      <section class="l-grid l-grid--4" aria-label="Credited revenue">
+        <article class="c-card c-stat"><p class="c-stat__label">Credited revenue</p><p class="c-stat__value"><span class="c-stat__unit">EGP</span><span class="u-num">74,120.00</span></p><p class="c-stat__meta">12 leads credited</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">To campaigns</p><p class="c-stat__value"><span class="c-stat__unit">EGP</span><span class="u-num">61,480.00</span></p><p class="c-stat__meta">9 leads</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Direct</p><p class="c-stat__value"><span class="c-stat__unit">EGP</span><span class="u-num">8,240.00</span></p><p class="c-stat__meta">2 leads</p></article>
+        <article class="c-card c-stat"><p class="c-stat__label">Unknown</p><p class="c-stat__value"><span class="c-stat__unit">EGP</span><span class="u-num">4,400.00</span></p><p class="c-stat__meta">1 lead</p></article>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="c-scrim" style="position: fixed; inset: 0; z-index: 50">
+  <section class="c-dialog" role="dialog" aria-labelledby="save-title" style="inline-size: min(560px, 100%)">
+    <div class="c-dialog__header"><h2 class="c-dialog__title" id="save-title">Save this report as an export?</h2></div>
+    <div class="c-dialog__body">
+      <dl class="c-dl c-dl--split">
+        <dt>Report</dt><dd>Attribution, credit by campaign</dd>
+        <dt>Model</dt><dd>Linear, the client&rsquo;s default</dd>
+        <dt>Period</dt><dd>1 to 30 March 2026, 30 days</dd>
+        <dt>Compared with</dt><dd>30 January to 28 February 2026</dd>
+        <dt>Sale values</dt><dd><span class="c-icon c-icon--xs c-icon--lock" aria-hidden="true"></span> Included, because you have financial access</dd>
+        <dt>Kept until</dt><dd>7 April 2026, 10:15</dd>
+      </dl>
+      <p>The export keeps this CSV exactly as it is now. People who may read this report and its sale values can download it from Reports; a client viewer sees only the exports they saved.</p>
+      <p class="u-secondary">3 of 50 exports are kept for Olive &amp; Thyme.</p>
+    </div>
+    <div class="c-dialog__footer"><button class="c-btn c-btn--secondary" type="button">Cancel</button><button class="c-btn c-btn--primary" type="button"><span class="c-icon c-icon--sm c-icon--bookmark" aria-hidden="true"></span>Save export</button></div>
+  </section>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # Plan: 018-react-workspace
-Status: Draft. This plan does not authorize implementation or dependency selection.
+Status: Draft for the specification as a whole; each slice has its own plan and evidence. [018-A](plan-018a.md) was approved by D-084 and implemented on 2026-11-26 ([evidence](evidence-018a.md)); [018-B](plan-018b.md) and [018-D](plan-018d.md) followed under D-100 and D-101 ([018-B evidence](evidence-018b.md), [018-D evidence](evidence-018d.md)); and the completion round of D-106 planned and built the update of P0 ([plan](plan-018-update.md)), [018-C](plan-018c.md), [018-E](plan-018e.md), [018-F](plan-018f.md) and [018-G](plan-018g.md), verified as a whole in the [completion evidence](evidence-018-completion.md). This document does not authorize implementation or dependency selection.
 
 ## Expected outcome
 Provide authentication flows, agency/client switching, connections, dashboards, journeys, links, reports, and settings with responsive and accessible interactions.
@@ -9,7 +9,7 @@ Provide authentication flows, agency/client switching, connections, dashboards, 
 - Map agency/client authorization across every relevant resource, job, cache, and export.
 - Identify data classes, consent, retention, and field provenance before migrations.
 - Define success, error, retry, limits, backfill, and disconnection behavior where applicable.
-- Distinguish confirmed decisions from proposals and resolve: Q-006, Q-009; approve user flows and design before implementation.
+- Distinguish confirmed decisions from proposals and resolve: Q-006, Q-009; approve user flows and design before implementation. Done for the interface by D-082 and D-083; the currency and FX part of Q-006 stays with specification 007.
 
 ## Proposed review slices
 1. Review contracts, schema proposals, synthetic fixtures, and approved acceptance cases.
@@ -19,11 +19,11 @@ Provide authentication flows, agency/client switching, connections, dashboards, 
 Prepare small, reviewable local changes. Complete the approved specification and relevant checks, then obtain owner review and upload approval before pushing or creating/updating a PR (D-012).
 
 ## Validation
-- [ ] A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows.
-- [ ] Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization.
-- [ ] Approved RTL/LTR layouts, keyboard navigation, and loading, empty, error, stale, and partial states work correctly.
-- [ ] Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions.
-- [ ] Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely.
+- [x] A user connects an account, sees its status, and accesses clearly sourced social analytics and attribution workflows (018-B connects stand-in providers and shows each connection's state; 018-C and 018-E name the source and state of every figure).
+- [x] Switching clients clears state/cache that could expose the previous client's data; deep links cannot bypass API authorization (the cache is keyed by agency and client; 018-B journeys with two agencies and with an analyst who has one of two clients; in 018-G an export's address opens nothing for a reader who may not see it).
+- [x] Approved RTL/LTR layouts, keyboard navigation, and loading, empty, error, stale, and partial states work correctly (axe scans of every page in the four looks and at 390 pixels; keyboard journeys; Analyze and Attribution name stale, partial, provisional, missing and unsupported values in words).
+- [x] Budgets, financial data, and permissions match backend rules; mobile layouts retain essential actions (unit tests compare the rules with the backend sources: financial values only with `finance:read`, the plan limits and the soft event allowance of 017-A, the bounds of 016-C).
+- [x] Production secrets are absent from browser bundles, and potentially dangerous content is rendered safely (`npm run build:check` after every slice; no raw HTML is rendered).
 
 ## Rollout and recovery
 Specify migrations and backfill where needed, feature flags or kill switches where appropriate, and rollback procedures that preserve financial and audit history. Deployment requires approval of the production stage.
